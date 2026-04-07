@@ -13,44 +13,63 @@ import (
 )
 
 type LanguageConfig struct {
-	Language *tree_sitter.Language
-	Query    string
+	Language    *tree_sitter.Language
+	Query       *tree_sitter.Query
+	SourceQuery string
 }
 
-func getLanguageConfig(ext string) (*LanguageConfig, error) {
-	switch ext {
-	case ".go":
-		return &LanguageConfig{
-			Language: tree_sitter.NewLanguage(tree_sitter_go.Language()),
-			Query: `
-				(function_declaration name: (identifier) @name) @function
-			`,
-		}, nil
-	case ".ts", ".tsx", ".js", ".jsx":
-		return &LanguageConfig{
-			Language: tree_sitter.NewLanguage(tree_sitter_typescript.LanguageTypescript()),
-			Query: `
-				(function_declaration name: (identifier) @name) @function
-			`,
-		}, nil
-	case ".py":
-		return &LanguageConfig{
-			Language: tree_sitter.NewLanguage(tree_sitter_python.Language()),
-			Query: `
-				(function_definition name: (identifier) @name) @function
-				(class_definition name: (identifier) @name) @class
-			`,
-		}, nil
-	default:
-		return nil, fmt.Errorf("unsupported extension: %s", ext)
+var languageConfigs map[string]*LanguageConfig
+
+func init() {
+	languageConfigs = make(map[string]*LanguageConfig)
+
+	// Go Configuration
+	goLang := tree_sitter.NewLanguage(tree_sitter_go.Language())
+	goQuerySource := `
+		(function_declaration (identifier) @name) @function
+		(method_declaration (field_identifier) @name) @method
+	`
+	registerLanguage(".go", goLang, goQuerySource)
+
+	// TypeScript / JavaScript Configuration
+	tsLang := tree_sitter.NewLanguage(tree_sitter_typescript.LanguageTypescript())
+	tsQuerySource := `
+		(function_declaration (identifier) @name) @function
+		(class_declaration (type_identifier) @name) @class
+		(method_definition (property_identifier) @name) @method
+	`
+	registerLanguage(".ts", tsLang, tsQuerySource)
+	registerLanguage(".tsx", tsLang, tsQuerySource)
+	registerLanguage(".js", tsLang, tsQuerySource)
+	registerLanguage(".jsx", tsLang, tsQuerySource)
+
+	// Python Configuration
+	pyLang := tree_sitter.NewLanguage(tree_sitter_python.Language())
+	pyQuerySource := `
+		(function_definition name: (identifier) @name) @function
+		(class_definition name: (identifier) @name) @class
+	`
+	registerLanguage(".py", pyLang, pyQuerySource)
+}
+
+func registerLanguage(ext string, lang *tree_sitter.Language, querySource string) {
+	q, err := tree_sitter.NewQuery(lang, querySource)
+	if err != nil {
+		panic(fmt.Sprintf("HAKAISHIN CRITICAL: Failed to compile query for %s: %v\nQuery source:\n%s", ext, err, querySource))
+	}
+
+	languageConfigs[ext] = &LanguageConfig{
+		Language:    lang,
+		Query:       q,
+		SourceQuery: querySource,
 	}
 }
 
 func ParseWithTreeSitter(filePath string) ([]types.ASTPointer, error) {
 	ext := filepath.Ext(filePath)
-	config, err := getLanguageConfig(ext)
-	if err != nil {
-		return nil, fmt.Errorf("config error: %w", err)
+	config, ok := languageConfigs[ext]
+	if !ok {
+		return nil, fmt.Errorf("unsupported extension: %s", ext)
 	}
 
 	content, err := os.ReadFile(filePath)
@@ -72,58 +91,46 @@ func ParseWithTreeSitter(filePath string) ([]types.ASTPointer, error) {
 	}
 	defer tree.Close()
 
-	query, err := tree_sitter.NewQuery(config.Language, config.Query)
-	if err != nil {
-		return nil, fmt.Errorf("new query error for %s: %w", ext, err)
-	}
-	if query == nil {
-		return nil, fmt.Errorf("query is nil")
-	}
-	defer query.Close()
-
 	cursor := tree_sitter.NewQueryCursor()
 	defer cursor.Close()
 
-	captures := cursor.Captures(query, tree.RootNode(), content)
+	// Use Matches instead of Captures for clearer grouping of symbol + name.
+	matches := cursor.Matches(config.Query, tree.RootNode(), content)
 
 	var pointers []types.ASTPointer
-	for match, captureIndex := captures.Next(); match != nil; match, captureIndex = captures.Next() {
-		capture := match.Captures[captureIndex]
-		captureName := query.CaptureNames()[capture.Index]
-		
-		// We only care about the top-level captures like @function, @class, etc.
-		// and they should have a child or be associated with a @name capture in the same match.
-		if captureName == "name" {
-			continue
-		}
-
-		// Find the name within this match
+	for match := matches.Next(); match != nil; match = matches.Next() {
 		var name string
-		for _, c := range match.Captures {
-			if query.CaptureNames()[c.Index] == "name" {
-				name = c.Node.Utf8Text(content)
-				break
+		var symType string
+		var symNode tree_sitter.Node
+		var foundSym bool
+
+		for _, capture := range match.Captures {
+			captureName := config.Query.CaptureNames()[capture.Index]
+			if captureName == "name" {
+				name = capture.Node.Utf8Text(content)
+			} else {
+				symType = captureName
+				symNode = capture.Node
+				foundSym = true
 			}
 		}
 
-		if name == "" {
-			continue
+		if name != "" && symType != "" && foundSym {
+			startPos := symNode.StartPosition()
+			endPos := symNode.EndPosition()
+
+			pointers = append(pointers, types.ASTPointer{
+				Type: symType,
+				Name: name,
+				Range: types.Range{
+					Start: int(symNode.StartByte()),
+					End:   int(symNode.EndByte()),
+				},
+				StartLine: int(startPos.Row) + 1,
+				EndLine:   int(endPos.Row) + 1,
+				Hash:      "placeholder-hash",
+			})
 		}
-
-		startPos := capture.Node.StartPosition()
-		endPos := capture.Node.EndPosition()
-
-		pointers = append(pointers, types.ASTPointer{
-			Type: captureName,
-			Name: name,
-			Range: types.Range{
-				Start: int(capture.Node.StartByte()),
-				End:   int(capture.Node.EndByte()),
-			},
-			StartLine: int(startPos.Row) + 1,
-			EndLine:   int(endPos.Row) + 1,
-			Hash:      "placeholder-hash",
-		})
 	}
 
 	return pointers, nil
