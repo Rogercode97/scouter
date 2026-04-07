@@ -24,7 +24,6 @@ func getLanguageConfig(ext string) (*LanguageConfig, error) {
 			Language: tree_sitter.NewLanguage(tree_sitter_go.Language()),
 			Query: `
 				(function_declaration name: (identifier) @name) @function
-				(method_declaration name: (identifier) @name) @method
 			`,
 		}, nil
 	case ".ts", ".tsx", ".js", ".jsx":
@@ -51,12 +50,12 @@ func ParseWithTreeSitter(filePath string) ([]types.ASTPointer, error) {
 	ext := filepath.Ext(filePath)
 	config, err := getLanguageConfig(ext)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("config error: %w", err)
 	}
 
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read error: %w", err)
 	}
 
 	parser := tree_sitter.NewParser()
@@ -64,15 +63,21 @@ func ParseWithTreeSitter(filePath string) ([]types.ASTPointer, error) {
 
 	err = parser.SetLanguage(config.Language)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("set language error: %w", err)
 	}
 
 	tree := parser.Parse(content, nil)
+	if tree == nil {
+		return nil, fmt.Errorf("parser returned nil tree")
+	}
 	defer tree.Close()
 
 	query, err := tree_sitter.NewQuery(config.Language, config.Query)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("new query error for %s: %w", ext, err)
+	}
+	if query == nil {
+		return nil, fmt.Errorf("query is nil")
 	}
 	defer query.Close()
 

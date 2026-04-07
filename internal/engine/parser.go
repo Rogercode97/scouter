@@ -3,6 +3,9 @@ package engine
 import (
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"unicode/utf8"
 
@@ -21,7 +24,35 @@ func ParseFile(filePath string) ([]types.ASTPointer, error) {
 		return nil, err
 	}
 
-	// 2. Try Tree-sitter for multi-language support
+	// 2. Try native Go parser first (more reliable for now)
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, validatedPath, nil, parser.ParseComments)
+	if err == nil {
+		var pointers []types.ASTPointer
+		ast.Inspect(file, func(n ast.Node) bool {
+			if fn, ok := n.(*ast.FuncDecl); ok {
+				startPos := fset.Position(fn.Pos())
+				endPos := fset.Position(fn.End())
+				pointers = append(pointers, types.ASTPointer{
+					Type: "function",
+					Name: fn.Name.Name,
+					Range: types.Range{
+						Start: startPos.Offset,
+						End:   endPos.Offset,
+					},
+					StartLine: startPos.Line,
+					EndLine:   endPos.Line,
+					Hash:      "placeholder-hash",
+				})
+			}
+			return true
+		})
+		if len(pointers) > 0 {
+			return pointers, nil
+		}
+	}
+
+	// 3. Try Tree-sitter for multi-language support as fallback
 	pointers, err := ParseWithTreeSitter(validatedPath)
 	if err == nil {
 		return pointers, nil
