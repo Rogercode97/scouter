@@ -1,0 +1,27 @@
+name: "go-test"
+version: 1
+description: "Condensed go test output with pass/fail summary"
+
+match:
+  command: "go"
+  subcommand: "test"
+  exclude_flags: ["-json", "-v", "-bench", "-run"]
+
+inject:
+  args: ["-json"]
+  skip_if_present: ["-json", "-v", "-bench"]
+
+pipeline:
+  - action: "keep_lines"
+    pattern: "\\S"
+  - action: "keep_lines"
+    pattern: "\"Test\":\""
+  - action: "keep_lines"
+    pattern: "\"Action\":\"(pass|fail)\""
+  - action: "aggregate"
+    patterns:
+      passed: '"Action":"pass"'
+      failed: '"Action":"fail"'
+    format: "{{if and (eq .passed 0) (eq .failed 0)}}No tests found{{else}}{{.passed}} passed, {{.failed}} failed{{end}}"
+
+on_error: "passthrough"
