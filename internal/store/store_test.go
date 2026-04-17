@@ -15,6 +15,18 @@ func TestStoreSearch(t *testing.T) {
 	}
 	defer s.Close()
 
+	// 0. Save dummy file index to satisfy foreign key
+	err = s.SaveFileIndex(&FileIndex{
+		Path:    "store.go",
+		Mtime:   123456789,
+		Hash:    "dummyhash",
+		ASTJSON: "{}",
+		Project: "scouter",
+	})
+	if err != nil {
+		t.Fatalf("Failed to save file index: %v", err)
+	}
+
 	// 1. Save dummy symbols
 	syms := []Symbol{
 		{Name: "SearchSymbols", Type: "method", Path: "store.go", StartByte: 100, EndByte: 200},

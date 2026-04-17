@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -39,6 +40,18 @@ func New(dbPath string) (*Store, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err
+	}
+
+	// Concurrency Upgrade: Performance and Integrity
+	pragmas := []string{
+		"PRAGMA journal_mode=WAL;",
+		"PRAGMA busy_timeout=5000;",
+		"PRAGMA foreign_keys=ON;",
+	}
+	for _, p := range pragmas {
+		if _, err := db.Exec(p); err != nil {
+			return nil, err
+		}
 	}
 
 	// Create tables
@@ -123,10 +136,37 @@ func (s *Store) SaveSymbol(sym *Symbol) error {
 	return err
 }
 
+func sanitizeFTS(query string) string {
+	// Check for prefix search
+	isPrefix := strings.HasSuffix(query, "*")
+	s := query
+	if isPrefix {
+		s = strings.TrimSuffix(s, "*")
+	}
+
+	// Escape existing double quotes
+	s = strings.ReplaceAll(s, "\"", "\"\"")
+
+	// Remove leading * which breaks FTS5 even inside quotes sometimes or is just invalid
+	s = strings.TrimLeft(s, "*")
+
+	// Wrap in double quotes
+	result := "\"" + s + "\""
+
+	// Append * if it was a prefix search
+	if isPrefix {
+		result += "*"
+	}
+
+	return result
+}
+
 func (s *Store) SearchSymbols(query string, symType string) ([]Symbol, error) {
 	var results []Symbol
 	var sqlQuery string
 	var args []interface{}
+
+	safeQuery := sanitizeFTS(query)
 
 	if symType != "" {
 		sqlQuery = `
@@ -136,7 +176,7 @@ func (s *Store) SearchSymbols(query string, symType string) ([]Symbol, error) {
 		WHERE symbols_fts MATCH ? AND s.type = ?
 		ORDER BY rank;
 		`
-		args = append(args, query, symType)
+		args = append(args, safeQuery, symType)
 	} else {
 		sqlQuery = `
 		SELECT s.name, s.type, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line
@@ -145,7 +185,7 @@ func (s *Store) SearchSymbols(query string, symType string) ([]Symbol, error) {
 		WHERE symbols_fts MATCH ?
 		ORDER BY rank;
 		`
-		args = append(args, query)
+		args = append(args, safeQuery)
 	}
 
 	rows, err := s.db.Query(sqlQuery, args...)
