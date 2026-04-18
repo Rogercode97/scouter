@@ -19,8 +19,8 @@ import (
 // MaxFragmentSize is the limit for a surgical read (100KB)
 const MaxFragmentSize = 100 * 1024
 
-// MaxParseSize is the limit for indexing a file (2MB)
-const MaxParseSize = 2 * 1024 * 1024
+// MaxParseSize is the limit for indexing a file (5MB)
+const MaxParseSize = 5 * 1024 * 1024
 
 // ParseFile analyzes a file using the AST engine to index its structure.
 func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, error) {

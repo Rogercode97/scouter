@@ -178,9 +178,27 @@ Always index a file before attempting to read specific fragments if you don't ha
 
 		cached, err := db.GetFileIndex(ctx, filePath)
 		if err == nil && (cached.Mtime == stats.ModTime().UnixNano() || (currentHash != "" && cached.Hash == currentHash)) {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: cached.ASTJSON}},
-			}, nil
+			var cachedSymbols []types.ASTPointer
+			if err := json.Unmarshal([]byte(cached.ASTJSON), &cachedSymbols); err == nil {
+				// OOM Guard for cache hits
+				responseSymbols := cachedSymbols
+				truncated := false
+				if len(cachedSymbols) > 500 {
+					responseSymbols = cachedSymbols[:500]
+					truncated = true
+				}
+
+				res := map[string]interface{}{
+					"symbols":   responseSymbols,
+					"count":     len(cachedSymbols),
+					"truncated": truncated,
+					"cached":    true,
+				}
+				resJSON, _ := json.Marshal(res)
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{mcp.TextContent{Type: "text", Text: string(resJSON)}},
+				}, nil
+			}
 		}
 
 		idxResult, err := engine.ParseFile(ctx, filePath)

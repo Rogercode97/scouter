@@ -12,6 +12,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/types"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
+	tree_sitter_javascript "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
 	tree_sitter_python "github.com/tree-sitter/tree-sitter-python/bindings/go"
 	tree_sitter_typescript "github.com/tree-sitter/tree-sitter-typescript/bindings/go"
 )
@@ -35,7 +36,7 @@ func init() {
 	`
 	registerLanguage(".go", goLang, goQuerySource)
 
-	// TypeScript / JavaScript Configuration
+	// TypeScript Configuration
 	tsLang := tree_sitter.NewLanguage(tree_sitter_typescript.LanguageTypescript())
 	tsQuerySource := `
 		(class_declaration name: (type_identifier) @name) @class
@@ -46,8 +47,17 @@ func init() {
 	`
 	registerLanguage(".ts", tsLang, tsQuerySource)
 	registerLanguage(".tsx", tsLang, tsQuerySource)
-	registerLanguage(".js", tsLang, tsQuerySource)
-	registerLanguage(".jsx", tsLang, tsQuerySource)
+
+	// JavaScript Configuration
+	jsLang := tree_sitter.NewLanguage(tree_sitter_javascript.Language())
+	jsQuerySource := `
+		(class_declaration name: (identifier) @name) @class
+		(function_declaration name: (identifier) @name) @function
+		(method_definition name: (property_identifier) @name) @method
+		(variable_declarator name: (identifier) @name value: (arrow_function)) @function
+	`
+	registerLanguage(".js", jsLang, jsQuerySource)
+	registerLanguage(".jsx", jsLang, jsQuerySource)
 
 	// Python Configuration
 	pyLang := tree_sitter.NewLanguage(tree_sitter_python.Language())
@@ -89,8 +99,8 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 	if err != nil {
 		return nil, fmt.Errorf("stat error: %w", err)
 	}
-	if info.Size() > 10*1024*1024 {
-		return nil, fmt.Errorf("file too large for AST indexing (>10MB): %s", filePath)
+	if info.Size() > 5*1024*1024 {
+		return nil, fmt.Errorf("file too large for AST indexing (>5MB): %s", filePath)
 	}
 
 	content, err := os.ReadFile(filePath)
