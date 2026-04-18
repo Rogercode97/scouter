@@ -1,0 +1,11 @@
+diff --git a/internal/store/store.go b/internal/store/store.go
+index 1234567..89abcde 100644
+--- a/internal/store/store.go
++++ b/internal/store/store.go
+@@ -1,5 +1,6 @@
+ package store
+ 
+ import (
++	"context"
+ 	"database/sql"
+ 	"os"

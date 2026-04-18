@@ -188,7 +188,8 @@ func (s *Store) SearchSymbols(ctx context.Context, query string, symType string)
 		FROM symbols s
 		JOIN symbols_fts f ON s.id = f.rowid
 		WHERE symbols_fts MATCH ? AND s.type = ?
-		ORDER BY rank;
+		ORDER BY rank
+		LIMIT 100;
 		`
 		args = append(args, safeQuery, symType)
 	} else {
@@ -197,7 +198,8 @@ func (s *Store) SearchSymbols(ctx context.Context, query string, symType string)
 		FROM symbols s
 		JOIN symbols_fts f ON s.id = f.rowid
 		WHERE symbols_fts MATCH ?
-		ORDER BY rank;
+		ORDER BY rank
+		LIMIT 100;
 		`
 		args = append(args, safeQuery)
 	}

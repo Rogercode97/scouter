@@ -1,0 +1,6 @@
+Fetching gem metadata from https://rubygems.org/.........
+Resolving dependencies...
+Using rake 13.0.6
+Using bundler 2.2.33
+Bundle complete! 2 Gemfile dependencies, 3 gems now installed.
+Use `bundle info [gemname]` to see where a bundled gem is installed.

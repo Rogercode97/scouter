@@ -1,0 +1,59 @@
+commit 8cb198e09214713a35f7957e8412850a1202283a
+Author: github-actions <github-actions@github.com>
+Date:   Wed May 22 14:00:00 2024 +0000
+
+    chore(master): release 0.22.0 (#201)
+
+commit 393fa5bc9214713a35f7957e8412850a1202283a
+Author: John Doe <john@example.com>
+Date:   Wed May 22 13:00:00 2024 +0000
+
+    feat: add rtk wc command (#175)
+
+commit c29644b9214713a35f7957e8412850a1202283a
+Author: github-actions <github-actions@github.com>
+Date:   Wed May 22 12:00:00 2024 +0000
+
+    chore(master): release 0.21.1 (#179)
+
+commit d196c2d9214713a35f7957e8412850a1202283a
+Author: Jane Smith <jane@example.com>
+Date:   Wed May 22 11:00:00 2024 +0000
+
+    fix: gh run view drops flags (#159)
+
+commit aa0b4629214713a35f7957e8412850a1202283a
+Author: github-actions <github-actions@github.com>
+Date:   Wed May 22 10:00:00 2024 +0000
+
+    chore(master): release 0.21.0 (#178)
+
+commit 510c4919214713a35f7957e8412850a1202283a
+Author: Pierre Martin <pierre@example.com>
+Date:   Wed May 22 09:00:00 2024 +0000
+
+    feat(docker): add docker compose (#110)
+
+commit c83a8349214713a35f7957e8412850a1202283a
+Author: Rui Chen <rui@example.com>
+Date:   Wed May 22 07:00:00 2024 +0000
+
+    docs: add brew install note (#177)
+
+commit 577e0829214713a35f7957e8412850a1202283a
+Author: github-actions <github-actions@github.com>
+Date:   Wed May 21 14:00:00 2024 +0000
+
+    chore(master): release 0.20.1 (#167)
+
+commit 0b347729214713a35f7957e8412850a1202283a
+Author: DevOps Bot <devops@example.com>
+Date:   Wed May 21 13:00:00 2024 +0000
+
+    fix: install to ~/.local/bin (#155)
+
+commit 78c9e949214713a35f7957e8412850a1202283a
+Author: github-actions <github-actions@github.com>
+Date:   Wed May 20 14:00:00 2024 +0000
+
+    chore(master): release 0.20.0 (#152)
