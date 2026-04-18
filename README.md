@@ -1,57 +1,68 @@
 # Scouter 🕶️ (Wave 8.9 — Absolute Sovereignty)
-**Status**: Sovereign. Divine Architecture (Go 1.25). Glasswall Validated.
+**Status**: Sovereign. Divine Architecture (Go 1.25). Glasswall Validated. Rating 10.0.
 
 **The high-precision, semantic code analysis engine for AI agents.**  
-*Surgical AST indexing. FTS5 Semantic Search. Multi-language Tree-sitter. SHA-256 Hashing. Glasswall Security.*
+*Surgical AST indexing. FTS5 Semantic Search. Multi-language Tree-sitter. Global Call Graph. Ecosystem Sovereignty.*
 
-Scouter gives AI agents (like Gemini CLI, OpenCode, and Claude Code) "X-ray vision" for your codebase. It eliminates token waste by providing surgical access to symbols (functions, classes, methods) and instant semantic discovery.
+Scouter gives AI agents (like Gemini CLI, OpenCode, and Claude Code) "X-ray vision" for your codebase. It eliminates token waste by providing surgical access to symbols and instant, cross-file impact analysis.
 
 ## 🚀 Quick Start
 
-### 1. Build from source
-Requires Go 1.25+
-
+### 1. Build from source (Go 1.25+)
 ```bash
-git clone https://github.com/Rogercode97/scouter
-cd scouter
 go build -o bin/scouter cmd/scouter/main.go
+go build -o bin/index-vault cmd/index-vault/main.go
 ```
 
-### 2. Automatic Setup
-Scouter can self-configure your favorite AI agents:
-
-| Agent | Command |
-|-------|---------|
-| **Gemini CLI** | `./bin/scouter setup gemini-cli` |
-| **OpenCode** | `./bin/scouter setup opencode` |
+### 2. Index the Workspace
+```bash
+./bin/index-vault
+```
 
 ---
 
-## 🛠️ How it works
+## 🏛️ Sovereign Capabilities (v1.3.0)
 
-Scouter runs as an **MCP (Model Context Protocol)** server. It indexes your project's structure into a local SQLite database (`~/.scouter/scouter.db`) using the **Engram Pattern** for maximum performance and integrity.
+Scouter runs as a high-performance **MCP (Model Context Protocol)** server with four pillars of sovereignty:
 
-1.  **Index (`scouter_index`)**: Analyzes a file and returns its symbols (AST pointers). Supports **Go, TypeScript (tsx), JavaScript (jsx), and Python** via Tree-sitter.
-2.  **Search (`scouter_search`)**: Uses **FTS5 (Full Text Search)** to locate any symbol (function, class, variable) across the indexed workspace in milliseconds.
-3.  **Integrity (`SHA-256`)**: Implements content-based caching and **Symbol-level Hashing**. Each pointer contains a unique SHA-256 signature for structural verification.
-4.  **Read (`scouter_read`)**: Uses AST pointers to extract the exact byte range of a symbol (**Fragment Reading**), reducing context usage to the absolute minimum.
+### 1. Unified Polyglot Engine
+Analyzes and indexes **Go, TypeScript, JavaScript, and Python** using native AST and Tree-sitter fallbacks.
+- **SHA-256 Integrity**: Every fragment contains a cryptographic signature to prevent stale reads.
+- **Pure Branding**: Standardized **Fragment** nomenclature.
 
-## ⚖️ Sovereign Mandates (Wave 8.2)
+### 2. Global Call Graph (V2.0)
+The heart of impact analysis. Scouter tracks who calls whom across the entire workspace.
+- **Closure Sovereignty**: Detects calls inside anonymous functions and goroutines.
+- **Visual Evidence**: Tool `scouter_visualize` generates **Mermaid.js** diagrams on the fly.
 
-- **Glasswall Validation**: All MCP inputs are strictly validated with `validator/v10` to prevent memory and range errors.
-- **OOM Guard**: Hard limits on search results (100) and indexing responses (500 symbols) to protect LLM context windows and server memory.
-- **Context Authority**: 100% `context.Context` propagation across all layers for safe cancellations and concurrency control.
-- **Pure Branding**: Zero legacy references. Unified nomenclature: **Fragments** (not snippets).
+### 3. Ecosystem Sovereignty (V1.3)
+Vision beyond source code. Automatically parses `go.mod` and `package.json`.
+- **Version Intelligence**: Know exactly which library versions are available.
+- **Dependency Mapping**: Tool `scouter_dependencies` lists the project's tech inventory.
 
-## 🧩 Agent Integration
+### 4. Glasswall & OOM Guard
+Military-grade security and memory protection.
+- **Validation**: Strict `validator/v10` schema enforcement for all MCP inputs.
+- **Memory Shields**: Hard limits on search (100) and symbol responses (500) to protect LLM context.
 
-### Gemini CLI
-- **Server Instructions**: Automatically guides the LLM to prefer AST search over generic grep.
-- **Slash Commands**: Use `/scouter-explain symbolName=X` to trigger an autonomous explanation workflow.
-- **Live Status**: Reference `@scouter://status` to see indexing stats in real-time.
+---
 
-## 📦 Distribution
-Scouter is a **single 15MB binary**. It is portable, zero-dependency, and embeds its own TypeScript plugins for OpenCode using Go's `//go:embed` directive.
+## 🧩 Integration Example
+
+When using **Gemini CLI**, you can trigger the autonomous explanation workflow:
+
+```bash
+/scouter-explain symbolName=store.New
+```
+
+**Impact Analysis Diagram:**
+```mermaid
+graph TD
+    A["main.go"] --> B["store.New"]
+    C["index-vault.go"] --> B["store.New"]
+    B["store.New"] --> D["sql.Open"]
+    B["store.New"] --> E["ValidatePath"]
+```
 
 ## 📜 License
-MIT
+MIT — *Sovereignty for all.*
