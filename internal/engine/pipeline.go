@@ -8,14 +8,15 @@ import (
 
 	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/tee"
-	"github.com/Rogercode97/scouter/internal/tracking"
+	"github.com/Rogercode97/scouter/internal/telemetry"
 	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 // Pipeline orchestrates command execution, filtering, tracking, and tee.
 type Pipeline struct {
+	ctx     context.Context
 	Registry     *filter.Registry
-	Tracker      *tracking.Tracker
+	Tracker      *telemetry.Tracker
 	TeeConfig    tee.Config
 	Verbose      int
 	UltraCompact bool
@@ -34,9 +35,9 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 	// Match filter
 	f := p.Registry.Match(command, subcommand, filterArgs)
 
-	// No filter found: passthrough with hint so LLMs know snip is unnecessary
+	// No filter found: passthrough with hint so LLMs know scouter is unnecessary
 	if f == nil {
-		fmt.Fprintf(os.Stderr, "snip: no filter for %q, passing through — you can run %q directly\n", command, command)
+		fmt.Fprintf(os.Stderr, "scouter: no filter for %q, passing through — you can run %q directly\n", command, command)
 		return p.Passthrough(ctx, command, args)
 	}
 
@@ -49,18 +50,18 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 
 	// Start SQLite init concurrently with command execution
 	if p.Tracker != nil {
-		p.Tracker.WarmUp()
+		p.Tracker.WarmUp(ctx)
 	}
 
 	// Start timing
-	timed := tracking.Start(p.Tracker)
+	timed := telemetry.Start(p.Tracker)
 
 	// Execute command
 	result, err := Execute(ctx, command, finalArgs)
 	if err != nil {
 		// Execution failed entirely — fallback to passthrough
 		if p.Verbose > 0 {
-			fmt.Fprintf(os.Stderr, "snip: execute error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "scouter: execute error: %v\n", err)
 		}
 		code, _ := Passthrough(ctx, command, fullArgs)
 		return code
@@ -71,7 +72,7 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 	if filterErr != nil {
 		// Graceful degradation: use raw output
 		if p.Verbose > 0 {
-			fmt.Fprintf(os.Stderr, "snip: filter error: %v\n", filterErr)
+			fmt.Fprintf(os.Stderr, "scouter: filter error: %v\n", filterErr)
 		}
 		filtered = result.Stdout
 	}
@@ -92,10 +93,10 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 	inputTokens := utils.EstimateTokens(result.Stdout)
 	if inputTokens > 0 {
 		originalCmd := command + " " + strings.Join(fullArgs, " ")
-		snipCmd := command + " " + strings.Join(finalArgs, " ")
+		scouterCmd := command + " " + strings.Join(finalArgs, " ")
 		outputTokens := utils.EstimateTokens(filtered)
-		if err := timed.Track(originalCmd, snipCmd, inputTokens, outputTokens); err != nil {
-			fmt.Fprintf(os.Stderr, "snip: tracking error: %v\n", err)
+		if err := timed.Track(p.ctx, originalCmd, scouterCmd, inputTokens, outputTokens); err != nil {
+			fmt.Fprintf(os.Stderr, "scouter: tracking error: %v\n", err)
 		}
 	}
 
@@ -104,11 +105,11 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 
 // Passthrough runs a command directly without filtering.
 // Passthrough commands are not tracked because the output goes directly
-// to stdout — snip never captures it, so token counts would be 0/0.
+// to stdout — scouter never captures it, so token counts would be 0/0.
 func (p *Pipeline) Passthrough(ctx context.Context, command string, args []string) int {
 	code, err := Passthrough(ctx, command, args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "snip: %v\n", err)
+		fmt.Fprintf(os.Stderr, "scouter: %v\n", err)
 		return 1
 	}
 

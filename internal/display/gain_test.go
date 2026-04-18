@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Rogercode97/scouter/internal/tracking"
+	"github.com/Rogercode97/scouter/internal/telemetry"
 )
 
-func newTestTracker(t *testing.T) *tracking.Tracker {
+func newTestTracker(t *testing.T) *telemetry.Tracker {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	tracker, err := tracking.NewTracker(dbPath)
+	tracker, err := telemetry.NewTracker(dbPath)
 	if err != nil {
 		t.Fatalf("new tracker: %v", err)
 	}
@@ -20,12 +20,12 @@ func newTestTracker(t *testing.T) *tracking.Tracker {
 	return tracker
 }
 
-func seedTracker(t *testing.T, tracker *tracking.Tracker) {
+func seedTracker(t *testing.T, tracker *telemetry.Tracker) {
 	t.Helper()
-	_ = tracker.Track("git log", "snip git log", 1000, 200, 50)
-	_ = tracker.Track("go test", "snip go test", 2000, 300, 100)
-	_ = tracker.Track("git log", "snip git log", 800, 100, 40)
-	_ = tracker.Track("ls -la", "snip ls -la", 50, 30, 5)
+	_ = tracker.Track("git log", "scouter git log", 1000, 200, 50)
+	_ = tracker.Track("go test", "scouter go test", 2000, 300, 100)
+	_ = tracker.Track("git log", "scouter git log", 800, 100, 40)
+	_ = tracker.Track("ls -la", "scouter ls -la", 50, 30, 5)
 }
 
 func TestRunGainNoData(t *testing.T) {

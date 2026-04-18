@@ -87,10 +87,10 @@ func TestMaybeSaveEnvDisable(t *testing.T) {
 	cfg := testConfig(dir)
 	raw := strings.Repeat("error\n", 100)
 
-	t.Setenv("SNIP_TEE", "0")
+	t.Setenv("SCOUTER_TEE", "0")
 	hint := MaybeSave(raw, 1, "cmd", cfg)
 	if hint != "" {
-		t.Errorf("expected no save with SNIP_TEE=0, got %q", hint)
+		t.Errorf("expected no save with SCOUTER_TEE=0, got %q", hint)
 	}
 }
 

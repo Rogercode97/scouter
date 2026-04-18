@@ -1,6 +1,6 @@
 //go:build !lite
 
-package tracking
+package telemetry
 
 import (
 	"testing"
@@ -10,7 +10,7 @@ func TestTimedExecution(t *testing.T) {
 	tracker := newTestTracker(t)
 
 	timed := Start(tracker)
-	err := timed.Track("git log", "snip git log", 500, 100)
+	err := timed.Track("git log", "scouter git log", 500, 100)
 	if err != nil {
 		t.Fatalf("timed track: %v", err)
 	}
@@ -26,7 +26,7 @@ func TestTimedExecution(t *testing.T) {
 
 func TestTimedExecutionNilTracker(t *testing.T) {
 	timed := Start(nil)
-	err := timed.Track("cmd", "snip cmd", 100, 50)
+	err := timed.Track("cmd", "scouter cmd", 100, 50)
 	if err != nil {
 		t.Fatalf("expected nil tracker to be no-op: %v", err)
 	}

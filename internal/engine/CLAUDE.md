@@ -4,21 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**snip** is a CLI proxy written in Go that reduces LLM token consumption by 60-90% by filtering shell output before it reaches the LLM context. Inspired by [rtk](https://github.com/rtk-ai/rtk) (Rust Token Killer), snip improves on the concept with a **declarative filter DSL** — filters are YAML config files, not compiled code.
+**scouter** is a CLI proxy written in Go that reduces LLM token consumption by 60-90% by filtering shell output before it reaches the LLM context. Inspired by [rtk](https://github.com/rtk-ai/rtk) (Rust Token Killer), scouter improves on the concept with a **declarative filter DSL** — filters are YAML config files, not compiled code.
 
 ## Key Concept
 
-The binary (snip) is the engine. Filters are data files. The two evolve independently. Anyone can contribute a filter without knowing Go.
+The binary (scouter) is the engine. Filters are data files. The two evolve independently. Anyone can contribute a filter without knowing Go.
 
 ## Repository Structure
 
 ```
-cmd/snip/main.go        # Entry point
+cmd/scouter/main.go        # Entry point
 embed.go                # Embedded default filters (go:embed)
 filters/*.yaml          # Declarative filter definitions (MVP: 5 filters)
 internal/
   cli/                  # CLI routing, flag parsing
-  config/               # TOML config loading (~/.config/snip/config.toml)
+  config/               # TOML config loading (~/.config/scouter/config.toml)
   display/              # Lipgloss terminal styling, gain report
   engine/               # Command execution (goroutines), pipeline orchestration
   filter/               # DSL types, 16 built-in actions, YAML parser, registry
@@ -60,7 +60,7 @@ goreleaser release --snapshot --clean          # Test release build locally
 
 ## Design Constraints
 
-- **Startup < 10ms** — snip intercepts every shell command; latency is critical
+- **Startup < 10ms** — scouter intercepts every shell command; latency is critical
 - **Graceful degradation** — if a filter fails, fall back to raw command output
 - **Exit code preservation** — always propagate the underlying tool's exit code
 - **No async runtime** — goroutines are sufficient; avoid heavy dependencies

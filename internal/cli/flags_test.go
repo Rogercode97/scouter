@@ -104,7 +104,7 @@ func TestParseFlags(t *testing.T) {
 			wantArgs:  []string{"opencode", "--help"},
 		},
 		{
-			name:      "snip flags before double dash, command flags after",
+			name:      "scouter flags before double dash, command flags after",
 			args:      []string{"-v", "--", "go", "test", "--version"},
 			wantFlags: Flags{Verbose: 1},
 			wantArgs:  []string{"go", "test", "--version"},
@@ -116,13 +116,13 @@ func TestParseFlags(t *testing.T) {
 			wantArgs:  nil,
 		},
 		{
-			name:      "double dash before --help prevents snip help",
+			name:      "double dash before --help prevents scouter help",
 			args:      []string{"--", "--help"},
 			wantFlags: Flags{},
 			wantArgs:  []string{"--help"},
 		},
 		{
-			name:      "double dash before -v prevents snip verbose",
+			name:      "double dash before -v prevents scouter verbose",
 			args:      []string{"--", "-v", "git", "log"},
 			wantFlags: Flags{},
 			wantArgs:  []string{"-v", "git", "log"},

@@ -1,6 +1,6 @@
 //go:build !lite
 
-package tracking
+package telemetry
 
 import (
 	"path/filepath"
@@ -28,7 +28,7 @@ func TestNewTracker(t *testing.T) {
 func TestTrack(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	err := tracker.Track("git log", "snip git log", 1000, 200, 50)
+	err := tracker.Track("git log", "scouter git log", 1000, 200, 50)
 	if err != nil {
 		t.Fatalf("track: %v", err)
 	}
@@ -68,9 +68,9 @@ func TestTrackPassthrough(t *testing.T) {
 func TestGetRecent(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	_ = tracker.Track("cmd1", "snip cmd1", 100, 30, 10)
-	_ = tracker.Track("cmd2", "snip cmd2", 200, 50, 20)
-	_ = tracker.Track("cmd3", "snip cmd3", 300, 80, 30)
+	_ = tracker.Track("cmd1", "scouter cmd1", 100, 30, 10)
+	_ = tracker.Track("cmd2", "scouter cmd2", 200, 50, 20)
+	_ = tracker.Track("cmd3", "scouter cmd3", 300, 80, 30)
 
 	recent, err := tracker.GetRecent(2)
 	if err != nil {
@@ -88,8 +88,8 @@ func TestGetRecent(t *testing.T) {
 func TestGetDaily(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	_ = tracker.Track("cmd1", "snip cmd1", 100, 30, 10)
-	_ = tracker.Track("cmd2", "snip cmd2", 200, 50, 20)
+	_ = tracker.Track("cmd1", "scouter cmd1", 100, 30, 10)
+	_ = tracker.Track("cmd2", "scouter cmd2", 200, 50, 20)
 
 	daily, err := tracker.GetDaily(7)
 	if err != nil {
@@ -106,10 +106,10 @@ func TestGetDaily(t *testing.T) {
 func TestGetByCommand(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	_ = tracker.Track("git log", "snip git log", 1000, 200, 50)
-	_ = tracker.Track("git log", "snip git log", 800, 100, 40)
-	_ = tracker.Track("go test", "snip go test", 2000, 300, 100)
-	_ = tracker.Track("ls -la", "snip ls -la", 50, 30, 5)
+	_ = tracker.Track("git log", "scouter git log", 1000, 200, 50)
+	_ = tracker.Track("git log", "scouter git log", 800, 100, 40)
+	_ = tracker.Track("go test", "scouter go test", 2000, 300, 100)
+	_ = tracker.Track("ls -la", "scouter ls -la", 50, 30, 5)
 
 	stats, err := tracker.GetByCommand(10)
 	if err != nil {
@@ -136,9 +136,9 @@ func TestGetByCommand(t *testing.T) {
 func TestGetByCommandLimit(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	_ = tracker.Track("cmd1", "snip cmd1", 100, 30, 10)
-	_ = tracker.Track("cmd2", "snip cmd2", 200, 50, 20)
-	_ = tracker.Track("cmd3", "snip cmd3", 300, 80, 30)
+	_ = tracker.Track("cmd1", "scouter cmd1", 100, 30, 10)
+	_ = tracker.Track("cmd2", "scouter cmd2", 200, 50, 20)
+	_ = tracker.Track("cmd3", "scouter cmd3", 300, 80, 30)
 
 	stats, err := tracker.GetByCommand(2)
 	if err != nil {
@@ -152,8 +152,8 @@ func TestGetByCommandLimit(t *testing.T) {
 func TestGetWeekly(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	_ = tracker.Track("cmd1", "snip cmd1", 100, 30, 10)
-	_ = tracker.Track("cmd2", "snip cmd2", 200, 50, 20)
+	_ = tracker.Track("cmd1", "scouter cmd1", 100, 30, 10)
+	_ = tracker.Track("cmd2", "scouter cmd2", 200, 50, 20)
 
 	weekly, err := tracker.GetWeekly(4)
 	if err != nil {
@@ -170,8 +170,8 @@ func TestGetWeekly(t *testing.T) {
 func TestGetMonthly(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	_ = tracker.Track("cmd1", "snip cmd1", 500, 100, 30)
-	_ = tracker.Track("cmd2", "snip cmd2", 800, 200, 40)
+	_ = tracker.Track("cmd1", "scouter cmd1", 500, 100, 30)
+	_ = tracker.Track("cmd2", "scouter cmd2", 800, 200, 40)
 
 	monthly, err := tracker.GetMonthly(6)
 	if err != nil {
@@ -189,12 +189,12 @@ func TestGetMonthly(t *testing.T) {
 }
 
 func TestDBPath(t *testing.T) {
-	t.Setenv("SNIP_DB_PATH", "/custom/path.db")
+	t.Setenv("SCOUTER_DB_PATH", "/custom/path.db")
 	if got := DBPath(""); got != "/custom/path.db" {
 		t.Errorf("got %q", got)
 	}
 
-	t.Setenv("SNIP_DB_PATH", "")
+	t.Setenv("SCOUTER_DB_PATH", "")
 	if got := DBPath("/config/path.db"); got != "/config/path.db" {
 		t.Errorf("got %q", got)
 	}

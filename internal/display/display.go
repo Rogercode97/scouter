@@ -29,7 +29,7 @@ func IsTerminal() bool {
 // PrintFiltered prints filtered output with optional verbosity header.
 func PrintFiltered(output string, verbose int) {
 	if verbose > 0 && IsTerminal() {
-		fmt.Fprintln(os.Stderr, DimStyle.Render("--- snip filtered ---"))
+		fmt.Fprintln(os.Stderr, DimStyle.Render("--- scouter filtered ---"))
 	}
 	fmt.Print(output)
 }
@@ -37,9 +37,9 @@ func PrintFiltered(output string, verbose int) {
 // PrintError prints a styled error to stderr.
 func PrintError(msg string) {
 	if IsTerminal() {
-		fmt.Fprintln(os.Stderr, ErrorStyle.Render("snip: "+msg))
+		fmt.Fprintln(os.Stderr, ErrorStyle.Render("scouter: "+msg))
 	} else {
-		fmt.Fprintln(os.Stderr, "snip: "+msg)
+		fmt.Fprintln(os.Stderr, "scouter: "+msg)
 	}
 }
 

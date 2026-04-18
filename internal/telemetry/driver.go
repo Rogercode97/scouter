@@ -1,6 +1,6 @@
 //go:build !lite
 
-package tracking
+package telemetry
 
 import _ "modernc.org/sqlite"
 

@@ -72,7 +72,7 @@ func LoadUserFilters(dir string) ([]Filter, error) {
 		}
 		f, err := ParseFilter(data)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "snip: skipping invalid filter %s: %v\n", entry.Name(), err)
+			fmt.Fprintf(os.Stderr, "scouter: skipping invalid filter %s: %v\n", entry.Name(), err)
 			continue
 		}
 		filters = append(filters, *f)

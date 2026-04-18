@@ -29,7 +29,7 @@ func DefaultConfig() Config {
 		Mode:        "failures",
 		MaxFiles:    20,
 		MaxFileSize: 1 << 20, // 1MB
-		Dir:         filepath.Join(home, ".local", "share", "snip", "tee"),
+		Dir:         filepath.Join(home, ".local", "share", "scouter", "tee"),
 	}
 }
 
@@ -39,8 +39,8 @@ func MaybeSave(raw string, exitCode int, cmd string, cfg Config) string {
 		return ""
 	}
 
-	// Check SNIP_TEE env override
-	if os.Getenv("SNIP_TEE") == "0" {
+	// Check SCOUTER_TEE env override
+	if os.Getenv("SCOUTER_TEE") == "0" {
 		return ""
 	}
 
@@ -55,7 +55,7 @@ func MaybeSave(raw string, exitCode int, cmd string, cfg Config) string {
 	}
 
 	dir := cfg.Dir
-	if envDir := os.Getenv("SNIP_TEE_DIR"); envDir != "" {
+	if envDir := os.Getenv("SCOUTER_TEE_DIR"); envDir != "" {
 		dir = envDir
 	}
 

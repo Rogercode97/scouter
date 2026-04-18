@@ -1,0 +1,20 @@
+project:
+  name: scouter
+  stack: go
+  version: 1.25.0
+  branding_crisis:
+    detected: true
+    legacy_name: scouter
+    current_name: scouter
+    impact: high (cli, engine, logic references)
+
+commands:
+  build: make build
+  test: make test
+  lint: go vet ./...
+  run: ./bin/scouter mcp
+
+directories:
+  specs: sdd/specs
+  changes: sdd/changes
+  archive: sdd/archive

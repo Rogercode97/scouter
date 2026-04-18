@@ -12,7 +12,7 @@ import (
 func TestPatchSettingsNew(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
-	hookPath := filepath.Join(dir, "snip-rewrite.sh")
+	hookPath := filepath.Join(dir, "scouter-rewrite.sh")
 
 	err := patchSettings(path, hookPath)
 	if err != nil {
@@ -53,7 +53,7 @@ func TestPatchSettingsNew(t *testing.T) {
 func TestPatchSettingsExisting(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
-	hookPath := filepath.Join(dir, "snip-rewrite.sh")
+	hookPath := filepath.Join(dir, "scouter-rewrite.sh")
 
 	// Write existing settings with other hooks
 	existing := map[string]any{
@@ -104,7 +104,7 @@ func TestPatchSettingsExisting(t *testing.T) {
 		t.Errorf("first matcher = %v, want Write", first["matcher"])
 	}
 
-	// Second entry should be snip Bash hook
+	// Second entry should be scouter Bash hook
 	second := preToolUse[1].(map[string]any)
 	if second["matcher"] != "Bash" {
 		t.Errorf("second matcher = %v, want Bash", second["matcher"])
@@ -114,7 +114,7 @@ func TestPatchSettingsExisting(t *testing.T) {
 func TestPatchSettingsIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
-	hookPath := filepath.Join(dir, "snip-rewrite.sh")
+	hookPath := filepath.Join(dir, "scouter-rewrite.sh")
 
 	// Patch twice
 	_ = patchSettings(path, hookPath)
@@ -133,7 +133,7 @@ func TestPatchSettingsIdempotent(t *testing.T) {
 func TestUnpatchSettings(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
-	hookPath := filepath.Join(dir, "snip-rewrite.sh")
+	hookPath := filepath.Join(dir, "scouter-rewrite.sh")
 
 	// Patch first
 	_ = patchSettings(path, hookPath)
@@ -155,9 +155,9 @@ func TestUnpatchSettings(t *testing.T) {
 func TestUnpatchPreservesOtherHooks(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
-	hookPath := filepath.Join(dir, "snip-rewrite.sh")
+	hookPath := filepath.Join(dir, "scouter-rewrite.sh")
 
-	// Create settings with snip + another hook
+	// Create settings with scouter + another hook
 	existing := map[string]any{
 		"hooks": map[string]any{
 			"PreToolUse": []any{
@@ -171,7 +171,7 @@ func TestUnpatchPreservesOtherHooks(t *testing.T) {
 	data, _ := json.MarshalIndent(existing, "", "  ")
 	_ = os.WriteFile(path, data, 0644)
 
-	// Add snip
+	// Add scouter
 	_ = patchSettings(path, hookPath)
 
 	// Verify both present
@@ -181,7 +181,7 @@ func TestUnpatchPreservesOtherHooks(t *testing.T) {
 		t.Fatalf("expected 2 entries, got %d", len(preToolUse))
 	}
 
-	// Unpatch — should remove snip but keep the Write hook
+	// Unpatch — should remove scouter but keep the Write hook
 	unpatchSettings(path)
 
 	settings = readSettings(t, path)
@@ -207,13 +207,13 @@ func runHookScript(t *testing.T, cmd string) string {
 	}
 
 	dir := t.TempDir()
-	hookPath := filepath.Join(dir, "snip-rewrite.sh")
+	hookPath := filepath.Join(dir, "scouter-rewrite.sh")
 	if err := os.WriteFile(hookPath, []byte(hookScript), 0755); err != nil {
 		t.Fatalf("write hook: %v", err)
 	}
-	snipPath := filepath.Join(dir, "snip")
-	if err := os.WriteFile(snipPath, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
-		t.Fatalf("write fake snip: %v", err)
+	scouterPath := filepath.Join(dir, "scouter")
+	if err := os.WriteFile(scouterPath, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatalf("write fake scouter: %v", err)
 	}
 
 	payload, _ := json.Marshal(map[string]any{
@@ -251,8 +251,8 @@ func TestHookScriptMultilineCommand(t *testing.T) {
 	cmd := "git add file.go && git commit -m \"$(cat <<'EOF'\n   fix: something\n\n   Co-Authored-By: Bot <bot@example.com>\n   EOF\n   )\""
 	rewritten := runHookScript(t, cmd)
 
-	if !strings.HasPrefix(rewritten, "snip -- git add ") {
-		t.Errorf("expected rewritten command to start with 'snip -- git add', got: %s", rewritten)
+	if !strings.HasPrefix(rewritten, "scouter -- git add ") {
+		t.Errorf("expected rewritten command to start with 'scouter -- git add', got: %s", rewritten)
 	}
 }
 
@@ -260,16 +260,16 @@ func TestHookScriptInlinePythonDoesNotRewriteQuotedSemicolons(t *testing.T) {
 	cmd := "git commit -m \"$(python3 -c \\\"from pathlib import Path; import sys; print(Path('.').name); print(sys.version)\\\")\" && git status"
 	rewritten := runHookScript(t, cmd)
 
-	if !strings.HasPrefix(rewritten, "snip -- git commit ") {
-		t.Fatalf("expected rewritten command to start with 'snip -- git commit', got: %s", rewritten)
+	if !strings.HasPrefix(rewritten, "scouter -- git commit ") {
+		t.Fatalf("expected rewritten command to start with 'scouter -- git commit', got: %s", rewritten)
 	}
-	if strings.Count(rewritten, "snip --") != 1 {
-		t.Fatalf("expected exactly one snip injection, got: %s", rewritten)
+	if strings.Count(rewritten, "scouter --") != 1 {
+		t.Fatalf("expected exactly one scouter injection, got: %s", rewritten)
 	}
-	if strings.Contains(rewritten, "; snip") {
+	if strings.Contains(rewritten, "; scouter") {
 		t.Fatalf("expected inline python to stay unchanged, got: %s", rewritten)
 	}
-	if strings.Contains(rewritten, "python3 snip") {
+	if strings.Contains(rewritten, "python3 scouter") {
 		t.Fatalf("expected inline python command to stay unchanged, got: %s", rewritten)
 	}
 }

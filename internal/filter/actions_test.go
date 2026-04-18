@@ -210,7 +210,7 @@ func TestCompactPath(t *testing.T) {
 }
 
 func TestJsonExtract(t *testing.T) {
-	input := lines(`{"name":"snip","version":"0.1","count":42}`)
+	input := lines(`{"name":"scouter","version":"0.1","count":42}`)
 	res, err := jsonExtract(input, map[string]any{
 		"fields": []any{"name", "version"},
 	})

@@ -1,11 +1,11 @@
-package tracking
+package telemetry
 
 const createTableSQL = `
 CREATE TABLE IF NOT EXISTS commands (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	timestamp DATETIME DEFAULT (datetime('now')),
 	original_cmd TEXT NOT NULL,
-	snip_cmd TEXT NOT NULL,
+	scouter_cmd TEXT NOT NULL,
 	input_tokens INTEGER NOT NULL,
 	output_tokens INTEGER NOT NULL,
 	saved_tokens INTEGER NOT NULL,
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS commands (
 const cleanupSQL = `DELETE FROM commands WHERE timestamp < datetime('now', '-90 days');`
 
 const insertSQL = `
-INSERT INTO commands (original_cmd, snip_cmd, input_tokens, output_tokens, saved_tokens, savings_pct, exec_time_ms)
+INSERT INTO commands (original_cmd, scouter_cmd, input_tokens, output_tokens, saved_tokens, savings_pct, exec_time_ms)
 VALUES (?, ?, ?, ?, ?, ?, ?);
 `
 
@@ -45,7 +45,7 @@ ORDER BY day DESC;
 `
 
 const recentSQL = `
-SELECT original_cmd, snip_cmd, input_tokens, output_tokens, saved_tokens, savings_pct, exec_time_ms, timestamp
+SELECT original_cmd, scouter_cmd, input_tokens, output_tokens, saved_tokens, savings_pct, exec_time_ms, timestamp
 FROM commands
 ORDER BY id DESC
 LIMIT ?;
@@ -114,7 +114,7 @@ type DayStats struct {
 // CommandRecord holds a single tracked command.
 type CommandRecord struct {
 	OriginalCmd  string
-	SnipCmd      string
+	ScouterCmd   string
 	InputTokens  int
 	OutputTokens int
 	SavedTokens  int

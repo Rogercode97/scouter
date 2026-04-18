@@ -1,20 +1,20 @@
 <p align="center">
-  <img src="https://img.shields.io/github/v/release/edouard-claude/snip?style=flat-square" alt="Release">
-  <img src="https://img.shields.io/github/actions/workflow/status/edouard-claude/snip/ci.yaml?branch=master&style=flat-square&label=CI" alt="CI">
-  <img src="https://img.shields.io/github/license/edouard-claude/snip?style=flat-square" alt="License">
+  <img src="https://img.shields.io/github/v/release/edouard-claude/scouter?style=flat-square" alt="Release">
+  <img src="https://img.shields.io/github/actions/workflow/status/edouard-claude/scouter/ci.yaml?branch=master&style=flat-square&label=CI" alt="CI">
+  <img src="https://img.shields.io/github/license/edouard-claude/scouter?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat-square&logo=go" alt="Go">
 </p>
 
-# snip
+# scouter
 
 **CLI proxy that cuts LLM token waste from shell output.**
 
 AI coding agents burn tokens on verbose shell output that adds zero signal. A passing `go test` produces hundreds of lines the LLM will never use. `git log` dumps full commit metadata when a one-liner per commit suffices.
 
-snip sits between your AI tool and the shell, filtering output through declarative YAML pipelines before it reaches the context window.
+scouter sits between your AI tool and the shell, filtering output through declarative YAML pipelines before it reaches the context window.
 
 ```
-  snip — Token Savings Report
+  scouter — Token Savings Report
   ══════════════════════════════
 
   Commands filtered     128
@@ -42,14 +42,14 @@ snip sits between your AI tool and the shell, filtering output through declarati
 
 ```bash
 # Homebrew (macOS/Linux)
-brew install edouard-claude/tap/snip
+brew install edouard-claude/tap/scouter
 
 # Or with Go
-go install github.com/Rogercode97/scouter/internal/engine/cmd/snip@latest
+go install github.com/Rogercode97/scouter/internal/engine/cmd/scouter@latest
 
 # Then hook into Claude Code
-snip init
-# That's it. Every shell command Claude runs now goes through snip.
+scouter init
+# That's it. Every shell command Claude runs now goes through scouter.
 ```
 
 ## How It Works
@@ -68,7 +68,7 @@ ok  	github.com/Rogercode97/scouter/internal/tracking	5.355s	coverage: 75.0% of 
 ok  	github.com/Rogercode97/scouter/internal/utils	5.515s	coverage: 100.0% of statements
 ```
 
-**After** — snip returns this (16 tokens):
+**After** — scouter returns this (16 tokens):
 ```
 10 passed, 0 failed
 ```
@@ -77,7 +77,7 @@ That's **97.7% fewer tokens**. The LLM gets the same signal — all tests pass �
 
 ```
 ┌─────────────┐     ┌─────────────────┐     ┌──────────────┐     ┌────────────┐
-│ Claude Code │────>│ snip intercept  │────>│ run command  │────>│   filter   │
+│ Claude Code │────>│ scouter intercept  │────>│ run command  │────>│   filter   │
 │  runs git   │     │  match filter   │     │  capture I/O │     │  pipeline  │
 └─────────────┘     └─────────────────┘     └──────────────┘     └─────┬──────┘
                                                                        │
@@ -104,7 +104,7 @@ No filter match? The command passes through unchanged — zero overhead.
 ### Homebrew (recommended)
 
 ```bash
-brew install edouard-claude/tap/snip
+brew install edouard-claude/tap/scouter
 ```
 
 ### From GitHub Releases
@@ -113,21 +113,21 @@ Download the latest binary for your platform from [Releases](https://github.com/
 
 ```bash
 # macOS (Apple Silicon)
-curl -Lo snip.tar.gz https://github.com/Rogercode97/scouter/internal/engine/releases/latest/download/snip_$(curl -s https://api.github.com/repos/edouard-claude/snip/releases/latest | grep tag_name | cut -d'"' -f4 | tr -d v)_darwin_arm64.tar.gz
-tar xzf snip.tar.gz && mv snip /usr/local/bin/
+curl -Lo scouter.tar.gz https://github.com/Rogercode97/scouter/internal/engine/releases/latest/download/scouter_$(curl -s https://api.github.com/repos/edouard-claude/scouter/releases/latest | grep tag_name | cut -d'"' -f4 | tr -d v)_darwin_arm64.tar.gz
+tar xzf scouter.tar.gz && mv scouter /usr/local/bin/
 ```
 
 ### From source
 
 ```bash
-go install github.com/Rogercode97/scouter/internal/engine/cmd/snip@latest
+go install github.com/Rogercode97/scouter/internal/engine/cmd/scouter@latest
 ```
 
 Or build locally:
 
 ```bash
 git clone https://github.com/Rogercode97/scouter/internal/engine.git
-cd snip && make install
+cd scouter && make install
 ```
 
 Requires Go 1.24+ and `jq` (for the hook script).
@@ -137,7 +137,7 @@ Requires Go 1.24+ and `jq` (for the hook script).
 ### Claude Code
 
 ```bash
-snip init
+scouter init
 ```
 
 This installs a `PreToolUse` hook that transparently rewrites supported commands. Claude Code never sees the substitution — it receives compressed output as if the original command produced it.
@@ -145,21 +145,21 @@ This installs a `PreToolUse` hook that transparently rewrites supported commands
 Supported commands: `git`, `go`, `cargo`, `npm`, `npx`, `yarn`, `pnpm`, `docker`, `kubectl`, `make`, `pip`, `pytest`, `jest`, `tsc`, `eslint`, `rustc`.
 
 ```bash
-snip init --uninstall   # remove the hook
+scouter init --uninstall   # remove the hook
 ```
 
 ### OpenCode
 
-Install the [opencode-snip](https://github.com/VincentHardouin/opencode-snip) plugin by adding it to your OpenCode config (`~/.config/opencode/opencode.json`):
+Install the [opencode-scouter](https://github.com/VincentHardouin/opencode-scouter) plugin by adding it to your OpenCode config (`~/.config/opencode/opencode.json`):
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-snip@latest"]
+  "plugin": ["opencode-scouter@latest"]
 }
 ```
 
-The plugin uses the `tool.execute.before` hook to automatically prefix all commands with `snip`. Commands not supported by snip pass through unchanged.
+The plugin uses the `tool.execute.before` hook to automatically prefix all commands with `scouter`. Commands not supported by scouter pass through unchanged.
 
 ### Cursor
 
@@ -170,7 +170,7 @@ Cursor supports hooks since v1.7 via `~/.cursor/hooks.json`:
   "version": 1,
   "hooks": {
     "beforeShellExecution": [
-      { "command": "~/.claude/hooks/snip-rewrite.sh" }
+      { "command": "~/.claude/hooks/scouter-rewrite.sh" }
     ]
   }
 }
@@ -182,40 +182,40 @@ Use shell aliases:
 
 ```bash
 # Add to ~/.bashrc or ~/.zshrc
-alias git="snip git"
-alias go="snip go"
-alias cargo="snip cargo"
+alias git="scouter git"
+alias go="scouter go"
+alias cargo="scouter cargo"
 ```
 
-Or instruct the LLM via system prompt to prefix commands with `snip`.
+Or instruct the LLM via system prompt to prefix commands with `scouter`.
 
 ### Standalone
 
-snip works without any AI tool:
+scouter works without any AI tool:
 
 ```bash
-snip git log -10
-snip go test ./...
-snip gain             # token savings report
+scouter git log -10
+scouter go test ./...
+scouter gain             # token savings report
 ```
 
 ## Usage
 
 ```bash
-snip <command> [args]       # filter a command
-snip gain                   # full dashboard (summary + sparkline + top commands)
-snip gain --daily           # daily breakdown
-snip gain --weekly          # weekly breakdown
-snip gain --monthly         # monthly breakdown
-snip gain --top 10          # top N commands by tokens saved
-snip gain --history 20      # last 20 commands
-snip gain --json            # machine-readable output
-snip gain --csv             # CSV export
-snip -v <command>           # verbose mode (show filter details)
-snip proxy <command>        # force passthrough (no filtering)
-snip config                 # show config
-snip init                   # install Claude Code hook
-snip init --uninstall       # remove hook
+scouter <command> [args]       # filter a command
+scouter gain                   # full dashboard (summary + sparkline + top commands)
+scouter gain --daily           # daily breakdown
+scouter gain --weekly          # weekly breakdown
+scouter gain --monthly         # monthly breakdown
+scouter gain --top 10          # top N commands by tokens saved
+scouter gain --history 20      # last 20 commands
+scouter gain --json            # machine-readable output
+scouter gain --csv             # CSV export
+scouter -v <command>           # verbose mode (show filter details)
+scouter proxy <command>        # force passthrough (no filtering)
+scouter config                 # show config
+scouter init                   # install Claude Code hook
+scouter init --uninstall       # remove hook
 ```
 
 ## Filters
@@ -281,26 +281,26 @@ on_error: "passthrough"
 ### Custom Filters
 
 ```bash
-snip init                                    # creates ~/.config/snip/filters/
-vim ~/.config/snip/filters/my-tool.yaml      # add your filter
+scouter init                                    # creates ~/.config/scouter/filters/
+vim ~/.config/scouter/filters/my-tool.yaml      # add your filter
 ```
 
 User filters take priority over built-in ones.
 
 ## Configuration
 
-Optional TOML config at `~/.config/snip/config.toml`:
+Optional TOML config at `~/.config/scouter/config.toml`:
 
 ```toml
 [tracking]
-db_path = "~/.local/share/snip/tracking.db"
+db_path = "~/.local/share/scouter/tracking.db"
 
 [display]
 color = true
 emoji = true
 
 [filters]
-dir = "~/.config/snip/filters"
+dir = "~/.config/scouter/filters"
 
 [tee]
 enabled = true
@@ -311,7 +311,7 @@ max_file_size = 1048576
 
 ## Design
 
-- **Startup < 10ms** — snip intercepts every shell command; latency is critical
+- **Startup < 10ms** — scouter intercepts every shell command; latency is critical
 - **Graceful degradation** — if a filter fails, fall back to raw output
 - **Exit code preservation** — always propagate the underlying tool's exit code
 - **Lazy regex compilation** — `sync.Once` per pattern, reused across invocations
@@ -320,7 +320,7 @@ max_file_size = 1048576
 
 ## Why Go over Rust?
 
-| | **rtk** (Rust) | **snip** (Go) |
+| | **rtk** (Rust) | **scouter** (Go) |
 |---|---|---|
 | Filters | Compiled into the binary | Declarative YAML — no code needed |
 | Concurrency | 2 OS threads | Goroutines |
@@ -353,7 +353,7 @@ Full documentation is available on the **[Wiki](https://github.com/Rogercode97/s
 
 ## Credits
 
-Inspired by [rtk](https://github.com/rtk-ai/rtk) by the rtk-ai team. rtk proved that filtering shell output before it reaches the LLM context is a powerful idea. snip rebuilds it in Go with a focus on extensibility — declarative YAML filters that anyone can write without touching the codebase.
+Inspired by [rtk](https://github.com/rtk-ai/rtk) by the rtk-ai team. rtk proved that filtering shell output before it reaches the LLM context is a powerful idea. scouter rebuilds it in Go with a focus on extensibility — declarative YAML filters that anyone can write without touching the codebase.
 
 ## License
 
