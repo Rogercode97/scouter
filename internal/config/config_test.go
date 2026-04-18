@@ -73,8 +73,8 @@ func TestMigrate(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	legacyConfigDir := filepath.Join(home, ".config", "scouter")
-	legacyDBPath := filepath.Join(home, ".local", "share", "scouter", "tracking.db")
+	legacyConfigDir := filepath.Join(home, ".config", "snip")
+	legacyDBPath := filepath.Join(home, ".local", "share", "snip", "tracking.db")
 
 	err := os.MkdirAll(legacyConfigDir, 0700)
 	if err != nil {

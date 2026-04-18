@@ -3,6 +3,7 @@
 package display
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -12,7 +13,7 @@ import (
 func newTestTracker(t *testing.T) *telemetry.Tracker {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	tracker, err := telemetry.NewTracker(dbPath)
+	tracker, err := telemetry.NewTracker(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("new tracker: %v", err)
 	}
@@ -22,10 +23,10 @@ func newTestTracker(t *testing.T) *telemetry.Tracker {
 
 func seedTracker(t *testing.T, tracker *telemetry.Tracker) {
 	t.Helper()
-	_ = tracker.Track("git log", "scouter git log", 1000, 200, 50)
-	_ = tracker.Track("go test", "scouter go test", 2000, 300, 100)
-	_ = tracker.Track("git log", "scouter git log", 800, 100, 40)
-	_ = tracker.Track("ls -la", "scouter ls -la", 50, 30, 5)
+	_ = tracker.Track(context.Background(), "git log", "scouter git log", 1000, 200, 50)
+	_ = tracker.Track(context.Background(), "go test", "scouter go test", 2000, 300, 100)
+	_ = tracker.Track(context.Background(), "git log", "scouter git log", 800, 100, 40)
+	_ = tracker.Track(context.Background(), "ls -la", "scouter ls -la", 50, 30, 5)
 }
 
 func TestRunGainNoData(t *testing.T) {

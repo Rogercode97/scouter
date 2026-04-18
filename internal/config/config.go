@@ -109,15 +109,15 @@ func (c *Config) Save(ctx context.Context) error {
 	return nil
 }
 
-// Migrate moves legacy 'scouter' configuration and database to 'scouter'.
+// Migrate moves legacy 'snip' configuration and database to 'scouter'.
 func (c *Config) Migrate(ctx context.Context) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
-	legacyConfigDir := filepath.Join(home, ".config", "scouter")
-	legacyDBPath := filepath.Join(home, ".local", "share", "scouter", "tracking.db")
+	legacyConfigDir := filepath.Join(home, ".config", "snip")
+	legacyDBPath := filepath.Join(home, ".local", "share", "snip", "tracking.db")
 	newConfigDir := filepath.Join(home, ".config", "scouter")
 	newDBPath := filepath.Join(newConfigDir, "scouter.db")
 
@@ -207,7 +207,13 @@ func copyFile(src, dst string) error {
 	}
 	defer source.Close()
 
-	destination, err := os.Create(dst)
+	// Get source permissions
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	destination, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC, info.Mode())
 	if err != nil {
 		return err
 	}

@@ -16,13 +16,12 @@ func main() {
 	ctx := context.Background()
 	home, _ := os.UserHomeDir()
 	dbPath := filepath.Join(home, ".scouter", "scouter.db")
-	
-	s, err := store.New(dbPath)
+
+	s, err := store.New(ctx, dbPath)
 	if err != nil {
 		log.Fatalf("Failed to open store: %v", err)
 	}
 	defer s.Close()
-
 	vaultPath, _ := os.Getwd()
 	fmt.Printf("--- Indexing Workspace: %s ---\n", vaultPath)
 

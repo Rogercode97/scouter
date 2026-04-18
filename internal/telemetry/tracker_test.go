@@ -3,6 +3,7 @@
 package telemetry
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 )
@@ -10,7 +11,7 @@ import (
 func newTestTracker(t *testing.T) *Tracker {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	tracker, err := NewTracker(dbPath)
+	tracker, err := NewTracker(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("new tracker: %v", err)
 	}
@@ -28,12 +29,12 @@ func TestNewTracker(t *testing.T) {
 func TestTrack(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	err := tracker.Track("git log", "scouter git log", 1000, 200, 50)
+	err := tracker.Track(context.Background(), "git log", "scouter git log", 1000, 200, 50)
 	if err != nil {
 		t.Fatalf("track: %v", err)
 	}
 
-	summary, err := tracker.GetSummary()
+	summary, err := tracker.GetSummary(context.Background())
 	if err != nil {
 		t.Fatalf("summary: %v", err)
 	}
@@ -51,12 +52,12 @@ func TestTrack(t *testing.T) {
 func TestTrackPassthrough(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	err := tracker.TrackPassthrough("npm install", 500, 100)
+	err := tracker.TrackPassthrough(context.Background(), "npm install", 500, 100)
 	if err != nil {
 		t.Fatalf("track passthrough: %v", err)
 	}
 
-	summary, err := tracker.GetSummary()
+	summary, err := tracker.GetSummary(context.Background())
 	if err != nil {
 		t.Fatalf("summary: %v", err)
 	}
@@ -68,11 +69,11 @@ func TestTrackPassthrough(t *testing.T) {
 func TestGetRecent(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	_ = tracker.Track("cmd1", "scouter cmd1", 100, 30, 10)
-	_ = tracker.Track("cmd2", "scouter cmd2", 200, 50, 20)
-	_ = tracker.Track("cmd3", "scouter cmd3", 300, 80, 30)
+	_ = tracker.Track(context.Background(), "cmd1", "scouter cmd1", 100, 30, 10)
+	_ = tracker.Track(context.Background(), "cmd2", "scouter cmd2", 200, 50, 20)
+	_ = tracker.Track(context.Background(), "cmd3", "scouter cmd3", 300, 80, 30)
 
-	recent, err := tracker.GetRecent(2)
+	recent, err := tracker.GetRecent(context.Background(), 2)
 	if err != nil {
 		t.Fatalf("recent: %v", err)
 	}
@@ -88,10 +89,10 @@ func TestGetRecent(t *testing.T) {
 func TestGetDaily(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	_ = tracker.Track("cmd1", "scouter cmd1", 100, 30, 10)
-	_ = tracker.Track("cmd2", "scouter cmd2", 200, 50, 20)
+	_ = tracker.Track(context.Background(), "cmd1", "scouter cmd1", 100, 30, 10)
+	_ = tracker.Track(context.Background(), "cmd2", "scouter cmd2", 200, 50, 20)
 
-	daily, err := tracker.GetDaily(7)
+	daily, err := tracker.GetDaily(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("daily: %v", err)
 	}
@@ -106,12 +107,12 @@ func TestGetDaily(t *testing.T) {
 func TestGetByCommand(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	_ = tracker.Track("git log", "scouter git log", 1000, 200, 50)
-	_ = tracker.Track("git log", "scouter git log", 800, 100, 40)
-	_ = tracker.Track("go test", "scouter go test", 2000, 300, 100)
-	_ = tracker.Track("ls -la", "scouter ls -la", 50, 30, 5)
+	_ = tracker.Track(context.Background(), "git log", "scouter git log", 1000, 200, 50)
+	_ = tracker.Track(context.Background(), "git log", "scouter git log", 800, 100, 40)
+	_ = tracker.Track(context.Background(), "go test", "scouter go test", 2000, 300, 100)
+	_ = tracker.Track(context.Background(), "ls -la", "scouter ls -la", 50, 30, 5)
 
-	stats, err := tracker.GetByCommand(10)
+	stats, err := tracker.GetByCommand(context.Background(), 10)
 	if err != nil {
 		t.Fatalf("by command: %v", err)
 	}
@@ -136,11 +137,11 @@ func TestGetByCommand(t *testing.T) {
 func TestGetByCommandLimit(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	_ = tracker.Track("cmd1", "scouter cmd1", 100, 30, 10)
-	_ = tracker.Track("cmd2", "scouter cmd2", 200, 50, 20)
-	_ = tracker.Track("cmd3", "scouter cmd3", 300, 80, 30)
+	_ = tracker.Track(context.Background(), "cmd1", "scouter cmd1", 100, 30, 10)
+	_ = tracker.Track(context.Background(), "cmd2", "scouter cmd2", 200, 50, 20)
+	_ = tracker.Track(context.Background(), "cmd3", "scouter cmd3", 300, 80, 30)
 
-	stats, err := tracker.GetByCommand(2)
+	stats, err := tracker.GetByCommand(context.Background(), 2)
 	if err != nil {
 		t.Fatalf("by command: %v", err)
 	}
@@ -152,10 +153,10 @@ func TestGetByCommandLimit(t *testing.T) {
 func TestGetWeekly(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	_ = tracker.Track("cmd1", "scouter cmd1", 100, 30, 10)
-	_ = tracker.Track("cmd2", "scouter cmd2", 200, 50, 20)
+	_ = tracker.Track(context.Background(), "cmd1", "scouter cmd1", 100, 30, 10)
+	_ = tracker.Track(context.Background(), "cmd2", "scouter cmd2", 200, 50, 20)
 
-	weekly, err := tracker.GetWeekly(4)
+	weekly, err := tracker.GetWeekly(context.Background(), 4)
 	if err != nil {
 		t.Fatalf("weekly: %v", err)
 	}
@@ -170,10 +171,10 @@ func TestGetWeekly(t *testing.T) {
 func TestGetMonthly(t *testing.T) {
 	tracker := newTestTracker(t)
 
-	_ = tracker.Track("cmd1", "scouter cmd1", 500, 100, 30)
-	_ = tracker.Track("cmd2", "scouter cmd2", 800, 200, 40)
+	_ = tracker.Track(context.Background(), "cmd1", "scouter cmd1", 500, 100, 30)
+	_ = tracker.Track(context.Background(), "cmd2", "scouter cmd2", 800, 200, 40)
 
-	monthly, err := tracker.GetMonthly(6)
+	monthly, err := tracker.GetMonthly(context.Background(), 6)
 	if err != nil {
 		t.Fatalf("monthly: %v", err)
 	}
