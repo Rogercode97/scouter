@@ -52,7 +52,13 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []type
 	if err == nil {
 		var pointers []types.ASTPointer
 		var calls []types.ASTCall
-		var funcStack []*ast.FuncDecl // Stack to manage (nested) function contexts
+
+		type funcCtx struct {
+			name           string
+			end            token.Pos
+			anonymousCount int
+		}
+		var funcStack []*funcCtx
 
 		ast.Inspect(file, func(n ast.Node) bool {
 			if n == nil {
@@ -60,10 +66,9 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []type
 			}
 
 			// Pop functions from the stack when the current node is outside their scope.
-			// This handles leaving a function's body.
 			for len(funcStack) > 0 {
-				topFunc := funcStack[len(funcStack)-1]
-				if n.Pos() >= topFunc.End() {
+				top := funcStack[len(funcStack)-1]
+				if n.Pos() >= top.end {
 					funcStack = funcStack[:len(funcStack)-1]
 				} else {
 					break
@@ -84,7 +89,31 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []type
 					EndLine:   endPos.Line,
 					Hash:      hex.EncodeToString(h[:]),
 				})
-				funcStack = append(funcStack, fn)
+				funcStack = append(funcStack, &funcCtx{
+					name: fn.Name.Name,
+					end:  fn.End(),
+				})
+			}
+
+			// Push anonymous functions onto the stack.
+			if fn, ok := n.(*ast.FuncLit); ok {
+				parentName := "global"
+				if len(funcStack) > 0 {
+					top := funcStack[len(funcStack)-1]
+					top.anonymousCount++
+					parentName = top.name
+					anonName := fmt.Sprintf("%s.func%d", parentName, top.anonymousCount)
+					funcStack = append(funcStack, &funcCtx{
+						name: anonName,
+						end:  fn.End(),
+					})
+				} else {
+					// Top-level anonymous function (rare in Go, but possible in variable initialization)
+					funcStack = append(funcStack, &funcCtx{
+						name: "global.func",
+						end:  fn.End(),
+					})
+				}
 			}
 
 			// If we are inside a function, record any call expressions.
@@ -94,7 +123,7 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []type
 					calleeName := extractCalleeName(call.Fun)
 					if calleeName != "" {
 						calls = append(calls, types.ASTCall{
-							CallerName: caller.Name.Name,
+							CallerName: caller.name,
 							CalleeName: calleeName,
 							Path:       validatedPath,
 							Line:       fset.Position(call.Lparen).Line,
