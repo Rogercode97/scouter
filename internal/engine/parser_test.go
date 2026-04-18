@@ -92,14 +92,78 @@ func Nested() {}
 		t.Errorf("expected callee Inner, got %s", call1.CalleeName)
 	}
 
-	// Note: The current Go parser implementation does not handle anonymous functions as callers.
-	// This is a known limitation. We are checking for the call to Nested() inside the Outer() scope.
+	// The anonymous function is now correctly tracked as Outer.func1
 	call2 := calls[1]
-	if call2.CallerName != "Outer" {
-		t.Errorf("expected caller Outer for nested call, got %s", call2.CallerName)
+	if call2.CallerName != "Outer.func1" {
+		t.Errorf("expected caller Outer.func1 for nested call, got %s", call2.CallerName)
 	}
 	if call2.CalleeName != "Nested" {
 		t.Errorf("expected callee Nested, got %s", call2.CalleeName)
+	}
+}
+
+func TestParseFileWithAnonymousCalls(t *testing.T) {
+	content := `
+package test
+func Caller() {
+	go func() {
+		Callee()
+	}()
+
+	f := func() {
+		NestedCallee()
+	}
+	f()
+}
+func Callee() {}
+func NestedCallee() {}
+`
+	tmpDir, err := os.MkdirTemp("", "scouter-test-*")
+	if err != nil {
+		t.Fatalf("failed to create tmp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	filePath := filepath.Join(tmpDir, "test.go")
+	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	ctx := context.Background()
+	_, calls, err := ParseFile(ctx, filePath)
+	if err != nil {
+		t.Fatalf("ParseFile failed: %v", err)
+	}
+
+	if len(calls) != 3 {
+		t.Fatalf("expected 3 calls, got %d", len(calls))
+	}
+
+	// Verify the first call (go func)
+	call1 := calls[0]
+	if call1.CallerName != "Caller.func1" {
+		t.Errorf("expected caller Caller.func1, got %s", call1.CallerName)
+	}
+	if call1.CalleeName != "Callee" {
+		t.Errorf("expected callee Callee, got %s", call1.CalleeName)
+	}
+
+	// Verify the second call (closure)
+	call2 := calls[1]
+	if call2.CallerName != "Caller.func2" {
+		t.Errorf("expected caller Caller.func2, got %s", call2.CallerName)
+	}
+	if call2.CalleeName != "NestedCallee" {
+		t.Errorf("expected callee NestedCallee, got %s", call2.CalleeName)
+	}
+
+	// Verify the third call (f())
+	call3 := calls[2]
+	if call3.CallerName != "Caller" {
+		t.Errorf("expected caller Caller, got %s", call3.CallerName)
+	}
+	if call3.CalleeName != "f" {
+		t.Errorf("expected callee f, got %s", call3.CalleeName)
 	}
 }
 
