@@ -1,8 +1,8 @@
-# Scouter 🕶️ (Wave 8.7 (Redemption Edition))
-**Status**: Fully Redemed. Context-Aware I/O (Go 1.25) & MCP Integrated.
+# Scouter 🕶️ (Wave 8.2 — Sovereign Edition)
+**Status**: Sovereign. Divine Architecture (Go 1.25). Glasswall Validated.
 
 **The high-precision, semantic code analysis engine for AI agents.**  
-*Surgical AST indexing. FTS5 Semantic Search. Multi-language Tree-sitter. SHA-256 Hashing.*
+*Surgical AST indexing. FTS5 Semantic Search. Multi-language Tree-sitter. SHA-256 Hashing. Glasswall Security.*
 
 Scouter gives AI agents (like Gemini CLI, OpenCode, and Claude Code) "X-ray vision" for your codebase. It eliminates token waste by providing surgical access to symbols (functions, classes, methods) and instant semantic discovery.
 
@@ -31,13 +31,27 @@ Scouter can self-configure your favorite AI agents:
 
 Scouter runs as an **MCP (Model Context Protocol)** server. It indexes your project's structure into a local SQLite database (`~/.scouter/scouter.db`) using the **Engram Pattern** for maximum performance and integrity.
 
-1.  **Index (`scouter_index`)**: Analyzes a file and returns its symbols (AST pointers). Supports **Go, TypeScript, JavaScript, and Python** via Tree-sitter.
+1.  **Index (`scouter_index`)**: Analyzes a file and returns its symbols (AST pointers). Supports **Go, TypeScript (tsx), JavaScript (jsx), and Python** via Tree-sitter.
 2.  **Search (`scouter_search`)**: Uses **FTS5 (Full Text Search)** to locate any symbol (function, class, variable) across the indexed workspace in milliseconds.
-3.  **Integrity (`SHA-256`)**: Implements content-based caching. Even if a file's `mtime` changes, Scouter uses SHA-256 hashes to verify if re-indexing is actually needed.
-4.  **Read (`scouter_read`)**: Uses AST pointers to extract the exact byte range of a symbol, reducing context usage to the absolute minimum.
+3.  **Integrity (`SHA-256`)**: Implements content-based caching and **Symbol-level Hashing**. Each pointer contains a unique SHA-256 signature for structural verification.
+4.  **Read (`scouter_read`)**: Uses AST pointers to extract the exact byte range of a symbol (**Fragment Reading**), reducing context usage to the absolute minimum.
+
+## ⚖️ Sovereign Mandates (Wave 8.2)
+
+- **Glasswall Validation**: All MCP inputs are strictly validated with `validator/v10` to prevent memory and range errors.
+- **OOM Guard**: Hard limits on search results (100) and indexing responses (500 symbols) to protect LLM context windows and server memory.
+- **Context Authority**: 100% `context.Context` propagation across all layers for safe cancellations and concurrency control.
+- **Pure Branding**: Zero legacy references. Unified nomenclature: **Fragments** (not snippets).
+
+## 🧩 Agent Integration
+
+### Gemini CLI
+- **Server Instructions**: Automatically guides the LLM to prefer AST search over generic grep.
+- **Slash Commands**: Use `/scouter-explain symbolName=X` to trigger an autonomous explanation workflow.
+- **Live Status**: Reference `@scouter://status` to see indexing stats in real-time.
 
 ## 📦 Distribution
-Scouter is a **single 13MB binary**. It is portable, zero-dependency, and embeds its own TypeScript plugins for OpenCode using Go's `//go:embed` directive.
+Scouter is a **single 15MB binary**. It is portable, zero-dependency, and embeds its own TypeScript plugins for OpenCode using Go's `//go:embed` directive.
 
 ## 📜 License
 MIT
