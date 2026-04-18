@@ -25,6 +25,11 @@ func main() {
 	workspacePath, _ := os.Getwd()
 	fmt.Printf("--- Indexing Workspace: %s ---\n", workspacePath)
 
+	// 0. Clear old dependencies
+	if err := s.ClearDependencies(ctx); err != nil {
+		log.Printf("Warning: failed to clear dependencies: %v", err)
+	}
+
 	err = filepath.Walk(workspacePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -35,8 +40,30 @@ func main() {
 		}
 
 		ext := filepath.Ext(path)
+		base := filepath.Base(path)
+
+		// A. Handle Manifests (Ecosystem Sovereignty)
+		if base == "go.mod" {
+			fmt.Printf("Indexing Ecosystem (Go): %s\n", path)
+			deps, err := engine.ParseGoMod(ctx, path)
+			if err == nil {
+				for _, d := range deps {
+					_ = s.SaveDependency(ctx, &d)
+				}
+			}
+		} else if base == "package.json" {
+			fmt.Printf("Indexing Ecosystem (NPM): %s\n", path)
+			deps, err := engine.ParsePackageJSON(ctx, path)
+			if err == nil {
+				for _, d := range deps {
+					_ = s.SaveDependency(ctx, &d)
+				}
+			}
+		}
+
+		// B. Handle Code Files (Symbol & Call Graph)
 		if !info.IsDir() && (ext == ".go" || ext == ".ts" || ext == ".tsx" || ext == ".js" || ext == ".jsx" || ext == ".py") {
-			fmt.Printf("Indexing: %s\n", path)
+			fmt.Printf("Indexing Code: %s\n", path)
 
 			// 1. Calculate Hash
 			h, hashErr := utils.CalculateHash(path)
