@@ -174,7 +174,7 @@ func runMCPServer() {
 
 	// Tool: scouter_read
 	readTool := mcp.NewTool("scouter_read",
-		mcp.WithDescription("Read a specific code snippet from a file using an AST pointer (byte-safe start/end positions)."),
+		mcp.WithDescription("Read a specific code scouterpet from a file using an AST pointer (byte-safe start/end positions)."),
 		mcp.WithString("filePath",
 			mcp.Required(),
 			mcp.Description("The absolute path to the file."),
@@ -197,7 +197,7 @@ func runMCPServer() {
 		args := request.GetArguments()
 		pointerJSON, _ := json.Marshal(args["pointer"])
 		
-		snippet, err := engine.ReadSnippet(ctx, filePath, string(pointerJSON))
+		scouterpet, err := engine.ReadScouterpet(ctx, filePath, string(pointerJSON))
 		if err != nil {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Read failed: %v", err)}},
@@ -206,7 +206,7 @@ func runMCPServer() {
 		}
 
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: snippet}},
+			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: scouterpet}},
 		}, nil
 	})
 

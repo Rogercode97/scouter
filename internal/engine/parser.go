@@ -14,8 +14,8 @@ import (
 	"github.com/Rogercode97/scouter/internal/utils"
 )
 
-// MaxSnippetSize is the limit for a surgical read (100KB)
-const MaxSnippetSize = 100 * 1024
+// MaxScouterpetSize is the limit for a surgical read (100KB)
+const MaxScouterpetSize = 100 * 1024
 
 // MaxParseSize is the limit for indexing a file (2MB)
 const MaxParseSize = 2 * 1024 * 1024
@@ -82,9 +82,9 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, error)
 	return nil, fmt.Errorf("parsing failed for %s: %w", filePath, err)
 }
 
-// ReadSnippet reads a specific code snippet from a file using a byte range JSON string.
+// ReadScouterpet reads a specific code scouterpet from a file using a byte range JSON string.
 // Now includes: Sincronización, Encoding Guard, and Size Limits.
-func ReadSnippet(ctx context.Context, filePath string, rangeJSON string) (string, error) {
+func ReadScouterpet(ctx context.Context, filePath string, rangeJSON string) (string, error) {
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
@@ -104,8 +104,8 @@ func ReadSnippet(ctx context.Context, filePath string, rangeJSON string) (string
 
 	// 2. Size Limit Check (Ghost 4: MCP UX)
 	requestedSize := r.End - r.Start
-	if requestedSize > MaxSnippetSize {
-		return "", fmt.Errorf("requested snippet too large (%d bytes), limit is %d bytes", requestedSize, MaxSnippetSize)
+	if requestedSize > MaxScouterpetSize {
+		return "", fmt.Errorf("requested scouterpet too large (%d bytes), limit is %d bytes", requestedSize, MaxScouterpetSize)
 	}
 
 	// 3. Open file and read only the requested range (File Seeking)

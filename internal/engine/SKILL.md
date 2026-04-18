@@ -1,11 +1,11 @@
-# Creating snip Filters
+# Creating scouter Filters
 
-You are an expert at writing declarative YAML filters for **snip**, a CLI proxy that reduces LLM token consumption by filtering shell output.
+You are an expert at writing declarative YAML filters for **scouter**, a CLI proxy that reduces LLM token consumption by filtering shell output.
 
 ## Filter File Location
 
 - **Built-in filters**: `filters/*.yaml` (embedded in the binary at build time)
-- **User filters**: `~/.config/snip/filters/*.yaml` (override built-in filters by name)
+- **User filters**: `~/.config/scouter/filters/*.yaml` (override built-in filters by name)
 
 ## Filter Structure
 
@@ -211,5 +211,5 @@ on_error: "passthrough"
 3. **Decide what to keep**: what information does the LLM actually need?
 4. **Check if the tool has a machine-readable flag** (--json, --porcelain, etc.) that would make filtering easier -- use `inject` if so.
 5. **Write the pipeline**: strip blanks, filter/extract, aggregate, format.
-6. **Test the filter** by placing it in `~/.config/snip/filters/` and running the command through snip.
+6. **Test the filter** by placing it in `~/.config/scouter/filters/` and running the command through scouter.
 7. **To contribute**: add the YAML to `filters/` in the repo and submit a PR.

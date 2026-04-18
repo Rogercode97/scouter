@@ -18,7 +18,7 @@ export const ScouterPlugin: Plugin = async (ctx) => {
         }
       }),
       "scouter-read": tool({
-        description: "Read a specific code snippet from a file using an AST pointer (byte-safe start/end positions).",
+        description: "Read a specific code scouterpet from a file using an AST pointer (byte-safe start/end positions).",
         args: {
           filePath: tool.schema.string().describe("The absolute path to the file."),
           pointer: tool.schema.unknown().describe("The AST pointer object containing position metadata."),

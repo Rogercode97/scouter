@@ -9,14 +9,14 @@ import (
 )
 
 // hookScript reads JSON from stdin (Claude Code PreToolUse protocol),
-// rewrites supported commands through snip, and returns updatedInput JSON.
-// Requires jq. Falls back silently (exit 0) if snip or jq are missing.
+// rewrites supported commands through scouter, and returns updatedInput JSON.
+// Requires jq. Falls back silently (exit 0) if scouter or jq are missing.
 const hookScript = `#!/bin/bash
-# snip — CLI Token Killer hook for Claude Code
-# PreToolUse hook: reads JSON from stdin, rewrites command through snip
+# scouter — CLI Token Killer hook for Claude Code
+# PreToolUse hook: reads JSON from stdin, rewrites command through scouter
 
-# Graceful degradation: if snip or jq are missing, allow original command
-if ! command -v snip &>/dev/null || ! command -v jq &>/dev/null; then
+# Graceful degradation: if scouter or jq are missing, allow original command
+if ! command -v scouter &>/dev/null || ! command -v jq &>/dev/null; then
   exit 0
 fi
 
@@ -114,9 +114,9 @@ FIRST_CMD="${FIRST_SEGMENT:LEADING_WS_LEN:FIRST_CMD_LEN}"
 FIRST_SUFFIX_START=$((LEADING_WS_LEN + FIRST_CMD_LEN))
 FIRST_SUFFIX="${FIRST_SEGMENT:FIRST_SUFFIX_START}"
 
-# Skip if already using snip
+# Skip if already using scouter
 case "$FIRST_CMD" in
-  snip\ *|*/snip\ *) exit 0 ;;
+  scouter\ *|*/scouter\ *) exit 0 ;;
 esac
 
 # Strip leading env var assignments (e.g. CGO_ENABLED=0 go test)
@@ -130,11 +130,11 @@ BASE=$(echo "$BARE_CMD" | awk '{print $1}')
 REWRITE=""
 case "$BASE" in
   git|go|cargo|npm|npx|yarn|pnpm|docker|kubectl|make|pip|pytest|jest|tsc|eslint|rustc)
-    # Rewrite: prefix with "snip --" so flags like --help or --version in the
+    # Rewrite: prefix with "scouter --" so flags like --help or --version in the
     # original command are passed verbatim to the underlying tool, not parsed
-    # by snip itself.
+    # by scouter itself.
     REST="${CMD:${#FIRST_SEGMENT}}"
-    REWRITE="${FIRST_PREFIX}${ENV_PREFIX}snip -- ${BARE_CMD}${FIRST_SUFFIX}${REST}"
+    REWRITE="${FIRST_PREFIX}${ENV_PREFIX}scouter -- ${BARE_CMD}${FIRST_SUFFIX}${REST}"
     ;;
 esac
 
@@ -154,15 +154,15 @@ jq -n \
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",
       "permissionDecision": "allow",
-      "permissionDecisionReason": "snip auto-rewrite",
+      "permissionDecisionReason": "scouter auto-rewrite",
       "updatedInput": $updated
     }
   }'
 `
 
-const hookIdentifier = "snip-rewrite.sh"
+const hookIdentifier = "scouter-rewrite.sh"
 
-// Run installs the snip integration for Claude Code.
+// Run installs the scouter integration for Claude Code.
 func Run(args []string) error {
 	for _, arg := range args {
 		if arg == "--uninstall" {
@@ -176,7 +176,7 @@ func Run(args []string) error {
 	}
 
 	// 1. Create filter directory
-	filterDir := filepath.Join(home, ".config", "snip", "filters")
+	filterDir := filepath.Join(home, ".config", "scouter", "filters")
 	if err := os.MkdirAll(filterDir, 0755); err != nil {
 		return fmt.Errorf("create filter dir: %w", err)
 	}
@@ -198,14 +198,14 @@ func Run(args []string) error {
 		return fmt.Errorf("patch settings: %w", err)
 	}
 
-	fmt.Println("snip init complete:")
+	fmt.Println("scouter init complete:")
 	fmt.Printf("  hook: %s\n", hookPath)
 	fmt.Printf("  filters: %s\n", filterDir)
 	fmt.Printf("  settings: %s\n", settingsPath)
 	return nil
 }
 
-// Uninstall removes snip integration.
+// Uninstall removes scouter integration.
 func Uninstall() error {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -219,14 +219,14 @@ func Uninstall() error {
 	settingsPath := filepath.Join(home, ".claude", "settings.json")
 	unpatchSettings(settingsPath)
 
-	fmt.Println("snip uninstalled")
+	fmt.Println("scouter uninstalled")
 	return nil
 }
 
-// patchSettings adds the snip hook to Claude Code settings.json.
+// patchSettings adds the scouter hook to Claude Code settings.json.
 // Uses the correct array-based PreToolUse format:
 //
-//	{"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "/path/to/snip-rewrite.sh"}]}]}}
+//	{"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "/path/to/scouter-rewrite.sh"}]}]}}
 func patchSettings(path, hookPath string) error {
 	var settings map[string]any
 
@@ -248,14 +248,14 @@ func patchSettings(path, hookPath string) error {
 	}
 
 	// Build the hook entry
-	snipHookEntry := map[string]any{
+	scouterHookEntry := map[string]any{
 		"type":    "command",
 		"command": hookPath,
 	}
 
-	snipMatcher := map[string]any{
+	scouterMatcher := map[string]any{
 		"matcher": "Bash",
-		"hooks":   []any{snipHookEntry},
+		"hooks":   []any{scouterHookEntry},
 	}
 
 	// Get or create hooks section
@@ -272,17 +272,17 @@ func patchSettings(path, hookPath string) error {
 		}
 	}
 
-	// Check if snip hook already exists (idempotent)
+	// Check if scouter hook already exists (idempotent)
 	found := false
 	for i, entry := range preToolUse {
-		if isSnipEntry(entry) {
-			preToolUse[i] = snipMatcher // Update in place
+		if isScouterEntry(entry) {
+			preToolUse[i] = scouterMatcher // Update in place
 			found = true
 			break
 		}
 	}
 	if !found {
-		preToolUse = append(preToolUse, snipMatcher)
+		preToolUse = append(preToolUse, scouterMatcher)
 	}
 
 	hooks["PreToolUse"] = preToolUse
@@ -319,10 +319,10 @@ func unpatchSettings(path string) {
 		return
 	}
 
-	// Remove snip entries
+	// Remove scouter entries
 	var filtered []any
 	for _, entry := range arr {
-		if !isSnipEntry(entry) {
+		if !isScouterEntry(entry) {
 			filtered = append(filtered, entry)
 		}
 	}
@@ -343,13 +343,13 @@ func unpatchSettings(path string) {
 	_ = os.WriteFile(path, out, 0644)
 }
 
-// isSnipEntry checks if a PreToolUse entry is a snip hook.
-func isSnipEntry(entry any) bool {
+// isScouterEntry checks if a PreToolUse entry is a scouter hook.
+func isScouterEntry(entry any) bool {
 	m, ok := entry.(map[string]any)
 	if !ok {
 		return false
 	}
-	// Check hooks sub-array for snip-rewrite.sh command
+	// Check hooks sub-array for scouter-rewrite.sh command
 	hooksRaw, ok := m["hooks"]
 	if !ok {
 		return false

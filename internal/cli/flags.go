@@ -13,7 +13,7 @@ type Flags struct {
 
 // ParseFlags extracts global flags from args and returns remaining args.
 // A "--" separator stops flag parsing: everything after it is passed
-// verbatim to the underlying command, preventing snip from consuming
+// verbatim to the underlying command, preventing scouter from consuming
 // flags like --help or --version that belong to the proxied tool.
 func ParseFlags(args []string) (Flags, []string) {
 	var flags Flags

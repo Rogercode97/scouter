@@ -1,6 +1,7 @@
-package tracking
+package telemetry
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -17,9 +18,9 @@ type Tracker struct {
 }
 
 // NewTracker opens or creates a SQLite database for tracking (immediate open).
-func NewTracker(dbPath string) (*Tracker, error) {
+func NewTracker(ctx context.Context, dbPath string) (*Tracker, error) {
 	t := &Tracker{dbPath: dbPath}
-	if err := t.ensureOpen(); err != nil {
+	if err := t.ensureOpen(ctx); err != nil {
 		return nil, err
 	}
 	return t, nil
@@ -32,11 +33,11 @@ func NewLazyTracker(dbPath string) *Tracker {
 
 // WarmUp starts opening the DB in the background.
 // Call this before command execution so SQLite init overlaps with the command.
-func (t *Tracker) WarmUp() {
-	go func() { _ = t.ensureOpen() }()
+func (t *Tracker) WarmUp(ctx context.Context) {
+	go func() { _ = t.ensureOpen(ctx) }()
 }
 
-func (t *Tracker) ensureOpen() error {
+func (t *Tracker) ensureOpen(ctx context.Context) error {
 	t.once.Do(func() {
 		dir := filepath.Dir(t.dbPath)
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -50,10 +51,15 @@ func (t *Tracker) ensureOpen() error {
 			return
 		}
 
-		if _, err := db.Exec(createTableSQL); err != nil {
-			_ = db.Close()
-			t.initErr = fmt.Errorf("create table: %w", err)
-			return
+		if _, err := db.ExecContext(ctx, createTableSQL); err != nil {
+			// Check if we need to migrate column name scouter_cmd -> scouter_cmd
+			if _, renameErr := db.ExecContext(ctx, "ALTER TABLE commands RENAME COLUMN scouter_cmd TO scouter_cmd"); renameErr == nil {
+				// Successfully renamed
+			} else {
+				_ = db.Close()
+				t.initErr = fmt.Errorf("create table: %w", err)
+				return
+			}
 		}
 
 		t.db = db
@@ -62,8 +68,8 @@ func (t *Tracker) ensureOpen() error {
 }
 
 // Track records a filtered command execution.
-func (t *Tracker) Track(originalCmd, snipCmd string, inputTokens, outputTokens int, execTimeMs int64) error {
-	if err := t.ensureOpen(); err != nil {
+func (t *Tracker) Track(ctx context.Context, originalCmd, scouterCmd string, inputTokens, outputTokens int, execTimeMs int64) error {
+	if err := t.ensureOpen(ctx); err != nil {
 		return fmt.Errorf("track: %w", err)
 	}
 
@@ -73,28 +79,28 @@ func (t *Tracker) Track(originalCmd, snipCmd string, inputTokens, outputTokens i
 		pct = float64(saved) / float64(inputTokens) * 100
 	}
 
-	if _, err := t.db.Exec(insertSQL, originalCmd, snipCmd, inputTokens, outputTokens, saved, pct, execTimeMs); err != nil {
+	if _, err := t.db.ExecContext(ctx, insertSQL, originalCmd, scouterCmd, inputTokens, outputTokens, saved, pct, execTimeMs); err != nil {
 		return fmt.Errorf("track: %w", err)
 	}
 
 	// Cleanup old records (best-effort)
-	_, _ = t.db.Exec(cleanupSQL)
+	_, _ = t.db.ExecContext(ctx, cleanupSQL)
 
 	return nil
 }
 
 // TrackPassthrough records a passthrough (unfiltered) command.
-func (t *Tracker) TrackPassthrough(cmd string, tokens int, execTimeMs int64) error {
-	return t.Track(cmd, cmd, tokens, tokens, execTimeMs)
+func (t *Tracker) TrackPassthrough(ctx context.Context, cmd string, tokens int, execTimeMs int64) error {
+	return t.Track(ctx, cmd, cmd, tokens, tokens, execTimeMs)
 }
 
 // GetSummary returns aggregate tracking stats.
-func (t *Tracker) GetSummary() (*Summary, error) {
-	if err := t.ensureOpen(); err != nil {
+func (t *Tracker) GetSummary(ctx context.Context) (*Summary, error) {
+	if err := t.ensureOpen(ctx); err != nil {
 		return nil, fmt.Errorf("summary: %w", err)
 	}
 	var s Summary
-	err := t.db.QueryRow(summarySQL).Scan(&s.TotalCommands, &s.TotalSaved, &s.AvgSavings, &s.TotalTimeMs)
+	err := t.db.QueryRowContext(ctx, summarySQL).Scan(&s.TotalCommands, &s.TotalSaved, &s.AvgSavings, &s.TotalTimeMs)
 	if err != nil {
 		return nil, fmt.Errorf("summary: %w", err)
 	}
@@ -102,14 +108,14 @@ func (t *Tracker) GetSummary() (*Summary, error) {
 }
 
 // GetDaily returns daily stats for the last N days.
-func (t *Tracker) GetDaily(days int) ([]DayStats, error) {
-	if err := t.ensureOpen(); err != nil {
+func (t *Tracker) GetDaily(ctx context.Context, days int) ([]DayStats, error) {
+	if err := t.ensureOpen(ctx); err != nil {
 		return nil, fmt.Errorf("daily: %w", err)
 	}
 	if days <= 0 {
 		days = 7
 	}
-	rows, err := t.db.Query(dailySQL, fmt.Sprintf("-%d", days))
+	rows, err := t.db.QueryContext(ctx, dailySQL, fmt.Sprintf("-%d", days))
 	if err != nil {
 		return nil, fmt.Errorf("daily: %w", err)
 	}
@@ -127,11 +133,11 @@ func (t *Tracker) GetDaily(days int) ([]DayStats, error) {
 }
 
 // GetRecent returns the last N tracked commands.
-func (t *Tracker) GetRecent(n int) ([]CommandRecord, error) {
-	if err := t.ensureOpen(); err != nil {
+func (t *Tracker) GetRecent(ctx context.Context, n int) ([]CommandRecord, error) {
+	if err := t.ensureOpen(ctx); err != nil {
 		return nil, fmt.Errorf("recent: %w", err)
 	}
-	rows, err := t.db.Query(recentSQL, n)
+	rows, err := t.db.QueryContext(ctx, recentSQL, n)
 	if err != nil {
 		return nil, fmt.Errorf("recent: %w", err)
 	}
@@ -140,7 +146,7 @@ func (t *Tracker) GetRecent(n int) ([]CommandRecord, error) {
 	var records []CommandRecord
 	for rows.Next() {
 		var r CommandRecord
-		if err := rows.Scan(&r.OriginalCmd, &r.SnipCmd, &r.InputTokens, &r.OutputTokens, &r.SavedTokens, &r.SavingsPct, &r.ExecTimeMs, &r.Timestamp); err != nil {
+		if err := rows.Scan(&r.OriginalCmd, &r.ScouterCmd, &r.InputTokens, &r.OutputTokens, &r.SavedTokens, &r.SavingsPct, &r.ExecTimeMs, &r.Timestamp); err != nil {
 			return nil, fmt.Errorf("recent scan: %w", err)
 		}
 		records = append(records, r)
@@ -149,14 +155,14 @@ func (t *Tracker) GetRecent(n int) ([]CommandRecord, error) {
 }
 
 // GetByCommand returns top N commands by tokens saved.
-func (t *Tracker) GetByCommand(limit int) ([]CommandStats, error) {
-	if err := t.ensureOpen(); err != nil {
+func (t *Tracker) GetByCommand(ctx context.Context, limit int) ([]CommandStats, error) {
+	if err := t.ensureOpen(ctx); err != nil {
 		return nil, fmt.Errorf("by command: %w", err)
 	}
 	if limit <= 0 {
 		limit = 10
 	}
-	rows, err := t.db.Query(byCommandSQL, limit)
+	rows, err := t.db.QueryContext(ctx, byCommandSQL, limit)
 	if err != nil {
 		return nil, fmt.Errorf("by command: %w", err)
 	}
@@ -174,15 +180,15 @@ func (t *Tracker) GetByCommand(limit int) ([]CommandStats, error) {
 }
 
 // GetWeekly returns weekly stats for the last N weeks.
-func (t *Tracker) GetWeekly(weeks int) ([]PeriodStats, error) {
-	if err := t.ensureOpen(); err != nil {
+func (t *Tracker) GetWeekly(ctx context.Context, weeks int) ([]PeriodStats, error) {
+	if err := t.ensureOpen(ctx); err != nil {
 		return nil, fmt.Errorf("weekly: %w", err)
 	}
 	if weeks <= 0 {
 		weeks = 4
 	}
 	days := weeks * 7
-	rows, err := t.db.Query(weeklySQL, fmt.Sprintf("-%d", days))
+	rows, err := t.db.QueryContext(ctx, weeklySQL, fmt.Sprintf("-%d", days))
 	if err != nil {
 		return nil, fmt.Errorf("weekly: %w", err)
 	}
@@ -200,15 +206,15 @@ func (t *Tracker) GetWeekly(weeks int) ([]PeriodStats, error) {
 }
 
 // GetMonthly returns monthly stats for the last N months.
-func (t *Tracker) GetMonthly(months int) ([]PeriodStats, error) {
-	if err := t.ensureOpen(); err != nil {
+func (t *Tracker) GetMonthly(ctx context.Context, months int) ([]PeriodStats, error) {
+	if err := t.ensureOpen(ctx); err != nil {
 		return nil, fmt.Errorf("monthly: %w", err)
 	}
 	if months <= 0 {
 		months = 6
 	}
 	days := months * 30
-	rows, err := t.db.Query(monthlySQL, fmt.Sprintf("-%d", days))
+	rows, err := t.db.QueryContext(ctx, monthlySQL, fmt.Sprintf("-%d", days))
 	if err != nil {
 		return nil, fmt.Errorf("monthly: %w", err)
 	}
@@ -235,7 +241,7 @@ func (t *Tracker) Close() error {
 
 // DBPath resolves the tracking database path.
 func DBPath(configPath string) string {
-	if p := os.Getenv("SNIP_DB_PATH"); p != "" {
+	if p := os.Getenv("SCOUTER_DB_PATH"); p != "" {
 		return p
 	}
 	if configPath != "" {
@@ -245,5 +251,5 @@ func DBPath(configPath string) string {
 	if err != nil {
 		home = "."
 	}
-	return filepath.Join(home, ".local", "share", "snip", "tracking.db")
+	return filepath.Join(home, ".config", "scouter", "scouter.db")
 }

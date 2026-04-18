@@ -1,4 +1,4 @@
-# Contributing to snip
+# Contributing to scouter
 
 Thanks for your interest! Here's how to get started.
 
@@ -6,7 +6,7 @@ Thanks for your interest! Here's how to get started.
 
 ```bash
 git clone https://github.com/Rogercode97/scouter/internal/engine.git
-cd snip
+cd scouter
 make build
 make test
 ```
@@ -35,7 +35,7 @@ See the [Filter DSL documentation](https://github.com/Rogercode97/scouter/intern
 - Keep PRs focused — one fix or feature per PR
 - All code, comments, and commits in English
 - Generated files (`db/`, `gql/generated.go`) should not be edited manually
-- Startup performance matters — snip intercepts every shell command
+- Startup performance matters — scouter intercepts every shell command
 
 ## Questions?
 

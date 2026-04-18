@@ -12,7 +12,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/initcmd"
 	"github.com/Rogercode97/scouter/internal/tee"
-	"github.com/Rogercode97/scouter/internal/tracking"
+	"github.com/Rogercode97/scouter/internal/telemetry"
 )
 
 // version is set at build time via -ldflags "-X ...". Do not reassign.
@@ -29,7 +29,7 @@ func Run(args []string) int {
 	flags, remaining := ParseFlags(args[1:])
 
 	if flags.Version {
-		fmt.Printf("snip v%s\n", version)
+		fmt.Printf("scouter v%s\n", version)
 		return 0
 	}
 	if flags.Help || len(remaining) == 0 {
@@ -43,7 +43,7 @@ func Run(args []string) int {
 	// Commands that cannot be proxied: they must run in the parent shell
 	// to have any effect. Running them in a subprocess is a silent no-op.
 	if unproxyableReason(command) != "" {
-		fmt.Fprintf(os.Stderr, "snip: %s cannot be proxied (%s)\n", command, unproxyableReason(command))
+		fmt.Fprintf(os.Stderr, "scouter: %s cannot be proxied (%s)\n", command, unproxyableReason(command))
 		return 1
 	}
 
@@ -57,16 +57,16 @@ func Run(args []string) int {
 		return 0
 
 	case "gain":
-		if !tracking.DriverAvailable {
+		if !telemetry.DriverAvailable {
 			display.PrintError("gain requires full build (this binary was built with -tags lite)")
 			return 1
 		}
-		cfg, cfgErr := config.Load()
+		cfg, cfgErr := config.Load(ctx)
 		if cfgErr != nil {
 			cfg = config.DefaultConfig()
 		}
-		dbPath := tracking.DBPath(cfg.Tracking.DBPath)
-		tracker, err := tracking.NewTracker(dbPath)
+		dbPath := telemetry.DBPath(cfg.Tracking.DBPath)
+		tracker, err := telemetry.NewTracker(ctx, dbPath)
 		if err != nil {
 			display.PrintError(err.Error())
 			return 1
@@ -79,12 +79,12 @@ func Run(args []string) int {
 		return 0
 
 	case "config":
-		cfg, err := config.Load()
+		cfg, err := config.Load(ctx)
 		if err != nil {
 			display.PrintError(err.Error())
 			return 1
 		}
-		fmt.Printf("tracking.db_path: %s\n", cfg.Tracking.DBPath)
+		fmt.Printf("telemetry.db_path: %s\n", cfg.Tracking.DBPath)
 		fmt.Printf("filters.dir: %s\n", cfg.Filters.Dir)
 		fmt.Printf("tee.mode: %s\n", cfg.Tee.Mode)
 		fmt.Printf("tee.max_files: %d\n", cfg.Tee.MaxFiles)
@@ -107,10 +107,10 @@ func Run(args []string) int {
 }
 
 func runPipeline(ctx context.Context, command string, args []string, flags Flags) int {
-	cfg, err := config.Load()
+	cfg, err := config.Load(ctx)
 	if err != nil {
 		if flags.Verbose > 0 {
-			fmt.Fprintf(os.Stderr, "snip: config error: %v, using defaults\n", err)
+			fmt.Fprintf(os.Stderr, "scouter: config error: %v, using defaults\n", err)
 		}
 		cfg = config.DefaultConfig()
 	}
@@ -124,10 +124,10 @@ func runPipeline(ctx context.Context, command string, args []string, flags Flags
 	registry := filter.NewRegistry(filters)
 
 	// Lazy tracker: DB opens on first use (concurrently with command execution)
-	var tracker *tracking.Tracker
-	if tracking.DriverAvailable {
-		dbPath := tracking.DBPath(cfg.Tracking.DBPath)
-		tracker = tracking.NewLazyTracker(dbPath)
+	var tracker *telemetry.Tracker
+	if telemetry.DriverAvailable {
+		dbPath := telemetry.DBPath(cfg.Tracking.DBPath)
+		tracker = telemetry.NewLazyTracker(dbPath)
 		defer func() { _ = tracker.Close() }()
 	}
 
@@ -149,12 +149,12 @@ func runPipeline(ctx context.Context, command string, args []string, flags Flags
 }
 
 func printUsage() {
-	usage := `snip v%s — CLI Token Killer
+	usage := `scouter v%s — CLI Token Killer
 
-Usage: snip [flags] <command> [args...]
+Usage: scouter [flags] <command> [args...]
 
 Commands:
-  <command>    Run command through snip filter pipeline
+  <command>    Run command through scouter filter pipeline
   init         Install Claude Code hook
   gain         Show token savings report
   config       Show current configuration
@@ -168,14 +168,14 @@ Flags:
   --help        Show this help
 
 Examples:
-  snip git log -10
-  snip go test ./...
-  snip gain --daily
-  snip gain --weekly
-  snip gain --monthly
-  snip gain --top 10
-  snip gain --history 20
-  snip init
+  scouter git log -10
+  scouter go test ./...
+  scouter gain --daily
+  scouter gain --weekly
+  scouter gain --monthly
+  scouter gain --top 10
+  scouter gain --history 20
+  scouter init
 `
 	fmt.Printf(usage, version)
 }

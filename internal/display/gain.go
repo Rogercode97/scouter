@@ -1,17 +1,18 @@
 package display
 
 import (
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
 
-	"github.com/Rogercode97/scouter/internal/tracking"
+	"github.com/Rogercode97/scouter/internal/telemetry"
 	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 // RunGain executes the gain (token savings report) command.
-func RunGain(tracker *tracking.Tracker, args []string) error {
+func RunGain(tracker *telemetry.Tracker, args []string) error {
 	if tracker == nil {
 		PrintError("no tracking data (run some commands first)")
 		return nil
@@ -62,7 +63,7 @@ func RunGain(tracker *tracking.Tracker, args []string) error {
 		}
 	}
 
-	summary, err := tracker.GetSummary()
+	summary, err := tracker.GetSummary(context.Background())
 	if err != nil {
 		return fmt.Errorf("get summary: %w", err)
 	}
@@ -104,15 +105,15 @@ func RunGain(tracker *tracking.Tracker, args []string) error {
 	return nil
 }
 
-func printSummary(s *tracking.Summary) {
+func printSummary(s *telemetry.Summary) {
 	tty := IsTerminal()
 
 	fmt.Println()
 	if tty {
-		fmt.Println(HeaderStyle.Render("  snip — Token Savings Report"))
+		fmt.Println(HeaderStyle.Render("  scouter — Token Savings Report"))
 		fmt.Println(DimStyle.Render("  " + FormatSeparator(30)))
 	} else {
-		fmt.Println("  snip — Token Savings Report")
+		fmt.Println("  scouter — Token Savings Report")
 		fmt.Println("  " + FormatSeparator(30))
 	}
 	fmt.Println()
@@ -156,8 +157,8 @@ func printSummary(s *tracking.Summary) {
 	fmt.Println()
 }
 
-func showByCommand(tracker *tracking.Tracker, limit int) error {
-	stats, err := tracker.GetByCommand(limit)
+func showByCommand(tracker *telemetry.Tracker, limit int) error {
+	stats, err := tracker.GetByCommand(context.Background(), limit)
 	if err != nil {
 		return err
 	}
@@ -205,8 +206,8 @@ func showByCommand(tracker *tracking.Tracker, limit int) error {
 	return nil
 }
 
-func showSparkline(tracker *tracking.Tracker) {
-	daily, err := tracker.GetDaily(14)
+func showSparkline(tracker *telemetry.Tracker) {
+	daily, err := tracker.GetDaily(context.Background(), 14)
 	if err != nil || len(daily) < 2 {
 		return
 	}
@@ -228,8 +229,8 @@ func showSparkline(tracker *tracking.Tracker) {
 	fmt.Println()
 }
 
-func showDailyReport(tracker *tracking.Tracker, days int, summary *tracking.Summary) error {
-	daily, err := tracker.GetDaily(days)
+func showDailyReport(tracker *telemetry.Tracker, days int, summary *telemetry.Summary) error {
+	daily, err := tracker.GetDaily(context.Background(), days)
 	if err != nil {
 		return err
 	}
@@ -253,17 +254,17 @@ func showDailyReport(tracker *tracking.Tracker, days int, summary *tracking.Summ
 	return nil
 }
 
-func showPeriodReport(tracker *tracking.Tracker, period string) error {
-	var stats []tracking.PeriodStats
+func showPeriodReport(tracker *telemetry.Tracker, period string) error {
+	var stats []telemetry.PeriodStats
 	var err error
 	var label string
 
 	switch period {
 	case "weekly":
-		stats, err = tracker.GetWeekly(8)
+		stats, err = tracker.GetWeekly(context.Background(), 8)
 		label = "Weekly"
 	case "monthly":
-		stats, err = tracker.GetMonthly(6)
+		stats, err = tracker.GetMonthly(context.Background(), 6)
 		label = "Monthly"
 	default:
 		return fmt.Errorf("unknown period: %s", period)
@@ -298,8 +299,8 @@ func showPeriodReport(tracker *tracking.Tracker, period string) error {
 	return nil
 }
 
-func showHistory(tracker *tracking.Tracker, n int) error {
-	records, err := tracker.GetRecent(n)
+func showHistory(tracker *telemetry.Tracker, n int) error {
+	records, err := tracker.GetRecent(context.Background(), n)
 	if err != nil {
 		return err
 	}
@@ -324,9 +325,9 @@ func showHistory(tracker *tracking.Tracker, n int) error {
 	return nil
 }
 
-func exportJSON(summary *tracking.Summary, tracker *tracking.Tracker, days int) error {
-	daily, _ := tracker.GetDaily(days)
-	byCmd, _ := tracker.GetByCommand(10)
+func exportJSON(summary *telemetry.Summary, tracker *telemetry.Tracker, days int) error {
+	daily, _ := tracker.GetDaily(context.Background(), days)
+	byCmd, _ := tracker.GetByCommand(context.Background(), 10)
 	data := map[string]any{
 		"summary":    summary,
 		"daily":      daily,
@@ -337,8 +338,8 @@ func exportJSON(summary *tracking.Summary, tracker *tracking.Tracker, days int) 
 	return enc.Encode(data)
 }
 
-func exportCSV(tracker *tracking.Tracker, days int) error {
-	daily, err := tracker.GetDaily(days)
+func exportCSV(tracker *telemetry.Tracker, days int) error {
+	daily, err := tracker.GetDaily(context.Background(), days)
 	if err != nil {
 		return err
 	}

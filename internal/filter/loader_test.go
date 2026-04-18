@@ -36,7 +36,7 @@ on_error: "passthrough"
 }
 
 func TestLoadUserFiltersMissingDir(t *testing.T) {
-	filters, err := LoadUserFilters("/tmp/nonexistent-snip-filters-test")
+	filters, err := LoadUserFilters("/tmp/nonexistent-scouter-filters-test")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
