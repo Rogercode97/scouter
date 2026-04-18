@@ -1,0 +1,38 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test and coverage
+*.test
+*.out
+coverage.txt
+
+# OS-specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project-specific
+.engram/
+.gemini/tmp/
+skill-arena/sacrifice-mcp.go
+
+# ModernC SQLite temp files
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Vendor
+vendor/
+
+# Local configuration
+.env
+*.local.toml
