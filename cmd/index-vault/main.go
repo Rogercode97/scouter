@@ -35,7 +35,7 @@ func main() {
 		}
 
 		ext := filepath.Ext(path)
-		if !info.IsDir() && (ext == ".go" || ext == ".ts") {
+		if !info.IsDir() && (ext == ".go" || ext == ".ts" || ext == ".tsx" || ext == ".js" || ext == ".jsx" || ext == ".py") {
 			fmt.Printf("Indexing: %s\n", path)
 
 			// 1. Calculate Hash
