@@ -44,6 +44,7 @@ type Repository interface {
 	SearchSymbols(ctx context.Context, query string, symType string) ([]Symbol, error)
 	SaveCall(ctx context.Context, call Call) error
 	GetCallers(ctx context.Context, calleeName string) ([]Call, error)
+	GetCallees(ctx context.Context, callerName string) ([]Call, error)
 	ClearCalls(ctx context.Context, path string) error
 	GetStats(ctx context.Context) (int, int, error)
 	WithTransaction(ctx context.Context, fn func(Repository) error) error
@@ -128,6 +129,7 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 			FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_calls_callee ON calls(callee_name);`,
+		`CREATE INDEX IF NOT EXISTS idx_calls_caller ON calls(caller_name);`,
 		`CREATE INDEX IF NOT EXISTS idx_calls_path ON calls(path);`,
 	}
 
@@ -213,6 +215,32 @@ func (s *Store) GetCallers(ctx context.Context, calleeName string) ([]Call, erro
 	LIMIT 500;
 	`
 	rows, err := s.query(ctx, query, calleeName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var call Call
+		if err := rows.Scan(&call.CallerName, &call.CalleeName, &call.Path, &call.Line); err != nil {
+			return nil, err
+		}
+		results = append(results, call)
+	}
+
+	return results, nil
+}
+
+func (s *Store) GetCallees(ctx context.Context, callerName string) ([]Call, error) {
+	var results []Call
+	query := `
+	SELECT caller_name, callee_name, path, line
+	FROM calls
+	WHERE caller_name = ?
+	ORDER BY id ASC
+	LIMIT 500;
+	`
+	rows, err := s.query(ctx, query, callerName)
 	if err != nil {
 		return nil, err
 	}

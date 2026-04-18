@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Rogercode97/scouter/internal/config"
 	"github.com/Rogercode97/scouter/internal/engine"
@@ -86,6 +87,11 @@ type CallersRequest struct {
 	CalleeName string `json:"calleeName" validate:"required,min=1"`
 }
 
+type VisualizeRequest struct {
+	SymbolName string `json:"symbolName" validate:"required,min=1"`
+	Depth      int    `json:"depth" validate:"omitempty,min=1,max=3"`
+}
+
 func runMCPServer() {
 	ctx := context.Background()
 	cfg, err := config.Load(ctx)
@@ -112,6 +118,7 @@ func runMCPServer() {
 		server.WithInstructions(`Scouter is an AST-based code analysis engine. 
 Use 'scouter_index' to understand a file's structure and 'scouter_search' for high-precision symbol lookups.
 Use 'scouter_callers' to find all locations where a specific function or method is invoked across the workspace.
+Use 'scouter_visualize' to generate a Mermaid.js call graph for a symbol up to a specified depth.
 Prefer 'scouter_search' and 'scouter_callers' over generic text search (grep) for architectural analysis.
 Use 'scouter_read' with pointers to read specific code fragments with integrity verification (hash).`),
 	)
@@ -275,6 +282,131 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 		}
 
 		resJSON, _ := json.Marshal(callers)
+		return mcpJSONResponse(resJSON), nil
+	})
+
+	// Tool: scouter_visualize
+	visualizeTool := mcp.NewTool("scouter_visualize",
+		mcp.WithDescription("Generate a Mermaid.js call graph for a specific symbol up to a specified depth."),
+		mcp.WithString("symbolName", mcp.Required(), mcp.Description("The name of the symbol to visualize.")),
+		mcp.WithNumber("depth", mcp.Description("Depth of traversal (1 to 3). Default is 1.")),
+	)
+
+	s.AddTool(visualizeTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var req VisualizeRequest
+		argsJSON, _ := json.Marshal(request.GetArguments())
+		json.Unmarshal(argsJSON, &req)
+
+		if req.Depth == 0 {
+			req.Depth = 1
+		}
+
+		if err := v.Struct(req); err != nil {
+			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
+		}
+
+		// BFS Traversal
+		type QueueItem struct {
+			Symbol string
+			Depth  int
+		}
+
+		queue := []QueueItem{{Symbol: req.SymbolName, Depth: 0}}
+		visited := make(map[string]bool)
+		visited[req.SymbolName] = true
+		
+		edges := make(map[string]bool) // Unique edges: "caller->callee"
+		nodeMap := make(map[string]string) // symbolName -> nodeID
+		nodeCounter := 1
+
+		getNodeID := func(sym string) string {
+			if id, ok := nodeMap[sym]; ok {
+				return id
+			}
+			id := fmt.Sprintf("node%d", nodeCounter)
+			nodeCounter++
+			nodeMap[sym] = id
+			return id
+		}
+
+		// Limit total nodes/edges to prevent massive graphs (OOM Guard)
+		maxElements := 200
+
+		// Ensure the root node is always in the map
+		getNodeID(req.SymbolName)
+
+		for len(queue) > 0 && len(edges) < maxElements {
+			curr := queue[0]
+			queue = queue[1:]
+
+			if curr.Depth >= req.Depth {
+				continue
+			}
+
+			// Get incoming calls (Callers)
+			callers, _ := db.GetCallers(ctx, curr.Symbol)
+			for _, caller := range callers {
+				if len(edges) >= maxElements {
+					break
+				}
+				edgeKey := fmt.Sprintf("%s->%s", caller.CallerName, curr.Symbol)
+				if !edges[edgeKey] {
+					edges[edgeKey] = true
+					if !visited[caller.CallerName] {
+						visited[caller.CallerName] = true
+						queue = append(queue, QueueItem{Symbol: caller.CallerName, Depth: curr.Depth + 1})
+					}
+				}
+			}
+
+			// Get outgoing calls (Callees)
+			callees, _ := db.GetCallees(ctx, curr.Symbol)
+			for _, callee := range callees {
+				if len(edges) >= maxElements {
+					break
+				}
+				edgeKey := fmt.Sprintf("%s->%s", curr.Symbol, callee.CalleeName)
+				if !edges[edgeKey] {
+					edges[edgeKey] = true
+					if !visited[callee.CalleeName] {
+						visited[callee.CalleeName] = true
+						queue = append(queue, QueueItem{Symbol: callee.CalleeName, Depth: curr.Depth + 1})
+					}
+				}
+			}
+		}
+
+		// Generate Mermaid
+		mermaidEdges := ""
+		for edge := range edges {
+			// Find separator index
+			var caller, callee string
+			for i := 0; i < len(edge)-2; i++ {
+				if edge[i:i+2] == "->" {
+					caller = edge[:i]
+					callee = edge[i+2:]
+					break
+				}
+			}
+			callerID := getNodeID(caller)
+			calleeID := getNodeID(callee)
+			mermaidEdges += fmt.Sprintf("    %s --> %s\n", callerID, calleeID)
+		}
+		
+		mermaidNodeDefs := "graph TD\n"
+		for sym, id := range nodeMap {
+			// Escape quotes and backslashes in symbol names
+			escapedSym := strings.ReplaceAll(sym, "\\", "\\\\")
+			escapedSym = strings.ReplaceAll(escapedSym, "\"", "\\\"")
+			mermaidNodeDefs += fmt.Sprintf("    %s[\"%s\"]\n", id, escapedSym)
+		}
+
+		finalMermaid := mermaidNodeDefs + mermaidEdges
+
+		res := map[string]string{
+			"mermaid": finalMermaid,
+		}
+		resJSON, _ := json.Marshal(res)
 		return mcpJSONResponse(resJSON), nil
 	})
 
