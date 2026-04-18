@@ -70,3 +70,60 @@ func TestStoreSearch(t *testing.T) {
 		t.Errorf("Expected 1 class result, got %d", len(results))
 	}
 }
+
+func TestStoreCalls(t *testing.T) {
+	ctx := context.Background()
+	dbPath := "test_scouter_calls.db"
+	defer os.Remove(dbPath)
+
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	// 0. Save dummy file index
+	err = s.SaveFileIndex(ctx, &FileIndex{
+		Path:    "main.go",
+		Mtime:   123456789,
+		Hash:    "dummyhash",
+		ASTJSON: "{}",
+		Project: "scouter",
+	})
+	if err != nil {
+		t.Fatalf("Failed to save file index: %v", err)
+	}
+
+	// 1. Save dummy calls
+	calls := []Call{
+		{CallerName: "main", CalleeName: "foo", Path: "main.go", Line: 10},
+		{CallerName: "foo", CalleeName: "bar", Path: "main.go", Line: 20},
+		{CallerName: "main", CalleeName: "bar", Path: "main.go", Line: 15},
+	}
+
+	for _, c := range calls {
+		if err := s.SaveCall(ctx, c); err != nil {
+			t.Fatalf("Failed to save call from %s to %s: %v", c.CallerName, c.CalleeName, err)
+		}
+	}
+
+	// 2. Test GetCallers
+	callers, err := s.GetCallers(ctx, "bar")
+	if err != nil {
+		t.Fatalf("GetCallers failed: %v", err)
+	}
+
+	if len(callers) != 2 {
+		t.Errorf("Expected 2 callers for 'bar', got %d", len(callers))
+	}
+
+	// 3. Test ClearCalls
+	if err := s.ClearCalls(ctx, "main.go"); err != nil {
+		t.Fatalf("ClearCalls failed: %v", err)
+	}
+
+	callers, _ = s.GetCallers(ctx, "bar")
+	if len(callers) != 0 {
+		t.Errorf("Expected 0 callers after ClearCalls, got %d", len(callers))
+	}
+}

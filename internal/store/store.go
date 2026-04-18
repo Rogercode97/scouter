@@ -28,6 +28,13 @@ type Symbol struct {
 	EndLine   int    `json:"end_line"`
 }
 
+type Call struct {
+	CallerName string `json:"caller_name"`
+	CalleeName string `json:"callee_name"`
+	Path       string `json:"path"`
+	Line       int    `json:"line"`
+}
+
 // Repository defines the port for symbol persistence (Hexagonal Architecture)
 type Repository interface {
 	GetFileIndex(ctx context.Context, path string) (*FileIndex, error)
@@ -35,6 +42,9 @@ type Repository interface {
 	ClearSymbols(ctx context.Context, path string) error
 	SaveSymbol(ctx context.Context, sym *Symbol) error
 	SearchSymbols(ctx context.Context, query string, symType string) ([]Symbol, error)
+	SaveCall(ctx context.Context, call Call) error
+	GetCallers(ctx context.Context, calleeName string) ([]Call, error)
+	ClearCalls(ctx context.Context, path string) error
 	GetStats(ctx context.Context) (int, int, error)
 	WithTransaction(ctx context.Context, fn func(Repository) error) error
 	Close() error
@@ -109,6 +119,16 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 			INSERT INTO symbols_fts(symbols_fts, rowid, name, type, path) VALUES('delete', old.id, old.name, old.type, old.path);
 			INSERT INTO symbols_fts(rowid, name, type, path) VALUES (new.id, new.name, new.type, new.path);
 		END;`,
+		`CREATE TABLE IF NOT EXISTS calls (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			caller_name TEXT NOT NULL,
+			callee_name TEXT NOT NULL,
+			path TEXT NOT NULL,
+			line INTEGER NOT NULL,
+			FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_calls_callee ON calls(callee_name);`,
+		`CREATE INDEX IF NOT EXISTS idx_calls_path ON calls(path);`,
 	}
 
 	for _, q := range queries {
@@ -171,6 +191,46 @@ func (s *Store) SaveSymbol(ctx context.Context, sym *Symbol) error {
 	VALUES (?, ?, ?, ?, ?, ?, ?);
 	`
 	_, err := s.exec(ctx, query, sym.Name, sym.Type, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.EndLine)
+	return err
+}
+
+func (s *Store) SaveCall(ctx context.Context, call Call) error {
+	query := `
+	INSERT INTO calls (caller_name, callee_name, path, line)
+	VALUES (?, ?, ?, ?);
+	`
+	_, err := s.exec(ctx, query, call.CallerName, call.CalleeName, call.Path, call.Line)
+	return err
+}
+
+func (s *Store) GetCallers(ctx context.Context, calleeName string) ([]Call, error) {
+	var results []Call
+	query := `
+	SELECT caller_name, callee_name, path, line
+	FROM calls
+	WHERE callee_name = ?
+	ORDER BY id ASC
+	LIMIT 500;
+	`
+	rows, err := s.query(ctx, query, calleeName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var call Call
+		if err := rows.Scan(&call.CallerName, &call.CalleeName, &call.Path, &call.Line); err != nil {
+			return nil, err
+		}
+		results = append(results, call)
+	}
+
+	return results, nil
+}
+
+func (s *Store) ClearCalls(ctx context.Context, path string) error {
+	_, err := s.exec(ctx, "DELETE FROM calls WHERE path = ?", path)
 	return err
 }
 

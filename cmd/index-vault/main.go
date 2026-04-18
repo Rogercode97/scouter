@@ -45,14 +45,14 @@ func main() {
 				return nil
 			}
 
-			// 2. Parse (Native Go AST + TS Fallback)
-			syms, parseErr := engine.ParseFile(ctx, path)
+			// 2. Parse (Definitions + Calls)
+			syms, calls, parseErr := engine.ParseFile(ctx, path)
 			if parseErr != nil {
 				fmt.Printf("  [Error] Parse failed: %v\n", parseErr)
 				return nil
 			}
 
-			// 3. Save Index and Symbols Atomically
+			// 3. Save Index, Symbols and Calls Atomically
 			err = s.WithTransaction(ctx, func(tx store.Repository) error {
 				if err := tx.SaveFileIndex(ctx, &store.FileIndex{
 					Path:  path,
@@ -63,6 +63,9 @@ func main() {
 				}
 
 				if err := tx.ClearSymbols(ctx, path); err != nil {
+					return err
+				}
+				if err := tx.ClearCalls(ctx, path); err != nil {
 					return err
 				}
 
@@ -79,6 +82,17 @@ func main() {
 						return err
 					}
 				}
+
+				for _, call := range calls {
+					if err := tx.SaveCall(ctx, store.Call{
+						CallerName: call.CallerName,
+						CalleeName: call.CalleeName,
+						Path:       call.Path,
+						Line:       call.Line,
+					}); err != nil {
+						return err
+					}
+				}
 				return nil
 			})
 
@@ -87,7 +101,7 @@ func main() {
 				return nil
 			}
 
-			fmt.Printf("  [Success] Indexed %d symbols.\n", len(syms))
+			fmt.Printf("  [Success] Indexed %d symbols and %d calls.\n", len(syms), len(calls))
 		}
 		return nil
 	})
