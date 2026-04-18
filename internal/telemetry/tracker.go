@@ -14,6 +14,7 @@ type Tracker struct {
 	db      *sql.DB
 	dbPath  string
 	once    sync.Once
+	wg      sync.WaitGroup
 	initErr error
 }
 
@@ -34,7 +35,16 @@ func NewLazyTracker(dbPath string) *Tracker {
 // WarmUp starts opening the DB in the background.
 // Call this before command execution so SQLite init overlaps with the command.
 func (t *Tracker) WarmUp(ctx context.Context) {
-	go func() { _ = t.ensureOpen(ctx) }()
+	t.wg.Add(1)
+	go func() {
+		defer t.wg.Done()
+		_ = t.ensureOpen(ctx)
+	}()
+}
+
+// Wait waits for any background initialization to complete.
+func (t *Tracker) Wait() {
+	t.wg.Wait()
 }
 
 func (t *Tracker) ensureOpen(ctx context.Context) error {
@@ -52,8 +62,8 @@ func (t *Tracker) ensureOpen(ctx context.Context) error {
 		}
 
 		if _, err := db.ExecContext(ctx, createTableSQL); err != nil {
-			// Check if we need to migrate column name scouter_cmd -> scouter_cmd
-			if _, renameErr := db.ExecContext(ctx, "ALTER TABLE commands RENAME COLUMN scouter_cmd TO scouter_cmd"); renameErr == nil {
+			// Check if we need to migrate column name snip_cmd -> scouter_cmd
+			if _, renameErr := db.ExecContext(ctx, "ALTER TABLE commands RENAME COLUMN snip_cmd TO scouter_cmd"); renameErr == nil {
 				// Successfully renamed
 			} else {
 				_ = db.Close()

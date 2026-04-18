@@ -11,7 +11,7 @@ func TestStoreSearch(t *testing.T) {
 	dbPath := "test_scouter.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(dbPath)
+	s, err := New(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}

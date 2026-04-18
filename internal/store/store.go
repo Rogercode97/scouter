@@ -35,17 +35,20 @@ type Repository interface {
 	ClearSymbols(ctx context.Context, path string) error
 	SaveSymbol(ctx context.Context, sym *Symbol) error
 	SearchSymbols(ctx context.Context, query string, symType string) ([]Symbol, error)
+	GetStats(ctx context.Context) (int, int, error)
+	WithTransaction(ctx context.Context, fn func(Repository) error) error
 	Close() error
 }
 
 type Store struct {
 	db *sql.DB
+	tx *sql.Tx
 }
 
 // Ensure Store implements Repository
 var _ Repository = (*Store)(nil)
 
-func New(dbPath string) (*Store, error) {
+func New(ctx context.Context, dbPath string) (Repository, error) {
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		return nil, err
@@ -63,7 +66,7 @@ func New(dbPath string) (*Store, error) {
 		"PRAGMA foreign_keys=ON;",
 	}
 	for _, p := range pragmas {
-		if _, err := db.Exec(p); err != nil {
+		if _, err := db.ExecContext(ctx, p); err != nil {
 			return nil, err
 		}
 	}
@@ -109,7 +112,7 @@ func New(dbPath string) (*Store, error) {
 	}
 
 	for _, q := range queries {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.ExecContext(ctx, q); err != nil {
 			return nil, err
 		}
 	}
@@ -117,10 +120,31 @@ func New(dbPath string) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
+func (s *Store) exec(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	if s.tx != nil {
+		return s.tx.ExecContext(ctx, query, args...)
+	}
+	return s.db.ExecContext(ctx, query, args...)
+}
+
+func (s *Store) queryRow(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	if s.tx != nil {
+		return s.tx.QueryRowContext(ctx, query, args...)
+	}
+	return s.db.QueryRowContext(ctx, query, args...)
+}
+
+func (s *Store) query(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	if s.tx != nil {
+		return s.tx.QueryContext(ctx, query, args...)
+	}
+	return s.db.QueryContext(ctx, query, args...)
+}
+
 func (s *Store) GetFileIndex(ctx context.Context, path string) (*FileIndex, error) {
 	var idx FileIndex
 	query := "SELECT path, mtime, hash, ast_json, project FROM file_index WHERE path = ?"
-	err := s.db.QueryRowContext(ctx, query, path).Scan(&idx.Path, &idx.Mtime, &idx.Hash, &idx.ASTJSON, &idx.Project)
+	err := s.queryRow(ctx, query, path).Scan(&idx.Path, &idx.Mtime, &idx.Hash, &idx.ASTJSON, &idx.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -132,12 +156,12 @@ func (s *Store) SaveFileIndex(ctx context.Context, idx *FileIndex) error {
 	INSERT OR REPLACE INTO file_index (path, mtime, hash, ast_json, project)
 	VALUES (?, ?, ?, ?, ?);
 	`
-	_, err := s.db.ExecContext(ctx, query, idx.Path, idx.Mtime, idx.Hash, idx.ASTJSON, idx.Project)
+	_, err := s.exec(ctx, query, idx.Path, idx.Mtime, idx.Hash, idx.ASTJSON, idx.Project)
 	return err
 }
 
 func (s *Store) ClearSymbols(ctx context.Context, path string) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM symbols WHERE path = ?", path)
+	_, err := s.exec(ctx, "DELETE FROM symbols WHERE path = ?", path)
 	return err
 }
 
@@ -146,7 +170,7 @@ func (s *Store) SaveSymbol(ctx context.Context, sym *Symbol) error {
 	INSERT INTO symbols (name, type, path, start_byte, end_byte, start_line, end_line)
 	VALUES (?, ?, ?, ?, ?, ?, ?);
 	`
-	_, err := s.db.ExecContext(ctx, query, sym.Name, sym.Type, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.EndLine)
+	_, err := s.exec(ctx, query, sym.Name, sym.Type, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.EndLine)
 	return err
 }
 
@@ -204,7 +228,7 @@ func (s *Store) SearchSymbols(ctx context.Context, query string, symType string)
 		args = append(args, safeQuery)
 	}
 
-	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := s.query(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -223,4 +247,32 @@ func (s *Store) SearchSymbols(ctx context.Context, query string, symType string)
 
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+func (s *Store) GetStats(ctx context.Context) (int, int, error) {
+	var fileCount, symbolCount int
+	err := s.queryRow(ctx, "SELECT COUNT(*) FROM file_index").Scan(&fileCount)
+	if err != nil {
+		return 0, 0, err
+	}
+	err = s.queryRow(ctx, "SELECT COUNT(*) FROM symbols").Scan(&symbolCount)
+	if err != nil {
+		return 0, 0, err
+	}
+	return fileCount, symbolCount, nil
+}
+
+func (s *Store) WithTransaction(ctx context.Context, fn func(Repository) error) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Create a temporary store wrapped in the transaction
+	txStore := &Store{db: s.db, tx: tx}
+	if err := fn(txStore); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
