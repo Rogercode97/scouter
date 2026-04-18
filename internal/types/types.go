@@ -20,3 +20,11 @@ type ASTCall struct {
 	Path       string `json:"path" validate:"required"`
 	Line       int    `json:"line" validate:"required,gte=1"`
 }
+
+type Dependency struct {
+	Name    string `json:"name" validate:"required"`
+	Version string `json:"version" validate:"required"`
+	Type    string `json:"type" validate:"required,oneof=golang npm"`
+	Project string `json:"project" validate:"required"` // Path to the manifest file
+	Direct  bool   `json:"direct"`
+}

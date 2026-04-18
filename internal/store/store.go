@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Rogercode97/scouter/internal/types"
 	_ "modernc.org/sqlite"
 )
 
@@ -47,6 +48,12 @@ type Repository interface {
 	GetCallees(ctx context.Context, callerName string) ([]Call, error)
 	ClearCalls(ctx context.Context, path string) error
 	GetStats(ctx context.Context) (int, int, error)
+
+	// Dependency Sovereignty
+	SaveDependency(ctx context.Context, dep *types.Dependency) error
+	GetDependencies(ctx context.Context) ([]types.Dependency, error)
+	ClearDependencies(ctx context.Context) error
+
 	WithTransaction(ctx context.Context, fn func(Repository) error) error
 	Close() error
 }
@@ -131,6 +138,16 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 		`CREATE INDEX IF NOT EXISTS idx_calls_callee ON calls(callee_name);`,
 		`CREATE INDEX IF NOT EXISTS idx_calls_caller ON calls(caller_name);`,
 		`CREATE INDEX IF NOT EXISTS idx_calls_path ON calls(path);`,
+		`CREATE TABLE IF NOT EXISTS dependencies (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			version TEXT,
+			type TEXT,
+			project TEXT,
+			direct INTEGER
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_deps_name ON dependencies(name);`,
+		`CREATE INDEX IF NOT EXISTS idx_deps_type ON dependencies(type);`,
 	}
 
 	for _, q := range queries {
@@ -259,6 +276,45 @@ func (s *Store) GetCallees(ctx context.Context, callerName string) ([]Call, erro
 
 func (s *Store) ClearCalls(ctx context.Context, path string) error {
 	_, err := s.exec(ctx, "DELETE FROM calls WHERE path = ?", path)
+	return err
+}
+
+func (s *Store) SaveDependency(ctx context.Context, dep *types.Dependency) error {
+	query := `
+	INSERT INTO dependencies (name, version, type, project, direct)
+	VALUES (?, ?, ?, ?, ?);
+	`
+	directInt := 0
+	if dep.Direct {
+		directInt = 1
+	}
+	_, err := s.exec(ctx, query, dep.Name, dep.Version, dep.Type, dep.Project, directInt)
+	return err
+}
+
+func (s *Store) GetDependencies(ctx context.Context) ([]types.Dependency, error) {
+	var results []types.Dependency
+	query := "SELECT name, version, type, project, direct FROM dependencies ORDER BY name ASC"
+	rows, err := s.query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var dep types.Dependency
+		var directInt int
+		if err := rows.Scan(&dep.Name, &dep.Version, &dep.Type, &dep.Project, &directInt); err != nil {
+			return nil, err
+		}
+		dep.Direct = directInt == 1
+		results = append(results, dep)
+	}
+	return results, nil
+}
+
+func (s *Store) ClearDependencies(ctx context.Context) error {
+	_, err := s.exec(ctx, "DELETE FROM dependencies")
 	return err
 }
 

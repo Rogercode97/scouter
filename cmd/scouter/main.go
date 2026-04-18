@@ -20,7 +20,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-var version = "1.2.0" // Bumping version for V2.0 features
+var version = "1.3.0" // Bumping version for Ecosystem Sovereignty
 
 //go:embed plugins/opencode/scouter.ts
 var openCodePluginFS embed.FS
@@ -119,6 +119,7 @@ func runMCPServer() {
 Use 'scouter_index' to understand a file's structure and 'scouter_search' for high-precision symbol lookups.
 Use 'scouter_callers' to find all locations where a specific function or method is invoked across the workspace.
 Use 'scouter_visualize' to generate a Mermaid.js call graph for a symbol up to a specified depth.
+Use 'scouter_dependencies' to list external libraries (go.mod, package.json) and their versions.
 Prefer 'scouter_search' and 'scouter_callers' over generic text search (grep) for architectural analysis.
 Use 'scouter_read' with pointers to read specific code fragments with integrity verification (hash).`),
 	)
@@ -379,7 +380,6 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 		// Generate Mermaid
 		mermaidEdges := ""
 		for edge := range edges {
-			// Find separator index
 			var caller, callee string
 			for i := 0; i < len(edge)-2; i++ {
 				if edge[i:i+2] == "->" {
@@ -395,7 +395,6 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 		
 		mermaidNodeDefs := "graph TD\n"
 		for sym, id := range nodeMap {
-			// Escape quotes and backslashes in symbol names
 			escapedSym := strings.ReplaceAll(sym, "\\", "\\\\")
 			escapedSym = strings.ReplaceAll(escapedSym, "\"", "\\\"")
 			mermaidNodeDefs += fmt.Sprintf("    %s[\"%s\"]\n", id, escapedSym)
@@ -403,10 +402,23 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 
 		finalMermaid := mermaidNodeDefs + mermaidEdges
 
-		res := map[string]string{
-			"mermaid": finalMermaid,
-		}
+		res := map[string]string{"mermaid": finalMermaid}
 		resJSON, _ := json.Marshal(res)
+		return mcpJSONResponse(resJSON), nil
+	})
+
+	// Tool: scouter_dependencies
+	depsTool := mcp.NewTool("scouter_dependencies",
+		mcp.WithDescription("List project dependencies and their versions (Go and NPM)."),
+	)
+
+	s.AddTool(depsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		deps, err := db.GetDependencies(ctx)
+		if err != nil {
+			return mcpError(fmt.Sprintf("Failed to fetch dependencies: %v", err)), nil
+		}
+
+		resJSON, _ := json.Marshal(deps)
 		return mcpJSONResponse(resJSON), nil
 	})
 
