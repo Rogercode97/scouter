@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"go/ast"
@@ -20,8 +21,15 @@ const MaxSnippetSize = 100 * 1024
 const MaxParseSize = 2 * 1024 * 1024
 
 // ParseFile analyzes a file using the AST engine to index its structure.
-func ParseFile(filePath string) ([]types.ASTPointer, error) {
-	// 1. Path Security Check
+func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, error) {
+	// 1. Context check
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	// 2. Path Security Check
 	validatedPath, err := utils.ValidatePath(filePath)
 	if err != nil {
 		return nil, err
@@ -65,7 +73,7 @@ func ParseFile(filePath string) ([]types.ASTPointer, error) {
 	}
 
 	// 3. Try Tree-sitter for multi-language support as fallback
-	pointers, err := ParseWithTreeSitter(validatedPath)
+	pointers, err := ParseWithTreeSitter(ctx, validatedPath)
 	if err == nil {
 		return pointers, nil
 	}
@@ -76,7 +84,13 @@ func ParseFile(filePath string) ([]types.ASTPointer, error) {
 
 // ReadSnippet reads a specific code snippet from a file using a byte range JSON string.
 // Now includes: Sincronización, Encoding Guard, and Size Limits.
-func ReadSnippet(filePath string, rangeJSON string) (string, error) {
+func ReadSnippet(ctx context.Context, filePath string, rangeJSON string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+
 	// 1. Path Security Check
 	validatedPath, err := utils.ValidatePath(filePath)
 	if err != nil {

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -21,7 +22,7 @@ type Pipeline struct {
 }
 
 // Run executes a command through the full pipeline.
-func (p *Pipeline) Run(command string, args []string) int {
+func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 	// Extract subcommand (first non-flag arg)
 	subcommand := ""
 	filterArgs := args
@@ -36,7 +37,7 @@ func (p *Pipeline) Run(command string, args []string) int {
 	// No filter found: passthrough with hint so LLMs know snip is unnecessary
 	if f == nil {
 		fmt.Fprintf(os.Stderr, "snip: no filter for %q, passing through — you can run %q directly\n", command, command)
-		return p.Passthrough(command, args)
+		return p.Passthrough(ctx, command, args)
 	}
 
 	// Compute injected args
@@ -55,13 +56,13 @@ func (p *Pipeline) Run(command string, args []string) int {
 	timed := tracking.Start(p.Tracker)
 
 	// Execute command
-	result, err := Execute(command, finalArgs)
+	result, err := Execute(ctx, command, finalArgs)
 	if err != nil {
 		// Execution failed entirely — fallback to passthrough
 		if p.Verbose > 0 {
 			fmt.Fprintf(os.Stderr, "snip: execute error: %v\n", err)
 		}
-		code, _ := Passthrough(command, fullArgs)
+		code, _ := Passthrough(ctx, command, fullArgs)
 		return code
 	}
 
@@ -104,8 +105,8 @@ func (p *Pipeline) Run(command string, args []string) int {
 // Passthrough runs a command directly without filtering.
 // Passthrough commands are not tracked because the output goes directly
 // to stdout — snip never captures it, so token counts would be 0/0.
-func (p *Pipeline) Passthrough(command string, args []string) int {
-	code, err := Passthrough(command, args)
+func (p *Pipeline) Passthrough(ctx context.Context, command string, args []string) int {
+	code, err := Passthrough(ctx, command, args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "snip: %v\n", err)
 		return 1

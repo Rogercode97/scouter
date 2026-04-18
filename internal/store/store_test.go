@@ -1,11 +1,13 @@
 package store
 
 import (
+	"context"
 	"os"
 	"testing"
 )
 
 func TestStoreSearch(t *testing.T) {
+	ctx := context.Background()
 	dbPath := "test_scouter.db"
 	defer os.Remove(dbPath)
 
@@ -16,7 +18,7 @@ func TestStoreSearch(t *testing.T) {
 	defer s.Close()
 
 	// 0. Save dummy file index to satisfy foreign key
-	err = s.SaveFileIndex(&FileIndex{
+	err = s.SaveFileIndex(ctx, &FileIndex{
 		Path:    "store.go",
 		Mtime:   123456789,
 		Hash:    "dummyhash",
@@ -35,13 +37,13 @@ func TestStoreSearch(t *testing.T) {
 	}
 
 	for _, sym := range syms {
-		if err := s.SaveSymbol(&sym); err != nil {
+		if err := s.SaveSymbol(ctx, &sym); err != nil {
 			t.Fatalf("Failed to save symbol %s: %v", sym.Name, err)
 		}
 	}
 
 	// 2. Test search
-	results, err := s.SearchSymbols("Search*", "")
+	results, err := s.SearchSymbols(ctx, "Search*", "")
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
 	}
@@ -63,7 +65,7 @@ func TestStoreSearch(t *testing.T) {
 	}
 
 	// 3. Test filter by type
-	results, _ = s.SearchSymbols("Store", "class")
+	results, _ = s.SearchSymbols(ctx, "Store", "class")
 	if len(results) != 1 || results[0].Type != "class" {
 		t.Errorf("Expected 1 class result, got %d", len(results))
 	}

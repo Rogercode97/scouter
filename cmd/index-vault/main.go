@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -12,6 +13,7 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	home, _ := os.UserHomeDir()
 	dbPath := filepath.Join(home, ".scouter", "scouter.db")
 	
@@ -21,12 +23,16 @@ func main() {
 	}
 	defer s.Close()
 
-	vaultPath := "/home/roger/hakaishin-vault/skills"
-	fmt.Printf("--- Indexing Hakaishin Vault: %s ---\n", vaultPath)
+	vaultPath, _ := os.Getwd()
+	fmt.Printf("--- Indexing Workspace: %s ---\n", vaultPath)
 
 	err = filepath.Walk(vaultPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
+		}
+
+		if info.IsDir() && info.Name() == ".git" {
+			return filepath.SkipDir
 		}
 
 		ext := filepath.Ext(path)
@@ -41,23 +47,23 @@ func main() {
 			}
 
 			// 2. Parse (Native Go AST + TS Fallback)
-			syms, parseErr := engine.ParseFile(path)
+			syms, parseErr := engine.ParseFile(ctx, path)
 			if parseErr != nil {
 				fmt.Printf("  [Error] Parse failed: %v\n", parseErr)
 				return nil
 			}
 
 			// 3. Save Index
-			s.SaveFileIndex(&store.FileIndex{
+			s.SaveFileIndex(ctx, &store.FileIndex{
 				Path:  path,
 				Mtime: info.ModTime().UnixNano(),
 				Hash:  h,
 			})
 
 			// 4. Save Symbols
-			s.ClearSymbols(path)
+			s.ClearSymbols(ctx, path)
 			for _, sym := range syms {
-				s.SaveSymbol(&store.Symbol{
+				s.SaveSymbol(ctx, &store.Symbol{
 					Name:      sym.Name,
 					Type:      sym.Type,
 					Path:      path,

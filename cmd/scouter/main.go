@@ -16,7 +16,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-var version = "1.0.0"
+var version = "1.1.0"
 
 //go:embed plugins/opencode/scouter.ts
 var openCodePluginFS embed.FS
@@ -92,15 +92,15 @@ func runMCPServer() {
 
 		currentHash, _ := utils.CalculateHash(filePath)
 
-		cached, err := db.GetFileIndex(filePath)
+		cached, err := db.GetFileIndex(ctx, filePath)
 		if err == nil && (cached.Mtime == stats.ModTime().UnixNano() || (currentHash != "" && cached.Hash == currentHash)) {
-			log.Printf("Cache hit for %s (mtime: %v, hash: %s)", filePath, cached.Mtime == stats.ModTime().UnixNano(), currentHash != "" && cached.Hash == currentHash)
+			log.Printf("Cache hit for %s (mtime: %v, hash: %v)", filePath, cached.Mtime == stats.ModTime().UnixNano(), currentHash != "" && cached.Hash == currentHash)
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: cached.ASTJSON}},
 			}, nil
 		}
 
-		idxResult, err := engine.ParseFile(filePath)
+		idxResult, err := engine.ParseFile(ctx, filePath)
 		if err != nil {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Indexing failed: %v", err)}},
@@ -109,7 +109,7 @@ func runMCPServer() {
 		}
 
 		astJSON, _ := json.Marshal(idxResult)
-		db.SaveFileIndex(&store.FileIndex{
+		db.SaveFileIndex(ctx, &store.FileIndex{
 			Path:    filePath,
 			Mtime:   stats.ModTime().UnixNano(),
 			Hash:    currentHash,
@@ -117,9 +117,9 @@ func runMCPServer() {
 		})
 
 		// Save individual symbols for FTS5 search
-		db.ClearSymbols(filePath)
+		db.ClearSymbols(ctx, filePath)
 		for _, ptr := range idxResult {
-			db.SaveSymbol(&store.Symbol{
+			db.SaveSymbol(ctx, &store.Symbol{
 				Name:      ptr.Name,
 				Type:      ptr.Type,
 				Path:      filePath,
@@ -158,7 +158,7 @@ func runMCPServer() {
 			}, nil
 		}
 
-		results, err := db.SearchSymbols(query, symType)
+		results, err := db.SearchSymbols(ctx, query, symType)
 		if err != nil {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Search failed: %v", err)}},
@@ -197,7 +197,7 @@ func runMCPServer() {
 		args := request.GetArguments()
 		pointerJSON, _ := json.Marshal(args["pointer"])
 		
-		snippet, err := engine.ReadSnippet(filePath, string(pointerJSON))
+		snippet, err := engine.ReadSnippet(ctx, filePath, string(pointerJSON))
 		if err != nil {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Read failed: %v", err)}},

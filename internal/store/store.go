@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -27,9 +28,22 @@ type Symbol struct {
 	EndLine   int    `json:"end_line"`
 }
 
+// Repository defines the port for symbol persistence (Hexagonal Architecture)
+type Repository interface {
+	GetFileIndex(ctx context.Context, path string) (*FileIndex, error)
+	SaveFileIndex(ctx context.Context, idx *FileIndex) error
+	ClearSymbols(ctx context.Context, path string) error
+	SaveSymbol(ctx context.Context, sym *Symbol) error
+	SearchSymbols(ctx context.Context, query string, symType string) ([]Symbol, error)
+	Close() error
+}
+
 type Store struct {
 	db *sql.DB
 }
+
+// Ensure Store implements Repository
+var _ Repository = (*Store)(nil)
 
 func New(dbPath string) (*Store, error) {
 	// Ensure directory exists
@@ -103,36 +117,36 @@ func New(dbPath string) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
-func (s *Store) GetFileIndex(path string) (*FileIndex, error) {
+func (s *Store) GetFileIndex(ctx context.Context, path string) (*FileIndex, error) {
 	var idx FileIndex
 	query := "SELECT path, mtime, hash, ast_json, project FROM file_index WHERE path = ?"
-	err := s.db.QueryRow(query, path).Scan(&idx.Path, &idx.Mtime, &idx.Hash, &idx.ASTJSON, &idx.Project)
+	err := s.db.QueryRowContext(ctx, query, path).Scan(&idx.Path, &idx.Mtime, &idx.Hash, &idx.ASTJSON, &idx.Project)
 	if err != nil {
 		return nil, err
 	}
 	return &idx, nil
 }
 
-func (s *Store) SaveFileIndex(idx *FileIndex) error {
+func (s *Store) SaveFileIndex(ctx context.Context, idx *FileIndex) error {
 	query := `
 	INSERT OR REPLACE INTO file_index (path, mtime, hash, ast_json, project)
 	VALUES (?, ?, ?, ?, ?);
 	`
-	_, err := s.db.Exec(query, idx.Path, idx.Mtime, idx.Hash, idx.ASTJSON, idx.Project)
+	_, err := s.db.ExecContext(ctx, query, idx.Path, idx.Mtime, idx.Hash, idx.ASTJSON, idx.Project)
 	return err
 }
 
-func (s *Store) ClearSymbols(path string) error {
-	_, err := s.db.Exec("DELETE FROM symbols WHERE path = ?", path)
+func (s *Store) ClearSymbols(ctx context.Context, path string) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM symbols WHERE path = ?", path)
 	return err
 }
 
-func (s *Store) SaveSymbol(sym *Symbol) error {
+func (s *Store) SaveSymbol(ctx context.Context, sym *Symbol) error {
 	query := `
 	INSERT INTO symbols (name, type, path, start_byte, end_byte, start_line, end_line)
 	VALUES (?, ?, ?, ?, ?, ?, ?);
 	`
-	_, err := s.db.Exec(query, sym.Name, sym.Type, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.EndLine)
+	_, err := s.db.ExecContext(ctx, query, sym.Name, sym.Type, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.EndLine)
 	return err
 }
 
@@ -161,7 +175,7 @@ func sanitizeFTS(query string) string {
 	return result
 }
 
-func (s *Store) SearchSymbols(query string, symType string) ([]Symbol, error) {
+func (s *Store) SearchSymbols(ctx context.Context, query string, symType string) ([]Symbol, error) {
 	var results []Symbol
 	var sqlQuery string
 	var args []interface{}
@@ -188,7 +202,7 @@ func (s *Store) SearchSymbols(query string, symType string) ([]Symbol, error) {
 		args = append(args, safeQuery)
 	}
 
-	rows, err := s.db.Query(sqlQuery, args...)
+	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, err
 	}

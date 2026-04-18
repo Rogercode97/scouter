@@ -39,15 +39,28 @@ func loadFixture(t *testing.T, name string) string {
 
 func loadFilter(t *testing.T, name string) *Filter {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(fixturesDir(), "..", "..", "filters", name))
-	if err != nil {
-		t.Fatalf("load filter %s: %v", name, err)
+	// Filters are in internal/filters/
+	dir, _ := os.Getwd()
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			data, err := os.ReadFile(filepath.Join(dir, "internal", "filters", name))
+			if err != nil {
+				t.Fatalf("load filter %s: %v", name, err)
+			}
+			f, err := ParseFilter(data)
+			if err != nil {
+				t.Fatalf("parse filter %s: %v", name, err)
+			}
+			return f
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
 	}
-	f, err := ParseFilter(data)
-	if err != nil {
-		t.Fatalf("parse filter %s: %v", name, err)
-	}
-	return f
+	t.Fatalf("could not find filter %s", name)
+	return nil
 }
 
 func applyPipeline(f *Filter, input string) (string, error) {

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -24,6 +25,7 @@ func Run(args []string) int {
 		return 0
 	}
 
+	ctx := context.Background()
 	flags, remaining := ParseFlags(args[1:])
 
 	if flags.Version {
@@ -97,14 +99,14 @@ func Run(args []string) int {
 			return 1
 		}
 		p := &engine.Pipeline{}
-		return p.Passthrough(cmdArgs[0], cmdArgs[1:])
+		return p.Passthrough(ctx, cmdArgs[0], cmdArgs[1:])
 	}
 
 	// Filter pipeline
-	return runPipeline(command, cmdArgs, flags)
+	return runPipeline(ctx, command, cmdArgs, flags)
 }
 
-func runPipeline(command string, args []string, flags Flags) int {
+func runPipeline(ctx context.Context, command string, args []string, flags Flags) int {
 	cfg, err := config.Load()
 	if err != nil {
 		if flags.Verbose > 0 {
@@ -143,7 +145,7 @@ func runPipeline(command string, args []string, flags Flags) int {
 		UltraCompact: flags.UltraCompact,
 	}
 
-	return pipeline.Run(command, args)
+	return pipeline.Run(ctx, command, args)
 }
 
 func printUsage() {

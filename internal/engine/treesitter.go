@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -68,7 +69,13 @@ func registerLanguage(ext string, lang *tree_sitter.Language, querySource string
 	}
 }
 
-func ParseWithTreeSitter(filePath string) ([]types.ASTPointer, error) {
+func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPointer, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	ext := filepath.Ext(filePath)
 	config, ok := languageConfigs[ext]
 	if !ok {
@@ -115,6 +122,13 @@ func ParseWithTreeSitter(filePath string) ([]types.ASTPointer, error) {
 
 	var pointers []types.ASTPointer
 	for match := matches.Next(); match != nil; match = matches.Next() {
+		// Check context in every iteration for long files
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
 		var name string
 		var symType string
 		var symNode tree_sitter.Node

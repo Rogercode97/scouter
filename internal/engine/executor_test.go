@@ -1,13 +1,15 @@
 package engine
 
 import (
+	"context"
 	"runtime"
 	"strings"
 	"testing"
 )
 
 func TestExecuteEcho(t *testing.T) {
-	result, err := Execute("echo", []string{"hello", "world"})
+	ctx := context.Background()
+	result, err := Execute(ctx, "echo", []string{"hello", "world"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -26,7 +28,8 @@ func TestExecuteStderr(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("skip on windows")
 	}
-	result, err := Execute("sh", []string{"-c", "echo error >&2"})
+	ctx := context.Background()
+	result, err := Execute(ctx, "sh", []string{"-c", "echo error >&2"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -39,7 +42,8 @@ func TestExecuteExitCode(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("skip on windows")
 	}
-	result, err := Execute("sh", []string{"-c", "exit 42"})
+	ctx := context.Background()
+	result, err := Execute(ctx, "sh", []string{"-c", "exit 42"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -49,14 +53,16 @@ func TestExecuteExitCode(t *testing.T) {
 }
 
 func TestExecuteNotFound(t *testing.T) {
-	_, err := Execute("nonexistent-command-xyz", nil)
+	ctx := context.Background()
+	_, err := Execute(ctx, "nonexistent-command-xyz", nil)
 	if err == nil {
 		t.Fatal("expected error for nonexistent command")
 	}
 }
 
 func TestPassthrough(t *testing.T) {
-	code, err := Passthrough("echo", []string{"test"})
+	ctx := context.Background()
+	code, err := Passthrough(ctx, "echo", []string{"test"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -69,7 +75,8 @@ func TestPassthroughExitCode(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("skip on windows")
 	}
-	code, err := Passthrough("sh", []string{"-c", "exit 7"})
+	ctx := context.Background()
+	code, err := Passthrough(ctx, "sh", []string{"-c", "exit 7"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -82,7 +89,8 @@ func TestExecuteShellBuiltin(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("skip on windows")
 	}
-	result, err := Execute("export", []string{"FOO=bar"})
+	ctx := context.Background()
+	result, err := Execute(ctx, "export", []string{"FOO=bar"})
 	if err != nil {
 		t.Fatalf("unexpected error executing shell builtin: %v", err)
 	}
@@ -95,7 +103,8 @@ func TestPassthroughShellBuiltin(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("skip on windows")
 	}
-	code, err := Passthrough("export", []string{"FOO=bar"})
+	ctx := context.Background()
+	code, err := Passthrough(ctx, "export", []string{"FOO=bar"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -105,7 +114,8 @@ func TestPassthroughShellBuiltin(t *testing.T) {
 }
 
 func TestMakeCommandBuiltin(t *testing.T) {
-	cmd := makeCommand("export", []string{"A=1", "B=2"})
+	ctx := context.Background()
+	cmd := makeCommand(ctx, "export", []string{"A=1", "B=2"})
 	if cmd.Path == "" {
 		t.Fatal("command path should not be empty")
 	}
@@ -119,7 +129,8 @@ func TestMakeCommandBuiltin(t *testing.T) {
 }
 
 func TestMakeCommandRegular(t *testing.T) {
-	cmd := makeCommand("git", []string{"status"})
+	ctx := context.Background()
+	cmd := makeCommand(ctx, "git", []string{"status"})
 	// Should NOT wrap with sh
 	if len(cmd.Args) > 0 && cmd.Args[0] == "sh" {
 		t.Error("regular commands should not be wrapped with sh")
