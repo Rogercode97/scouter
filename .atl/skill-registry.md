@@ -68,3 +68,7 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 | Makefile | Makefile | Build and test commands. |
 
 Read the convention files listed above for project-specific patterns and rules.
+
+## 👁️ SCOUTER PROTOCOL (AST SOVEREIGNTY)
+- **Mandate**: For any file > 50 lines, you MUST run `mcp_scouter_scouter_index` before using `read_file`.
+- **Reasoning**: Structural certainty > Text noise.
