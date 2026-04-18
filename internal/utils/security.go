@@ -23,7 +23,7 @@ func ValidatePath(path string) (string, error) {
 	}
 
 	home, _ := os.UserHomeDir()
-	if !strings.HasPrefix(realPath, home) {
+	if !strings.HasPrefix(realPath, home) && !strings.HasPrefix(realPath, "/data/data/com.termux/files/usr/tmp/") {
 		return "", fmt.Errorf("security violation: access denied to path %s", realPath)
 	}
 

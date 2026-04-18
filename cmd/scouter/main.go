@@ -19,7 +19,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-var version = "1.1.0"
+var version = "1.2.0" // Bumping version for V2.0 features
 
 //go:embed plugins/opencode/scouter.ts
 var openCodePluginFS embed.FS
@@ -82,6 +82,10 @@ type ReadRequest struct {
 	Hash     string      `json:"hash" validate:"omitempty,len=64"`
 }
 
+type CallersRequest struct {
+	CalleeName string `json:"calleeName" validate:"required,min=1"`
+}
+
 func runMCPServer() {
 	ctx := context.Background()
 	cfg, err := config.Load(ctx)
@@ -106,10 +110,10 @@ func runMCPServer() {
 		server.WithPromptCapabilities(true),
 		server.WithResourceCapabilities(false, true),
 		server.WithInstructions(`Scouter is an AST-based code analysis engine. 
-Use 'scouter_index' to understand a file's structure and 'scouter_search' for high-precision symbol lookups (functions, classes, etc.). 
-Prefer 'scouter_search' over generic text search (grep) when looking for definitions. 
-Use 'scouter_read' with pointers obtained from index or search for surgical, byte-safe code reading.
-Always index a file before attempting to read specific fragments if you don't have a valid pointer.`),
+Use 'scouter_index' to understand a file's structure and 'scouter_search' for high-precision symbol lookups.
+Use 'scouter_callers' to find all locations where a specific function or method is invoked across the workspace.
+Prefer 'scouter_search' and 'scouter_callers' over generic text search (grep) for architectural analysis.
+Use 'scouter_read' with pointers to read specific code fragments with integrity verification (hash).`),
 	)
 
 	// Resource: scouter://status
@@ -142,7 +146,7 @@ Always index a file before attempting to read specific fragments if you don't ha
 
 	// Tool: scouter_index
 	indexTool := mcp.NewTool("scouter_index",
-		mcp.WithDescription("Analyze a file using the AST engine to index its structure (classes, methods, functions, variables)."),
+		mcp.WithDescription("Analyze a file to index its structure (symbols) and call graph (invocations)."),
 		mcp.WithString("filePath",
 			mcp.Required(),
 			mcp.Description("The absolute path to the file to index."),
@@ -153,26 +157,17 @@ Always index a file before attempting to read specific fragments if you don't ha
 		var req IndexRequest
 		argsJSON, _ := json.Marshal(request.GetArguments())
 		if err := json.Unmarshal(argsJSON, &req); err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: "Invalid arguments"}},
-				IsError: true,
-			}, nil
+			return mcpError("Invalid arguments"), nil
 		}
 
 		if err := v.Struct(req); err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Validation failed: %v", err)}},
-				IsError: true,
-			}, nil
+			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
 		}
 
 		filePath := req.FilePath
 		stats, err := os.Stat(filePath)
 		if err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("File not found: %v", err)}},
-				IsError: true,
-			}, nil
+			return mcpError(fmt.Sprintf("File not found: %v", err)), nil
 		}
 
 		currentHash, _ := utils.CalculateHash(filePath)
@@ -181,201 +176,148 @@ Always index a file before attempting to read specific fragments if you don't ha
 		if err == nil && (cached.Mtime == stats.ModTime().UnixNano() || (currentHash != "" && cached.Hash == currentHash)) {
 			var cachedSymbols []types.ASTPointer
 			if err := json.Unmarshal([]byte(cached.ASTJSON), &cachedSymbols); err == nil {
-				// OOM Guard for cache hits
 				responseSymbols := cachedSymbols
 				truncated := false
 				if len(cachedSymbols) > 500 {
 					responseSymbols = cachedSymbols[:500]
 					truncated = true
 				}
-
-				res := map[string]interface{}{
-					"symbols":   responseSymbols,
-					"count":     len(cachedSymbols),
-					"truncated": truncated,
-					"cached":    true,
-				}
+				res := map[string]interface{}{"symbols": responseSymbols, "count": len(cachedSymbols), "truncated": truncated, "cached": true}
 				resJSON, _ := json.Marshal(res)
-				return &mcp.CallToolResult{
-					Content: []mcp.Content{mcp.TextContent{Type: "text", Text: string(resJSON)}},
-				}, nil
+				return mcpJSONResponse(resJSON), nil
 			}
 		}
 
-		idxResult, err := engine.ParseFile(ctx, filePath)
+		idxResult, calls, err := engine.ParseFile(ctx, filePath)
 		if err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Indexing failed: %v", err)}},
-				IsError: true,
-			}, nil
+			return mcpError(fmt.Sprintf("Indexing failed: %v", err)), nil
 		}
 
-		// Use Transaction for Atomicity
 		err = db.WithTransaction(ctx, func(tx store.Repository) error {
 			astJSON, _ := json.Marshal(idxResult)
 			if err := tx.SaveFileIndex(ctx, &store.FileIndex{
-				Path:    filePath,
-				Mtime:   stats.ModTime().UnixNano(),
-				Hash:    currentHash,
-				ASTJSON: string(astJSON),
-			}); err != nil {
-				return err
-			}
+				Path: filePath, Mtime: stats.ModTime().UnixNano(), Hash: currentHash, ASTJSON: string(astJSON),
+			}); err != nil { return err }
 
-			// Save individual symbols for FTS5 search
-			if err := tx.ClearSymbols(ctx, filePath); err != nil {
-				return err
-			}
+			tx.ClearSymbols(ctx, filePath)
+			tx.ClearCalls(ctx, filePath)
 			for _, ptr := range idxResult {
-				if err := tx.SaveSymbol(ctx, &store.Symbol{
-					Name:      ptr.Name,
-					Type:      ptr.Type,
-					Path:      filePath,
-					StartByte: ptr.Range.Start,
-					EndByte:   ptr.Range.End,
-					StartLine: ptr.StartLine,
-					EndLine:   ptr.EndLine,
-				}); err != nil {
-					return err
-				}
+				tx.SaveSymbol(ctx, &store.Symbol{
+					Name: ptr.Name, Type: ptr.Type, Path: filePath,
+					StartByte: ptr.Range.Start, EndByte: ptr.Range.End,
+					StartLine: ptr.StartLine, EndLine: ptr.EndLine,
+				})
+			}
+			for _, c := range calls {
+				tx.SaveCall(ctx, store.Call{CallerName: c.CallerName, CalleeName: c.CalleeName, Path: filePath, Line: c.Line})
 			}
 			return nil
 		})
 
 		if err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Database update failed: %v", err)}},
-				IsError: true,
-			}, nil
+			return mcpError(fmt.Sprintf("Database update failed: %v", err)), nil
 		}
 
-		// OOM Guard: Limit symbols in response
 		responseSymbols := idxResult
 		truncated := false
 		if len(idxResult) > 500 {
 			responseSymbols = idxResult[:500]
 			truncated = true
 		}
-
-		res := map[string]interface{}{
-			"symbols":   responseSymbols,
-			"count":     len(idxResult),
-			"truncated": truncated,
-		}
+		res := map[string]interface{}{"symbols": responseSymbols, "count": len(idxResult), "truncated": truncated}
 		resJSON, _ := json.Marshal(res)
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: string(resJSON)}},
-		}, nil
+		return mcpJSONResponse(resJSON), nil
 	})
 
 	// Tool: scouter_search
 	searchTool := mcp.NewTool("scouter_search",
-		mcp.WithDescription("Search for symbols (functions, classes, variables) across the indexed workspace using FTS5."),
-		mcp.WithString("query",
-			mcp.Required(),
-			mcp.Description("The search query (e.g. 'ValidateUser', 'Config')."),
-		),
-		mcp.WithString("type",
-			mcp.Description("Optional: Filter by symbol type (function, class, variable, method, interface)."),
-		),
+		mcp.WithDescription("Search for symbols across the indexed workspace using FTS5."),
+		mcp.WithString("query", mcp.Required(), mcp.Description("The search query (e.g. 'ValidateUser').")),
+		mcp.WithString("type", mcp.Description("Optional: symbol type filter.")),
 	)
 
 	s.AddTool(searchTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var req SearchRequest
 		argsJSON, _ := json.Marshal(request.GetArguments())
-		if err := json.Unmarshal(argsJSON, &req); err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: "Invalid arguments"}},
-				IsError: true,
-			}, nil
-		}
+		json.Unmarshal(argsJSON, &req)
 
 		if err := v.Struct(req); err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Validation failed: %v", err)}},
-				IsError: true,
-			}, nil
+			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
 		}
 
 		results, err := db.SearchSymbols(ctx, req.Query, req.Type)
 		if err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Search failed: %v", err)}},
-				IsError: true,
-			}, nil
+			return mcpError(fmt.Sprintf("Search failed: %v", err)), nil
 		}
 
 		resJSON, _ := json.Marshal(results)
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: string(resJSON)}},
-		}, nil
+		return mcpJSONResponse(resJSON), nil
+	})
+
+	// Tool: scouter_callers
+	callersTool := mcp.NewTool("scouter_callers",
+		mcp.WithDescription("Find all locations where a specific symbol (function/method) is called."),
+		mcp.WithString("calleeName", mcp.Required(), mcp.Description("The name of the symbol being called.")),
+	)
+
+	s.AddTool(callersTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var req CallersRequest
+		argsJSON, _ := json.Marshal(request.GetArguments())
+		json.Unmarshal(argsJSON, &req)
+
+		if err := v.Struct(req); err != nil {
+			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
+		}
+
+		callers, err := db.GetCallers(ctx, req.CalleeName)
+		if err != nil {
+			return mcpError(fmt.Sprintf("Failed to fetch callers: %v", err)), nil
+		}
+
+		resJSON, _ := json.Marshal(callers)
+		return mcpJSONResponse(resJSON), nil
 	})
 
 	// Tool: scouter_read
 	readTool := mcp.NewTool("scouter_read",
-		mcp.WithDescription("Read a specific code fragment from a file using an AST pointer (byte-safe start/end positions)."),
-		mcp.WithString("filePath",
-			mcp.Required(),
-			mcp.Description("The absolute path to the file."),
-		),
-		mcp.WithObject("pointer",
-			mcp.Required(),
-			mcp.Description("The AST pointer object containing position metadata."),
-		),
+		mcp.WithDescription("Read a specific code fragment with integrity verification."),
+		mcp.WithString("filePath", mcp.Required(), mcp.Description("Absolute path to the file.")),
+		mcp.WithObject("pointer", mcp.Required(), mcp.Description("AST pointer range.")),
+		mcp.WithString("hash", mcp.Description("Expected SHA-256 hash of the fragment.")),
 	)
 
 	s.AddTool(readTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var req ReadRequest
 		argsJSON, _ := json.Marshal(request.GetArguments())
-		if err := json.Unmarshal(argsJSON, &req); err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: "Invalid arguments"}},
-				IsError: true,
-			}, nil
-		}
+		json.Unmarshal(argsJSON, &req)
 
 		if err := v.Struct(req); err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Validation failed: %v", err)}},
-				IsError: true,
-			}, nil
+			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
 		}
 		
 		pointerJSON, _ := json.Marshal(req.Pointer)
 		fragment, err := engine.ReadFragment(ctx, req.FilePath, string(pointerJSON), req.Hash)
 		if err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Read failed: %v", err)}},
-				IsError: true,
-			}, nil
+			return mcpError(fmt.Sprintf("Read failed: %v", err)), nil
 		}
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fragment}},
-		}, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fragment}}}, nil
 	})
 
 	// Prompt: scouter-explain
 	explainPrompt := mcp.NewPrompt("scouter-explain",
 		mcp.WithPromptDescription("Find and explain a symbol in the project."),
-		mcp.WithArgument("symbolName",
-			mcp.ArgumentDescription("The name of the symbol to explain (e.g. 'ValidateUser')"),
-			mcp.RequiredArgument(),
-		),
+		mcp.WithArgument("symbolName", mcp.ArgumentDescription("Symbol to explain"), mcp.RequiredArgument()),
 	)
 
 	s.AddPrompt(explainPrompt, func(ctx context.Context, request mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 		symbolName := request.Params.Arguments["symbolName"]
 		return &mcp.GetPromptResult{
 			Description: fmt.Sprintf("Explain symbol %s", symbolName),
-			Messages: []mcp.PromptMessage{
-				{
-					Role: mcp.RoleUser,
-					Content: mcp.NewTextContent(fmt.Sprintf(`I need to understand how '%s' is implemented and used. 
-Please use 'scouter_search' to find it, then 'scouter_read' the relevant fragment, and finally explain its purpose and logic.`, symbolName)),
-				},
-			},
+			Messages: []mcp.PromptMessage{{
+				Role: mcp.RoleUser,
+				Content: mcp.NewTextContent(fmt.Sprintf(`I need to understand '%s'. Use 'scouter_search', then 'scouter_callers' to see its usage, 'scouter_read' the code, and explain it.`, symbolName)),
+			}},
 		}, nil
 	})
 
@@ -384,30 +326,24 @@ Please use 'scouter_search' to find it, then 'scouter_read' the relevant fragmen
 	}
 }
 
+func mcpError(msg string) *mcp.CallToolResult {
+	return &mcp.CallToolResult{Content: []mcp.Content{mcp.TextContent{Type: "text", Text: msg}}, IsError: true}
+}
+
+func mcpJSONResponse(data []byte) *mcp.CallToolResult {
+	return &mcp.CallToolResult{Content: []mcp.Content{mcp.TextContent{Type: "text", Text: string(data)}}}
+}
+
 func installGeminiCLI() {
 	home, _ := os.UserHomeDir()
 	configPath := filepath.Join(home, ".gemini", "settings.json")
 	binPath, _ := os.Executable()
-
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		log.Fatalf("Failed to read Gemini config: %v", err)
-	}
-
 	var config map[string]interface{}
-	json.Unmarshal(data, &config)
-
+	data, err := os.ReadFile(configPath)
+	if err == nil { json.Unmarshal(data, &config) } else { config = make(map[string]interface{}) }
 	mcpServers, ok := config["mcpServers"].(map[string]interface{})
-	if !ok {
-		mcpServers = make(map[string]interface{})
-		config["mcpServers"] = mcpServers
-	}
-
-	mcpServers["scouter"] = map[string]interface{}{
-		"command": binPath,
-		"args":    []string{"mcp"},
-	}
-
+	if !ok { mcpServers = make(map[string]interface{}); config["mcpServers"] = mcpServers }
+	mcpServers["scouter"] = map[string]interface{}{"command": []string{binPath, "mcp"}, "enabled": true}
 	newData, _ := json.MarshalIndent(config, "", "  ")
 	os.WriteFile(configPath, newData, 0644)
 	fmt.Printf("✅ Scouter integrated with Gemini CLI!\n")
@@ -415,40 +351,14 @@ func installGeminiCLI() {
 
 func installOpenCode() {
 	home, _ := os.UserHomeDir()
-	pluginDir := filepath.Join(home, ".config", "opencode", "plugins")
-	configPath := filepath.Join(home, ".config", "opencode", "opencode.json")
+	configPath := filepath.Join(home, ".config", "opencode", "settings.json")
 	binPath, _ := os.Executable()
-
-	// 1. Install TypeScript plugin (extracted from binary)
-	os.MkdirAll(pluginDir, 0755)
-	pluginData, err := openCodePluginFS.ReadFile("plugins/opencode/scouter.ts")
-	if err != nil {
-		log.Fatalf("Failed to read embedded plugin: %v", err)
-	}
-	os.WriteFile(filepath.Join(pluginDir, "scouter.ts"), pluginData, 0644)
-
-	// 2. Register MCP server in opencode.json
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		// If opencode.json doesn't exist, create an empty one
-		data = []byte("{}")
-	}
-
 	var config map[string]interface{}
-	json.Unmarshal(data, &config)
-
-	mcpBlock, ok := config["mcp"].(map[string]interface{})
-	if !ok {
-		mcpBlock = make(map[string]interface{})
-		config["mcp"] = mcpBlock
-	}
-
-	mcpBlock["scouter"] = map[string]interface{}{
-		"type":    "local",
-		"command": []string{binPath, "mcp"},
-		"enabled": true,
-	}
-
+	data, err := os.ReadFile(configPath)
+	if err == nil { json.Unmarshal(data, &config) } else { config = make(map[string]interface{}) }
+	mcpServers, ok := config["mcpServers"].(map[string]interface{})
+	if !ok { mcpServers = make(map[string]interface{}); config["mcpServers"] = mcpServers }
+	mcpServers["scouter"] = map[string]interface{}{"type": "local", "command": []string{binPath, "mcp"}, "enabled": true}
 	newData, _ := json.MarshalIndent(config, "", "  ")
 	os.WriteFile(configPath, newData, 0644)
 	fmt.Printf("✅ Scouter integrated with OpenCode!\n")

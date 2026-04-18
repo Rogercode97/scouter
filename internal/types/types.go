@@ -13,3 +13,10 @@ type ASTPointer struct {
 	EndLine   int    `json:"end_line" validate:"required,gtfield=StartLine"`
 	Hash      string `json:"hash" validate:"required,len=64"`
 }
+
+type ASTCall struct {
+	CallerName string `json:"caller_name" validate:"required"`
+	CalleeName string `json:"callee_name" validate:"required"`
+	Path       string `json:"path" validate:"required"`
+	Line       int    `json:"line" validate:"required,gte=1"`
+}

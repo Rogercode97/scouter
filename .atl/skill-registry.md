@@ -10,6 +10,8 @@ See `_shared/skill-resolver.md` for the full resolution protocol.
 |---------|-------|------|
 | Supreme protocol for Go 1.24+ Hexagonal Architecture. Enforces Domain Sovereignty, Strict Validation, and Context-First. | go-divine | /data/data/com.termux/files/home/hakaishin-vault/skills/go-divine/SKILL.md |
 | Supreme protocol for Model Context Protocol (MCP) servers. Enforces tool security via Zod, resource management, and transport isolation. | mcp-sovereign | /data/data/com.termux/files/home/hakaishin-vault/skills/mcp-sovereign/SKILL.md |
+| Elite protocol for Scouter MCP tool development. Enforces Glasswall Validation, Context Authority, and OOM Guard. | scouter-mcp-go | /data/data/com.termux/files/home/scouter/.gemini/skills/scouter-mcp-go/SKILL.md |
+| The Final Orchestrator for Skill Creation. Enforces Context7 Research, Sovereign Lifecycle, and Universal Arena validation. | supreme-creator | /data/data/com.termux/files/home/scouter/.gemini/skills/supreme-creator/SKILL.md |
 | High-density TDD protocol. Enforces Vitest v3+, Branch Coverage, and Auto-Update Thresholds. | tdd-discipline | /data/data/com.termux/files/home/hakaishin-vault/skills/tdd-discipline/SKILL.md |
 | Supreme protocol for systematic debugging. Enforces 5 Whys, Fault Tree Analysis (FTA), and Bisection. | root-cause-shinigami | /data/data/com.termux/files/home/hakaishin-vault/skills/root-cause-shinigami/SKILL.md |
 | When creating a GitHub issue, reporting a bug, or requesting a feature. | issue-creation | /data/data/com.termux/files/home/.gemini/skills/issue-creation/SKILL.md |
@@ -33,23 +35,35 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 - Transport Isolation: Logic MUST be independent of the transport layer (stdio, HTTP, etc.).
 - Structured Errors: Return errors in `TextContent` for agent interpretation; no stack leaks.
 
+### scouter-mcp-go
+- Glasswall Validation: Every MCP tool MUST parse its input into a typed Go struct and validate it using validator/v10.
+- Context Authority: Use the ctx provided by the tool handler. Never create context.Background() inside a tool.
+- Structured JSON Responses: Return technical data in TextContent as structured JSON.
+- OOM Guards: Enforce hard limits on arrays (LIMIT 100) or returning max 500 items. Include truncated: true flag.
+
+### supreme-creator
+- CONTEXT7-RESEARCH: Skill creation REQUIRES consultation of context7.
+- SOVEREIGN-JUDGMENT: Use agents/grader.md and analyzer.md for evidence-based validation.
+- ARENA FIRST: Skill MUST have a failing sacrifice-snippet in skill-arena/ before implementation.
+- KI BUDGET: SKILL.md > 100 lines DEBE ser purgado. Densidad técnica es ley.
+
 ### tdd-discipline
-- Branch Supremacy: Target **Branch Coverage >= 90%** for all logical paths.
-- Auto-Update Thresholds: Use `autoUpdate: true` in Vitest to lock coverage improvements.
+- Branch Supremacy: Target Branch Coverage >= 90% for all logical paths.
+- Auto-Update Thresholds: Use autoUpdate: true in Vitest to lock coverage improvements.
 - Feedback Velocity: Red-Green cycle MUST take <2s (use HMR/Watch Mode).
-- In-Source Purity: Use `import.meta.vitest` for co-locating critical utility tests.
+- In-Source Purity: Use import.meta.vitest for co-locating critical utility tests.
 
 ### root-cause-shinigami
-- 5 Whys Rigor: Dig 5 levels deep until reaching the process or design root cause.
+- 5 Whys Rigor: Dig 5 levels deep until reaching the root cause.
 - Fault Tree Analysis (FTA): Map dependencies to find the Single Point of Failure.
-- Binary Bisection: Systematically narrow the search space (commits, inputs, logic).
-- Deterministic Proof: A failing regression test is MANDATORY before applying any fix.
+- Binary Bisection: Narrow the search space (commits, inputs, logic).
+- Deterministic Proof: A failing regression test is MANDATORY before fix.
 - Documentation: Always record RCA as "What/Why/Where/Learned" in Engram.
 
 ### go-testing
-- Use standard `go test` with `-v` and `-cover`.
-- Follow Go conventions (test files `_test.go` in the same package).
-- Prefer `teatest` for Bubbletea TUI testing.
+- Use standard go test with -v and -cover.
+- Follow Go conventions (test files _test.go in same package).
+- Prefer teatest for Bubbletea TUI testing.
 
 ### issue-creation
 - Follow the issue-first enforcement system. Create issues before implementation.

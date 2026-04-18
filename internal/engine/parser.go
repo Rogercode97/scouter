@@ -22,28 +22,28 @@ const MaxFragmentSize = 100 * 1024
 // MaxParseSize is the limit for indexing a file (5MB)
 const MaxParseSize = 5 * 1024 * 1024
 
-// ParseFile analyzes a file using the AST engine to index its structure.
-func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, error) {
+// ParseFile analyzes a file using the AST engine to index its structure and call graph.
+func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []types.ASTCall, error) {
 	// 1. Context check
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, nil, ctx.Err()
 	default:
 	}
 
 	// 2. Path Security Check
 	validatedPath, err := utils.ValidatePath(filePath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// 1.5. Size Limit Check (Indexing Memory Guard)
 	fi, err := os.Stat(validatedPath)
 	if err != nil {
-		return nil, fmt.Errorf("error stating file: %w", err)
+		return nil, nil, fmt.Errorf("error stating file: %w", err)
 	}
 	if fi.Size() > MaxParseSize {
-		return nil, fmt.Errorf("file too large to index (%d bytes), limit is %d bytes", fi.Size(), MaxParseSize)
+		return nil, nil, fmt.Errorf("file too large to index (%d bytes), limit is %d bytes", fi.Size(), MaxParseSize)
 	}
 
 	// 2. Try native Go parser first (more reliable for now)
@@ -51,42 +51,84 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, error)
 	file, err := parser.ParseFile(fset, validatedPath, nil, parser.ParseComments)
 	if err == nil {
 		var pointers []types.ASTPointer
+		var calls []types.ASTCall
+		var funcStack []*ast.FuncDecl // Stack to manage (nested) function contexts
+
 		ast.Inspect(file, func(n ast.Node) bool {
+			if n == nil {
+				return false
+			}
+
+			// Pop functions from the stack when the current node is outside their scope.
+			// This handles leaving a function's body.
+			for len(funcStack) > 0 {
+				topFunc := funcStack[len(funcStack)-1]
+				if n.Pos() >= topFunc.End() {
+					funcStack = funcStack[:len(funcStack)-1]
+				} else {
+					break
+				}
+			}
+
+			// Push a new function declaration onto the stack.
 			if fn, ok := n.(*ast.FuncDecl); ok {
 				startPos := fset.Position(fn.Pos())
 				endPos := fset.Position(fn.End())
-
-				// Generate content hash to satisfy 64-char validation
 				content := fmt.Sprintf("%s:%s:%d:%d", "function", fn.Name.Name, startPos.Offset, endPos.Offset)
 				h := sha256.Sum256([]byte(content))
-
 				pointers = append(pointers, types.ASTPointer{
-					Type: "function",
-					Name: fn.Name.Name,
-					Range: types.Range{
-						Start: startPos.Offset,
-						End:   endPos.Offset,
-					},
+					Type:      "function",
+					Name:      fn.Name.Name,
+					Range:     types.Range{Start: startPos.Offset, End: endPos.Offset},
 					StartLine: startPos.Line,
 					EndLine:   endPos.Line,
 					Hash:      hex.EncodeToString(h[:]),
 				})
+				funcStack = append(funcStack, fn)
 			}
+
+			// If we are inside a function, record any call expressions.
+			if call, ok := n.(*ast.CallExpr); ok {
+				if len(funcStack) > 0 {
+					caller := funcStack[len(funcStack)-1]
+					calleeName := extractCalleeName(call.Fun)
+					if calleeName != "" {
+						calls = append(calls, types.ASTCall{
+							CallerName: caller.Name.Name,
+							CalleeName: calleeName,
+							Path:       validatedPath,
+							Line:       fset.Position(call.Lparen).Line,
+						})
+					}
+				}
+			}
+
 			return true
 		})
-		if len(pointers) > 0 {
-			return pointers, nil
-		}
+
+		return pointers, calls, nil
 	}
 
 	// 3. Try Tree-sitter for multi-language support as fallback
-	pointers, err := ParseWithTreeSitter(ctx, validatedPath)
+	pointers, calls, err := ParseWithTreeSitter(ctx, validatedPath)
 	if err == nil {
-		return pointers, nil
+		return pointers, calls, nil
 	}
 
 	// Fallback or specific error handling can go here
-	return nil, fmt.Errorf("parsing failed for %s: %w", filePath, err)
+	return nil, nil, fmt.Errorf("parsing failed for %s: %w", filePath, err)
+}
+
+// extractCalleeName attempts to get the name of the function being called.
+func extractCalleeName(fun ast.Expr) string {
+	switch f := fun.(type) {
+	case *ast.Ident:
+		return f.Name
+	case *ast.SelectorExpr:
+		return f.Sel.Name
+	default:
+		return "" // Could be a more complex expression, ignore for now
+	}
 }
 
 // ReadFragment reads a specific code fragment and validates it against its expected hash.
