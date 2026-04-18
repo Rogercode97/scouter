@@ -1,4 +1,5 @@
-# Scouter 🕶️ (V1.1 Hakaishin Edition)
+# Scouter 🕶️ (Wave 8.7 (Redemption Edition))
+**Status**: Fully Redemed. Context-Aware I/O (Go 1.25) & MCP Integrated.
 
 **The high-precision, semantic code analysis engine for AI agents.**  
 *Surgical AST indexing. FTS5 Semantic Search. Multi-language Tree-sitter. SHA-256 Hashing.*
