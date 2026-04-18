@@ -1,0 +1,6 @@
+=== RUN   TestSearchSymbols
+--- PASS: TestSearchSymbols (0.01s)
+=== RUN   TestNewStore
+--- PASS: TestNewStore (0.00s)
+PASS
+ok  	github.com/Rogercode97/scouter/internal/store	0.015s
