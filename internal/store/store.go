@@ -36,6 +36,10 @@ type Call struct {
 	Line       int    `json:"line"`
 }
 
+type DeadCodeOptions struct {
+	IncludeExported bool // If true, include symbols starting with Uppercase
+}
+
 // Repository defines the port for symbol persistence (Hexagonal Architecture)
 type Repository interface {
 	GetFileIndex(ctx context.Context, path string) (*FileIndex, error)
@@ -48,6 +52,9 @@ type Repository interface {
 	GetCallees(ctx context.Context, callerName string) ([]Call, error)
 	ClearCalls(ctx context.Context, path string) error
 	GetStats(ctx context.Context) (int, int, error)
+
+	// Dead Code Analysis
+	GetUnusedSymbols(ctx context.Context, opts DeadCodeOptions) ([]Symbol, error)
 
 	// Dependency Sovereignty
 	SaveDependency(ctx context.Context, dep *types.Dependency) error
@@ -373,6 +380,41 @@ func (s *Store) SearchSymbols(ctx context.Context, query string, symType string)
 	}
 
 	rows, err := s.query(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var sym Symbol
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
+			return nil, err
+		}
+		results = append(results, sym)
+	}
+
+	return results, nil
+}
+
+func (s *Store) GetUnusedSymbols(ctx context.Context, opts DeadCodeOptions) ([]Symbol, error) {
+	var results []Symbol
+	query := `
+	SELECT name, type, path, start_byte, end_byte, start_line, end_line
+	FROM symbols s
+	WHERE NOT EXISTS (
+		SELECT 1 FROM calls c WHERE c.callee_name = s.name
+	)
+	-- Safe Symbols (Global Exclusions)
+	AND s.name NOT IN ('main', 'init')
+	AND s.path NOT LIKE '%main.go'
+	AND s.path NOT LIKE '%_test.go'
+	-- includeExported logic:
+	-- IF opts.IncludeExported is false, exclude symbols matching [A-Z]*
+	AND (? OR s.name NOT GLOB '[A-Z]*')
+	LIMIT 100;
+	`
+
+	rows, err := s.query(ctx, query, opts.IncludeExported)
 	if err != nil {
 		return nil, err
 	}

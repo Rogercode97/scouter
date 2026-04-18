@@ -87,6 +87,10 @@ type CallersRequest struct {
 	CalleeName string `json:"calleeName" validate:"required,min=1"`
 }
 
+type DeadCodeRequest struct {
+	IncludeExported bool `json:"includeExported"`
+}
+
 type VisualizeRequest struct {
 	SymbolName string `json:"symbolName" validate:"required,min=1"`
 	Depth      int    `json:"depth" validate:"omitempty,min=1,max=3"`
@@ -119,6 +123,7 @@ func runMCPServer() {
 Use 'scouter_index' to understand a file's structure and 'scouter_search' for high-precision symbol lookups.
 Use 'scouter_callers' to find all locations where a specific function or method is invoked across the workspace.
 Use 'scouter_visualize' to generate a Mermaid.js call graph for a symbol up to a specified depth.
+Use 'scouter_dead_code' to identify symbols that have no callers in the current index.
 Use 'scouter_dependencies' to list external libraries (go.mod, package.json) and their versions.
 Prefer 'scouter_search' and 'scouter_callers' over generic text search (grep) for architectural analysis.
 Use 'scouter_read' with pointers to read specific code fragments with integrity verification (hash).`),
@@ -403,6 +408,53 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 		finalMermaid := mermaidNodeDefs + mermaidEdges
 
 		res := map[string]string{"mermaid": finalMermaid}
+		resJSON, _ := json.Marshal(res)
+		return mcpJSONResponse(resJSON), nil
+	})
+
+	// Tool: scouter_dead_code
+	deadCodeTool := mcp.NewTool("scouter_dead_code",
+		mcp.WithDescription("Identifies symbols (functions, methods) that have no callers in the current index."),
+		mcp.WithBoolean("includeExported", mcp.Description("Whether to include public/exported symbols. Default: false.")),
+	)
+
+	s.AddTool(deadCodeTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var req DeadCodeRequest
+		argsJSON, _ := json.Marshal(request.GetArguments())
+		json.Unmarshal(argsJSON, &req)
+
+		// includeExported is already a boolean from the MCP driver, 
+		// but we unmarshal it just in case of different driver behaviors.
+		
+		results, err := db.GetUnusedSymbols(ctx, store.DeadCodeOptions{
+			IncludeExported: req.IncludeExported,
+		})
+		if err != nil {
+			return mcpError(fmt.Sprintf("Dead code analysis failed: %v", err)), nil
+		}
+
+		// Classification logic (from Design)
+		type DeadSymbol struct {
+			store.Symbol
+			Classification string `json:"classification"`
+		}
+		
+		var classified []DeadSymbol
+		for _, s := range results {
+			classification := "DEAD"
+			if len(s.Name) > 0 && s.Name[0] >= 'A' && s.Name[0] <= 'Z' {
+				classification = "POTENTIALLY UNUSED"
+			}
+			classified = append(classified, DeadSymbol{Symbol: s, Classification: classification})
+		}
+
+		res := map[string]interface{}{
+			"unused_symbols": classified,
+			"total_found":    len(classified),
+			"limit":          100,
+			"warning":        "Results truncated to 100 symbols per OOM Guard policy.",
+		}
+
 		resJSON, _ := json.Marshal(res)
 		return mcpJSONResponse(resJSON), nil
 	})
