@@ -52,26 +52,41 @@ func main() {
 				return nil
 			}
 
-			// 3. Save Index
-			s.SaveFileIndex(ctx, &store.FileIndex{
-				Path:  path,
-				Mtime: info.ModTime().UnixNano(),
-				Hash:  h,
+			// 3. Save Index and Symbols Atomically
+			err = s.WithTransaction(ctx, func(tx store.Repository) error {
+				if err := tx.SaveFileIndex(ctx, &store.FileIndex{
+					Path:  path,
+					Mtime: info.ModTime().UnixNano(),
+					Hash:  h,
+				}); err != nil {
+					return err
+				}
+
+				if err := tx.ClearSymbols(ctx, path); err != nil {
+					return err
+				}
+
+				for _, sym := range syms {
+					if err := tx.SaveSymbol(ctx, &store.Symbol{
+						Name:      sym.Name,
+						Type:      sym.Type,
+						Path:      path,
+						StartByte: sym.Range.Start,
+						EndByte:   sym.Range.End,
+						StartLine: sym.StartLine,
+						EndLine:   sym.EndLine,
+					}); err != nil {
+						return err
+					}
+				}
+				return nil
 			})
 
-			// 4. Save Symbols
-			s.ClearSymbols(ctx, path)
-			for _, sym := range syms {
-				s.SaveSymbol(ctx, &store.Symbol{
-					Name:      sym.Name,
-					Type:      sym.Type,
-					Path:      path,
-					StartByte: sym.Range.Start,
-					EndByte:   sym.Range.End,
-					StartLine: sym.StartLine,
-					EndLine:   sym.EndLine,
-				})
+			if err != nil {
+				fmt.Printf("  [Error] Transaction failed: %v\n", err)
+				return nil
 			}
+
 			fmt.Printf("  [Success] Indexed %d symbols.\n", len(syms))
 		}
 		return nil
