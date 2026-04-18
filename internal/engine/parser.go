@@ -186,18 +186,9 @@ func ReadFragment(ctx context.Context, filePath string, rangeJSON string, expect
 
 	// 5. Hash Validation (Divine Integrity)
 	if expectedHash != "" {
-		// Note: The hash is generated based on symbol content + range in ParseFile.
-		// We re-generate it here to ensure the fragment hasn't shifted or changed.
-		// Since we don't have the symbol name here easily without more JSON parsing, 
-		// we'll assume the client passed the correct rangeJSON which includes the name if needed,
-		// but a better way is to pass the whole pointer.
-		// For now, we'll implement a 'Stale Check' by comparing the fragment content hash if provided.
-		// Actually, simpler: we'll just check if the file hash changed.
 		currentFileHash, _ := utils.CalculateHash(validatedPath)
-		if currentFileHash != "" && expectedHash != "" && currentFileHash != expectedHash {
-			// This is a file-level stale check. For symbol-level we'd need more data.
-			// But since expectedHash in ASTPointer is often the file hash (or symbol hash),
-			// this is a safe way to detect changes.
+		if currentFileHash != "" && currentFileHash != expectedHash {
+			return "", fmt.Errorf("integrity violation: the file has been modified since it was last indexed (expected %s, got %s); please re-index the project", expectedHash, currentFileHash)
 		}
 	}
 

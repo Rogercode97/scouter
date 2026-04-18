@@ -22,10 +22,10 @@ func main() {
 		log.Fatalf("Failed to open store: %v", err)
 	}
 	defer s.Close()
-	vaultPath, _ := os.Getwd()
-	fmt.Printf("--- Indexing Workspace: %s ---\n", vaultPath)
+	workspacePath, _ := os.Getwd()
+	fmt.Printf("--- Indexing Workspace: %s ---\n", workspacePath)
 
-	err = filepath.Walk(vaultPath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(workspacePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -110,5 +110,5 @@ func main() {
 		log.Fatalf("Walk failed: %v", err)
 	}
 
-	fmt.Println("--- Vault Indexing Complete. ---")
+	fmt.Println("--- Workspace Indexing Complete. ---")
 }
