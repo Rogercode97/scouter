@@ -79,6 +79,7 @@ type SearchRequest struct {
 type ReadRequest struct {
 	FilePath string      `json:"filePath" validate:"required"`
 	Pointer  types.Range `json:"pointer" validate:"required"`
+	Hash     string      `json:"hash" validate:"omitempty,len=64"`
 }
 
 func runMCPServer() {
@@ -342,7 +343,7 @@ Always index a file before attempting to read specific fragments if you don't ha
 		}
 		
 		pointerJSON, _ := json.Marshal(req.Pointer)
-		fragment, err := engine.ReadFragment(ctx, req.FilePath, string(pointerJSON))
+		fragment, err := engine.ReadFragment(ctx, req.FilePath, string(pointerJSON), req.Hash)
 		if err != nil {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Read failed: %v", err)}},

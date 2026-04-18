@@ -7,6 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
+)
+
+var (
+	trackCount   int
+	trackCountMu sync.Mutex
 )
 
 // Tracker manages token savings tracking in SQLite.
@@ -93,8 +99,19 @@ func (t *Tracker) Track(ctx context.Context, originalCmd, scouterCmd string, inp
 		return fmt.Errorf("track: %w", err)
 	}
 
-	// Cleanup old records (best-effort)
-	_, _ = t.db.ExecContext(ctx, cleanupSQL)
+	// Periodic Cleanup via Sampling (Ghost 2: Optimization)
+	trackCountMu.Lock()
+	trackCount++
+	shouldCleanup := trackCount%10 == 0
+	trackCountMu.Unlock()
+
+	if shouldCleanup {
+		go func() {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_, _ = t.db.ExecContext(cleanupCtx, cleanupSQL)
+		}()
+	}
 
 	return nil
 }
