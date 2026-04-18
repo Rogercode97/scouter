@@ -1,4 +1,4 @@
-# Scouter 🕶️ (Wave 8.2 — Sovereign Edition)
+# Scouter 🕶️ (Wave 8.9 — Absolute Sovereignty)
 **Status**: Sovereign. Divine Architecture (Go 1.25). Glasswall Validated.
 
 **The high-precision, semantic code analysis engine for AI agents.**  
