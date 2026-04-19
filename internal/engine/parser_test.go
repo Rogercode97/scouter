@@ -167,6 +167,59 @@ func NestedCallee() {}
 	}
 }
 
+func TestParseFileWithDoc(t *testing.T) {
+	content := `
+package test
+
+// Hello is a greeting function.
+func Hello() {}
+
+/*
+World is a global function.
+It does something.
+*/
+func World() {}
+`
+	tmpDir, err := os.MkdirTemp("", "scouter-test-*")
+	if err != nil {
+		t.Fatalf("failed to create tmp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	filePath := filepath.Join(tmpDir, "test.go")
+	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	ctx := context.Background()
+	pointers, _, err := ParseFile(ctx, filePath)
+	if err != nil {
+		t.Fatalf("ParseFile failed: %v", err)
+	}
+
+	if len(pointers) != 2 {
+		t.Fatalf("expected 2 pointers, got %d", len(pointers))
+	}
+
+	if pointers[0].Name == "Hello" {
+		expected := "Hello is a greeting function."
+		if pointers[0].Doc != expected {
+			t.Errorf("expected doc %q, got %q", expected, pointers[0].Doc)
+		}
+	} else {
+		t.Errorf("expected first pointer to be Hello")
+	}
+
+	if pointers[1].Name == "World" {
+		expected := "World is a global function.\nIt does something."
+		if pointers[1].Doc != expected {
+			t.Errorf("expected doc %q, got %q", expected, pointers[1].Doc)
+		}
+	} else {
+		t.Errorf("expected second pointer to be World")
+	}
+}
+
 func TestParseTypeScriptWithCalls(t *testing.T) {
 	content := `
 function caller() {

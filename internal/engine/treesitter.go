@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Rogercode97/scouter/internal/types"
+	"github.com/Rogercode97/scouter/internal/utils"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
 	tree_sitter_python "github.com/tree-sitter/tree-sitter-python/bindings/go"
@@ -16,9 +18,9 @@ import (
 )
 
 type LanguageConfig struct {
-	Language    *tree_sitter.Language
-	Query       *tree_sitter.Query
-	CallQuery   *tree_sitter.Query
+	Language  *tree_sitter.Language
+	Query     *tree_sitter.Query
+	CallQuery *tree_sitter.Query
 }
 
 var languageConfigs map[string]*LanguageConfig
@@ -79,13 +81,30 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 	matches := cursor.Matches(config.Query, tree.RootNode(), content)
 	for match := matches.Next(); match != nil; match = matches.Next() {
 		var name, symType string
+		var symNode tree_sitter.Node
 		for _, cap := range match.Captures {
 			nameN := config.Query.CaptureNames()[cap.Index]
-			if nameN == "name" { name = cap.Node.Utf8Text(content) } else { symType = nameN }
+			if nameN == "name" {
+				name = cap.Node.Utf8Text(content)
+			} else {
+				symType = nameN
+				symNode = cap.Node
+			}
 		}
 		if name != "" {
+			doc := extractDoc(symNode, content, ext)
 			h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s", symType, name)))
-			pointers = append(pointers, types.ASTPointer{Type: symType, Name: name, Hash: hex.EncodeToString(h[:])})
+			startPos := symNode.StartPosition()
+			endPos := symNode.EndPosition()
+			pointers = append(pointers, types.ASTPointer{
+				Type:      symType,
+				Name:      name,
+				Doc:       doc,
+				Range:     types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
+				StartLine: int(startPos.Row) + 1,
+				EndLine:   int(endPos.Row) + 1,
+				Hash:      hex.EncodeToString(h[:]),
+			})
 		}
 	}
 
@@ -116,7 +135,8 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 func findCaller(node tree_sitter.Node, content []byte) string {
 	curr := node.Parent()
 	for curr != nil {
-		if kind := curr.Kind(); kind == "function_definition" || kind == "function_declaration" || kind == "method_definition" {
+		kind := curr.Kind()
+		if kind == "function_definition" || kind == "function_declaration" || kind == "method_definition" {
 			if name := curr.ChildByFieldName("name"); name != nil {
 				return name.Utf8Text(content)
 			}
@@ -124,4 +144,60 @@ func findCaller(node tree_sitter.Node, content []byte) string {
 		curr = curr.Parent()
 	}
 	return "global"
+}
+
+func extractDoc(node tree_sitter.Node, content []byte, ext string) string {
+	declNode := node
+	for declNode.Kind() == "identifier" || declNode.Kind() == "property_identifier" || declNode.Kind() == "type_identifier" || declNode.Kind() == "field_identifier" {
+		parent := declNode.Parent()
+		if parent == nil {
+			break
+		}
+		declNode = *parent
+	}
+
+	// 1. Python Docstrings
+	if ext == ".py" {
+		block := declNode.ChildByFieldName("body")
+		if block == nil {
+			for i := uint32(0); i < uint32(declNode.ChildCount()); i++ {
+				child := declNode.Child(uint(i))
+				if child.Kind() == "block" {
+					block = child
+					break
+				}
+			}
+		}
+
+		if block != nil && block.ChildCount() > 0 {
+			first := block.Child(0)
+			if first.Kind() == "expression_statement" && first.ChildCount() > 0 {
+				expr := first.Child(0)
+				if expr.Kind() == "string" {
+					return utils.CleanComment(expr.Utf8Text(content))
+				}
+			}
+		}
+	}
+
+	// 2. Backward Sibling Traversal
+	var comments []string
+	curr := declNode.PrevSibling()
+	for curr != nil {
+		kind := curr.Kind()
+		if kind == "comment" || kind == "line_comment" || kind == "block_comment" {
+			comments = append([]string{curr.Utf8Text(content)}, comments...)
+			curr = curr.PrevSibling()
+		} else if strings.TrimSpace(curr.Utf8Text(content)) == "" {
+			curr = curr.PrevSibling()
+		} else {
+			break
+		}
+	}
+
+	if len(comments) > 0 {
+		return utils.CleanComment(strings.Join(comments, "\n"))
+	}
+
+	return ""
 }

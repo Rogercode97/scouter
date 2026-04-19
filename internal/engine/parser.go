@@ -79,11 +79,13 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []type
 			if fn, ok := n.(*ast.FuncDecl); ok {
 				startPos := fset.Position(fn.Pos())
 				endPos := fset.Position(fn.End())
+				doc := utils.CleanComment(fn.Doc.Text())
 				content := fmt.Sprintf("%s:%s:%d:%d", "function", fn.Name.Name, startPos.Offset, endPos.Offset)
 				h := sha256.Sum256([]byte(content))
 				pointers = append(pointers, types.ASTPointer{
 					Type:      "function",
 					Name:      fn.Name.Name,
+					Doc:       doc,
 					Range:     types.Range{Start: startPos.Offset, End: endPos.Offset},
 					StartLine: startPos.Line,
 					EndLine:   endPos.Line,
@@ -93,6 +95,42 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []type
 					name: fn.Name.Name,
 					end:  fn.End(),
 				})
+			}
+
+			// Capture Structs and Interfaces from GenDecl
+			if gd, ok := n.(*ast.GenDecl); ok && (gd.Tok == token.STRUCT || gd.Tok == token.INTERFACE || gd.Tok == token.TYPE) {
+				for _, spec := range gd.Specs {
+					if ts, ok := spec.(*ast.TypeSpec); ok {
+						var symType string
+						switch ts.Type.(type) {
+						case *ast.StructType:
+							symType = "class" // Map struct to class for universal schema
+						case *ast.InterfaceType:
+							symType = "interface"
+						default:
+							continue
+						}
+
+						startPos := fset.Position(ts.Pos())
+						endPos := fset.Position(ts.End())
+						doc := utils.CleanComment(gd.Doc.Text())
+						if doc == "" {
+							doc = utils.CleanComment(ts.Doc.Text())
+						}
+
+						content := fmt.Sprintf("%s:%s:%d:%d", symType, ts.Name.Name, startPos.Offset, endPos.Offset)
+						h := sha256.Sum256([]byte(content))
+						pointers = append(pointers, types.ASTPointer{
+							Type:      symType,
+							Name:      ts.Name.Name,
+							Doc:       doc,
+							Range:     types.Range{Start: startPos.Offset, End: endPos.Offset},
+							StartLine: startPos.Line,
+							EndLine:   endPos.Line,
+							Hash:      hex.EncodeToString(h[:]),
+						})
+					}
+				}
 			}
 
 			// Push anonymous functions onto the stack.

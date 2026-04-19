@@ -20,7 +20,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-var version = "1.3.0" // Bumping version for Ecosystem Sovereignty
+var version = "1.6.0" // Documentation Sovereignty release
 
 //go:embed plugins/opencode/scouter.ts
 var openCodePluginFS embed.FS
@@ -195,6 +195,9 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 					responseSymbols = cachedSymbols[:500]
 					truncated = true
 				}
+				for i := range responseSymbols {
+					responseSymbols[i].Doc = truncateDoc(responseSymbols[i].Doc)
+				}
 				res := map[string]interface{}{"symbols": responseSymbols, "count": len(cachedSymbols), "truncated": truncated, "cached": true}
 				resJSON, _ := json.Marshal(res)
 				return mcpJSONResponse(resJSON), nil
@@ -216,7 +219,7 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 			tx.ClearCalls(ctx, filePath)
 			for _, ptr := range idxResult {
 				tx.SaveSymbol(ctx, &store.Symbol{
-					Name: ptr.Name, Type: ptr.Type, Path: filePath,
+					Name: ptr.Name, Type: ptr.Type, Doc: ptr.Doc, Path: filePath,
 					StartByte: ptr.Range.Start, EndByte: ptr.Range.End,
 					StartLine: ptr.StartLine, EndLine: ptr.EndLine,
 				})
@@ -236,6 +239,9 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 		if len(idxResult) > 500 {
 			responseSymbols = idxResult[:500]
 			truncated = true
+		}
+		for i := range responseSymbols {
+			responseSymbols[i].Doc = truncateDoc(responseSymbols[i].Doc)
 		}
 		res := map[string]interface{}{"symbols": responseSymbols, "count": len(idxResult), "truncated": truncated}
 		resJSON, _ := json.Marshal(res)
@@ -261,6 +267,10 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 		results, err := db.SearchSymbols(ctx, req.Query, req.Type)
 		if err != nil {
 			return mcpError(fmt.Sprintf("Search failed: %v", err)), nil
+		}
+
+		for i := range results {
+			results[i].Doc = truncateDoc(results[i].Doc)
 		}
 
 		resJSON, _ := json.Marshal(results)
@@ -426,9 +436,7 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 		// includeExported is already a boolean from the MCP driver, 
 		// but we unmarshal it just in case of different driver behaviors.
 		
-		results, err := db.GetUnusedSymbols(ctx, store.DeadCodeOptions{
-			IncludeExported: req.IncludeExported,
-		})
+		results, err := db.GetUnusedSymbols(ctx, req.IncludeExported)
 		if err != nil {
 			return mcpError(fmt.Sprintf("Dead code analysis failed: %v", err)), nil
 		}
@@ -528,6 +536,13 @@ func mcpError(msg string) *mcp.CallToolResult {
 
 func mcpJSONResponse(data []byte) *mcp.CallToolResult {
 	return &mcp.CallToolResult{Content: []mcp.Content{mcp.TextContent{Type: "text", Text: string(data)}}}
+}
+
+func truncateDoc(doc string) string {
+	if len(doc) > 1000 {
+		return doc[:1000] + "..."
+	}
+	return doc
 }
 
 func installGeminiCLI() {

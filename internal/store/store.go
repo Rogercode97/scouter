@@ -22,6 +22,7 @@ type FileIndex struct {
 type Symbol struct {
 	Name      string `json:"name"`
 	Type      string `json:"type"` // Generic Universal: function, class, variable, method
+	Doc       string `json:"doc"`
 	Path      string `json:"path"`
 	StartByte int    `json:"start_byte"`
 	EndByte   int    `json:"end_byte"`
@@ -34,10 +35,6 @@ type Call struct {
 	CalleeName string `json:"callee_name"`
 	Path       string `json:"path"`
 	Line       int    `json:"line"`
-}
-
-type DeadCodeOptions struct {
-	IncludeExported bool // If true, include symbols starting with Uppercase
 }
 
 // Repository defines the port for symbol persistence (Hexagonal Architecture)
@@ -53,13 +50,13 @@ type Repository interface {
 	ClearCalls(ctx context.Context, path string) error
 	GetStats(ctx context.Context) (int, int, error)
 
-	// Dead Code Analysis
-	GetUnusedSymbols(ctx context.Context, opts DeadCodeOptions) ([]Symbol, error)
-
 	// Dependency Sovereignty
 	SaveDependency(ctx context.Context, dep *types.Dependency) error
 	GetDependencies(ctx context.Context) ([]types.Dependency, error)
 	ClearDependencies(ctx context.Context) error
+
+	// Unused Code Detection
+	GetUnusedSymbols(ctx context.Context, includeExported bool) ([]Symbol, error)
 
 	WithTransaction(ctx context.Context, fn func(Repository) error) error
 	Close() error
@@ -109,6 +106,7 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT,
 			type TEXT,
+			doc TEXT,
 			path TEXT,
 			start_byte INTEGER,
 			end_byte INTEGER,
@@ -119,20 +117,21 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 		`CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
 			name,
 			type,
+			doc,
 			path,
 			content='symbols',
 			content_rowid='id'
 		);`,
 		// Triggers to keep FTS5 in sync
 		`CREATE TRIGGER IF NOT EXISTS symbols_ai AFTER INSERT ON symbols BEGIN
-			INSERT INTO symbols_fts(rowid, name, type, path) VALUES (new.id, new.name, new.type, new.path);
+			INSERT INTO symbols_fts(rowid, name, type, doc, path) VALUES (new.id, new.name, new.type, new.doc, new.path);
 		END;`,
 		`CREATE TRIGGER IF NOT EXISTS symbols_ad AFTER DELETE ON symbols BEGIN
-			INSERT INTO symbols_fts(symbols_fts, rowid, name, type, path) VALUES('delete', old.id, old.name, old.type, old.path);
+			INSERT INTO symbols_fts(symbols_fts, rowid, name, type, doc, path) VALUES('delete', old.id, old.name, old.type, old.doc, old.path);
 		END;`,
 		`CREATE TRIGGER IF NOT EXISTS symbols_au AFTER UPDATE ON symbols BEGIN
-			INSERT INTO symbols_fts(symbols_fts, rowid, name, type, path) VALUES('delete', old.id, old.name, old.type, old.path);
-			INSERT INTO symbols_fts(rowid, name, type, path) VALUES (new.id, new.name, new.type, new.path);
+			INSERT INTO symbols_fts(symbols_fts, rowid, name, type, doc, path) VALUES('delete', old.id, old.name, old.type, old.doc, old.path);
+			INSERT INTO symbols_fts(rowid, name, type, doc, path) VALUES (new.id, new.name, new.type, new.doc, new.path);
 		END;`,
 		`CREATE TABLE IF NOT EXISTS calls (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,6 +158,12 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 
 	for _, q := range queries {
 		if _, err := db.ExecContext(ctx, q); err != nil {
+			// Special handling for schema evolution (adding 'doc')
+			if strings.Contains(q, "CREATE TABLE IF NOT EXISTS symbols") {
+				_, _ = db.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN doc TEXT;")
+				_, _ = db.ExecContext(ctx, "DROP TABLE IF EXISTS symbols_fts;")
+				// Continue to recreate everything properly
+			}
 			return nil, err
 		}
 	}
@@ -213,10 +218,10 @@ func (s *Store) ClearSymbols(ctx context.Context, path string) error {
 
 func (s *Store) SaveSymbol(ctx context.Context, sym *Symbol) error {
 	query := `
-	INSERT INTO symbols (name, type, path, start_byte, end_byte, start_line, end_line)
-	VALUES (?, ?, ?, ?, ?, ?, ?);
+	INSERT INTO symbols (name, type, doc, path, start_byte, end_byte, start_line, end_line)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 	`
-	_, err := s.exec(ctx, query, sym.Name, sym.Type, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.EndLine)
+	_, err := s.exec(ctx, query, sym.Name, sym.Type, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.EndLine)
 	return err
 }
 
@@ -325,6 +330,38 @@ func (s *Store) ClearDependencies(ctx context.Context) error {
 	return err
 }
 
+func (s *Store) GetUnusedSymbols(ctx context.Context, includeExported bool) ([]Symbol, error) {
+	var results []Symbol
+	query := `
+	SELECT name, type, doc, path, start_byte, end_byte, start_line, end_line
+	FROM symbols s
+	WHERE NOT EXISTS (SELECT 1 FROM calls c WHERE c.callee_name = s.name)
+	AND name NOT IN ('main', 'init')
+	AND path NOT LIKE '%_test.go'
+	AND path NOT LIKE '%main.go'
+	`
+	if !includeExported {
+		// Filter out symbols starting with Uppercase (Go export convention)
+		query += " AND name GLOB '[a-z]*'"
+	}
+	query += " ORDER BY name ASC LIMIT 100;"
+
+	rows, err := s.query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var sym Symbol
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
+			return nil, err
+		}
+		results = append(results, sym)
+	}
+	return results, nil
+}
+
 func sanitizeFTS(query string) string {
 	// Check for prefix search
 	isPrefix := strings.HasSuffix(query, "*")
@@ -359,7 +396,7 @@ func (s *Store) SearchSymbols(ctx context.Context, query string, symType string)
 
 	if symType != "" {
 		sqlQuery = `
-		SELECT s.name, s.type, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line
+		SELECT s.name, s.type, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line
 		FROM symbols s
 		JOIN symbols_fts f ON s.id = f.rowid
 		WHERE symbols_fts MATCH ? AND s.type = ?
@@ -369,7 +406,7 @@ func (s *Store) SearchSymbols(ctx context.Context, query string, symType string)
 		args = append(args, safeQuery, symType)
 	} else {
 		sqlQuery = `
-		SELECT s.name, s.type, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line
+		SELECT s.name, s.type, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line
 		FROM symbols s
 		JOIN symbols_fts f ON s.id = f.rowid
 		WHERE symbols_fts MATCH ?
@@ -387,42 +424,7 @@ func (s *Store) SearchSymbols(ctx context.Context, query string, symType string)
 
 	for rows.Next() {
 		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
-			return nil, err
-		}
-		results = append(results, sym)
-	}
-
-	return results, nil
-}
-
-func (s *Store) GetUnusedSymbols(ctx context.Context, opts DeadCodeOptions) ([]Symbol, error) {
-	var results []Symbol
-	query := `
-	SELECT name, type, path, start_byte, end_byte, start_line, end_line
-	FROM symbols s
-	WHERE NOT EXISTS (
-		SELECT 1 FROM calls c WHERE c.callee_name = s.name
-	)
-	-- Safe Symbols (Global Exclusions)
-	AND s.name NOT IN ('main', 'init')
-	AND s.path NOT LIKE '%main.go'
-	AND s.path NOT LIKE '%_test.go'
-	-- includeExported logic:
-	-- IF opts.IncludeExported is false, exclude symbols matching [A-Z]*
-	AND (? OR s.name NOT GLOB '[A-Z]*')
-	LIMIT 100;
-	`
-
-	rows, err := s.query(ctx, query, opts.IncludeExported)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
 			return nil, err
 		}
 		results = append(results, sym)
