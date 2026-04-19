@@ -196,6 +196,7 @@ func main() {
 					Name:      sym.Name,
 					Type:      sym.Type,
 					Path:      res.Path,
+					Doc:       sym.Doc,
 					StartByte: sym.Range.Start,
 					EndByte:   sym.Range.End,
 					StartLine: sym.StartLine,

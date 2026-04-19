@@ -6,7 +6,7 @@ description: >
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.1"
+  version: "1.2"
 ---
 
 # 👁️ SCOUTER MCP-GO (WAVE 8.9)
@@ -16,6 +16,8 @@ metadata:
 - **CONTEXT AUTHORITY**: El `ctx` del handler es ley. Prohibido crear contextos huérfanos.
 - **OOM GUARD**: Toda respuesta con listas DEBE tener un `LIMIT` (ej. 500) y un flag `truncated: true`.
 - **STRUCTURED RESPONSES**: Solo JSON en `TextContent`. El agente es un parser, no un lector de cuentos.
+- **INTEGRITY ENFORCEMENT**: Las herramientas de lectura (`scouter_read`) DEBEN validar el hash SHA-256 estructural para evitar datos obsoletos.
+- **IMPACT SOVEREIGNTY**: Antes de sugerir un refactor, el agente DEBE invocar `scouter_callers` para analizar el impacto global.
 
 ## 🛠️ PATRÓN DE ÉLITE (HANDLERS)
 ```go
@@ -44,3 +46,4 @@ s.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.Cal
 - [ ] ¿`validator.Struct()` ejecutado antes de la lógica?
 - [ ] ¿Contexto propagado hasta el `store`?
 - [ ] ¿Respuesta JSON estructurada?
+- [ ] ¿Validación de Hash implementada en lecturas?

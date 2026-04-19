@@ -174,7 +174,7 @@ func TestGetUnusedSymbols(t *testing.T) {
 
 	// 3. Test GetUnusedSymbols (IncludeExported = false)
 	// Should only find "deadFunc"
-	unused, err := s.GetUnusedSymbols(ctx, DeadCodeOptions{IncludeExported: false})
+	unused, err := s.GetUnusedSymbols(ctx, false)
 	if err != nil {
 		t.Fatalf("GetUnusedSymbols failed: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestGetUnusedSymbols(t *testing.T) {
 
 	// 4. Test GetUnusedSymbols (IncludeExported = true)
 	// Should find "deadFunc" and "ExportedUnused"
-	unused, err = s.GetUnusedSymbols(ctx, DeadCodeOptions{IncludeExported: true})
+	unused, err = s.GetUnusedSymbols(ctx, true)
 	if err != nil {
 		t.Fatalf("GetUnusedSymbols failed: %v", err)
 	}

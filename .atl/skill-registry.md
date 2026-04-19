@@ -40,6 +40,8 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 - Context Authority: Use the ctx provided by the tool handler. Never create context.Background() inside a tool.
 - Structured JSON Responses: Return technical data in TextContent as structured JSON.
 - OOM Guards: Enforce hard limits on arrays (LIMIT 100) or returning max 500 items. Include truncated: true flag.
+- Integrity Enforcement: Read tools MUST validate SHA-256 hashes to prevent stale code access.
+- Impact Sovereignty: Refactors REQUIRE prior invocation of scouter_callers for global impact analysis.
 
 ### supreme-creator
 - CONTEXT7-RESEARCH: Skill creation REQUIRES consultation of context7.
