@@ -1,0 +1,234 @@
+package lsp
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+)
+
+// LSPClient defines the interface for an LSP client.
+type LSPClient interface {
+	Definition(ctx context.Context, params DefinitionParams) ([]Location, error)
+	Hover(ctx context.Context, params HoverParams) (*Hover, error)
+	Close() error
+}
+
+type jsonrpcClient struct {
+	cmd     *exec.Cmd
+	stdin   io.WriteCloser
+	stdout  io.ReadCloser
+	reader  io.Reader // for testing
+	writer  io.Writer // for testing
+	
+	nextID  atomic.Uint64
+	pending sync.Map // map[uint64]chan *JSONRPCResponse
+	
+	done    chan struct{}
+}
+
+func NewClient(binary string, args ...string) (LSPClient, error) {
+	cmd := exec.Command(binary, args...)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	
+	c := &jsonrpcClient{
+		cmd:    cmd,
+		stdin:  stdin,
+		stdout: stdout,
+		reader: stdout,
+		writer: stdin,
+		done:   make(chan struct{}),
+	}
+	
+	go c.listen()
+	
+	// Initialize
+	ctx := context.Background() // Or passed in? Design says initialize on startup.
+	if err := c.initialize(ctx); err != nil {
+		c.Close()
+		return nil, err
+	}
+	
+	return c, nil
+}
+
+func (c *jsonrpcClient) listen() {
+	reader := bufio.NewReader(c.reader)
+	for {
+		// Read headers
+		var contentLength int
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				close(c.done)
+				return
+			}
+			line = strings.TrimSpace(line)
+			if line == "" {
+				break
+			}
+			if strings.HasPrefix(line, "Content-Length:") {
+				fmt.Sscanf(line, "Content-Length: %d", &contentLength)
+			}
+		}
+		
+		if contentLength == 0 {
+			continue
+		}
+		
+		// Read body
+		body := make([]byte, contentLength)
+		if _, err := io.ReadFull(reader, body); err != nil {
+			close(c.done)
+			return
+		}
+		
+		var resp JSONRPCResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			continue
+		}
+		
+		if resp.ID != nil {
+			var id uint64
+			switch v := resp.ID.(type) {
+			case float64:
+				id = uint64(v)
+			case string:
+				id, _ = strconv.ParseUint(v, 10, 64)
+			}
+			
+			if ch, ok := c.pending.LoadAndDelete(id); ok {
+				ch.(chan *JSONRPCResponse) <- &resp
+			}
+		}
+	}
+}
+
+func (c *jsonrpcClient) call(ctx context.Context, method string, params interface{}, result interface{}) error {
+	id := c.nextID.Add(1)
+	req := JSONRPCRequest{
+		JSONRPC: "2.0",
+		ID:      id,
+		Method:  method,
+	}
+	
+	if params != nil {
+		p, err := json.Marshal(params)
+		if err != nil {
+			return err
+		}
+		req.Params = p
+	}
+	
+	data, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+	
+	ch := make(chan *JSONRPCResponse, 1)
+	c.pending.Store(id, ch)
+	
+	payload := fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(data), data)
+	if _, err := fmt.Fprint(c.writer, payload); err != nil {
+		c.pending.Delete(id)
+		return err
+	}
+	
+	select {
+	case <-ctx.Done():
+		c.pending.Delete(id)
+		return ctx.Err()
+	case <-c.done:
+		return io.EOF
+	case resp := <-ch:
+		if resp.Error != nil {
+			return fmt.Errorf("LSP error: %s (code: %d)", resp.Error.Message, resp.Error.Code)
+		}
+		if result != nil {
+			return json.Unmarshal(resp.Result, result)
+		}
+		return nil
+	}
+}
+
+func (c *jsonrpcClient) initialize(ctx context.Context) error {
+	params := InitializeParams{
+		ProcessID: os.Getpid(),
+		Capabilities: ClientCapabilities{},
+	}
+	params.Capabilities.TextDocument.Hover.ContentFormat = []string{"markdown", "plaintext"}
+	
+	var result interface{}
+	return c.call(ctx, "initialize", params, &result)
+}
+
+func (c *jsonrpcClient) Definition(ctx context.Context, params DefinitionParams) ([]Location, error) {
+	var locs []Location
+	// The response can be Location | Location[] | LocationLink[] | null
+	// We handle Location and []Location for now.
+	var raw json.RawMessage
+	if err := c.call(ctx, "textDocument/definition", params, &raw); err != nil {
+		return nil, err
+	}
+	
+	if string(raw) == "null" {
+		return nil, nil
+	}
+	
+	// Try single Location
+	var loc Location
+	if err := json.Unmarshal(raw, &loc); err == nil {
+		return []Location{loc}, nil
+	}
+	
+	// Try slice
+	if err := json.Unmarshal(raw, &locs); err == nil {
+		return locs, nil
+	}
+	
+	return nil, fmt.Errorf("unexpected definition response: %s", string(raw))
+}
+
+func (c *jsonrpcClient) Hover(ctx context.Context, params HoverParams) (*Hover, error) {
+	var hover Hover
+	if err := c.call(ctx, "textDocument/hover", params, &hover); err != nil {
+		return nil, err
+	}
+	return &hover, nil
+}
+
+func (c *jsonrpcClient) Close() error {
+	// Send shutdown/exit if possible
+	ctx := context.Background()
+	c.call(ctx, "shutdown", nil, nil)
+	// Notification exit
+	exitReq := JSONRPCRequest{JSONRPC: "2.0", Method: "exit"}
+	exitData, _ := json.Marshal(exitReq)
+	fmt.Fprintf(c.writer, "Content-Length: %d\r\n\r\n%s", len(exitData), exitData)
+	
+	if c.stdin != nil {
+		c.stdin.Close()
+	}
+	if c.cmd != nil && c.cmd.Process != nil {
+		return c.cmd.Process.Kill()
+	}
+	return nil
+}

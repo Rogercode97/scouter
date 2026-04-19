@@ -12,6 +12,7 @@ import (
 
 	"github.com/Rogercode97/scouter/internal/config"
 	"github.com/Rogercode97/scouter/internal/engine"
+	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
@@ -20,7 +21,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-var version = "1.9.0" // Bumping version for Test Sovereignty
+var version = "2.0.0" // Omniscience Edition
 
 //go:embed plugins/opencode/scouter.ts
 var openCodePluginFS embed.FS
@@ -96,6 +97,18 @@ type DeadCodeRequest struct {
 	IncludeExported bool `json:"includeExported"`
 }
 
+type GotoDefinitionRequest struct {
+	FilePath  string `json:"filePath" validate:"required"`
+	Line      int    `json:"line" validate:"required"`
+	Character int    `json:"character" validate:"required"`
+}
+
+type TypeInfoRequest struct {
+	FilePath  string `json:"filePath" validate:"required"`
+	Line      int    `json:"line" validate:"required"`
+	Character int    `json:"character" validate:"required"`
+}
+
 func runMCPServer() {
 	ctx := context.Background()
 	cfg, err := config.Load(ctx)
@@ -113,20 +126,22 @@ func runMCPServer() {
 	}
 	defer db.Close()
 
+	// Initialize LSP Manager
+	lspMgr := lsp.NewManager()
+	defer lspMgr.Close()
+
 	v := validator.New(validator.WithRequiredStructEnabled())
 
 	s := server.NewMCPServer("scouter", version,
 		server.WithToolCapabilities(true),
 		server.WithPromptCapabilities(true),
 		server.WithResourceCapabilities(false, true),
-		server.WithInstructions(`Scouter is an AST-based code analysis engine with Semantic Search and Test Sovereignty. 
+		server.WithInstructions(`Scouter is an AST-based code analysis engine with Semantic Search and LSP Bridge. 
 Use 'scouter_index' to understand a file's structure and documentation.
-Use 'scouter_search' for intelligent lookups across names and docstrings.
+Use 'scouter_search' for intelligent lookups using BM25 ranking.
+Use 'scouter_goto_definition' and 'scouter_type_info' for high-precision real-time semantic intelligence.
 Use 'scouter_callers' to find all locations where a symbol is invoked.
-Use 'scouter_health' to list failed tests and their associated symbols.
-Use 'scouter_visualize' to see a symbol's dependency graph.
-Use 'scouter_dependencies' to list external libraries.
-Use 'scouter_dead_code' to find orphan symbols.`),
+Use 'scouter_health' to list failed tests and their associated symbols.`),
 	)
 
 	// Resource: scouter://status
@@ -398,23 +413,71 @@ Use 'scouter_dead_code' to find orphan symbols.`),
 	})
 
 	// Tool: scouter_health
-	healthTool := mcp.NewTool("scouter_health",
-		mcp.WithDescription("List failed tests and their associated symbols to diagnose project health."),
-	)
-
+	healthTool := mcp.NewTool("scouter_health", mcp.WithDescription("List failed tests and their associated symbols."))
 	s.AddTool(healthTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var results []types.TestResult
 		for res, err := range db.GetHealthReport(ctx, "", true) {
-			if err != nil {
-				return mcpError(fmt.Sprintf("Failed to fetch health report: %v", err)), nil
-			}
+			if err != nil { return mcpError(err.Error()), nil }
 			results = append(results, res)
-			if len(results) >= 50 { // OOM Guard
-				break
-			}
+			if len(results) >= 50 { break }
 		}
-
 		resJSON, _ := json.Marshal(results)
+		return mcpJSONResponse(resJSON), nil
+	})
+
+	// Tool: scouter_goto_definition
+	gotoTool := mcp.NewTool("scouter_goto_definition",
+		mcp.WithDescription("Jump to the exact source location of a symbol using real-time LSP intelligence."),
+		mcp.WithString("filePath", mcp.Required(), mcp.Description("Current file path")),
+		mcp.WithNumber("line", mcp.Required(), mcp.Description("1-based line number")),
+		mcp.WithNumber("character", mcp.Required(), mcp.Description("1-based character position")),
+	)
+	s.AddTool(gotoTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var req GotoDefinitionRequest
+		argsJSON, _ := json.Marshal(request.GetArguments())
+		json.Unmarshal(argsJSON, &req)
+		if err := v.Struct(req); err != nil { return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil }
+
+		client, err := lspMgr.GetClient(req.FilePath)
+		if err != nil { return mcpError(fmt.Sprintf("LSP unavailable: %v", err)), nil }
+
+		params := lsp.DefinitionParams{}
+		params.TextDocument.URI = "file://" + req.FilePath
+		params.Position.Line = req.Line - 1 // 0-based
+		params.Position.Character = req.Character - 1
+
+		loc, err := client.Definition(ctx, params)
+		if err != nil { return mcpError(fmt.Sprintf("LSP error: %v", err)), nil }
+
+		resJSON, _ := json.Marshal(loc)
+		return mcpJSONResponse(resJSON), nil
+	})
+
+	// Tool: scouter_type_info
+	typeTool := mcp.NewTool("scouter_type_info",
+		mcp.WithDescription("Get precise real-time type information for any variable or symbol using LSP."),
+		mcp.WithString("filePath", mcp.Required(), mcp.Description("Current file path")),
+		mcp.WithNumber("line", mcp.Required(), mcp.Description("1-based line number")),
+		mcp.WithNumber("character", mcp.Required(), mcp.Description("1-based character position")),
+	)
+	s.AddTool(typeTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var req TypeInfoRequest
+		argsJSON, _ := json.Marshal(request.GetArguments())
+		json.Unmarshal(argsJSON, &req)
+		if err := v.Struct(req); err != nil { return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil }
+
+		client, err := lspMgr.GetClient(req.FilePath)
+		if err != nil { return mcpError(fmt.Sprintf("LSP unavailable: %v", err)), nil }
+
+		params := lsp.HoverParams{}
+		params.TextDocument.URI = "file://" + req.FilePath
+		params.Position.Line = req.Line - 1
+		params.Position.Character = req.Character - 1
+
+		hover, err := client.Hover(ctx, params)
+		if err != nil { return mcpError(fmt.Sprintf("LSP error: %v", err)), nil }
+
+		resJSON, _ := json.Marshal(hover)
 		return mcpJSONResponse(resJSON), nil
 	})
 
