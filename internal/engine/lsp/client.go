@@ -81,7 +81,7 @@ func (c *jsonrpcClient) listen() {
 				close(c.done)
 				return
 			}
-			line = strings.TrimSpace(line)
+			line = strings.TrimRight(line, "\r\n") // Fix: Protocol violation (handle \r\n)
 			if line == "" {
 				break
 			}
@@ -92,6 +92,12 @@ func (c *jsonrpcClient) listen() {
 		
 		if contentLength == 0 {
 			continue
+		}
+
+		// Fix: OOM Vulnerability (cap at 5MB)
+		if contentLength > 5*1024*1024 {
+			close(c.done)
+			return // Disconnect on massive payload
 		}
 		
 		// Read body

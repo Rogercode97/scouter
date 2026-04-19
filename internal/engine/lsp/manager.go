@@ -6,8 +6,14 @@ import (
 	"sync"
 )
 
+type clientEntry struct {
+	client LSPClient
+	err    error
+	once   sync.Once
+}
+
 type Manager struct {
-	clients map[string]LSPClient
+	clients map[string]*clientEntry
 	mu      sync.RWMutex
 	
 	// clientCreator allows mocking for tests
@@ -16,7 +22,7 @@ type Manager struct {
 
 func NewManager() *Manager {
 	return &Manager{
-		clients: make(map[string]LSPClient),
+		clients: make(map[string]*clientEntry),
 		clientCreator: NewClient,
 	}
 }
@@ -37,37 +43,39 @@ func (m *Manager) GetClient(filePath string) (LSPClient, error) {
 	}
 	
 	m.mu.RLock()
-	client, ok := m.clients[ext]
+	entry, ok := m.clients[ext]
 	m.mu.RUnlock()
 	
-	if ok {
-		return client, nil
+	if !ok {
+		m.mu.Lock()
+		entry, ok = m.clients[ext]
+		if !ok {
+			entry = &clientEntry{}
+			m.clients[ext] = entry
+		}
+		m.mu.Unlock()
 	}
 	
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	entry.once.Do(func() {
+		entry.client, entry.err = m.clientCreator(binary, args...)
+	})
 	
-	// Double-check after lock
-	if client, ok := m.clients[ext]; ok {
-		return client, nil
+	if entry.err != nil {
+		return nil, fmt.Errorf("failed to start LSP server %s: %w", binary, entry.err)
 	}
 	
-	client, err := m.clientCreator(binary, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start LSP server %s: %w", binary, err)
-	}
-	
-	m.clients[ext] = client
-	return client, nil
+	return entry.client, nil
 }
 
 func (m *Manager) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	
-	for _, client := range m.clients {
-		client.Close()
+	for _, entry := range m.clients {
+		if entry.client != nil {
+			entry.client.Close()
+		}
 	}
-	m.clients = make(map[string]LSPClient)
+	m.clients = make(map[string]*clientEntry)
 	return nil
 }
