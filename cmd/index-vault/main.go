@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"flag"
 
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/store"
@@ -47,7 +48,10 @@ var (
 	visitedPaths sync.Map
 )
 
+var healthFlag = flag.Bool("health", false, "Read go test -json from stdin and ingest health data")
+
 func main() {
+	flag.Parse()
 	startTime := time.Now()
 	mainCtx := context.Background()
 	home, _ := os.UserHomeDir()
@@ -58,6 +62,16 @@ func main() {
 		log.Fatalf("Failed to open store: %v", err)
 	}
 	defer s.Close()
+
+	if *healthFlag {
+		h := engine.NewHealthEngine(s)
+		if err := h.Ingest(mainCtx, os.Stdin); err != nil {
+			log.Fatalf("Health ingestion failed: %v", err)
+		}
+		fmt.Println("Health data ingested successfully")
+		return
+	}
+
 	workspacePath, _ := os.Getwd()
 	fmt.Printf("--- Indexing Workspace: %s ---\n", workspacePath)
 
