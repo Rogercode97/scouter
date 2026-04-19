@@ -556,7 +556,6 @@ func installGeminiCLI() {
 		"command": binPath,
 		"args":    []string{"mcp"},
 		"trust":   true,
-		"enabled": true,
 	}
 	
 	newData, _ := json.MarshalIndent(config, "", "  ")
