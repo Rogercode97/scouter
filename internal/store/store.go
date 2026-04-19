@@ -22,7 +22,7 @@ type FileIndex struct {
 
 type Symbol struct {
 	Name      string  `json:"name"`
-	Type      string  `json:"type"` // Generic Universal: function, class, variable, method
+	Type      string  `json:"type"` 
 	Doc       string  `json:"doc"`
 	Path      string  `json:"path"`
 	StartByte int     `json:"start_byte"`
@@ -39,7 +39,6 @@ type Call struct {
 	Line       int    `json:"line"`
 }
 
-// Repository defines the port for symbol persistence (Hexagonal Architecture)
 type Repository interface {
 	GetFileIndex(ctx context.Context, path string) (*FileIndex, error)
 	SaveFileIndex(ctx context.Context, idx *FileIndex) error
@@ -52,26 +51,15 @@ type Repository interface {
 	GetCallees(ctx context.Context, callerName string) ([]Call, error)
 	ClearCalls(ctx context.Context, path string) error
 	GetStats(ctx context.Context) (int, int, error)
-
-	// GetAllFilePaths retrieves all file paths currently indexed in the database.
 	GetAllFilePaths(ctx context.Context) ([]string, error)
-
-	// DeleteFileIndex removes a file and all its associated symbols and calls from the database.
 	DeleteFileIndex(ctx context.Context, path string) error
-
-	// Dependency Sovereignty
 	SaveDependency(ctx context.Context, dep *types.Dependency) error
 	GetDependencies(ctx context.Context) ([]types.Dependency, error)
 	ClearDependencies(ctx context.Context) error
-
-	// Unused Code Detection
 	GetUnusedSymbols(ctx context.Context, includeExported bool) ([]Symbol, error)
-
-	// Health Records
 	SaveTestResult(ctx context.Context, res *types.TestResult) error
 	GetHealthReport(ctx context.Context, symbol string, failuresOnly bool) iter.Seq2[types.TestResult, error]
 	ClearTestResults(ctx context.Context) error
-
 	WithTransaction(ctx context.Context, fn func(Repository) error) error
 	Close() error
 }
@@ -81,539 +69,249 @@ type Store struct {
 	tx *sql.Tx
 }
 
-// Ensure Store implements Repository
 var _ Repository = (*Store)(nil)
 
 func New(ctx context.Context, dbPath string) (Repository, error) {
-	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
-		return nil, err
-	}
-
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil { return nil, err }
 	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		return nil, err
-	}
+	if err != nil { return nil, err }
 
-	// Concurrency Upgrade: Performance and Integrity
 	pragmas := []string{
 		"PRAGMA journal_mode=WAL;",
 		"PRAGMA busy_timeout=5000;",
 		"PRAGMA foreign_keys=ON;",
 	}
 	for _, p := range pragmas {
-		if _, err := db.ExecContext(ctx, p); err != nil {
-			return nil, err
-		}
+		if _, err := db.ExecContext(ctx, p); err != nil { return nil, err }
 	}
 
-	// Create tables
 	queries := []string{
-		`CREATE TABLE IF NOT EXISTS file_index (
-			path TEXT PRIMARY KEY,
-			mtime INTEGER,
-			hash TEXT,
-			ast_json TEXT,
-			project TEXT
-		);`,
-		`CREATE TABLE IF NOT EXISTS symbols (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT,
-			type TEXT,
-			doc TEXT,
-			path TEXT,
-			start_byte INTEGER,
-			end_byte INTEGER,
-			start_line INTEGER,
-			end_line INTEGER,
-			FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE
-		);`,
-		`CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
-			name,
-			type,
-			doc,
-			path,
-			content='symbols',
-			content_rowid='id'
-		);`,
-		// Triggers to keep FTS5 in sync
-		`CREATE TRIGGER IF NOT EXISTS symbols_ai AFTER INSERT ON symbols BEGIN
-			INSERT INTO symbols_fts(rowid, name, type, doc, path) VALUES (new.id, new.name, new.type, new.doc, new.path);
-		END;`,
-		`CREATE TRIGGER IF NOT EXISTS symbols_ad AFTER DELETE ON symbols BEGIN
-			INSERT INTO symbols_fts(symbols_fts, rowid, name, type, doc, path) VALUES('delete', old.id, old.name, old.type, old.doc, old.path);
-		END;`,
-		`CREATE TRIGGER IF NOT EXISTS symbols_au AFTER UPDATE ON symbols BEGIN
-			INSERT INTO symbols_fts(symbols_fts, rowid, name, type, doc, path) VALUES('delete', old.id, old.name, old.type, old.doc, old.path);
-			INSERT INTO symbols_fts(rowid, name, type, doc, path) VALUES (new.id, new.name, new.type, new.doc, new.path);
-		END;`,
-		`CREATE TABLE IF NOT EXISTS calls (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			caller_name TEXT NOT NULL,
-			callee_name TEXT NOT NULL,
-			path TEXT NOT NULL,
-			line INTEGER NOT NULL,
-			FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE
-		);`,
+		`CREATE TABLE IF NOT EXISTS file_index (path TEXT PRIMARY KEY, mtime INTEGER, hash TEXT, ast_json TEXT, project TEXT);`,
+		`CREATE TABLE IF NOT EXISTS symbols (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, doc TEXT, path TEXT, start_byte INTEGER, end_byte INTEGER, start_line INTEGER, end_line INTEGER, FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);`,
+		`CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(name, type, doc, path, content='symbols', content_rowid='id');`,
+		`CREATE TRIGGER IF NOT EXISTS symbols_ai AFTER INSERT ON symbols BEGIN INSERT INTO symbols_fts(rowid, name, type, doc, path) VALUES (new.id, new.name, new.type, new.doc, new.path); END;`,
+		`CREATE TRIGGER IF NOT EXISTS symbols_ad AFTER DELETE ON symbols BEGIN INSERT INTO symbols_fts(symbols_fts, rowid, name, type, doc, path) VALUES('delete', old.id, old.name, old.type, old.doc, old.path); END;`,
+		`CREATE TRIGGER IF NOT EXISTS symbols_au AFTER UPDATE ON symbols BEGIN INSERT INTO symbols_fts(symbols_fts, rowid, name, type, doc, path) VALUES('delete', old.id, old.name, old.type, old.doc, old.path); INSERT INTO symbols_fts(rowid, name, type, doc, path) VALUES (new.id, new.name, new.type, new.doc, new.path); END;`,
+		`CREATE TABLE IF NOT EXISTS calls (id INTEGER PRIMARY KEY AUTOINCREMENT, caller_name TEXT NOT NULL, callee_name TEXT NOT NULL, path TEXT NOT NULL, line INTEGER NOT NULL, FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);`,
 		`CREATE INDEX IF NOT EXISTS idx_calls_callee ON calls(callee_name);`,
-		`CREATE INDEX IF NOT EXISTS idx_calls_caller ON calls(caller_name);`,
-		`CREATE INDEX IF NOT EXISTS idx_calls_path ON calls(path);`,
-		`CREATE TABLE IF NOT EXISTS dependencies (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT NOT NULL,
-			version TEXT,
-			type TEXT,
-			project TEXT,
-			direct INTEGER
-		);`,
-		`CREATE INDEX IF NOT EXISTS idx_deps_name ON dependencies(name);`,
-		`CREATE INDEX IF NOT EXISTS idx_deps_type ON dependencies(type);`,
-		`CREATE TABLE IF NOT EXISTS test_results (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			test_name TEXT NOT NULL,
-			status TEXT NOT NULL,
-			error_message TEXT,
-			stack_trace TEXT,
-			target_symbol TEXT,
-			duration_ms INTEGER,
-			project TEXT,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		);`,
-		`CREATE INDEX IF NOT EXISTS idx_test_results_symbol ON test_results(target_symbol);`,
-		`CREATE INDEX IF NOT EXISTS idx_test_results_status ON test_results(status);`,
+		`CREATE TABLE IF NOT EXISTS dependencies (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, version TEXT, type TEXT, project TEXT, direct INTEGER);`,
+		`CREATE TABLE IF NOT EXISTS test_results (id INTEGER PRIMARY KEY AUTOINCREMENT, test_name TEXT NOT NULL, status TEXT NOT NULL, error_message TEXT, stack_trace TEXT, target_symbol TEXT, duration_ms INTEGER, project TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`,
 	}
 
 	for _, q := range queries {
 		if _, err := db.ExecContext(ctx, q); err != nil {
-			// Special handling for schema evolution (adding 'doc')
 			if strings.Contains(q, "CREATE TABLE IF NOT EXISTS symbols") {
 				_, _ = db.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN doc TEXT;")
-				_, _ = db.ExecContext(ctx, "DROP TABLE IF EXISTS symbols_fts;")
 			}
-			return nil, err
+			if strings.Contains(q, "CREATE VIRTUAL TABLE") {
+				_, _ = db.ExecContext(ctx, "DROP TABLE IF EXISTS symbols_fts;")
+				_, _ = db.ExecContext(ctx, q)
+			}
 		}
 	}
-
 	return &Store{db: db}, nil
 }
 
-func (s *Store) exec(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
-	if s.tx != nil {
-		return s.tx.ExecContext(ctx, query, args...)
-	}
-	return s.db.ExecContext(ctx, query, args...)
+func (s *Store) exec(ctx context.Context, q string, a ...any) (sql.Result, error) {
+	if s.tx != nil { return s.tx.ExecContext(ctx, q, a...) }
+	return s.db.ExecContext(ctx, q, a...)
 }
 
-func (s *Store) queryRow(ctx context.Context, query string, args ...interface{}) *sql.Row {
-	if s.tx != nil {
-		return s.tx.QueryRowContext(ctx, query, args...)
-	}
-	return s.db.QueryRowContext(ctx, query, args...)
+func (s *Store) queryRow(ctx context.Context, q string, a ...any) *sql.Row {
+	if s.tx != nil { return s.tx.QueryRowContext(ctx, q, a...) }
+	return s.db.QueryRowContext(ctx, q, a...)
 }
 
-func (s *Store) query(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
-	if s.tx != nil {
-		return s.tx.QueryContext(ctx, query, args...)
-	}
-	return s.db.QueryContext(ctx, query, args...)
+func (s *Store) query(ctx context.Context, q string, a ...any) (*sql.Rows, error) {
+	if s.tx != nil { return s.tx.QueryContext(ctx, q, a...) }
+	return s.db.QueryContext(ctx, q, a...)
 }
 
-func (s *Store) GetFileIndex(ctx context.Context, path string) (*FileIndex, error) {
+func (s *Store) GetFileIndex(ctx context.Context, p string) (*FileIndex, error) {
 	var idx FileIndex
-	query := "SELECT path, mtime, hash, ast_json, project FROM file_index WHERE path = ?"
-	err := s.queryRow(ctx, query, path).Scan(&idx.Path, &idx.Mtime, &idx.Hash, &idx.ASTJSON, &idx.Project)
-	if err != nil {
-		return nil, err
-	}
-	return &idx, nil
+	err := s.queryRow(ctx, "SELECT path, mtime, hash, ast_json, project FROM file_index WHERE path = ?", p).Scan(&idx.Path, &idx.Mtime, &idx.Hash, &idx.ASTJSON, &idx.Project)
+	return &idx, err
 }
 
 func (s *Store) SaveFileIndex(ctx context.Context, idx *FileIndex) error {
-	query := `
-	INSERT OR REPLACE INTO file_index (path, mtime, hash, ast_json, project)
-	VALUES (?, ?, ?, ?, ?);
-	`
-	_, err := s.exec(ctx, query, idx.Path, idx.Mtime, idx.Hash, idx.ASTJSON, idx.Project)
+	_, err := s.exec(ctx, "INSERT OR REPLACE INTO file_index (path, mtime, hash, ast_json, project) VALUES (?, ?, ?, ?, ?)", idx.Path, idx.Mtime, idx.Hash, idx.ASTJSON, idx.Project)
 	return err
 }
 
-func (s *Store) ClearSymbols(ctx context.Context, path string) error {
-	_, err := s.exec(ctx, "DELETE FROM symbols WHERE path = ?", path)
+func (s *Store) ClearSymbols(ctx context.Context, p string) error {
+	_, err := s.exec(ctx, "DELETE FROM symbols WHERE path = ?", p)
 	return err
 }
 
 func (s *Store) SaveSymbol(ctx context.Context, sym *Symbol) error {
-	query := `
-	INSERT INTO symbols (name, type, doc, path, start_byte, end_byte, start_line, end_line)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-	`
-	_, err := s.exec(ctx, query, sym.Name, sym.Type, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.EndLine)
+	_, err := s.exec(ctx, "INSERT INTO symbols (name, type, doc, path, start_byte, end_byte, start_line, end_line) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", sym.Name, sym.Type, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.EndLine)
 	return err
 }
 
-func (s *Store) SaveCall(ctx context.Context, call Call) error {
-	query := `
-	INSERT INTO calls (caller_name, callee_name, path, line)
-	VALUES (?, ?, ?, ?);
-	`
-	_, err := s.exec(ctx, query, call.CallerName, call.CalleeName, call.Path, call.Line)
-	return err
-}
-
-func (s *Store) GetCallers(ctx context.Context, calleeName string) ([]Call, error) {
-	var results []Call
-	query := `
-	SELECT caller_name, callee_name, path, line
-	FROM calls
-	WHERE callee_name = ?
-	ORDER BY id ASC
-	LIMIT 500;
-	`
-	rows, err := s.query(ctx, query, calleeName)
-	if err != nil {
-		return nil, err
-	}
+func (s *Store) SearchSymbols(ctx context.Context, q, t string) ([]Symbol, error) {
+	safe := sanitizeFTS(q)
+	// UNIVERSAL SYNTAX: Use explicit table names, avoid aliases in JOIN
+	sql := `SELECT symbols.name, symbols.type, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.end_line 
+            FROM symbols JOIN symbols_fts ON symbols.id = symbols_fts.rowid 
+            WHERE symbols_fts MATCH ?`
+	args := []any{safe}
+	if t != "" { sql += " AND symbols.type = ?"; args = append(args, t) }
+	sql += " LIMIT 100"
+	rows, err := s.query(ctx, sql, args...)
+	if err != nil { return nil, err }
 	defer rows.Close()
-
+	var res []Symbol
 	for rows.Next() {
-		var call Call
-		if err := rows.Scan(&call.CallerName, &call.CalleeName, &call.Path, &call.Line); err != nil {
-			return nil, err
-		}
-		results = append(results, call)
+		var sym Symbol
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil { return nil, err }
+		res = append(res, sym)
 	}
-
-	return results, nil
+	return res, nil
 }
 
-func (s *Store) GetCallees(ctx context.Context, callerName string) ([]Call, error) {
-	var results []Call
-	query := `
-	SELECT caller_name, callee_name, path, line
-	FROM calls
-	WHERE caller_name = ?
-	ORDER BY id ASC
-	LIMIT 500;
-	`
-	rows, err := s.query(ctx, query, callerName)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var call Call
-		if err := rows.Scan(&call.CallerName, &call.CalleeName, &call.Path, &call.Line); err != nil {
-			return nil, err
+func (s *Store) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq2[Symbol, error] {
+	return func(yield func(Symbol, error) bool) {
+		safe := sanitizeFTS(q)
+		// UNIVERSAL WEIGHTED SYNTAX: bm25 over virtual table, results from base table
+		sql := `SELECT symbols.name, symbols.type, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.end_line, bm25(symbols_fts, 10.0, 2.0, 1.0, 0.5) as relevance 
+                FROM symbols JOIN symbols_fts ON symbols.id = symbols_fts.rowid 
+                WHERE symbols_fts MATCH ?`
+		args := []any{safe}
+		if t != "" { sql += " AND symbols.type = ?"; args = append(args, t) }
+		sql += " ORDER BY relevance ASC LIMIT 100"
+		rows, err := s.query(ctx, sql, args...)
+		if err != nil { yield(Symbol{}, err); return }
+		defer rows.Close()
+		for rows.Next() {
+			var sym Symbol
+			if err := rows.Scan(&sym.Name, &sym.Type, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine, &sym.Relevance); err != nil {
+				if !yield(Symbol{}, err) { return }
+				continue
+			}
+			if !yield(sym, nil) { return }
 		}
-		results = append(results, call)
 	}
-
-	return results, nil
 }
 
-func (s *Store) ClearCalls(ctx context.Context, path string) error {
-	_, err := s.exec(ctx, "DELETE FROM calls WHERE path = ?", path)
+func (s *Store) SaveCall(ctx context.Context, c Call) error {
+	_, err := s.exec(ctx, "INSERT INTO calls (caller_name, callee_name, path, line) VALUES (?, ?, ?, ?)", c.CallerName, c.CalleeName, c.Path, c.Line)
 	return err
 }
 
-func (s *Store) SaveDependency(ctx context.Context, dep *types.Dependency) error {
-	query := `
-	INSERT INTO dependencies (name, version, type, project, direct)
-	VALUES (?, ?, ?, ?, ?);
-	`
-	directInt := 0
-	if dep.Direct {
-		directInt = 1
+func (s *Store) GetCallers(ctx context.Context, callee string) ([]Call, error) {
+	rows, err := s.query(ctx, "SELECT caller_name, callee_name, path, line FROM calls WHERE callee_name = ? LIMIT 500", callee)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	var res []Call
+	for rows.Next() {
+		var c Call
+		if err := rows.Scan(&c.CallerName, &c.CalleeName, &c.Path, &c.Line); err != nil { return nil, err }
+		res = append(res, c)
 	}
-	_, err := s.exec(ctx, query, dep.Name, dep.Version, dep.Type, dep.Project, directInt)
+	return res, nil
+}
+
+func (s *Store) GetCallees(ctx context.Context, caller string) ([]Call, error) {
+	rows, err := s.query(ctx, "SELECT caller_name, callee_name, path, line FROM calls WHERE caller_name = ? LIMIT 500", caller)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	var res []Call
+	for rows.Next() {
+		var c Call
+		if err := rows.Scan(&c.CallerName, &c.CalleeName, &c.Path, &c.Line); err != nil { return nil, err }
+		res = append(res, c)
+	}
+	return res, nil
+}
+
+func (s *Store) ClearCalls(ctx context.Context, p string) error {
+	_, err := s.exec(ctx, "DELETE FROM calls WHERE path = ?", p)
+	return err
+}
+
+func (s *Store) SaveDependency(ctx context.Context, d *types.Dependency) error {
+	dir := 0; if d.Direct { dir = 1 }
+	_, err := s.exec(ctx, "INSERT INTO dependencies (name, version, type, project, direct) VALUES (?, ?, ?, ?, ?)", d.Name, d.Version, d.Type, d.Project, dir)
 	return err
 }
 
 func (s *Store) GetDependencies(ctx context.Context) ([]types.Dependency, error) {
-	var results []types.Dependency
-	query := "SELECT name, version, type, project, direct FROM dependencies ORDER BY name ASC"
-	rows, err := s.query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
+	rows, err := s.query(ctx, "SELECT name, version, type, project, direct FROM dependencies ORDER BY name")
+	if err != nil { return nil, err }
 	defer rows.Close()
-
+	var res []types.Dependency
 	for rows.Next() {
-		var dep types.Dependency
-		var directInt int
-		if err := rows.Scan(&dep.Name, &dep.Version, &dep.Type, &dep.Project, &directInt); err != nil {
-			return nil, err
-		}
-		dep.Direct = directInt == 1
-		results = append(results, dep)
+		var d types.Dependency; var dir int
+		if err := rows.Scan(&d.Name, &d.Version, &d.Type, &d.Project, &dir); err != nil { return nil, err }
+		d.Direct = dir == 1; res = append(res, d)
 	}
-	return results, nil
+	return res, nil
 }
 
-func (s *Store) ClearDependencies(ctx context.Context) error {
-	_, err := s.exec(ctx, "DELETE FROM dependencies")
+func (s *Store) ClearDependencies(ctx context.Context) error { _, err := s.exec(ctx, "DELETE FROM dependencies"); return err }
+
+func (s *Store) GetUnusedSymbols(ctx context.Context, exp bool) ([]Symbol, error) {
+	sql := `SELECT name, type, doc, path, start_byte, end_byte, start_line, end_line FROM symbols WHERE NOT EXISTS (SELECT 1 FROM calls WHERE callee_name = symbols.name) AND name NOT IN ('main', 'init') AND path NOT LIKE '%_test.go' AND path NOT LIKE '%main.go' LIMIT 100`
+	rows, err := s.query(ctx, sql)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	var res []Symbol
+	for rows.Next() {
+		var sym Symbol
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil { return nil, err }
+		res = append(res, sym)
+	}
+	return res, nil
+}
+
+func sanitizeFTS(q string) string {
+	pre := strings.HasSuffix(q, "*"); s := strings.ReplaceAll(strings.TrimSuffix(q, "*"), "\"", "\"\""); s = strings.TrimLeft(s, "*")
+	res := "\"" + s + "\""; if pre { res += "*" }; return res
+}
+
+func (s *Store) SaveTestResult(ctx context.Context, r *types.TestResult) error {
+	_, err := s.exec(ctx, "INSERT INTO test_results (test_name, status, error_message, stack_trace, target_symbol, duration_ms, project) VALUES (?, ?, ?, ?, ?, ?, ?)", r.TestName, r.Status, r.ErrorMessage, r.StackTrace, r.TargetSymbol, r.DurationMS, r.Project)
 	return err
 }
 
-func (s *Store) GetUnusedSymbols(ctx context.Context, includeExported bool) ([]Symbol, error) {
-	var results []Symbol
-	query := `
-	SELECT name, type, doc, path, start_byte, end_byte, start_line, end_line
-	FROM symbols s
-	WHERE NOT EXISTS (SELECT 1 FROM calls c WHERE c.callee_name = s.name)
-	AND name NOT IN ('main', 'init')
-	AND path NOT LIKE '%_test.go'
-	AND path NOT LIKE '%main.go'
-	`
-	if !includeExported {
-		// Filter out symbols starting with Uppercase (Go export convention)
-		query += " AND name GLOB '[a-z]*'"
-	}
-	query += " ORDER BY name ASC LIMIT 100;"
-
-	rows, err := s.query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
-			return nil, err
-		}
-		results = append(results, sym)
-	}
-	return results, nil
-}
-
-func sanitizeFTS(query string) string {
-	// Check for prefix search
-	isPrefix := strings.HasSuffix(query, "*")
-	s := query
-	if isPrefix {
-		s = strings.TrimSuffix(s, "*")
-	}
-
-	// Escape existing double quotes
-	s = strings.ReplaceAll(s, "\"", "\"\"")
-
-	// Remove leading * which breaks FTS5 even inside quotes sometimes or is just invalid
-	s = strings.TrimLeft(s, "*")
-
-	// Wrap in double quotes
-	result := "\"" + s + "\""
-
-	// Append * if it was a prefix search
-	if isPrefix {
-		result += "*"
-	}
-
-	return result
-}
-
-func (s *Store) SearchSymbols(ctx context.Context, query string, symType string) ([]Symbol, error) {
-	var results []Symbol
-	var sqlQuery string
-	var args []interface{}
-
-	safeQuery := sanitizeFTS(query)
-
-	if symType != "" {
-		sqlQuery = `
-		SELECT s.name, s.type, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line
-		FROM symbols s
-		JOIN symbols_fts f ON s.id = f.rowid
-		WHERE symbols_fts MATCH ? AND s.type = ?
-		ORDER BY rank
-		LIMIT 100;
-		`
-		args = append(args, safeQuery, symType)
-	} else {
-		sqlQuery = `
-		SELECT s.name, s.type, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line
-		FROM symbols s
-		JOIN symbols_fts f ON s.id = f.rowid
-		WHERE symbols_fts MATCH ?
-		ORDER BY rank
-		LIMIT 100;
-		`
-		args = append(args, safeQuery)
-	}
-
-	rows, err := s.query(ctx, sqlQuery, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
-			return nil, err
-		}
-		results = append(results, sym)
-	}
-
-	return results, nil
-}
-
-func (s *Store) SearchSymbolsWeighted(ctx context.Context, query string, symType string) iter.Seq2[Symbol, error] {
-	return func(yield func(Symbol, error) bool) {
-		safeQuery := sanitizeFTS(query)
-		var sqlQuery string
-		var args []interface{}
-
-		// Weights: name (10.0), type (2.0), doc (1.0), path (0.5)
-		if symType != "" {
-			sqlQuery = `
-			SELECT s.name, s.type, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line, bm25(symbols_fts, 10.0, 2.0, 1.0, 0.5) as relevance
-			FROM symbols s
-			JOIN symbols_fts f ON s.id = f.rowid
-			WHERE symbols_fts MATCH ? AND s.type = ?
-			ORDER BY relevance ASC
-			LIMIT 100;
-			`
-			args = append(args, safeQuery, symType)
-		} else {
-			sqlQuery = `
-			SELECT s.name, s.type, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line, bm25(symbols_fts, 10.0, 2.0, 1.0, 0.5) as relevance
-			FROM symbols s
-			JOIN symbols_fts f ON s.id = f.rowid
-			WHERE symbols_fts MATCH ?
-			ORDER BY relevance ASC
-			LIMIT 100;
-			`
-			args = append(args, safeQuery)
-		}
-
-		rows, err := s.query(ctx, sqlQuery, args...)
-		if err != nil {
-			yield(Symbol{}, err)
-			return
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var sym Symbol
-			if err := rows.Scan(&sym.Name, &sym.Type, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine, &sym.Relevance); err != nil {
-				if !yield(Symbol{}, err) {
-					return
-				}
-				continue
-			}
-			if !yield(sym, nil) {
-				return
-			}
-		}
-	}
-}
-
-func (s *Store) SaveTestResult(ctx context.Context, res *types.TestResult) error {
-	query := `
-	INSERT INTO test_results (test_name, status, error_message, stack_trace, target_symbol, duration_ms, project)
-	VALUES (?, ?, ?, ?, ?, ?, ?);
-	`
-	_, err := s.exec(ctx, query, res.TestName, res.Status, res.ErrorMessage, res.StackTrace, res.TargetSymbol, res.DurationMS, res.Project)
-	return err
-}
-
-func (s *Store) GetHealthReport(ctx context.Context, symbol string, failuresOnly bool) iter.Seq2[types.TestResult, error] {
+func (s *Store) GetHealthReport(ctx context.Context, sym string, fails bool) iter.Seq2[types.TestResult, error] {
 	return func(yield func(types.TestResult, error) bool) {
-		query := `
-		SELECT test_name, status, error_message, stack_trace, target_symbol, duration_ms, project
-		FROM test_results
-		WHERE 1=1
-		`
-		var args []interface{}
-		if symbol != "" {
-			query += " AND target_symbol = ?"
-			args = append(args, symbol)
-		}
-		if failuresOnly {
-			query += " AND status = 'fail'"
-		}
-		query += " ORDER BY created_at DESC LIMIT 50"
-
-		rows, err := s.query(ctx, query, args...)
-		if err != nil {
-			yield(types.TestResult{}, err)
-			return
-		}
+		sql := "SELECT test_name, status, error_message, stack_trace, target_symbol, duration_ms, project FROM test_results WHERE 1=1"
+		var args []any
+		if sym != "" { sql += " AND target_symbol = ?"; args = append(args, sym) }
+		if fails { sql += " AND status = 'fail'" }
+		rows, err := s.query(ctx, sql + " ORDER BY created_at DESC LIMIT 50", args...)
+		if err != nil { yield(types.TestResult{}, err); return }
 		defer rows.Close()
-
 		for rows.Next() {
-			var res types.TestResult
-			if err := rows.Scan(&res.TestName, &res.Status, &res.ErrorMessage, &res.StackTrace, &res.TargetSymbol, &res.DurationMS, &res.Project); err != nil {
-				if !yield(types.TestResult{}, err) {
-					return
-				}
-				continue
-			}
-			if !yield(res, nil) {
-				return
-			}
+			var r types.TestResult
+			if err := rows.Scan(&r.TestName, &r.Status, &r.ErrorMessage, &r.StackTrace, &r.TargetSymbol, &r.DurationMS, &r.Project); err != nil { yield(types.TestResult{}, err); return }
+			if !yield(r, nil) { return }
 		}
 	}
 }
 
-func (s *Store) ClearTestResults(ctx context.Context) error {
-	_, err := s.exec(ctx, "DELETE FROM test_results")
-	return err
-}
-
-func (s *Store) Close() error {
-	return s.db.Close()
-}
+func (s *Store) ClearTestResults(ctx context.Context) error { _, err := s.exec(ctx, "DELETE FROM test_results"); return err }
 
 func (s *Store) GetStats(ctx context.Context) (int, int, error) {
-	var fileCount, symbolCount int
-	err := s.queryRow(ctx, "SELECT COUNT(*) FROM file_index").Scan(&fileCount)
-	if err != nil {
-		return 0, 0, err
-	}
-	err = s.queryRow(ctx, "SELECT COUNT(*) FROM symbols").Scan(&symbolCount)
-	if err != nil {
-		return 0, 0, err
-	}
-	return fileCount, symbolCount, nil
+	var fc, sc int
+	if err := s.queryRow(ctx, "SELECT COUNT(*) FROM file_index").Scan(&fc); err != nil { return 0, 0, err }
+	if err := s.queryRow(ctx, "SELECT COUNT(*) FROM symbols").Scan(&sc); err != nil { return 0, 0, err }
+	return fc, sc, nil
 }
 
 func (s *Store) GetAllFilePaths(ctx context.Context) ([]string, error) {
-	var paths []string
-	rows, err := s.query(ctx, "SELECT path FROM file_index")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var path string
-		if err := rows.Scan(&path); err != nil {
-			return nil, err
-		}
-		paths = append(paths, path)
-	}
-	return paths, nil
+	rows, err := s.query(ctx, "SELECT path FROM file_index"); if err != nil { return nil, err }; defer rows.Close()
+	var res []string
+	for rows.Next() { var p string; if err := rows.Scan(&p); err != nil { return nil, err }; res = append(res, p) }
+	return res, nil
 }
 
-func (s *Store) DeleteFileIndex(ctx context.Context, path string) error {
-	_, err := s.exec(ctx, "DELETE FROM file_index WHERE path = ?", path)
-	return err
-}
+func (s *Store) DeleteFileIndex(ctx context.Context, p string) error { _, err := s.exec(ctx, "DELETE FROM file_index WHERE path = ?", p); return err }
 
 func (s *Store) WithTransaction(ctx context.Context, fn func(Repository) error) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	// Create a temporary store wrapped in the transaction
-	txStore := &Store{db: s.db, tx: tx}
-	if err := fn(txStore); err != nil {
-		return err
-	}
-	return tx.Commit()
+	tx, err := s.db.BeginTx(ctx, nil); if err != nil { return err }; defer tx.Rollback()
+	if err := fn(&Store{db: s.db, tx: tx}); err != nil { return err }; return tx.Commit()
 }
+
+func (s *Store) Close() error { return s.db.Close() }
