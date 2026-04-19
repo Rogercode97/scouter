@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Rogercode97/scouter/internal/config"
 	"github.com/Rogercode97/scouter/internal/engine"
@@ -446,7 +447,10 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 		params.Position.Line = req.Line - 1 // 0-based
 		params.Position.Character = req.Character - 1
 
-		loc, err := client.Definition(ctx, params)
+		timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		loc, err := client.Definition(timeoutCtx, params)
 		if err != nil { return mcpError(fmt.Sprintf("LSP error: %v", err)), nil }
 
 		resJSON, _ := json.Marshal(loc)
@@ -474,7 +478,10 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 		params.Position.Line = req.Line - 1
 		params.Position.Character = req.Character - 1
 
-		hover, err := client.Hover(ctx, params)
+		timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		hover, err := client.Hover(timeoutCtx, params)
 		if err != nil { return mcpError(fmt.Sprintf("LSP error: %v", err)), nil }
 
 		resJSON, _ := json.Marshal(hover)
