@@ -100,16 +100,30 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 
 	for _, q := range queries {
 		if _, err := db.ExecContext(ctx, q); err != nil {
+			// Universal Migration: Ensure columns exist in base table
 			if strings.Contains(q, "CREATE TABLE IF NOT EXISTS symbols") {
-				_, _ = db.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN doc TEXT;")
-			}
-			if strings.Contains(q, "CREATE VIRTUAL TABLE") {
-				_, _ = db.ExecContext(ctx, "DROP TABLE IF EXISTS symbols_fts;")
-				_, _ = db.ExecContext(ctx, q)
+				if !hasColumn(ctx, db, "symbols", "doc") {
+					_, _ = db.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN doc TEXT;")
+				}
 			}
 		}
 	}
+
+	// FTS5 Synchronization: Always ensure FTS matches current base table schema
+	// Drop and recreate FTS if doc column is missing to ensure universal compatibility
+	if !hasColumn(ctx, db, "symbols_fts", "doc") {
+		_, _ = db.ExecContext(ctx, "DROP TABLE IF EXISTS symbols_fts;")
+		_, _ = db.ExecContext(ctx, `CREATE VIRTUAL TABLE symbols_fts USING fts5(name, type, doc, path, content='symbols', content_rowid='id');`)
+	}
+
 	return &Store{db: db}, nil
+}
+
+func hasColumn(ctx context.Context, db *sql.DB, table, column string) bool {
+	query := "SELECT 1 FROM pragma_table_info(?) WHERE name = ?"
+	var dummy int
+	err := db.QueryRowContext(ctx, query, table, column).Scan(&dummy)
+	return err == nil
 }
 
 func (s *Store) exec(ctx context.Context, q string, a ...any) (sql.Result, error) {
@@ -251,14 +265,31 @@ func (s *Store) GetDependencies(ctx context.Context) ([]types.Dependency, error)
 func (s *Store) ClearDependencies(ctx context.Context) error { _, err := s.exec(ctx, "DELETE FROM dependencies"); return err }
 
 func (s *Store) GetUnusedSymbols(ctx context.Context, exp bool) ([]Symbol, error) {
-	sql := `SELECT name, type, doc, path, start_byte, end_byte, start_line, end_line FROM symbols WHERE NOT EXISTS (SELECT 1 FROM calls WHERE callee_name = symbols.name) AND name NOT IN ('main', 'init') AND path NOT LIKE '%_test.go' AND path NOT LIKE '%main.go' LIMIT 100`
+	sql := `SELECT name, type, doc, path, start_byte, end_byte, start_line, end_line 
+            FROM symbols 
+            WHERE NOT EXISTS (SELECT 1 FROM calls WHERE callee_name = symbols.name) 
+              AND name NOT IN ('main', 'init') 
+              AND path NOT LIKE '%_test.go' 
+              AND path NOT LIKE '%main.go'`
+
+	// Universal Heuristic: Go-style exported (uppercase) vs private
+	if !exp {
+		// Only show private symbols (starting with lowercase)
+		sql += " AND (name GLOB '[a-z]*')"
+	}
+
+	sql += " LIMIT 100"
 	rows, err := s.query(ctx, sql)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 	var res []Symbol
 	for rows.Next() {
 		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil { return nil, err }
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
+			return nil, err
+		}
 		res = append(res, sym)
 	}
 	return res, nil

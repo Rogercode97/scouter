@@ -534,14 +534,37 @@ func truncateDoc(doc string) string {
 }
 
 func installGeminiCLI() {
-	home, _ := os.UserHomeDir(); configPath := filepath.Join(home, ".gemini", "settings.json"); binPath, _ := os.Executable()
-	var config map[string]interface{}; data, err := os.ReadFile(configPath)
-	if err == nil { json.Unmarshal(data, &config) } else { config = make(map[string]interface{}) }
+	home, _ := os.UserHomeDir()
+	configPath := filepath.Join(home, ".gemini", "settings.json")
+	binPath, _ := filepath.Abs(os.Args[0])
+	
+	var config map[string]interface{}
+	data, err := os.ReadFile(configPath)
+	if err == nil {
+		json.Unmarshal(data, &config)
+	} else {
+		config = make(map[string]interface{})
+	}
+	
 	mcpServers, ok := config["mcpServers"].(map[string]interface{})
-	if !ok { mcpServers = make(map[string]interface{}); config["mcpServers"] = mcpServers }
-	mcpServers["scouter"] = map[string]interface{}{"command": []string{binPath, "mcp"}, "enabled": true}
-	newData, _ := json.MarshalIndent(config, "", "  "); os.WriteFile(configPath, newData, 0644)
-	fmt.Printf("✅ Scouter integrated with Gemini CLI!\n")
+	if !ok {
+		mcpServers = make(map[string]interface{})
+		config["mcpServers"] = mcpServers
+	}
+	
+	mcpServers["scouter"] = map[string]interface{}{
+		"command": binPath,
+		"args":    []string{"mcp"},
+		"trust":   true,
+		"enabled": true,
+	}
+	
+	newData, _ := json.MarshalIndent(config, "", "  ")
+	if err := os.WriteFile(configPath, newData, 0644); err != nil {
+		fmt.Printf("❌ Error saving config: %v\n", err)
+		return
+	}
+	fmt.Printf("✅ Scouter integrated with Gemini CLI (with trust: true)!\n")
 }
 
 func installOpenCode() {
