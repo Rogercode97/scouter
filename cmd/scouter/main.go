@@ -20,7 +20,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-var version = "1.8.0" // Bumping version for Semantic Sovereignty
+var version = "1.9.0" // Bumping version for Test Sovereignty
 
 //go:embed plugins/opencode/scouter.ts
 var openCodePluginFS embed.FS
@@ -119,14 +119,14 @@ func runMCPServer() {
 		server.WithToolCapabilities(true),
 		server.WithPromptCapabilities(true),
 		server.WithResourceCapabilities(false, true),
-		server.WithInstructions(`Scouter is an AST-based code analysis engine with Semantic Search. 
-Use 'scouter_index' to understand a file's structure and its intent via documentation.
-Use 'scouter_search' for intelligent lookups across names and docstrings (uses BM25 ranking).
+		server.WithInstructions(`Scouter is an AST-based code analysis engine with Semantic Search and Test Sovereignty. 
+Use 'scouter_index' to understand a file's structure and documentation.
+Use 'scouter_search' for intelligent lookups across names and docstrings.
 Use 'scouter_callers' to find all locations where a symbol is invoked.
+Use 'scouter_health' to list failed tests and their associated symbols.
 Use 'scouter_visualize' to see a symbol's dependency graph.
 Use 'scouter_dependencies' to list external libraries.
-Use 'scouter_dead_code' to find orphan symbols.
-Prefer 'scouter_search' over generic grep to find relevant logic based on descriptions.`),
+Use 'scouter_dead_code' to find orphan symbols.`),
 	)
 
 	// Resource: scouter://status
@@ -394,6 +394,27 @@ Prefer 'scouter_search' over generic grep to find relevant logic based on descri
 		unused, err := db.GetUnusedSymbols(ctx, req.IncludeExported)
 		if err != nil { return mcpError(err.Error()), nil }
 		resJSON, _ := json.Marshal(unused)
+		return mcpJSONResponse(resJSON), nil
+	})
+
+	// Tool: scouter_health
+	healthTool := mcp.NewTool("scouter_health",
+		mcp.WithDescription("List failed tests and their associated symbols to diagnose project health."),
+	)
+
+	s.AddTool(healthTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var results []types.TestResult
+		for res, err := range db.GetHealthReport(ctx, "", true) {
+			if err != nil {
+				return mcpError(fmt.Sprintf("Failed to fetch health report: %v", err)), nil
+			}
+			results = append(results, res)
+			if len(results) >= 50 { // OOM Guard
+				break
+			}
+		}
+
+		resJSON, _ := json.Marshal(results)
 		return mcpJSONResponse(resJSON), nil
 	})
 

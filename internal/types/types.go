@@ -29,3 +29,22 @@ type Dependency struct {
 	Project string `json:"project" validate:"required"` // Path to the manifest file
 	Direct  bool   `json:"direct"`
 }
+
+type TestResult struct {
+	TestName     string `json:"test_name"`
+	Status       string `json:"status"` // "pass", "fail", "skip"
+	ErrorMessage string `json:"error_message,omitempty"`
+	StackTrace   string `json:"stack_trace,omitempty"`
+	TargetSymbol string `json:"target_symbol,omitempty"`
+	DurationMS   int64  `json:"duration_ms"`
+	Project      string `json:"project,omitempty"`
+}
+
+type TestEvent struct {
+	Time    string  `json:"Time"`
+	Action  string  `json:"Action"`
+	Package string  `json:"Package"`
+	Test    string  `json:"Test"`
+	Output  string  `json:"Output"`
+	Elapsed float64 `json:"Elapsed"`
+}

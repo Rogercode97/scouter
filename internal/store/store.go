@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"iter"
 	"os"
 	"path/filepath"
@@ -67,6 +66,11 @@ type Repository interface {
 
 	// Unused Code Detection
 	GetUnusedSymbols(ctx context.Context, includeExported bool) ([]Symbol, error)
+
+	// Health Records
+	SaveTestResult(ctx context.Context, res *types.TestResult) error
+	GetHealthReport(ctx context.Context, symbol string, failuresOnly bool) iter.Seq2[types.TestResult, error]
+	ClearTestResults(ctx context.Context) error
 
 	WithTransaction(ctx context.Context, fn func(Repository) error) error
 	Close() error
@@ -164,6 +168,19 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_deps_name ON dependencies(name);`,
 		`CREATE INDEX IF NOT EXISTS idx_deps_type ON dependencies(type);`,
+		`CREATE TABLE IF NOT EXISTS test_results (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			test_name TEXT NOT NULL,
+			status TEXT NOT NULL,
+			error_message TEXT,
+			stack_trace TEXT,
+			target_symbol TEXT,
+			duration_ms INTEGER,
+			project TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_test_results_symbol ON test_results(target_symbol);`,
+		`CREATE INDEX IF NOT EXISTS idx_test_results_status ON test_results(status);`,
 	}
 
 	for _, q := range queries {
@@ -172,7 +189,6 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 			if strings.Contains(q, "CREATE TABLE IF NOT EXISTS symbols") {
 				_, _ = db.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN doc TEXT;")
 				_, _ = db.ExecContext(ctx, "DROP TABLE IF EXISTS symbols_fts;")
-				// Continue to recreate properly in the next loop or manual fix
 			}
 			return nil, err
 		}
@@ -492,6 +508,59 @@ func (s *Store) SearchSymbolsWeighted(ctx context.Context, query string, symType
 			}
 		}
 	}
+}
+
+func (s *Store) SaveTestResult(ctx context.Context, res *types.TestResult) error {
+	query := `
+	INSERT INTO test_results (test_name, status, error_message, stack_trace, target_symbol, duration_ms, project)
+	VALUES (?, ?, ?, ?, ?, ?, ?);
+	`
+	_, err := s.exec(ctx, query, res.TestName, res.Status, res.ErrorMessage, res.StackTrace, res.TargetSymbol, res.DurationMS, res.Project)
+	return err
+}
+
+func (s *Store) GetHealthReport(ctx context.Context, symbol string, failuresOnly bool) iter.Seq2[types.TestResult, error] {
+	return func(yield func(types.TestResult, error) bool) {
+		query := `
+		SELECT test_name, status, error_message, stack_trace, target_symbol, duration_ms, project
+		FROM test_results
+		WHERE 1=1
+		`
+		var args []interface{}
+		if symbol != "" {
+			query += " AND target_symbol = ?"
+			args = append(args, symbol)
+		}
+		if failuresOnly {
+			query += " AND status = 'fail'"
+		}
+		query += " ORDER BY created_at DESC LIMIT 50"
+
+		rows, err := s.query(ctx, query, args...)
+		if err != nil {
+			yield(types.TestResult{}, err)
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var res types.TestResult
+			if err := rows.Scan(&res.TestName, &res.Status, &res.ErrorMessage, &res.StackTrace, &res.TargetSymbol, &res.DurationMS, &res.Project); err != nil {
+				if !yield(types.TestResult{}, err) {
+					return
+				}
+				continue
+			}
+			if !yield(res, nil) {
+				return
+			}
+		}
+	}
+}
+
+func (s *Store) ClearTestResults(ctx context.Context) error {
+	_, err := s.exec(ctx, "DELETE FROM test_results")
+	return err
 }
 
 func (s *Store) Close() error {
