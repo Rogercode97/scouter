@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 type IndexingJob struct {
 	Path string
 	Info os.FileInfo
+	Hash string
 }
 
 // IndexingResult contains the results of processing a single file.
@@ -40,6 +42,9 @@ var (
 	symbolsTotal atomic.Int64
 	callsTotal   atomic.Int64
 	failedFiles  atomic.Int64
+	filesSkipped atomic.Int64
+	filesCleaned atomic.Int64
+	visitedPaths sync.Map
 )
 
 func main() {
@@ -83,8 +88,23 @@ func main() {
 			isManifest := base == "go.mod" || base == "package.json"
 
 			if isCode || isManifest {
+				visitedPaths.Store(path, true)
+
+				var hash string
+				if isCode {
+					h, err := utils.CalculateHash(path)
+					if err == nil {
+						hash = h
+						// Selective Indexing: Skip if hash matches.
+						if idx, err := s.GetFileIndex(groupCtx, path); err == nil && idx.Hash == hash {
+							filesSkipped.Add(1)
+							return nil
+						}
+					}
+				}
+
 				select {
-				case jobs <- IndexingJob{Path: path, Info: info}:
+				case jobs <- IndexingJob{Path: path, Info: info, Hash: hash}:
 				case <-groupCtx.Done():
 					return groupCtx.Err()
 				}
@@ -126,10 +146,16 @@ func main() {
 					}
 				} else {
 					// Code file
-					h, hashErr := utils.CalculateHash(job.Path)
-					if hashErr != nil {
-						res.Error = hashErr
-					} else {
+					h := job.Hash
+					if h == "" {
+						var hashErr error
+						h, hashErr = utils.CalculateHash(job.Path)
+						if hashErr != nil {
+							res.Error = hashErr
+						}
+					}
+
+					if res.Error == nil {
 						res.Hash = h
 						syms, calls, parseErr := engine.ParseFile(groupCtx, job.Path)
 						if parseErr != nil {
@@ -229,17 +255,31 @@ func main() {
 		}
 	}
 
+	// 4. Orphan Cleanup: Remove files from DB that no longer exist on disk.
+	dbPaths, err := s.GetAllFilePaths(mainCtx)
+	if err == nil {
+		for _, path := range dbPaths {
+			if _, found := visitedPaths.Load(path); !found {
+				if err := s.DeleteFileIndex(mainCtx, path); err == nil {
+					filesCleaned.Add(1)
+				}
+			}
+		}
+	}
+
 	duration := time.Since(startTime)
 	filesCount := filesIndexed.Load()
 	failedCount := failedFiles.Load()
+	skippedCount := filesSkipped.Load()
+	cleanedCount := filesCleaned.Load()
 	symbolsCount := symbolsTotal.Load()
 	callsCount := callsTotal.Load()
 
 	fmt.Println("\n--- Workspace Indexing Complete ---")
-	fmt.Printf("Files:    %d (%d failed)\n", filesCount+failedCount, failedCount)
+	fmt.Printf("Files:    %d (%d failed, %d skipped, %d cleaned)\n", filesCount+failedCount+skippedCount, failedCount, skippedCount, cleanedCount)
 	fmt.Printf("Symbols:  %d\n", symbolsCount)
 	fmt.Printf("Calls:    %d\n", callsCount)
 
-	throughput := float64(filesCount+failedCount) / duration.Seconds()
+	throughput := float64(filesCount+failedCount+skippedCount) / duration.Seconds()
 	fmt.Printf("Time:     %.1fs (%.1f files/sec)\n", duration.Seconds(), throughput)
 }
