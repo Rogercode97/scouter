@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"iter"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,14 +22,15 @@ type FileIndex struct {
 }
 
 type Symbol struct {
-	Name      string `json:"name"`
-	Type      string `json:"type"` // Generic Universal: function, class, variable, method
-	Doc       string `json:"doc"`
-	Path      string `json:"path"`
-	StartByte int    `json:"start_byte"`
-	EndByte   int    `json:"end_byte"`
-	StartLine int    `json:"start_line"`
-	EndLine   int    `json:"end_line"`
+	Name      string  `json:"name"`
+	Type      string  `json:"type"` // Generic Universal: function, class, variable, method
+	Doc       string  `json:"doc"`
+	Path      string  `json:"path"`
+	StartByte int     `json:"start_byte"`
+	EndByte   int     `json:"end_byte"`
+	StartLine int     `json:"start_line"`
+	EndLine   int     `json:"end_line"`
+	Relevance float64 `json:"relevance,omitempty"`
 }
 
 type Call struct {
@@ -44,6 +47,7 @@ type Repository interface {
 	ClearSymbols(ctx context.Context, path string) error
 	SaveSymbol(ctx context.Context, sym *Symbol) error
 	SearchSymbols(ctx context.Context, query string, symType string) ([]Symbol, error)
+	SearchSymbolsWeighted(ctx context.Context, query string, symType string) iter.Seq2[Symbol, error]
 	SaveCall(ctx context.Context, call Call) error
 	GetCallers(ctx context.Context, calleeName string) ([]Call, error)
 	GetCallees(ctx context.Context, callerName string) ([]Call, error)
@@ -168,7 +172,7 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 			if strings.Contains(q, "CREATE TABLE IF NOT EXISTS symbols") {
 				_, _ = db.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN doc TEXT;")
 				_, _ = db.ExecContext(ctx, "DROP TABLE IF EXISTS symbols_fts;")
-				// Continue to recreate everything properly
+				// Continue to recreate properly in the next loop or manual fix
 			}
 			return nil, err
 		}
@@ -437,6 +441,57 @@ func (s *Store) SearchSymbols(ctx context.Context, query string, symType string)
 	}
 
 	return results, nil
+}
+
+func (s *Store) SearchSymbolsWeighted(ctx context.Context, query string, symType string) iter.Seq2[Symbol, error] {
+	return func(yield func(Symbol, error) bool) {
+		safeQuery := sanitizeFTS(query)
+		var sqlQuery string
+		var args []interface{}
+
+		// Weights: name (10.0), type (2.0), doc (1.0), path (0.5)
+		if symType != "" {
+			sqlQuery = `
+			SELECT s.name, s.type, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line, bm25(symbols_fts, 10.0, 2.0, 1.0, 0.5) as relevance
+			FROM symbols s
+			JOIN symbols_fts f ON s.id = f.rowid
+			WHERE symbols_fts MATCH ? AND s.type = ?
+			ORDER BY relevance ASC
+			LIMIT 100;
+			`
+			args = append(args, safeQuery, symType)
+		} else {
+			sqlQuery = `
+			SELECT s.name, s.type, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line, bm25(symbols_fts, 10.0, 2.0, 1.0, 0.5) as relevance
+			FROM symbols s
+			JOIN symbols_fts f ON s.id = f.rowid
+			WHERE symbols_fts MATCH ?
+			ORDER BY relevance ASC
+			LIMIT 100;
+			`
+			args = append(args, safeQuery)
+		}
+
+		rows, err := s.query(ctx, sqlQuery, args...)
+		if err != nil {
+			yield(Symbol{}, err)
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var sym Symbol
+			if err := rows.Scan(&sym.Name, &sym.Type, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine, &sym.Relevance); err != nil {
+				if !yield(Symbol{}, err) {
+					return
+				}
+				continue
+			}
+			if !yield(sym, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (s *Store) Close() error {

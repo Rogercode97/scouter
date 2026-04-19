@@ -8,7 +8,7 @@ See `_shared/skill-resolver.md` for the full resolution protocol.
 
 | Trigger | Skill | Path |
 |---------|-------|------|
-| Supreme protocol for Go 1.24+ Hexagonal Architecture. Enforces Domain Sovereignty, Strict Validation, and Context-First. | go-divine | /data/data/com.termux/files/home/hakaishin-vault/skills/go-divine/SKILL.md |
+| Sovereign Mega-Skill for Go 1.24+ development. Unifies Architecture, Testing, and Guardrails. | go-dominion | /data/data/com.termux/files/home/hakaishin-vault/skills/go-dominion/SKILL.md |
 | Supreme protocol for Model Context Protocol (MCP) servers. Enforces tool security via Zod, resource management, and transport isolation. | mcp-sovereign | /data/data/com.termux/files/home/hakaishin-vault/skills/mcp-sovereign/SKILL.md |
 | Elite protocol for Scouter MCP tool development. Enforces Glasswall Validation, Context Authority, and OOM Guard. | scouter-mcp-go | /data/data/com.termux/files/home/scouter/.gemini/skills/scouter-mcp-go/SKILL.md |
 | The Final Orchestrator for Skill Creation. Enforces Context7 Research, Sovereign Lifecycle, and Universal Arena validation. | supreme-creator | /data/data/com.termux/files/home/scouter/.gemini/skills/supreme-creator/SKILL.md |
@@ -22,12 +22,12 @@ See `_shared/skill-resolver.md` for the full resolution protocol.
 
 Pre-digested rules per skill. Delegators copy matching blocks into sub-agent prompts as `## Project Standards (auto-resolved)`.
 
-### go-divine
-- Domain Sovereignty: Logic MUST be agnostic to frameworks/DBs using Interfaces (Ports).
-- Glasswall Validation: External structs MUST have `validate` tags and be verified at entry.
-- Context-First: All I/O and long-running functions MUST accept `context.Context` as the first arg.
-- Go 1.24+ Testing: Use `t.Context()` to ensure goroutine cancellation and resource cleanup.
-- Error Handling: Use explicit errors; NEVER use `panic` for flow control.
+### go-dominion
+- Single Source of Truth: Follow this codex for Go lifecycle; ignore external contradicting patterns.
+- Wave Rigor: Mandatory use of Iterators (iter.Seq) for ports and context.AfterFunc for cleanup.
+- Architectural Linter: Protect the domain using .go-arch-lint.yml.
+- Strict TDD: Mandatory branch coverage >= 90% and use of synctest for concurrent verification.
+- Zero-Slop Binaries: Static, optimized builds in distroless images.
 
 ### mcp-sovereign
 - Zod-Strict Tools: Every tool MUST have an `inputSchema` validated strictly with Zod.

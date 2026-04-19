@@ -20,7 +20,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-var version = "1.6.0" // Documentation Sovereignty release
+var version = "1.8.0" // Bumping version for Semantic Sovereignty
 
 //go:embed plugins/opencode/scouter.ts
 var openCodePluginFS embed.FS
@@ -87,13 +87,13 @@ type CallersRequest struct {
 	CalleeName string `json:"calleeName" validate:"required,min=1"`
 }
 
-type DeadCodeRequest struct {
-	IncludeExported bool `json:"includeExported"`
-}
-
 type VisualizeRequest struct {
 	SymbolName string `json:"symbolName" validate:"required,min=1"`
 	Depth      int    `json:"depth" validate:"omitempty,min=1,max=3"`
+}
+
+type DeadCodeRequest struct {
+	IncludeExported bool `json:"includeExported"`
 }
 
 func runMCPServer() {
@@ -119,14 +119,14 @@ func runMCPServer() {
 		server.WithToolCapabilities(true),
 		server.WithPromptCapabilities(true),
 		server.WithResourceCapabilities(false, true),
-		server.WithInstructions(`Scouter is an AST-based code analysis engine. 
-Use 'scouter_index' to understand a file's structure and 'scouter_search' for high-precision symbol lookups.
-Use 'scouter_callers' to find all locations where a specific function or method is invoked across the workspace.
-Use 'scouter_visualize' to generate a Mermaid.js call graph for a symbol up to a specified depth.
-Use 'scouter_dead_code' to identify symbols that have no callers in the current index.
-Use 'scouter_dependencies' to list external libraries (go.mod, package.json) and their versions.
-Prefer 'scouter_search' and 'scouter_callers' over generic text search (grep) for architectural analysis.
-Use 'scouter_read' with pointers to read specific code fragments with integrity verification (hash).`),
+		server.WithInstructions(`Scouter is an AST-based code analysis engine with Semantic Search. 
+Use 'scouter_index' to understand a file's structure and its intent via documentation.
+Use 'scouter_search' for intelligent lookups across names and docstrings (uses BM25 ranking).
+Use 'scouter_callers' to find all locations where a symbol is invoked.
+Use 'scouter_visualize' to see a symbol's dependency graph.
+Use 'scouter_dependencies' to list external libraries.
+Use 'scouter_dead_code' to find orphan symbols.
+Prefer 'scouter_search' over generic grep to find relevant logic based on descriptions.`),
 	)
 
 	// Resource: scouter://status
@@ -159,7 +159,7 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 
 	// Tool: scouter_index
 	indexTool := mcp.NewTool("scouter_index",
-		mcp.WithDescription("Analyze a file to index its structure (symbols) and call graph (invocations)."),
+		mcp.WithDescription("Analyze a file to index its structure, calls, and documentation."),
 		mcp.WithString("filePath",
 			mcp.Required(),
 			mcp.Description("The absolute path to the file to index."),
@@ -250,8 +250,8 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 
 	// Tool: scouter_search
 	searchTool := mcp.NewTool("scouter_search",
-		mcp.WithDescription("Search for symbols across the indexed workspace using FTS5."),
-		mcp.WithString("query", mcp.Required(), mcp.Description("The search query (e.g. 'ValidateUser').")),
+		mcp.WithDescription("Search for symbols using BM25 semantic ranking across names and docstrings."),
+		mcp.WithString("query", mcp.Required(), mcp.Description("The search query (e.g. 'error handling').")),
 		mcp.WithString("type", mcp.Description("Optional: symbol type filter.")),
 	)
 
@@ -264,13 +264,13 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
 		}
 
-		results, err := db.SearchSymbols(ctx, req.Query, req.Type)
-		if err != nil {
-			return mcpError(fmt.Sprintf("Search failed: %v", err)), nil
-		}
-
-		for i := range results {
-			results[i].Doc = truncateDoc(results[i].Doc)
+		var results []store.Symbol
+		for sym, err := range db.SearchSymbolsWeighted(ctx, req.Query, req.Type) {
+			if err != nil {
+				return mcpError(fmt.Sprintf("Search failed: %v", err)), nil
+			}
+			sym.Doc = truncateDoc(sym.Doc)
+			results = append(results, sym)
 		}
 
 		resJSON, _ := json.Marshal(results)
@@ -279,7 +279,7 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 
 	// Tool: scouter_callers
 	callersTool := mcp.NewTool("scouter_callers",
-		mcp.WithDescription("Find all locations where a specific symbol (function/method) is called."),
+		mcp.WithDescription("Find all locations where a specific symbol is called."),
 		mcp.WithString("calleeName", mcp.Required(), mcp.Description("The name of the symbol being called.")),
 	)
 
@@ -303,7 +303,7 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 
 	// Tool: scouter_visualize
 	visualizeTool := mcp.NewTool("scouter_visualize",
-		mcp.WithDescription("Generate a Mermaid.js call graph for a specific symbol up to a specified depth."),
+		mcp.WithDescription("Generate a Mermaid.js call graph for a specific symbol."),
 		mcp.WithString("symbolName", mcp.Required(), mcp.Description("The name of the symbol to visualize.")),
 		mcp.WithNumber("depth", mcp.Description("Depth of traversal (1 to 3). Default is 1.")),
 	)
@@ -312,59 +312,28 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 		var req VisualizeRequest
 		argsJSON, _ := json.Marshal(request.GetArguments())
 		json.Unmarshal(argsJSON, &req)
-
-		if req.Depth == 0 {
-			req.Depth = 1
-		}
-
-		if err := v.Struct(req); err != nil {
-			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
-		}
+		if req.Depth == 0 { req.Depth = 1 }
+		if err := v.Struct(req); err != nil { return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil }
 
 		// BFS Traversal
-		type QueueItem struct {
-			Symbol string
-			Depth  int
-		}
-
+		type QueueItem struct { Symbol string; Depth  int }
 		queue := []QueueItem{{Symbol: req.SymbolName, Depth: 0}}
-		visited := make(map[string]bool)
-		visited[req.SymbolName] = true
-		
-		edges := make(map[string]bool) // Unique edges: "caller->callee"
-		nodeMap := make(map[string]string) // symbolName -> nodeID
-		nodeCounter := 1
+		visited := make(map[string]bool); visited[req.SymbolName] = true
+		edges := make(map[string]bool); nodeMap := make(map[string]string); nodeCounter := 1
 
 		getNodeID := func(sym string) string {
-			if id, ok := nodeMap[sym]; ok {
-				return id
-			}
-			id := fmt.Sprintf("node%d", nodeCounter)
-			nodeCounter++
-			nodeMap[sym] = id
-			return id
+			if id, ok := nodeMap[sym]; ok { return id }
+			id := fmt.Sprintf("node%d", nodeCounter); nodeCounter++; nodeMap[sym] = id; return id
 		}
-
-		// Limit total nodes/edges to prevent massive graphs (OOM Guard)
-		maxElements := 200
-
-		// Ensure the root node is always in the map
 		getNodeID(req.SymbolName)
 
-		for len(queue) > 0 && len(edges) < maxElements {
-			curr := queue[0]
-			queue = queue[1:]
+		for len(queue) > 0 && len(edges) < 200 {
+			curr := queue[0]; queue = queue[1:]
+			if curr.Depth >= req.Depth { continue }
 
-			if curr.Depth >= req.Depth {
-				continue
-			}
-
-			// Get incoming calls (Callers)
 			callers, _ := db.GetCallers(ctx, curr.Symbol)
 			for _, caller := range callers {
-				if len(edges) >= maxElements {
-					break
-				}
+				if len(edges) >= 200 { break }
 				edgeKey := fmt.Sprintf("%s->%s", caller.CallerName, curr.Symbol)
 				if !edges[edgeKey] {
 					edges[edgeKey] = true
@@ -375,12 +344,9 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 				}
 			}
 
-			// Get outgoing calls (Callees)
 			callees, _ := db.GetCallees(ctx, curr.Symbol)
 			for _, callee := range callees {
-				if len(edges) >= maxElements {
-					break
-				}
+				if len(edges) >= 200 { break }
 				edgeKey := fmt.Sprintf("%s->%s", curr.Symbol, callee.CalleeName)
 				if !edges[edgeKey] {
 					edges[edgeKey] = true
@@ -392,19 +358,10 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 			}
 		}
 
-		// Generate Mermaid
 		mermaidEdges := ""
 		for edge := range edges {
-			var caller, callee string
-			for i := 0; i < len(edge)-2; i++ {
-				if edge[i:i+2] == "->" {
-					caller = edge[:i]
-					callee = edge[i+2:]
-					break
-				}
-			}
-			callerID := getNodeID(caller)
-			calleeID := getNodeID(callee)
+			parts := strings.Split(edge, "->")
+			callerID := getNodeID(parts[0]); calleeID := getNodeID(parts[1])
 			mermaidEdges += fmt.Sprintf("    %s --> %s\n", callerID, calleeID)
 		}
 		
@@ -415,96 +372,41 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 			mermaidNodeDefs += fmt.Sprintf("    %s[\"%s\"]\n", id, escapedSym)
 		}
 
-		finalMermaid := mermaidNodeDefs + mermaidEdges
-
-		res := map[string]string{"mermaid": finalMermaid}
-		resJSON, _ := json.Marshal(res)
-		return mcpJSONResponse(resJSON), nil
-	})
-
-	// Tool: scouter_dead_code
-	deadCodeTool := mcp.NewTool("scouter_dead_code",
-		mcp.WithDescription("Identifies symbols (functions, methods) that have no callers in the current index."),
-		mcp.WithBoolean("includeExported", mcp.Description("Whether to include public/exported symbols. Default: false.")),
-	)
-
-	s.AddTool(deadCodeTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		var req DeadCodeRequest
-		argsJSON, _ := json.Marshal(request.GetArguments())
-		json.Unmarshal(argsJSON, &req)
-
-		// includeExported is already a boolean from the MCP driver, 
-		// but we unmarshal it just in case of different driver behaviors.
-		
-		results, err := db.GetUnusedSymbols(ctx, req.IncludeExported)
-		if err != nil {
-			return mcpError(fmt.Sprintf("Dead code analysis failed: %v", err)), nil
-		}
-
-		// Classification logic (from Design)
-		type DeadSymbol struct {
-			store.Symbol
-			Classification string `json:"classification"`
-		}
-		
-		var classified []DeadSymbol
-		for _, s := range results {
-			classification := "DEAD"
-			if len(s.Name) > 0 && s.Name[0] >= 'A' && s.Name[0] <= 'Z' {
-				classification = "POTENTIALLY UNUSED"
-			}
-			classified = append(classified, DeadSymbol{Symbol: s, Classification: classification})
-		}
-
-		res := map[string]interface{}{
-			"unused_symbols": classified,
-			"total_found":    len(classified),
-			"limit":          100,
-			"warning":        "Results truncated to 100 symbols per OOM Guard policy.",
-		}
-
-		resJSON, _ := json.Marshal(res)
+		resJSON, _ := json.Marshal(map[string]string{"mermaid": mermaidNodeDefs + mermaidEdges})
 		return mcpJSONResponse(resJSON), nil
 	})
 
 	// Tool: scouter_dependencies
-	depsTool := mcp.NewTool("scouter_dependencies",
-		mcp.WithDescription("List project dependencies and their versions (Go and NPM)."),
-	)
-
+	depsTool := mcp.NewTool("scouter_dependencies", mcp.WithDescription("List project dependencies and versions."))
 	s.AddTool(depsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		deps, err := db.GetDependencies(ctx)
-		if err != nil {
-			return mcpError(fmt.Sprintf("Failed to fetch dependencies: %v", err)), nil
-		}
-
+		if err != nil { return mcpError(err.Error()), nil }
 		resJSON, _ := json.Marshal(deps)
 		return mcpJSONResponse(resJSON), nil
 	})
 
-	// Tool: scouter_read
-	readTool := mcp.NewTool("scouter_read",
-		mcp.WithDescription("Read a specific code fragment with integrity verification."),
-		mcp.WithString("filePath", mcp.Required(), mcp.Description("Absolute path to the file.")),
-		mcp.WithObject("pointer", mcp.Required(), mcp.Description("AST pointer range.")),
-		mcp.WithString("hash", mcp.Description("Expected SHA-256 hash of the fragment.")),
-	)
+	// Tool: scouter_dead_code
+	deadCodeTool := mcp.NewTool("scouter_dead_code", mcp.WithDescription("Audit the project for unused symbols."))
+	s.AddTool(deadCodeTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var req DeadCodeRequest
+		argsJSON, _ := json.Marshal(request.GetArguments())
+		json.Unmarshal(argsJSON, &req)
+		unused, err := db.GetUnusedSymbols(ctx, req.IncludeExported)
+		if err != nil { return mcpError(err.Error()), nil }
+		resJSON, _ := json.Marshal(unused)
+		return mcpJSONResponse(resJSON), nil
+	})
 
+	// Tool: scouter_read
+	readTool := mcp.NewTool("scouter_read", mcp.WithDescription("Read a specific code fragment with integrity verification."))
 	s.AddTool(readTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var req ReadRequest
 		argsJSON, _ := json.Marshal(request.GetArguments())
 		json.Unmarshal(argsJSON, &req)
-
-		if err := v.Struct(req); err != nil {
-			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
-		}
-		
+		if err := v.Struct(req); err != nil { return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil }
 		pointerJSON, _ := json.Marshal(req.Pointer)
 		fragment, err := engine.ReadFragment(ctx, req.FilePath, string(pointerJSON), req.Hash)
-		if err != nil {
-			return mcpError(fmt.Sprintf("Read failed: %v", err)), nil
-		}
-
+		if err != nil { return mcpError(err.Error()), nil }
 		return &mcp.CallToolResult{Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fragment}}}, nil
 	})
 
@@ -513,7 +415,6 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 		mcp.WithPromptDescription("Find and explain a symbol in the project."),
 		mcp.WithArgument("symbolName", mcp.ArgumentDescription("Symbol to explain"), mcp.RequiredArgument()),
 	)
-
 	s.AddPrompt(explainPrompt, func(ctx context.Context, request mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 		symbolName := request.Params.Arguments["symbolName"]
 		return &mcp.GetPromptResult{
@@ -525,9 +426,7 @@ Use 'scouter_read' with pointers to read specific code fragments with integrity 
 		}, nil
 	})
 
-	if err := server.ServeStdio(s); err != nil {
-		log.Fatalf("MCP server failed: %v", err)
-	}
+	if err := server.ServeStdio(s); err != nil { log.Fatalf("MCP server failed: %v", err) }
 }
 
 func mcpError(msg string) *mcp.CallToolResult {
@@ -539,38 +438,28 @@ func mcpJSONResponse(data []byte) *mcp.CallToolResult {
 }
 
 func truncateDoc(doc string) string {
-	if len(doc) > 1000 {
-		return doc[:1000] + "..."
-	}
+	if len(doc) > 1000 { return doc[:997] + "..." }
 	return doc
 }
 
 func installGeminiCLI() {
-	home, _ := os.UserHomeDir()
-	configPath := filepath.Join(home, ".gemini", "settings.json")
-	binPath, _ := os.Executable()
-	var config map[string]interface{}
-	data, err := os.ReadFile(configPath)
+	home, _ := os.UserHomeDir(); configPath := filepath.Join(home, ".gemini", "settings.json"); binPath, _ := os.Executable()
+	var config map[string]interface{}; data, err := os.ReadFile(configPath)
 	if err == nil { json.Unmarshal(data, &config) } else { config = make(map[string]interface{}) }
 	mcpServers, ok := config["mcpServers"].(map[string]interface{})
 	if !ok { mcpServers = make(map[string]interface{}); config["mcpServers"] = mcpServers }
 	mcpServers["scouter"] = map[string]interface{}{"command": []string{binPath, "mcp"}, "enabled": true}
-	newData, _ := json.MarshalIndent(config, "", "  ")
-	os.WriteFile(configPath, newData, 0644)
+	newData, _ := json.MarshalIndent(config, "", "  "); os.WriteFile(configPath, newData, 0644)
 	fmt.Printf("✅ Scouter integrated with Gemini CLI!\n")
 }
 
 func installOpenCode() {
-	home, _ := os.UserHomeDir()
-	configPath := filepath.Join(home, ".config", "opencode", "settings.json")
-	binPath, _ := os.Executable()
-	var config map[string]interface{}
-	data, err := os.ReadFile(configPath)
+	home, _ := os.UserHomeDir(); configPath := filepath.Join(home, ".config", "opencode", "settings.json"); binPath, _ := os.Executable()
+	var config map[string]interface{}; data, err := os.ReadFile(configPath)
 	if err == nil { json.Unmarshal(data, &config) } else { config = make(map[string]interface{}) }
 	mcpServers, ok := config["mcpServers"].(map[string]interface{})
 	if !ok { mcpServers = make(map[string]interface{}); config["mcpServers"] = mcpServers }
 	mcpServers["scouter"] = map[string]interface{}{"type": "local", "command": []string{binPath, "mcp"}, "enabled": true}
-	newData, _ := json.MarshalIndent(config, "", "  ")
-	os.WriteFile(configPath, newData, 0644)
+	newData, _ := json.MarshalIndent(config, "", "  "); os.WriteFile(configPath, newData, 0644)
 	fmt.Printf("✅ Scouter integrated with OpenCode!\n")
 }
