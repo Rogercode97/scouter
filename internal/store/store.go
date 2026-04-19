@@ -50,6 +50,12 @@ type Repository interface {
 	ClearCalls(ctx context.Context, path string) error
 	GetStats(ctx context.Context) (int, int, error)
 
+	// GetAllFilePaths retrieves all file paths currently indexed in the database.
+	GetAllFilePaths(ctx context.Context) ([]string, error)
+
+	// DeleteFileIndex removes a file and all its associated symbols and calls from the database.
+	DeleteFileIndex(ctx context.Context, path string) error
+
 	// Dependency Sovereignty
 	SaveDependency(ctx context.Context, dep *types.Dependency) error
 	GetDependencies(ctx context.Context) ([]types.Dependency, error)
@@ -448,6 +454,29 @@ func (s *Store) GetStats(ctx context.Context) (int, int, error) {
 		return 0, 0, err
 	}
 	return fileCount, symbolCount, nil
+}
+
+func (s *Store) GetAllFilePaths(ctx context.Context) ([]string, error) {
+	var paths []string
+	rows, err := s.query(ctx, "SELECT path FROM file_index")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+	return paths, nil
+}
+
+func (s *Store) DeleteFileIndex(ctx context.Context, path string) error {
+	_, err := s.exec(ctx, "DELETE FROM file_index WHERE path = ?", path)
+	return err
 }
 
 func (s *Store) WithTransaction(ctx context.Context, fn func(Repository) error) error {
