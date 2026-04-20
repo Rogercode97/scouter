@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Rogercode97/scouter/internal/config"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
@@ -54,8 +55,12 @@ func main() {
 	flag.Parse()
 	startTime := time.Now()
 	mainCtx := context.Background()
-	home, _ := os.UserHomeDir()
-	dbPath := filepath.Join(home, ".scouter", "scouter.db")
+	
+	cfg, err := config.Load(mainCtx)
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+	dbPath := cfg.Tracking.DBPath
 
 	s, err := store.New(mainCtx, dbPath)
 	if err != nil {
