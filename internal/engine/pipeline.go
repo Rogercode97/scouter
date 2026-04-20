@@ -14,7 +14,7 @@ import (
 
 // Pipeline orchestrates command execution, filtering, tracking, and tee.
 type Pipeline struct {
-	ctx     context.Context
+	ctx          context.Context
 	Registry     *filter.Registry
 	Tracker      *telemetry.Tracker
 	TeeConfig    tee.Config

@@ -55,9 +55,9 @@ type MarkupContent struct {
 
 // InitializeParams represents parameters for the initialize request.
 type InitializeParams struct {
-	ProcessID    int                  `json:"processId"`
-	RootURI      string               `json:"rootUri,omitempty"`
-	Capabilities ClientCapabilities   `json:"capabilities"`
+	ProcessID    int                `json:"processId"`
+	RootURI      string             `json:"rootUri,omitempty"`
+	Capabilities ClientCapabilities `json:"capabilities"`
 }
 
 // ClientCapabilities represents the capabilities of the LSP client.

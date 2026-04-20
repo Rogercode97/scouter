@@ -97,7 +97,7 @@ func (h *HealthEngine) mapToSymbol(testName string) string {
 		// Heuristic to match design examples:
 		// TestStore_SaveSymbol -> Store.SaveSymbol (If first part is likely a Type)
 		// TestSaveSymbol_ErrorHandling -> SaveSymbol (If first part is likely a Function)
-		
+
 		// In Go, Types are often shorter than Functions, but not always.
 		// For now, if the first part is "Store", we follow the example.
 		// In a real implementation, we would check the DB.
