@@ -57,7 +57,9 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 	ext := filepath.Ext(filePath)
 	config, ok := languageConfigs[ext]
 	if !ok {
-		return nil, nil, fmt.Errorf("unsupported: %s", ext)
+		// Graceful degradation: Return empty results for unsupported formats instead of erroring.
+		// This prevents blocking workflows like 'judgment' that might scan documentation files.
+		return []types.ASTPointer{}, []types.ASTCall{}, nil
 	}
 
 	content, err := os.ReadFile(filePath)

@@ -14,7 +14,7 @@ import (
 func TestJSONRPCClient(t *testing.T) {
 	// We need a mock server binary or a way to simulate a process.
 	// For testing, we can use a pipe and a goroutine that acts as a server.
-	
+
 	pr, pw := io.Pipe() // client read, server write
 	sr, sw := io.Pipe() // server read, client write
 
@@ -81,8 +81,8 @@ func TestJSONRPCClient(t *testing.T) {
 	}
 	go client.listen()
 
-	// The client expects an initialize call if we use NewClient, 
-	// but here we are using it manually. 
+	// The client expects an initialize call if we use NewClient,
+	// but here we are using it manually.
 	// Let's test the methods directly.
 
 	// Test Definition
@@ -92,7 +92,7 @@ func TestJSONRPCClient(t *testing.T) {
 			Position:     Position{Line: 1, Character: 1},
 		},
 	}
-	
+
 	// We need to implement the client logic to read/write headers as well if we follow LSP strictly.
 	// But the prompt says "Basic JSON-RPC over stdio client".
 	// LSP uses "Content-Length: ...\r\n\r\n{json}".

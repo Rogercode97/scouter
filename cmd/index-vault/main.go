@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -10,7 +11,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"flag"
 
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/store"

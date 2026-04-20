@@ -1,5 +1,10 @@
 class Database:
-    def __init__(self, host: str):
+    """
+    Database represents a connection to a persistent store.
+    It manages connections and execution of queries.
+    """
+    def __init__(self, dsn: str):
+
         self.host = host
 
     def connect(self):

@@ -151,7 +151,7 @@ func TestGetUnusedSymbols(t *testing.T) {
 		t.Fatalf("Failed to save file index: %v", err)
 	}
 
-	// 1. Save symbols: 
+	// 1. Save symbols:
 	// - "usedFunc": will have a caller
 	// - "deadFunc": no callers
 	// - "ExportedUnused": exported, no callers

@@ -3,6 +3,10 @@ interface User {
   name: string;
 }
 
+/**
+ * AuthService handles user authentication and session management.
+ * It manages a list of users and their login states.
+ */
 class AuthService {
   private users: User[] = [];
 

@@ -229,7 +229,9 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 			astJSON, _ := json.Marshal(idxResult)
 			if err := tx.SaveFileIndex(ctx, &store.FileIndex{
 				Path: filePath, Mtime: stats.ModTime().UnixNano(), Hash: currentHash, ASTJSON: string(astJSON),
-			}); err != nil { return err }
+			}); err != nil {
+				return err
+			}
 
 			tx.ClearSymbols(ctx, filePath)
 			tx.ClearCalls(ctx, filePath)
@@ -328,28 +330,48 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 		var req VisualizeRequest
 		argsJSON, _ := json.Marshal(request.GetArguments())
 		json.Unmarshal(argsJSON, &req)
-		if req.Depth == 0 { req.Depth = 1 }
-		if err := v.Struct(req); err != nil { return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil }
+		if req.Depth == 0 {
+			req.Depth = 1
+		}
+		if err := v.Struct(req); err != nil {
+			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
+		}
 
 		// BFS Traversal
-		type QueueItem struct { Symbol string; Depth  int }
+		type QueueItem struct {
+			Symbol string
+			Depth  int
+		}
 		queue := []QueueItem{{Symbol: req.SymbolName, Depth: 0}}
-		visited := make(map[string]bool); visited[req.SymbolName] = true
-		edges := make(map[string]bool); nodeMap := make(map[string]string); nodeCounter := 1
+		visited := make(map[string]bool)
+		visited[req.SymbolName] = true
+		edges := make(map[string]bool)
+		nodeMap := make(map[string]string)
+		nodeCounter := 1
 
 		getNodeID := func(sym string) string {
-			if id, ok := nodeMap[sym]; ok { return id }
-			id := fmt.Sprintf("node%d", nodeCounter); nodeCounter++; nodeMap[sym] = id; return id
+			if id, ok := nodeMap[sym]; ok {
+				return id
+			}
+			id := fmt.Sprintf("node%d", nodeCounter)
+			nodeCounter++
+			nodeMap[sym] = id
+			return id
 		}
 		getNodeID(req.SymbolName)
 
 		for len(queue) > 0 && len(edges) < 200 {
-			curr := queue[0]; queue = queue[1:]
-			if curr.Depth >= req.Depth { continue }
+			curr := queue[0]
+			queue = queue[1:]
+			if curr.Depth >= req.Depth {
+				continue
+			}
 
 			callers, _ := db.GetCallers(ctx, curr.Symbol)
 			for _, caller := range callers {
-				if len(edges) >= 200 { break }
+				if len(edges) >= 200 {
+					break
+				}
 				edgeKey := fmt.Sprintf("%s->%s", caller.CallerName, curr.Symbol)
 				if !edges[edgeKey] {
 					edges[edgeKey] = true
@@ -362,7 +384,9 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 
 			callees, _ := db.GetCallees(ctx, curr.Symbol)
 			for _, callee := range callees {
-				if len(edges) >= 200 { break }
+				if len(edges) >= 200 {
+					break
+				}
 				edgeKey := fmt.Sprintf("%s->%s", curr.Symbol, callee.CalleeName)
 				if !edges[edgeKey] {
 					edges[edgeKey] = true
@@ -377,10 +401,11 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 		mermaidEdges := ""
 		for edge := range edges {
 			parts := strings.Split(edge, "->")
-			callerID := getNodeID(parts[0]); calleeID := getNodeID(parts[1])
+			callerID := getNodeID(parts[0])
+			calleeID := getNodeID(parts[1])
 			mermaidEdges += fmt.Sprintf("    %s --> %s\n", callerID, calleeID)
 		}
-		
+
 		mermaidNodeDefs := "graph TD\n"
 		for sym, id := range nodeMap {
 			escapedSym := strings.ReplaceAll(sym, "\\", "\\\\")
@@ -396,7 +421,9 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 	depsTool := mcp.NewTool("scouter_dependencies", mcp.WithDescription("List project dependencies and versions."))
 	s.AddTool(depsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		deps, err := db.GetDependencies(ctx)
-		if err != nil { return mcpError(err.Error()), nil }
+		if err != nil {
+			return mcpError(err.Error()), nil
+		}
 		resJSON, _ := json.Marshal(deps)
 		return mcpJSONResponse(resJSON), nil
 	})
@@ -408,7 +435,9 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 		argsJSON, _ := json.Marshal(request.GetArguments())
 		json.Unmarshal(argsJSON, &req)
 		unused, err := db.GetUnusedSymbols(ctx, req.IncludeExported)
-		if err != nil { return mcpError(err.Error()), nil }
+		if err != nil {
+			return mcpError(err.Error()), nil
+		}
 		resJSON, _ := json.Marshal(unused)
 		return mcpJSONResponse(resJSON), nil
 	})
@@ -418,9 +447,13 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 	s.AddTool(healthTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var results []types.TestResult
 		for res, err := range db.GetHealthReport(ctx, "", true) {
-			if err != nil { return mcpError(err.Error()), nil }
+			if err != nil {
+				return mcpError(err.Error()), nil
+			}
 			results = append(results, res)
-			if len(results) >= 50 { break }
+			if len(results) >= 50 {
+				break
+			}
 		}
 		resJSON, _ := json.Marshal(results)
 		return mcpJSONResponse(resJSON), nil
@@ -437,10 +470,14 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 		var req GotoDefinitionRequest
 		argsJSON, _ := json.Marshal(request.GetArguments())
 		json.Unmarshal(argsJSON, &req)
-		if err := v.Struct(req); err != nil { return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil }
+		if err := v.Struct(req); err != nil {
+			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
+		}
 
 		client, err := lspMgr.GetClient(req.FilePath)
-		if err != nil { return mcpError(fmt.Sprintf("LSP unavailable: %v", err)), nil }
+		if err != nil {
+			return mcpError(fmt.Sprintf("LSP unavailable: %v", err)), nil
+		}
 
 		params := lsp.DefinitionParams{}
 		params.TextDocument.URI = "file://" + req.FilePath
@@ -451,7 +488,9 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 		defer cancel()
 
 		loc, err := client.Definition(timeoutCtx, params)
-		if err != nil { return mcpError(fmt.Sprintf("LSP error: %v", err)), nil }
+		if err != nil {
+			return mcpError(fmt.Sprintf("LSP error: %v", err)), nil
+		}
 
 		resJSON, _ := json.Marshal(loc)
 		return mcpJSONResponse(resJSON), nil
@@ -468,10 +507,14 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 		var req TypeInfoRequest
 		argsJSON, _ := json.Marshal(request.GetArguments())
 		json.Unmarshal(argsJSON, &req)
-		if err := v.Struct(req); err != nil { return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil }
+		if err := v.Struct(req); err != nil {
+			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
+		}
 
 		client, err := lspMgr.GetClient(req.FilePath)
-		if err != nil { return mcpError(fmt.Sprintf("LSP unavailable: %v", err)), nil }
+		if err != nil {
+			return mcpError(fmt.Sprintf("LSP unavailable: %v", err)), nil
+		}
 
 		params := lsp.HoverParams{}
 		params.TextDocument.URI = "file://" + req.FilePath
@@ -482,7 +525,9 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 		defer cancel()
 
 		hover, err := client.Hover(timeoutCtx, params)
-		if err != nil { return mcpError(fmt.Sprintf("LSP error: %v", err)), nil }
+		if err != nil {
+			return mcpError(fmt.Sprintf("LSP error: %v", err)), nil
+		}
 
 		resJSON, _ := json.Marshal(hover)
 		return mcpJSONResponse(resJSON), nil
@@ -494,10 +539,14 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 		var req ReadRequest
 		argsJSON, _ := json.Marshal(request.GetArguments())
 		json.Unmarshal(argsJSON, &req)
-		if err := v.Struct(req); err != nil { return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil }
+		if err := v.Struct(req); err != nil {
+			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
+		}
 		pointerJSON, _ := json.Marshal(req.Pointer)
 		fragment, err := engine.ReadFragment(ctx, req.FilePath, string(pointerJSON), req.Hash)
-		if err != nil { return mcpError(err.Error()), nil }
+		if err != nil {
+			return mcpError(err.Error()), nil
+		}
 		return &mcp.CallToolResult{Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fragment}}}, nil
 	})
 
@@ -511,13 +560,15 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 		return &mcp.GetPromptResult{
 			Description: fmt.Sprintf("Explain symbol %s", symbolName),
 			Messages: []mcp.PromptMessage{{
-				Role: mcp.RoleUser,
+				Role:    mcp.RoleUser,
 				Content: mcp.NewTextContent(fmt.Sprintf(`I need to understand '%s'. Use 'scouter_search', then 'scouter_callers' to see its usage, 'scouter_read' the code, and explain it.`, symbolName)),
 			}},
 		}, nil
 	})
 
-	if err := server.ServeStdio(s); err != nil { log.Fatalf("MCP server failed: %v", err) }
+	if err := server.ServeStdio(s); err != nil {
+		log.Fatalf("MCP server failed: %v", err)
+	}
 }
 
 func mcpError(msg string) *mcp.CallToolResult {
@@ -529,7 +580,9 @@ func mcpJSONResponse(data []byte) *mcp.CallToolResult {
 }
 
 func truncateDoc(doc string) string {
-	if len(doc) > 1000 { return doc[:997] + "..." }
+	if len(doc) > 1000 {
+		return doc[:997] + "..."
+	}
 	return doc
 }
 
@@ -537,7 +590,7 @@ func installGeminiCLI() {
 	home, _ := os.UserHomeDir()
 	configPath := filepath.Join(home, ".gemini", "settings.json")
 	binPath, _ := filepath.Abs(os.Args[0])
-	
+
 	var config map[string]interface{}
 	data, err := os.ReadFile(configPath)
 	if err == nil {
@@ -545,19 +598,19 @@ func installGeminiCLI() {
 	} else {
 		config = make(map[string]interface{})
 	}
-	
+
 	mcpServers, ok := config["mcpServers"].(map[string]interface{})
 	if !ok {
 		mcpServers = make(map[string]interface{})
 		config["mcpServers"] = mcpServers
 	}
-	
+
 	mcpServers["scouter"] = map[string]interface{}{
 		"command": binPath,
 		"args":    []string{"mcp"},
 		"trust":   true,
 	}
-	
+
 	newData, _ := json.MarshalIndent(config, "", "  ")
 	if err := os.WriteFile(configPath, newData, 0644); err != nil {
 		fmt.Printf("❌ Error saving config: %v\n", err)
@@ -567,12 +620,23 @@ func installGeminiCLI() {
 }
 
 func installOpenCode() {
-	home, _ := os.UserHomeDir(); configPath := filepath.Join(home, ".config", "opencode", "settings.json"); binPath, _ := os.Executable()
-	var config map[string]interface{}; data, err := os.ReadFile(configPath)
-	if err == nil { json.Unmarshal(data, &config) } else { config = make(map[string]interface{}) }
+	home, _ := os.UserHomeDir()
+	configPath := filepath.Join(home, ".config", "opencode", "settings.json")
+	binPath, _ := os.Executable()
+	var config map[string]interface{}
+	data, err := os.ReadFile(configPath)
+	if err == nil {
+		json.Unmarshal(data, &config)
+	} else {
+		config = make(map[string]interface{})
+	}
 	mcpServers, ok := config["mcpServers"].(map[string]interface{})
-	if !ok { mcpServers = make(map[string]interface{}); config["mcpServers"] = mcpServers }
+	if !ok {
+		mcpServers = make(map[string]interface{})
+		config["mcpServers"] = mcpServers
+	}
 	mcpServers["scouter"] = map[string]interface{}{"type": "local", "command": []string{binPath, "mcp"}, "enabled": true}
-	newData, _ := json.MarshalIndent(config, "", "  "); os.WriteFile(configPath, newData, 0644)
+	newData, _ := json.MarshalIndent(config, "", "  ")
+	os.WriteFile(configPath, newData, 0644)
 	fmt.Printf("✅ Scouter integrated with OpenCode!\n")
 }
