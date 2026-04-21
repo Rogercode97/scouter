@@ -1,0 +1,57 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/filter/types.go",
+  "hash": "8d01156b9f68785036d4f08d6055d5c183546c1698b0353f64e080462f49dd3e",
+  "symbols": [
+    {
+      "name": "Filter",
+      "type": "class",
+      "doc": "Filter represents a declarative YAML filter for a command.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/types.go",
+      "start_byte": 83,
+      "end_byte": 421,
+      "start_line": 4,
+      "end_line": 12
+    },
+    {
+      "name": "Match",
+      "type": "class",
+      "doc": "Match defines which command a filter applies to.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/types.go",
+      "start_byte": 480,
+      "end_byte": 701,
+      "start_line": 15,
+      "end_line": 20
+    },
+    {
+      "name": "Inject",
+      "type": "class",
+      "doc": "Inject defines args to inject before execution.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/types.go",
+      "start_byte": 759,
+      "end_byte": 962,
+      "start_line": 23,
+      "end_line": 27
+    },
+    {
+      "name": "Action",
+      "type": "class",
+      "doc": "Action represents a single step in a filter pipeline.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/types.go",
+      "start_byte": 1026,
+      "end_byte": 1130,
+      "start_line": 30,
+      "end_line": 33
+    },
+    {
+      "name": "ActionResult",
+      "type": "class",
+      "doc": "ActionResult is the data passed between pipeline actions.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/types.go",
+      "start_byte": 1269,
+      "end_byte": 1336,
+      "start_line": 39,
+      "end_line": 42
+    }
+  ],
+  "calls": null
+}

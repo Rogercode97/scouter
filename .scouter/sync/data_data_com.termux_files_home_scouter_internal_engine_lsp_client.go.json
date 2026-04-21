@@ -1,0 +1,522 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+  "hash": "492ba14024e04762b08f81da58b44d8e8314085b0d6f973591c3fc13a638e7f1",
+  "symbols": [
+    {
+      "name": "LSPClient",
+      "type": "interface",
+      "doc": "LSPClient defines the interface for an LSP client.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "start_byte": 196,
+      "end_byte": 376,
+      "start_line": 18,
+      "end_line": 22
+    },
+    {
+      "name": "jsonrpcClient",
+      "type": "class",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "start_byte": 383,
+      "end_byte": 635,
+      "start_line": 24,
+      "end_line": 35
+    },
+    {
+      "name": "NewClient",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "start_byte": 637,
+      "end_byte": 1289,
+      "start_line": 37,
+      "end_line": 71
+    },
+    {
+      "name": "listen",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "start_byte": 1291,
+      "end_byte": 2445,
+      "start_line": 73,
+      "end_line": 129
+    },
+    {
+      "name": "call",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "start_byte": 2447,
+      "end_byte": 3401,
+      "start_line": 131,
+      "end_line": 176
+    },
+    {
+      "name": "initialize",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "start_byte": 3403,
+      "end_byte": 3733,
+      "start_line": 178,
+      "end_line": 187
+    },
+    {
+      "name": "Definition",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "start_byte": 3735,
+      "end_byte": 4443,
+      "start_line": 189,
+      "end_line": 214
+    },
+    {
+      "name": "Hover",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "start_byte": 4445,
+      "end_byte": 4668,
+      "start_line": 216,
+      "end_line": 222
+    },
+    {
+      "name": "Close",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "start_byte": 4670,
+      "end_byte": 5140,
+      "start_line": 224,
+      "end_line": 240
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "NewClient",
+      "callee_name": "Command",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 38
+    },
+    {
+      "caller_name": "NewClient",
+      "callee_name": "StdinPipe",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 39
+    },
+    {
+      "caller_name": "NewClient",
+      "callee_name": "StdoutPipe",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 43
+    },
+    {
+      "caller_name": "NewClient",
+      "callee_name": "Start",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 48
+    },
+    {
+      "caller_name": "NewClient",
+      "callee_name": "make",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 58
+    },
+    {
+      "caller_name": "NewClient",
+      "callee_name": "listen",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 61
+    },
+    {
+      "caller_name": "NewClient",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 64
+    },
+    {
+      "caller_name": "NewClient",
+      "callee_name": "initialize",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 65
+    },
+    {
+      "caller_name": "NewClient",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 66
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "NewReader",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 74
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "ReadString",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 79
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 81
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "TrimRight",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 84
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "HasPrefix",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 88
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "Sscanf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 89
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 99
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "make",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 104
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "ReadFull",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 105
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 106
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "Unmarshal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 111
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "uint64",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 119
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "ParseUint",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 121
+    },
+    {
+      "caller_name": "listen",
+      "callee_name": "LoadAndDelete",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 124
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "Add",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 132
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "Marshal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 140
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "Marshal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 147
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "make",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 152
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "Store",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 153
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "Sprintf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 155
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 155
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "Fprint",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 156
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "Delete",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 157
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "Done",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 162
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "Delete",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 163
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "Err",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 164
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 169
+    },
+    {
+      "caller_name": "call",
+      "callee_name": "Unmarshal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 172
+    },
+    {
+      "caller_name": "initialize",
+      "callee_name": "Getpid",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 180
+    },
+    {
+      "caller_name": "initialize",
+      "callee_name": "call",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 186
+    },
+    {
+      "caller_name": "Definition",
+      "callee_name": "call",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 194
+    },
+    {
+      "caller_name": "Definition",
+      "callee_name": "string",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 198
+    },
+    {
+      "caller_name": "Definition",
+      "callee_name": "Unmarshal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 204
+    },
+    {
+      "caller_name": "Definition",
+      "callee_name": "Unmarshal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 209
+    },
+    {
+      "caller_name": "Definition",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 213
+    },
+    {
+      "caller_name": "Definition",
+      "callee_name": "string",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 213
+    },
+    {
+      "caller_name": "Hover",
+      "callee_name": "call",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 218
+    },
+    {
+      "caller_name": "Close",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 226
+    },
+    {
+      "caller_name": "Close",
+      "callee_name": "call",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 227
+    },
+    {
+      "caller_name": "Close",
+      "callee_name": "Marshal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 230
+    },
+    {
+      "caller_name": "Close",
+      "callee_name": "Fprintf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 231
+    },
+    {
+      "caller_name": "Close",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 231
+    },
+    {
+      "caller_name": "Close",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 234
+    },
+    {
+      "caller_name": "Close",
+      "callee_name": "Kill",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client.go",
+      "line": 237
+    }
+  ]
+}

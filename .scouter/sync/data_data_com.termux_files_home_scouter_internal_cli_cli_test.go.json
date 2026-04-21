@@ -1,0 +1,84 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/cli/cli_test.go",
+  "hash": "46046817e29b2a6d6f6f18b696280bc3ea1b09255735f566438fe807096c12cd",
+  "symbols": [
+    {
+      "name": "TestUnproxyableCommands",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/cli/cli_test.go",
+      "start_byte": 31,
+      "end_byte": 514,
+      "start_line": 5,
+      "end_line": 26
+    },
+    {
+      "name": "TestRunRejectsCd",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/cli/cli_test.go",
+      "start_byte": 516,
+      "end_byte": 688,
+      "start_line": 28,
+      "end_line": 34
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "TestUnproxyableCommands",
+      "callee_name": "Run",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/cli/cli_test.go",
+      "line": 19
+    },
+    {
+      "caller_name": "TestUnproxyableCommands.func1",
+      "callee_name": "unproxyableReason",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/cli/cli_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/cli/cli_test.go",
+      "line": 20
+    },
+    {
+      "caller_name": "TestUnproxyableCommands.func1",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/cli/cli_test.go",
+      "line": 22
+    },
+    {
+      "caller_name": "TestUnproxyableCommands.func1",
+      "callee_name": "unproxyableReason",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/cli/cli_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/cli/cli_test.go",
+      "line": 22
+    },
+    {
+      "caller_name": "TestRunRejectsCd",
+      "callee_name": "Context",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/cli/cli_test.go",
+      "line": 29
+    },
+    {
+      "caller_name": "TestRunRejectsCd",
+      "callee_name": "Run",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/cli/cli_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/cli/cli_test.go",
+      "line": 30
+    },
+    {
+      "caller_name": "TestRunRejectsCd",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/cli/cli_test.go",
+      "line": 32
+    }
+  ]
+}

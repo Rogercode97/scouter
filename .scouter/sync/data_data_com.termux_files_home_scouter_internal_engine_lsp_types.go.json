@@ -1,0 +1,147 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+  "hash": "ff6ee0fd41f3bd582861cf4ff8b48cf3854963350451b1ff9d53226b75b1eba2",
+  "symbols": [
+    {
+      "name": "Position",
+      "type": "class",
+      "doc": "Position represents a symbol's position in a text document.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 105,
+      "end_byte": 214,
+      "start_line": 6,
+      "end_line": 9
+    },
+    {
+      "name": "Range",
+      "type": "class",
+      "doc": "Range represents a range in a text document.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 269,
+      "end_byte": 345,
+      "start_line": 12,
+      "end_line": 15
+    },
+    {
+      "name": "Location",
+      "type": "class",
+      "doc": "Location represents a location in a text document.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 406,
+      "end_byte": 481,
+      "start_line": 18,
+      "end_line": 21
+    },
+    {
+      "name": "TextDocumentIdentifier",
+      "type": "class",
+      "doc": "TextDocumentIdentifier represents a text document's URI.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 548,
+      "end_byte": 606,
+      "start_line": 24,
+      "end_line": 26
+    },
+    {
+      "name": "TextDocumentPositionParams",
+      "type": "class",
+      "doc": "TextDocumentPositionParams represents parameters for requests at a position.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 693,
+      "end_byte": 844,
+      "start_line": 29,
+      "end_line": 32
+    },
+    {
+      "name": "DefinitionParams",
+      "type": "class",
+      "doc": "DefinitionParams represents parameters for the textDocument/definition request.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 934,
+      "end_byte": 989,
+      "start_line": 35,
+      "end_line": 37
+    },
+    {
+      "name": "HoverParams",
+      "type": "class",
+      "doc": "HoverParams represents parameters for the textDocument/hover request.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 1069,
+      "end_byte": 1119,
+      "start_line": 40,
+      "end_line": 42
+    },
+    {
+      "name": "Hover",
+      "type": "class",
+      "doc": "Hover represents the result of a hover request.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 1177,
+      "end_byte": 1284,
+      "start_line": 45,
+      "end_line": 48
+    },
+    {
+      "name": "MarkupContent",
+      "type": "class",
+      "doc": "MarkupContent represents a markup content.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 1337,
+      "end_byte": 1418,
+      "start_line": 51,
+      "end_line": 54
+    },
+    {
+      "name": "InitializeParams",
+      "type": "class",
+      "doc": "InitializeParams represents parameters for the initialize request.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 1495,
+      "end_byte": 1689,
+      "start_line": 57,
+      "end_line": 61
+    },
+    {
+      "name": "ClientCapabilities",
+      "type": "class",
+      "doc": "ClientCapabilities represents the capabilities of the LSP client.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 1765,
+      "end_byte": 2080,
+      "start_line": 64,
+      "end_line": 73
+    },
+    {
+      "name": "JSONRPCRequest",
+      "type": "class",
+      "doc": "JSONRPCRequest represents a JSON-RPC 2.0 request.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 2140,
+      "end_byte": 2346,
+      "start_line": 76,
+      "end_line": 81
+    },
+    {
+      "name": "JSONRPCResponse",
+      "type": "class",
+      "doc": "JSONRPCResponse represents a JSON-RPC 2.0 response.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 2408,
+      "end_byte": 2614,
+      "start_line": 84,
+      "end_line": 89
+    },
+    {
+      "name": "JSONRPCError",
+      "type": "class",
+      "doc": "JSONRPCError represents a JSON-RPC 2.0 error.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/types.go",
+      "start_byte": 2670,
+      "end_byte": 2823,
+      "start_line": 92,
+      "end_line": 96
+    }
+  ],
+  "calls": null
+}

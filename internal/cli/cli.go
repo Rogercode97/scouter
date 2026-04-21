@@ -11,12 +11,14 @@ import (
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/initcmd"
+	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/tee"
 	"github.com/Rogercode97/scouter/internal/telemetry"
+	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 // version is set at build time via -ldflags "-X ...". Do not reassign.
-var version = "dev"
+var version = "2.5.1"
 
 // Run is the main entry point. Returns exit code.
 func Run(ctx context.Context, args []string) int {
@@ -39,14 +41,11 @@ func Run(ctx context.Context, args []string) int {
 	command := remaining[0]
 	cmdArgs := remaining[1:]
 
-	// Commands that cannot be proxied: they must run in the parent shell
-	// to have any effect. Running them in a subprocess is a silent no-op.
-	if unproxyableReason(command) != "" {
-		fmt.Fprintf(os.Stderr, "scouter: %s cannot be proxied (%s)\n", command, unproxyableReason(command))
+	if reason := unproxyableReason(command); reason != "" {
+		fmt.Fprintf(os.Stderr, "scouter: %s cannot be proxied (%s)\n", command, reason)
 		return 1
 	}
 
-	// Built-in commands
 	switch command {
 	case "init":
 		if err := initcmd.Run(cmdArgs); err != nil {
@@ -54,6 +53,18 @@ func Run(ctx context.Context, args []string) int {
 			return 1
 		}
 		return 0
+
+	case "predict":
+		return runPredict(ctx)
+
+	case "strike":
+		return runStrike(ctx, flags)
+
+	case "critical":
+		return runCritical(ctx)
+
+	case "sync":
+		return runSync(ctx, cmdArgs)
 
 	case "gain":
 		if !telemetry.DriverAvailable {
@@ -92,7 +103,6 @@ func Run(ctx context.Context, args []string) int {
 		return 0
 
 	case "proxy":
-		// Direct passthrough without filtering
 		if len(cmdArgs) == 0 {
 			display.PrintError("proxy requires a command argument")
 			return 1
@@ -101,16 +111,155 @@ func Run(ctx context.Context, args []string) int {
 		return p.Passthrough(ctx, cmdArgs[0], cmdArgs[1:])
 	}
 
-	// Filter pipeline
 	return runPipeline(ctx, command, cmdArgs, flags)
+}
+
+func getOraclePredictions(ctx context.Context) (map[string]bool, error) {
+	cfg, _ := config.Load(ctx)
+	db, err := store.New(ctx, cfg.Tracking.DBPath)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	changes, err := utils.GetLocalChanges(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("git error: %v", err)
+	}
+
+	if len(changes) == 0 {
+		return nil, nil
+	}
+
+	suggestedTests := make(map[string]bool)
+	fmt.Printf("\n--- 🔮 Oracle Prediction (Staged Changes) ---\n")
+	
+	for _, change := range changes {
+		absPath, _ := os.Getwd()
+		absPath = fmt.Sprintf("%s/%s", absPath, change.Path)
+		
+		symbols, _ := db.GetSymbolsByRange(ctx, absPath, change.StartLine, change.EndLine)
+		for _, sym := range symbols {
+			fmt.Printf("  • Symbol Affected: %s [%s]\n", sym.Name, change.Path)
+			impact, _ := db.GetImpact(ctx, sym.Name, sym.Path, 5)
+			for _, imp := range impact {
+				if strings.HasPrefix(imp.Symbol, "Test") || strings.HasSuffix(imp.File, "_test.go") {
+					suggestedTests[imp.Symbol] = true
+				}
+			}
+		}
+	}
+	return suggestedTests, nil
+}
+
+func runPredict(ctx context.Context) int {
+	suggestedTests, err := getOraclePredictions(ctx)
+	if err != nil {
+		display.PrintError(err.Error())
+		return 1
+	}
+
+	if len(suggestedTests) == 0 {
+		fmt.Println("No local changes detected (Clean Staging).")
+		return 0
+	}
+
+	fmt.Println("\n--- 🎯 Suggested Tests to Run ---")
+	for t := range suggestedTests {
+		fmt.Printf("  go test -v -run %s\n", t)
+	}
+	return 0
+}
+
+func runStrike(ctx context.Context, flags Flags) int {
+	suggestedTests, err := getOraclePredictions(ctx)
+	if err != nil {
+		display.PrintError(err.Error())
+		return 1
+	}
+
+	if len(suggestedTests) == 0 {
+		fmt.Println("No local changes detected (Clean Staging).")
+		return 0
+	}
+
+	fmt.Println("\n--- ⚡ Oracle Strike (Executing Tests) ---")
+	var testNames []string
+	for t := range suggestedTests {
+		testNames = append(testNames, t)
+	}
+	
+	runRegex := "^(" + strings.Join(testNames, "|") + ")$"
+	strikeArgs := []string{"test", "-v", "-run", runRegex, "./..."}
+	
+	// DIVINE REDEMPTION: Use the pipeline for Strike so it gets passive health ingestion
+	return runPipeline(ctx, "go", strikeArgs, flags)
+}
+
+func runSync(ctx context.Context, args []string) int {
+	cfg, _ := config.Load(ctx)
+	db, err := store.New(ctx, cfg.Tracking.DBPath)
+	if err != nil {
+		display.PrintError(err.Error())
+		return 1
+	}
+	defer db.Close()
+
+	syncDir := ".scouter/sync"
+	mode := "--push"
+	if len(args) > 0 {
+		mode = args[0]
+	}
+
+	switch mode {
+	case "--push":
+		fmt.Printf("Exporting Sovereign Delta to %s...\n", syncDir)
+		if err := db.ExportDelta(ctx, syncDir); err != nil {
+			display.PrintError(err.Error())
+			return 1
+		}
+		fmt.Println("✅ Index exported. Ready for 'git add .scouter/sync'.")
+	case "--pull":
+		fmt.Printf("Importing Sovereign Delta from %s...\n", syncDir)
+		if err := db.ImportDelta(ctx, syncDir); err != nil {
+			display.PrintError(err.Error())
+			return 1
+		}
+		fmt.Println("✅ Local index hydrated.")
+	default:
+		display.PrintError("Invalid sync mode. Use --push or --pull.")
+		return 1
+	}
+	return 0
+}
+
+func runCritical(ctx context.Context) int {
+	cfg, _ := config.Load(ctx)
+	db, err := store.New(ctx, cfg.Tracking.DBPath)
+	if err != nil {
+		display.PrintError(err.Error())
+		return 1
+	}
+	defer db.Close()
+
+	critical, err := db.GetCriticalSymbols(ctx, 10)
+	if err != nil {
+		display.PrintError(err.Error())
+		return 1
+	}
+
+	fmt.Printf("\n--- 📊 Risk Map: Top 10 Critical Symbols ---\n")
+	fmt.Printf("%-25s | %-10s | %-10s\n", "SYMBOL", "CENTRALITY", "FRAGILITY")
+	fmt.Println(strings.Repeat("-", 50))
+	for _, s := range critical {
+		fmt.Printf("%-25s | %-10d | %-10d\n", s.Name, s.Centrality, s.Fragility)
+	}
+	return 0
 }
 
 func runPipeline(ctx context.Context, command string, args []string, flags Flags) int {
 	cfg, err := config.Load(ctx)
 	if err != nil {
-		if flags.Verbose > 0 {
-			fmt.Fprintf(os.Stderr, "scouter: config error: %v, using defaults\n", err)
-		}
 		cfg = config.DefaultConfig()
 	}
 
@@ -122,7 +271,6 @@ func runPipeline(ctx context.Context, command string, args []string, flags Flags
 
 	registry := filter.NewRegistry(filters)
 
-	// Lazy tracker: DB opens on first use (concurrently with command execution)
 	var tracker *telemetry.Tracker
 	if telemetry.DriverAvailable {
 		dbPath := telemetry.DBPath(cfg.Tracking.DBPath)
@@ -148,39 +296,34 @@ func runPipeline(ctx context.Context, command string, args []string, flags Flags
 }
 
 func printUsage() {
-	usage := `scouter v%s — CLI Token Killer
+	usage := `scouter v%s — CLI Token Killer & Oracle Engine
 
 Usage: scouter [flags] <command> [args...]
 
-Commands:
-  <command>    Run command through scouter filter pipeline
-  init         Install Claude Code hook
+Intelligence Commands:
+  predict      🔮 Identify affected tests from staged changes
+  strike       ⚡ Execute affected tests automatically
+  critical     📊 Show the project risk map (top critical symbols)
+  sync         📦 Distributed index synchronization (--push, --pull)
+
+System Commands:
+  init         Install Scouter hooks
   gain         Show token savings report
   config       Show current configuration
   proxy        Passthrough without filtering
 
+Pipeline Commands:
+  <command>    Run command through scouter filter pipeline
+
 Flags:
-  -v, -vv      Verbose output (stackable)
+  -v, -vv      Verbose output
   -u            Ultra-compact mode
-  --skip-env    Skip environment loading
   --version     Show version
   --help        Show this help
-
-Examples:
-  scouter git log -10
-  scouter go test ./...
-  scouter gain --daily
-  scouter gain --weekly
-  scouter gain --monthly
-  scouter gain --top 10
-  scouter gain --history 20
-  scouter init
 `
 	fmt.Printf(usage, version)
 }
 
-// unproxyableReason returns a human-readable reason if the command cannot be
-// proxied through an external process, or "" if it can.
 func unproxyableReason(command string) string {
 	switch command {
 	case "cd":

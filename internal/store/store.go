@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"iter"
 	"os"
@@ -35,21 +36,28 @@ type Symbol struct {
 
 type CriticalSymbol struct {
 	Symbol
-	Centrality int `json:"centrality"` // Number of incoming calls
-	Fragility  int `json:"fragility"`  // Number of failed tests
+	Centrality int `json:"centrality"`
+	Fragility  int `json:"fragility"`
 }
 
 type Call struct {
 	CallerName string `json:"caller_name"`
 	CalleeName string `json:"callee_name"`
-	CalleePath string `json:"callee_path"` // Added for Impact Analysis
-	LinkType   string `json:"link_type"`   // Added for Impact Analysis
+	CalleePath string `json:"callee_path"`
+	LinkType   string `json:"link_type"`
 	Path       string `json:"path"`
 	Line       int    `json:"line"`
 }
 
+// SovereignDelta represents the index data for a single file, stable for Git.
+type SovereignDelta struct {
+	Path    string   `json:"path"`
+	Hash    string   `json:"hash"`
+	Symbols []Symbol `json:"symbols"`
+	Calls   []Call   `json:"calls"`
+}
+
 // Repository defines the interface for the Scouter database operations.
-// It supports indexing files, symbols, calls, and dependencies.
 type Repository interface {
 	GetFileIndex(ctx context.Context, path string) (*FileIndex, error)
 	SaveFileIndex(ctx context.Context, idx *FileIndex) error
@@ -60,6 +68,8 @@ type Repository interface {
 	GetSymbolsByRange(ctx context.Context, path string, startLine, endLine int) ([]Symbol, error)
 	GetCriticalSymbols(ctx context.Context, limit int) ([]CriticalSymbol, error)
 	ResolveInterfaces(ctx context.Context) error
+	ExportDelta(ctx context.Context, syncDir string) error
+	ImportDelta(ctx context.Context, syncDir string) error
 	SaveCall(ctx context.Context, call Call) error
 	GetCallers(ctx context.Context, calleeName string) ([]Call, error)
 	GetCallees(ctx context.Context, callerName string) ([]Call, error)
@@ -91,7 +101,6 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	// Task 1: Move pragmas to DSN
 	dsn := fmt.Sprintf("%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)", dbPath)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -103,7 +112,6 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 		db.Close()
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	// Task 2: defer Rollback for safety
 	defer tx.Rollback()
 
 	if err := migrate(ctx, tx); err != nil {
@@ -139,7 +147,6 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 
-	// Universal Migration: Ensure columns exist in base table
 	hasDoc, err := hasColumn(ctx, tx, "symbols", "doc")
 	if err != nil {
 		return fmt.Errorf("failed to check column symbols.doc: %w", err)
@@ -148,7 +155,6 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN doc TEXT;"); err != nil {
 			return fmt.Errorf("failed to alter table symbols: %w", err)
 		}
-		// Re-create triggers because they depend on the 'doc' column
 		triggerQueries := []string{
 			`DROP TRIGGER IF EXISTS symbols_ai;`,
 			`DROP TRIGGER IF EXISTS symbols_ad;`,
@@ -361,8 +367,6 @@ func (s *Store) GetCriticalSymbols(ctx context.Context, limit int) ([]CriticalSy
 }
 
 func (s *Store) ResolveInterfaces(ctx context.Context) error {
-	// 1. Get all interfaces and their required methods (method_spec)
-	// format: interfaceName -> []methodName
 	interfaces := make(map[string][]string)
 	rows, err := s.query(ctx, "SELECT name FROM symbols WHERE type = 'method_spec'")
 	if err != nil {
@@ -378,8 +382,6 @@ func (s *Store) ResolveInterfaces(ctx context.Context) error {
 	}
 	rows.Close()
 
-	// 2. Get all structs (class) and their methods
-	// format: structName -> []methodName
 	structs := make(map[string][]string)
 	structPaths := make(map[string]string)
 	rows, err = s.query(ctx, "SELECT name, path FROM symbols WHERE type = 'method'")
@@ -397,11 +399,10 @@ func (s *Store) ResolveInterfaces(ctx context.Context) error {
 	}
 	rows.Close()
 
-	// 3. Match contracts (Duck Typing Engine)
 	return s.WithTransaction(ctx, func(txCtx context.Context, tx Repository) error {
 		for iface, requiredMethods := range interfaces {
 			for strct, actualMethods := range structs {
-				if strct == iface { continue } // Skip self-reference if any
+				if strct == iface { continue }
 				
 				matches := 0
 				for _, req := range requiredMethods {
@@ -413,9 +414,7 @@ func (s *Store) ResolveInterfaces(ctx context.Context) error {
 					}
 				}
 
-				// If struct implements all methods of the interface
 				if matches == len(requiredMethods) && len(requiredMethods) > 0 {
-					// Create implements link: Struct -> Interface
 					tx.SaveCall(txCtx, Call{
 						CallerName: strct,
 						CalleeName: iface,
@@ -426,6 +425,82 @@ func (s *Store) ResolveInterfaces(ctx context.Context) error {
 			}
 		}
 		return nil
+	})
+}
+
+func (s *Store) ExportDelta(ctx context.Context, syncDir string) error {
+	if err := os.MkdirAll(syncDir, 0755); err != nil {
+		return err
+	}
+
+	paths, err := s.GetAllFilePaths(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, p := range paths {
+		idx, err := s.GetFileIndex(ctx, p)
+		if err != nil { continue }
+
+		symbols, _ := s.GetSymbolsByRange(ctx, p, 0, 999999)
+		
+		rows, _ := s.query(ctx, "SELECT caller_name, callee_name, path, line, callee_path, link_type FROM calls WHERE path = ?", p)
+		var calls []Call
+		if rows != nil {
+			for rows.Next() {
+				var c Call
+				rows.Scan(&c.CallerName, &c.CalleeName, &c.Path, &c.Line, &c.CalleePath, &c.LinkType)
+				calls = append(calls, c)
+			}
+			rows.Close()
+		}
+
+		delta := SovereignDelta{
+			Path:    p,
+			Hash:    idx.Hash,
+			Symbols: symbols,
+			Calls:   calls,
+		}
+
+		// Use a sanitized path for the filename
+		relPath, _ := filepath.Rel("/", p)
+		if relPath == "" { relPath = filepath.Base(p) }
+		syncFile := filepath.Join(syncDir, strings.ReplaceAll(relPath, "/", "_")+".json")
+		
+		data, _ := json.MarshalIndent(delta, "", "  ")
+		os.WriteFile(syncFile, data, 0644)
+	}
+	return nil
+}
+
+func (s *Store) ImportDelta(ctx context.Context, syncDir string) error {
+	return filepath.Walk(syncDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || filepath.Ext(path) != ".json" {
+			return nil
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil { return nil }
+
+		var delta SovereignDelta
+		if err := json.Unmarshal(data, &delta); err != nil { return nil }
+
+		return s.WithTransaction(ctx, func(txCtx context.Context, tx Repository) error {
+			tx.SaveFileIndex(txCtx, &FileIndex{
+				Path: delta.Path,
+				Hash: delta.Hash,
+				ASTJSON: "{}", // Not needed for Delta Sync
+			})
+			tx.ClearSymbols(txCtx, delta.Path)
+			tx.ClearCalls(txCtx, delta.Path)
+			for _, sym := range delta.Symbols {
+				tx.SaveSymbol(txCtx, &sym)
+			}
+			for _, call := range delta.Calls {
+				tx.SaveCall(txCtx, call)
+			}
+			return nil
+		})
 	})
 }
 

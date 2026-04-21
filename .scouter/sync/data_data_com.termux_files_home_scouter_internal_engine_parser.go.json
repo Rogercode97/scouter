@@ -1,0 +1,728 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+  "hash": "a89b8ee6280c288212313a5253866d9110f0cfab08929be2986561706b8dc056",
+  "symbols": [
+    {
+      "name": "ParseFile",
+      "type": "function",
+      "doc": "ParseFile analyzes a file using the AST engine to index its structure and call graph.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "start_byte": 530,
+      "end_byte": 6461,
+      "start_line": 26,
+      "end_line": 227
+    },
+    {
+      "name": "funcCtx",
+      "type": "class",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "start_byte": 1412,
+      "end_byte": 1507,
+      "start_line": 56,
+      "end_line": 60
+    },
+    {
+      "name": "resolveCallee",
+      "type": "function",
+      "doc": "resolveCallee attempts to get the name and potential path of the function being called.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "start_byte": 6554,
+      "end_byte": 6778,
+      "start_line": 230,
+      "end_line": 239
+    },
+    {
+      "name": "ReadFragment",
+      "type": "function",
+      "doc": "ReadFragment reads a specific code fragment and validates it against its expected hash.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "start_byte": 6871,
+      "end_byte": 8547,
+      "start_line": 242,
+      "end_line": 297
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "ParseFile",
+      "callee_name": "Done",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 29
+    },
+    {
+      "caller_name": "ParseFile",
+      "callee_name": "Err",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 30
+    },
+    {
+      "caller_name": "ParseFile",
+      "callee_name": "ValidatePath",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 35
+    },
+    {
+      "caller_name": "ParseFile",
+      "callee_name": "Stat",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 41
+    },
+    {
+      "caller_name": "ParseFile",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 43
+    },
+    {
+      "caller_name": "ParseFile",
+      "callee_name": "Size",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 45
+    },
+    {
+      "caller_name": "ParseFile",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 46
+    },
+    {
+      "caller_name": "ParseFile",
+      "callee_name": "Size",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 46
+    },
+    {
+      "caller_name": "ParseFile",
+      "callee_name": "NewFileSet",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 50
+    },
+    {
+      "caller_name": "ParseFile",
+      "callee_name": "ParseFile",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 51
+    },
+    {
+      "caller_name": "ParseFile",
+      "callee_name": "Inspect",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 63
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 69
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 70
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Pos",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 71
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 72
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Position",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 80
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Pos",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 80
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Position",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 81
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "End",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 81
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "CleanComment",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 82
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Text",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 82
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 88
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Sprintf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 104
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Sum256",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 105
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "append",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 106
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "EncodeToString",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 113
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "append",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 115
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "End",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 117
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 134
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Position",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 137
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Pos",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 137
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Position",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 138
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "End",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 138
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "append",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 139
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "HashString",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 145
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Sprintf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 145
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Position",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 154
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Pos",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 154
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Position",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 155
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "End",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 155
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "CleanComment",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 156
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Text",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 156
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "CleanComment",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 158
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Text",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 158
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Sprintf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 161
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Sum256",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 162
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "append",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 163
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "EncodeToString",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 170
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 179
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 180
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Sprintf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 183
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "append",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 184
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "End",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 186
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "append",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 189
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "End",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 191
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 198
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 199
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "resolveCallee",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 200
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "append",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 202
+    },
+    {
+      "caller_name": "ParseFile.func1",
+      "callee_name": "Position",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 208
+    },
+    {
+      "caller_name": "ParseFile",
+      "callee_name": "ParseWithTreeSitter",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 221
+    },
+    {
+      "caller_name": "ParseFile",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 226
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Done",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 244
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Err",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 245
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "ValidatePath",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 249
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Unmarshal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 255
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 256
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 261
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Open",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 264
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 266
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 268
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Stat",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 270
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 272
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "int64",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 275
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Size",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 275
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 276
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "make",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 279
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "ReadAt",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 280
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "int64",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 280
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 282
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Valid",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 285
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 286
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "CalculateHash",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 290
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 292
+    },
+    {
+      "caller_name": "ReadFragment",
+      "callee_name": "string",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/parser.go",
+      "line": 296
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/types/types.go",
+  "hash": "359ebd51703f686e90c19b13305d7e5839ad830cf799caba1506a4ab8a2862b7",
+  "symbols": [
+    {
+      "name": "Range",
+      "type": "class",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/types/types.go",
+      "start_byte": 20,
+      "end_byte": 128,
+      "start_line": 3,
+      "end_line": 6
+    },
+    {
+      "name": "ASTPointer",
+      "type": "class",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/types/types.go",
+      "start_byte": 135,
+      "end_byte": 588,
+      "start_line": 8,
+      "end_line": 16
+    },
+    {
+      "name": "ASTCall",
+      "type": "class",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/types/types.go",
+      "start_byte": 595,
+      "end_byte": 1004,
+      "start_line": 18,
+      "end_line": 25
+    },
+    {
+      "name": "ImpactResult",
+      "type": "class",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/types/types.go",
+      "start_byte": 1011,
+      "end_byte": 1169,
+      "start_line": 27,
+      "end_line": 32
+    },
+    {
+      "name": "Dependency",
+      "type": "class",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/types/types.go",
+      "start_byte": 1176,
+      "end_byte": 1481,
+      "start_line": 34,
+      "end_line": 40
+    },
+    {
+      "name": "TestResult",
+      "type": "class",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/types/types.go",
+      "start_byte": 1488,
+      "end_byte": 1914,
+      "start_line": 42,
+      "end_line": 50
+    },
+    {
+      "name": "TestEvent",
+      "type": "class",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/types/types.go",
+      "start_byte": 1921,
+      "end_byte": 2223,
+      "start_line": 52,
+      "end_line": 59
+    }
+  ],
+  "calls": null
+}

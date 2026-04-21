@@ -1,0 +1,170 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+  "hash": "a4891c0cef130d432befd6cab2fe8be3c94058ed1a8bf1729991e1e029903116",
+  "symbols": [
+    {
+      "name": "clientEntry",
+      "type": "class",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "start_byte": 62,
+      "end_byte": 134,
+      "start_line": 9,
+      "end_line": 13
+    },
+    {
+      "name": "Manager",
+      "type": "class",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "start_byte": 141,
+      "end_byte": 328,
+      "start_line": 15,
+      "end_line": 21
+    },
+    {
+      "name": "NewManager",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "start_byte": 330,
+      "end_byte": 457,
+      "start_line": 23,
+      "end_line": 28
+    },
+    {
+      "name": "GetClient",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "start_byte": 459,
+      "end_byte": 1255,
+      "start_line": 30,
+      "end_line": 68
+    },
+    {
+      "name": "Close",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "start_byte": 1257,
+      "end_byte": 1475,
+      "start_line": 70,
+      "end_line": 81
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "NewManager",
+      "callee_name": "make",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 25
+    },
+    {
+      "caller_name": "GetClient",
+      "callee_name": "Ext",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 31
+    },
+    {
+      "caller_name": "GetClient",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 42
+    },
+    {
+      "caller_name": "GetClient",
+      "callee_name": "RLock",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 45
+    },
+    {
+      "caller_name": "GetClient",
+      "callee_name": "RUnlock",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 47
+    },
+    {
+      "caller_name": "GetClient",
+      "callee_name": "Lock",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 50
+    },
+    {
+      "caller_name": "GetClient",
+      "callee_name": "Unlock",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 56
+    },
+    {
+      "caller_name": "GetClient",
+      "callee_name": "Do",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 59
+    },
+    {
+      "caller_name": "GetClient.func1",
+      "callee_name": "clientCreator",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 60
+    },
+    {
+      "caller_name": "GetClient",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 64
+    },
+    {
+      "caller_name": "Close",
+      "callee_name": "Lock",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 71
+    },
+    {
+      "caller_name": "Close",
+      "callee_name": "Unlock",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 72
+    },
+    {
+      "caller_name": "Close",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 76
+    },
+    {
+      "caller_name": "Close",
+      "callee_name": "make",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/manager.go",
+      "line": 79
+    }
+  ]
+}

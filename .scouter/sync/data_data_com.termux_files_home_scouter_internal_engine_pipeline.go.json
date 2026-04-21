@@ -1,0 +1,336 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+  "hash": "21d5867421dc304127e835a7b2d7c2f886bcc3ff4cffc7a56dded35ca7245789",
+  "symbols": [
+    {
+      "name": "Pipeline",
+      "type": "class",
+      "doc": "Pipeline orchestrates command execution, filtering, tracking, and tee.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "start_byte": 342,
+      "end_byte": 487,
+      "start_line": 16,
+      "end_line": 22
+    },
+    {
+      "name": "Run",
+      "type": "function",
+      "doc": "Run executes a command through the full pipeline.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "start_byte": 542,
+      "end_byte": 2771,
+      "start_line": 25,
+      "end_line": 103
+    },
+    {
+      "name": "Passthrough",
+      "type": "function",
+      "doc": "Passthrough runs a command directly without filtering.\nPassthrough commands are not tracked because the output goes directly\nto stdout — scouter never captures it, so token counts would be 0/0.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "start_byte": 2978,
+      "end_byte": 3206,
+      "start_line": 108,
+      "end_line": 116
+    },
+    {
+      "name": "ApplyPipeline",
+      "type": "function",
+      "doc": "ApplyPipeline executes filter actions sequentially.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "start_byte": 3263,
+      "end_byte": 4131,
+      "start_line": 119,
+      "end_line": 152
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "Run",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 29
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Match",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 35
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Fprintf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 39
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Passthrough",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 40
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "ShouldInject",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 46
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "WarmUp",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 52
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Start",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 56
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Execute",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 59
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Fprintf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 63
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Passthrough",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 65
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "ApplyPipeline",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 70
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Fprintf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 74
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "MaybeSave",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 80
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Print",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 83
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Fprintln",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 85
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Fprint",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 88
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "EstimateTokens",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 92
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 94
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 95
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "EstimateTokens",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 96
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Track",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 97
+    },
+    {
+      "caller_name": "Run",
+      "callee_name": "Fprintf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 98
+    },
+    {
+      "caller_name": "Passthrough",
+      "callee_name": "Passthrough",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 109
+    },
+    {
+      "caller_name": "Passthrough",
+      "callee_name": "Fprintf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 111
+    },
+    {
+      "caller_name": "ApplyPipeline",
+      "callee_name": "Split",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 120
+    },
+    {
+      "caller_name": "ApplyPipeline",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 122
+    },
+    {
+      "caller_name": "ApplyPipeline",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 122
+    },
+    {
+      "caller_name": "ApplyPipeline",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 123
+    },
+    {
+      "caller_name": "ApplyPipeline",
+      "callee_name": "make",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 128
+    },
+    {
+      "caller_name": "ApplyPipeline",
+      "callee_name": "Done",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 134
+    },
+    {
+      "caller_name": "ApplyPipeline",
+      "callee_name": "Err",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 135
+    },
+    {
+      "caller_name": "ApplyPipeline",
+      "callee_name": "GetAction",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 139
+    },
+    {
+      "caller_name": "ApplyPipeline",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 141
+    },
+    {
+      "caller_name": "ApplyPipeline",
+      "callee_name": "fn",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 145
+    },
+    {
+      "caller_name": "ApplyPipeline",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 147
+    },
+    {
+      "caller_name": "ApplyPipeline",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/pipeline.go",
+      "line": 151
+    }
+  ]
+}

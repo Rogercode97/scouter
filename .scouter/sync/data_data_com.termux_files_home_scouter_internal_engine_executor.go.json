@@ -1,0 +1,288 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+  "hash": "b523afa56245ac085f183914722c3e4342b00fec5f2ae94b11e591cc88988f1f",
+  "symbols": [
+    {
+      "name": "Result",
+      "type": "class",
+      "doc": "Result holds the output of a command execution.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "start_byte": 144,
+      "end_byte": 233,
+      "start_line": 14,
+      "end_line": 19
+    },
+    {
+      "name": "makeCommand",
+      "type": "function",
+      "doc": "makeCommand creates an exec.Cmd, wrapping shell built-ins with sh -c\nso they can be executed. Shell built-ins like \"export\" have no binary\nin $PATH and would fail with exec.Command directly.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "start_byte": 851,
+      "end_byte": 1199,
+      "start_line": 43,
+      "end_line": 51
+    },
+    {
+      "name": "Execute",
+      "type": "function",
+      "doc": "Execute runs a command, capturing stdout and stderr concurrently via goroutines.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "start_byte": 1285,
+      "end_byte": 2523,
+      "start_line": 54,
+      "end_line": 106
+    },
+    {
+      "name": "Passthrough",
+      "type": "function",
+      "doc": "Passthrough runs a command with inherited stdio (no capture).",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "start_byte": 2590,
+      "end_byte": 2972,
+      "start_line": 109,
+      "end_line": 123
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "makeCommand",
+      "callee_name": "make",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 45
+    },
+    {
+      "caller_name": "makeCommand",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 45
+    },
+    {
+      "caller_name": "makeCommand",
+      "callee_name": "append",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 46
+    },
+    {
+      "caller_name": "makeCommand",
+      "callee_name": "append",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 47
+    },
+    {
+      "caller_name": "makeCommand",
+      "callee_name": "CommandContext",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 48
+    },
+    {
+      "caller_name": "makeCommand",
+      "callee_name": "CommandContext",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 50
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "Now",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 55
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "makeCommand",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 57
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "StdoutPipe",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 62
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 64
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "StderrPipe",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 66
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 68
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "Start",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 71
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 72
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "Add",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 77
+    },
+    {
+      "caller_name": "Execute.func1",
+      "callee_name": "Done",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 80
+    },
+    {
+      "caller_name": "Execute.func1",
+      "callee_name": "ReadFrom",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 81
+    },
+    {
+      "caller_name": "Execute.func2",
+      "callee_name": "Done",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 84
+    },
+    {
+      "caller_name": "Execute.func2",
+      "callee_name": "ReadFrom",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 85
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "Wait",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 88
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "Wait",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 91
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "ExitCode",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 94
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 96
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "String",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 101
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "String",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 102
+    },
+    {
+      "caller_name": "Execute",
+      "callee_name": "Since",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 104
+    },
+    {
+      "caller_name": "Passthrough",
+      "callee_name": "makeCommand",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 110
+    },
+    {
+      "caller_name": "Passthrough",
+      "callee_name": "Run",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 115
+    },
+    {
+      "caller_name": "Passthrough",
+      "callee_name": "ExitCode",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 118
+    },
+    {
+      "caller_name": "Passthrough",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/executor.go",
+      "line": 120
+    }
+  ]
+}

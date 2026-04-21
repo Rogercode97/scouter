@@ -29,3 +29,4 @@ func HashString(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return fmt.Sprintf("%x", h[:])
 }
+// Shadow Indexing Test

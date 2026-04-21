@@ -1,0 +1,218 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+  "hash": "c49d2a9bf335b734eb5057319e38d13a68f381f2fcba1659228973087286f790",
+  "symbols": [
+    {
+      "name": "TestJSONRPCClient",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "start_byte": 105,
+      "end_byte": 2615,
+      "start_line": 14,
+      "end_line": 108
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "TestJSONRPCClient",
+      "callee_name": "Pipe",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 18
+    },
+    {
+      "caller_name": "TestJSONRPCClient",
+      "callee_name": "Pipe",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 19
+    },
+    {
+      "caller_name": "TestJSONRPCClient",
+      "callee_name": "WithTimeout",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 21
+    },
+    {
+      "caller_name": "TestJSONRPCClient",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 21
+    },
+    {
+      "caller_name": "TestJSONRPCClient",
+      "callee_name": "cancel",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 22
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "NewReader",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 26
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "ReadString",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 30
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "TrimSpace",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 34
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "HasPrefix",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 38
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "Sscanf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 39
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "make",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 47
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "ReadFull",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 48
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "Unmarshal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 54
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "RawMessage",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 65
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "RawMessage",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 67
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "RawMessage",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 69
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "Marshal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 72
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "Fprintf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 73
+    },
+    {
+      "caller_name": "TestJSONRPCClient.func1",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 73
+    },
+    {
+      "caller_name": "TestJSONRPCClient",
+      "callee_name": "make",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 80
+    },
+    {
+      "caller_name": "TestJSONRPCClient",
+      "callee_name": "listen",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 82
+    },
+    {
+      "caller_name": "TestJSONRPCClient",
+      "callee_name": "Definition",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 100
+    },
+    {
+      "caller_name": "TestJSONRPCClient",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 102
+    },
+    {
+      "caller_name": "TestJSONRPCClient",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 105
+    },
+    {
+      "caller_name": "TestJSONRPCClient",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/lsp/client_test.go",
+      "line": 106
+    }
+  ]
+}

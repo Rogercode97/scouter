@@ -1,0 +1,192 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+  "hash": "5012306dc07b5270064e792a0014f27b1697d1e89f8bd3d20b9307a710cd48b6",
+  "symbols": [
+    {
+      "name": "mockStore",
+      "type": "class",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "start_byte": 116,
+      "end_byte": 164,
+      "start_line": 11,
+      "end_line": 13
+    },
+    {
+      "name": "SaveTestResult",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "start_byte": 166,
+      "end_byte": 303,
+      "start_line": 15,
+      "end_line": 18
+    },
+    {
+      "name": "TestHealthEngine_Ingest",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "start_byte": 305,
+      "end_byte": 1929,
+      "start_line": 20,
+      "end_line": 57
+    },
+    {
+      "name": "TestMapToSymbol",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "start_byte": 1931,
+      "end_byte": 2385,
+      "start_line": 59,
+      "end_line": 76
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "SaveTestResult",
+      "callee_name": "append",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 16
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "NewHealthEngine",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 30
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "Ingest",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 32
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 32
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "NewReader",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 32
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 34
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 37
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 38
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 38
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 43
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 46
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 49
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "Contains",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 51
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 52
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "Contains",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 54
+    },
+    {
+      "caller_name": "TestHealthEngine_Ingest",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 55
+    },
+    {
+      "caller_name": "TestMapToSymbol",
+      "callee_name": "mapToSymbol",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 71
+    },
+    {
+      "caller_name": "TestMapToSymbol",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health_test.go",
+      "line": 73
+    }
+  ]
+}

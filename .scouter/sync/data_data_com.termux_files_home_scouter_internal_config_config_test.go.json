@@ -1,0 +1,424 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+  "hash": "a3bbd2b3f38d5cb1c727d58a72c008eb458293fe76e2f89db272ea4427ed29dd",
+  "symbols": [
+    {
+      "name": "TestDefaultConfig",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "start_byte": 73,
+      "end_byte": 483,
+      "start_line": 10,
+      "end_line": 25
+    },
+    {
+      "name": "TestLoadMissingFile",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "start_byte": 485,
+      "end_byte": 818,
+      "start_line": 27,
+      "end_line": 37
+    },
+    {
+      "name": "TestLoadFromFile",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "start_byte": 820,
+      "end_byte": 1549,
+      "start_line": 39,
+      "end_line": 70
+    },
+    {
+      "name": "TestMigrate",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "start_byte": 1551,
+      "end_byte": 2859,
+      "start_line": 72,
+      "end_line": 123
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "TestDefaultConfig",
+      "callee_name": "DefaultConfig",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 11
+    },
+    {
+      "caller_name": "TestDefaultConfig",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 14
+    },
+    {
+      "caller_name": "TestDefaultConfig",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 17
+    },
+    {
+      "caller_name": "TestDefaultConfig",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 20
+    },
+    {
+      "caller_name": "TestDefaultConfig",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 23
+    },
+    {
+      "caller_name": "TestLoadMissingFile",
+      "callee_name": "Setenv",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 28
+    },
+    {
+      "caller_name": "TestLoadMissingFile",
+      "callee_name": "Load",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 30
+    },
+    {
+      "caller_name": "TestLoadMissingFile",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 30
+    },
+    {
+      "caller_name": "TestLoadMissingFile",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 32
+    },
+    {
+      "caller_name": "TestLoadMissingFile",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 35
+    },
+    {
+      "caller_name": "TestLoadFromFile",
+      "callee_name": "TempDir",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 40
+    },
+    {
+      "caller_name": "TestLoadFromFile",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 41
+    },
+    {
+      "caller_name": "TestLoadFromFile",
+      "callee_name": "WriteFile",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 51
+    },
+    {
+      "caller_name": "TestLoadFromFile",
+      "callee_name": "Fatal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 52
+    },
+    {
+      "caller_name": "TestLoadFromFile",
+      "callee_name": "Setenv",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 55
+    },
+    {
+      "caller_name": "TestLoadFromFile",
+      "callee_name": "Load",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 57
+    },
+    {
+      "caller_name": "TestLoadFromFile",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 57
+    },
+    {
+      "caller_name": "TestLoadFromFile",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 59
+    },
+    {
+      "caller_name": "TestLoadFromFile",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 62
+    },
+    {
+      "caller_name": "TestLoadFromFile",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 65
+    },
+    {
+      "caller_name": "TestLoadFromFile",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 68
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "TempDir",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 73
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Setenv",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 74
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 76
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 77
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "MkdirAll",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 79
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Fatal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 81
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "MkdirAll",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 83
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Dir",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 83
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Fatal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 85
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "WriteFile",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 92
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 92
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Fatal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 94
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "WriteFile",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 96
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Fatal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 98
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Migrate",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 102
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 102
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 104
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 107
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Stat",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 108
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 109
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Stat",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 112
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 112
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 113
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 117
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Stat",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 120
+    },
+    {
+      "caller_name": "TestMigrate",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/config/config_test.go",
+      "line": 121
+    }
+  ]
+}

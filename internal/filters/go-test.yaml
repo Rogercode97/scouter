@@ -5,11 +5,10 @@ description: "Condensed go test output with pass/fail summary"
 match:
   command: "go"
   subcommand: "test"
-  exclude_flags: ["-json", "-v", "-bench", "-run"]
 
 inject:
   args: ["-json"]
-  skip_if_present: ["-json", "-v", "-bench"]
+  skip_if_present: ["-json"]
 
 pipeline:
   - action: "keep_lines"

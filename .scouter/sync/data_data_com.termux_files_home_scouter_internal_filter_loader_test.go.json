@@ -1,0 +1,280 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+  "hash": "8804009d01469a7caa75e8d0169018eb3ce9a85bc1af0487d77aa303a109cc0f",
+  "symbols": [
+    {
+      "name": "TestLoadUserFilters",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "start_byte": 62,
+      "end_byte": 651,
+      "start_line": 9,
+      "end_line": 36
+    },
+    {
+      "name": "TestLoadUserFiltersMissingDir",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "start_byte": 653,
+      "end_byte": 907,
+      "start_line": 38,
+      "end_line": 46
+    },
+    {
+      "name": "TestLoadUserFiltersSkipsInvalid",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "start_byte": 909,
+      "end_byte": 1312,
+      "start_line": 48,
+      "end_line": 63
+    },
+    {
+      "name": "TestLoadAllUserOverridesEmbedded",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "start_byte": 1314,
+      "end_byte": 1979,
+      "start_line": 65,
+      "end_line": 98
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "TestLoadUserFilters",
+      "callee_name": "TempDir",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 10
+    },
+    {
+      "caller_name": "TestLoadUserFilters",
+      "callee_name": "WriteFile",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 22
+    },
+    {
+      "caller_name": "TestLoadUserFilters",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 22
+    },
+    {
+      "caller_name": "TestLoadUserFilters",
+      "callee_name": "Fatal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 23
+    },
+    {
+      "caller_name": "TestLoadUserFilters",
+      "callee_name": "LoadUserFilters",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 26
+    },
+    {
+      "caller_name": "TestLoadUserFilters",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 28
+    },
+    {
+      "caller_name": "TestLoadUserFilters",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 30
+    },
+    {
+      "caller_name": "TestLoadUserFilters",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 31
+    },
+    {
+      "caller_name": "TestLoadUserFilters",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 31
+    },
+    {
+      "caller_name": "TestLoadUserFilters",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 34
+    },
+    {
+      "caller_name": "TestLoadUserFiltersMissingDir",
+      "callee_name": "LoadUserFilters",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 39
+    },
+    {
+      "caller_name": "TestLoadUserFiltersMissingDir",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 41
+    },
+    {
+      "caller_name": "TestLoadUserFiltersMissingDir",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 44
+    },
+    {
+      "caller_name": "TestLoadUserFiltersSkipsInvalid",
+      "callee_name": "TempDir",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 49
+    },
+    {
+      "caller_name": "TestLoadUserFiltersSkipsInvalid",
+      "callee_name": "WriteFile",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 52
+    },
+    {
+      "caller_name": "TestLoadUserFiltersSkipsInvalid",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 52
+    },
+    {
+      "caller_name": "TestLoadUserFiltersSkipsInvalid",
+      "callee_name": "Fatal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 53
+    },
+    {
+      "caller_name": "TestLoadUserFiltersSkipsInvalid",
+      "callee_name": "LoadUserFilters",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 56
+    },
+    {
+      "caller_name": "TestLoadUserFiltersSkipsInvalid",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 58
+    },
+    {
+      "caller_name": "TestLoadUserFiltersSkipsInvalid",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 60
+    },
+    {
+      "caller_name": "TestLoadUserFiltersSkipsInvalid",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 61
+    },
+    {
+      "caller_name": "TestLoadUserFiltersSkipsInvalid",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 61
+    },
+    {
+      "caller_name": "TestLoadAllUserOverridesEmbedded",
+      "callee_name": "TempDir",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 66
+    },
+    {
+      "caller_name": "TestLoadAllUserOverridesEmbedded",
+      "callee_name": "WriteFile",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 79
+    },
+    {
+      "caller_name": "TestLoadAllUserOverridesEmbedded",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 79
+    },
+    {
+      "caller_name": "TestLoadAllUserOverridesEmbedded",
+      "callee_name": "Fatal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 80
+    },
+    {
+      "caller_name": "TestLoadAllUserOverridesEmbedded",
+      "callee_name": "LoadAll",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 83
+    },
+    {
+      "caller_name": "TestLoadAllUserOverridesEmbedded",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 85
+    },
+    {
+      "caller_name": "TestLoadAllUserOverridesEmbedded",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/filter/loader_test.go",
+      "line": 96
+    }
+  ]
+}

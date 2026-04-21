@@ -1,0 +1,74 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/utils/security.go",
+  "hash": "dea466b1acbcaa804d93314ed3727eb543b78e844ddb1950986b127e230f7fa3",
+  "symbols": [
+    {
+      "name": "ValidatePath",
+      "type": "function",
+      "doc": "ValidatePath ensures the filePath is absolute, resolved (no symlink tricks),\nand stays within the allowed home directory.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/security.go",
+      "start_byte": 196,
+      "end_byte": 838,
+      "start_line": 12,
+      "end_line": 31
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "ValidatePath",
+      "callee_name": "Abs",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/security.go",
+      "line": 13
+    },
+    {
+      "caller_name": "ValidatePath",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/security.go",
+      "line": 15
+    },
+    {
+      "caller_name": "ValidatePath",
+      "callee_name": "EvalSymlinks",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/security.go",
+      "line": 19
+    },
+    {
+      "caller_name": "ValidatePath",
+      "callee_name": "UserHomeDir",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/security.go",
+      "line": 25
+    },
+    {
+      "caller_name": "ValidatePath",
+      "callee_name": "HasPrefix",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/security.go",
+      "line": 26
+    },
+    {
+      "caller_name": "ValidatePath",
+      "callee_name": "HasPrefix",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/security.go",
+      "line": 26
+    },
+    {
+      "caller_name": "ValidatePath",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/security.go",
+      "line": 27
+    }
+  ]
+}
