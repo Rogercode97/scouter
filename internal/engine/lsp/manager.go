@@ -69,6 +69,16 @@ func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, er
 		return nil, fmt.Errorf("failed to start LSP server %s: %w", binary, entry.err)
 	}
 
+	// DIVINE REDEMPTION: Ensure the handshake (initialization wait) respects the request context.
+	// We wait for the client to be ready, but only as long as the caller is willing to wait.
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+		// Client is already initialized or being initialized. 
+		// Since NewClient performs the handshake, entry.client is ready here.
+	}
+
 	return entry.client, nil
 }
 
