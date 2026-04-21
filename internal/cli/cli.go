@@ -93,6 +93,17 @@ func Run(ctx context.Context, args []string) int {
 		fmt.Printf("filters.dir: %s\n", cfg.Filters.Dir)
 		return 0
 
+	case "setup":
+		if len(cmdArgs) < 1 {
+			fmt.Println("Usage: scouter setup <agent>")
+			return 1
+		}
+		if cmdArgs[0] == "gemini-cli" {
+			installGeminiCLI()
+			return 0
+		}
+		return 1
+
 	case "proxy":
 		if len(cmdArgs) == 0 {
 			display.PrintError("proxy requires a command argument")
@@ -411,4 +422,37 @@ func BuildCommandString(command string, args []string) string {
 		return command
 	}
 	return command + " " + strings.Join(args, " ")
+}
+
+func installGeminiCLI() {
+	home, _ := os.UserHomeDir()
+	configPath := filepath.Join(home, ".gemini", "settings.json")
+	binPath, _ := filepath.Abs(os.Args[0])
+
+	var config map[string]interface{}
+	data, err := os.ReadFile(configPath)
+	if err == nil {
+		json.Unmarshal(data, &config)
+	} else {
+		config = make(map[string]interface{})
+	}
+
+	mcpServers, ok := config["mcpServers"].(map[string]interface{})
+	if !ok {
+		mcpServers = make(map[string]interface{})
+		config["mcpServers"] = mcpServers
+	}
+
+	mcpServers["scouter"] = map[string]interface{}{
+		"command": binPath,
+		"args":    []string{"mcp"},
+		"trust":   true,
+	}
+
+	newData, _ := json.MarshalIndent(config, "", "  ")
+	if err := os.WriteFile(configPath, newData, 0644); err != nil {
+		fmt.Printf("❌ Error saving config: %v\n", err)
+		return
+	}
+	fmt.Printf("✅ Scouter integrated with Gemini CLI (with trust: true)!\n")
 }

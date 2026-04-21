@@ -43,3 +43,10 @@
 <!-- gentle-ai:strict-tdd-mode -->
 Strict TDD Mode: enabled
 <!-- /gentle-ai:strict-tdd-mode -->
+
+<!-- gentle-ai:scouter-mandate -->
+## VI. SCOUTER TRUTH KERNEL MANDATE
+- **Priority**: Always use Scouter tools ('scouter_search', 'scouter_index', 'scouter_goto_definition', etc.) before falling back to built-in tools like 'grep_search' or 'read_file'.
+- **Signal**: Prefer Scouter's SNR-filtered outputs to minimize token consumption and noise.
+- **Verification**: Use 'scouter_impact' and 'scouter_predict' before proposing any cross-cutting change.
+<!-- /gentle-ai:scouter-mandate -->
