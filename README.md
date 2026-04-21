@@ -1,66 +1,72 @@
-# Scouter 🕶️ (Wave 8.9 — Absolute Sovereignty)
+# Scouter 🕶️ (Wave 8.9 — Truth & Oracle Edition)
 **Status**: Sovereign. Divine Architecture (Go 1.25). Glasswall Validated. Rating 10.0.
 
-**The Omniscient Code Intelligence Engine for AI Agents.**  
-*Recursive Impact Analysis. Predictive Testing. Risk Mapping. Structural Duck-Typing. Ghost Speed.*
+**The Sovereign Truth Kernel (RTK) & Oracle Engine for AI Agents.**  
+*Semantic Omniscience. SNR Filtering. Tee CAS. Predictive Testing. Risk Mapping.*
 
-Scouter gives AI agents (like Gemini CLI, OpenCode, and Claude Code) "X-ray vision" for your codebase. It eliminates token waste by providing surgical access to symbols, cross-file impact analysis, and real-time risk diagnostics.
+Scouter is more than a tool; it is a **Truth Kernel (RTK)** that sits between the OS and your AI agent. It purges noise, amplifies signal, and provides real-time semantic intelligence through an integrated LSP Bridge.
 
-## 🚀 Quick Start
+## 🚀 The Truth Kernel Experience
 
-### 1. Build from source (Go 1.25+)
+### 1. Build & Activate (Go 1.25+)
 ```bash
-go build -o bin/scouter cmd/scouter/main.go
-go build -o bin/index-vault cmd/index-vault/main.go
+go build -o scouter cmd/scouter/main.go
+./scouter init  # Installs the Truth Kernel shell hooks
 ```
 
-### 2. Index the Workspace (Omniscience Mode ⚡)
+### 2. High-Fidelity Signal (SNR)
+Scouter automatically intercepts noisy commands (git, go, npm, etc.) and delivers pure signal to the agent:
 ```bash
-./bin/index-vault
+# Collapses 1000 lines of duplicates and noise into a pure signal
+scouter cat noisy_logs.txt
 ```
 
 ---
 
-## 🏛️ Sovereign Pillars (v2.2.0 — Oracle Edition)
+## 🏛️ Sovereign Pillars (v2.6.1)
 
-Scouter has transcended simple analysis into a predictive risk engine:
+### 1. Truth Kernel (RTK Absorption) 🧬
+**Eliminate Token Waste.** Intercepts command streams using **SNR (Signal-to-Noise Ratio)** filtering.
+- **snr_dedup**: Collapses consecutive duplicate lines into single [xN] counters.
+- **head_tail**: Smart truncation that preserves critical error contexts while cutting middle noise.
+- **Gain Control**: Tiered output verbosity (Compact, Signal, Raw) for budget-conscious agents.
 
-### 1. Predictive Testing (Oracle Engine) 🔮
-**Predict the future of your errors.** Integrates with Git to analyze local changes (`diff HEAD`) and automatically suggest which tests to run based on the affected symbols and their impact radius.
+### 2. Tee CAS (Content-Addressable Storage) 📦
+**The Memory of the Machine.** Stores every unique execution trace using SHA-256 command hashing. No more redundant logs or re-running failed tests just to "see what happened." The agent can query the CAS for previous truths instantly.
 
-### 2. Recursive Impact Analysis (Blast Radius) 🕸️
-Deep visibility into dependency chains. Uses **SQLite Recursive CTEs** to trace calls through multiple levels, identifying exactly how a small change can break distant parts of the system.
+### 3. LSP Bridge (Omniscience v2) 🔮
+**Real-time Semantic Intelligence.** Connects Scouter to Language Servers (gopls, tsserver, pyright). 
+- **Definition & Hover**: High-precision jump-to-source and type resolution across package boundaries.
+- **Cross-Language**: Unified semantic visibility for Go, TypeScript, and Python.
 
-### 3. Risk Mapping (Centrality & Fragility) 📊
-Identifies the "Heart" and the "Glass" of your code. Calculates **Centrality** (indegree) and **Fragility** (test failure history) to pinpoint technical debt and critical refactoring targets.
+### 4. Oracle Engine (Predictive Testing) 🎯
+**Predict the Blast Radius.** Analyzes local changes (`git diff`) and suggests exactly which tests to run. Uses **Recursive CTEs** in SQLite to trace dependencies through infinite levels.
 
-### 4. Interface Sovereignty (Lazo Soberano) 🧬
-Dynamic contract resolution. Automatically links Structs to the Interfaces they implement using structural analysis (Duck Typing), providing visibility into polymorphic call chains.
-
-### 5. Context Sovereignty (Go 1.24+) 🛡️
-Military-grade resource management. 100% compliant with `context.Context` standards and `signal.NotifyContext`, ensuring zero leaks and no `SQLITE_BUSY` deadlocks.
-
-### 6. Semantic Search 🔍
-Intelligent lookups using **BM25 ranking** across names and documentation. Find logic based on concepts (e.g., "db connection") rather than just literal names.
-
-### 7. Ghost Speed ⚡
-Incremental indexing that skips unchanged files using SHA-256 pre-flight hashing. Performance reaches **+750 files/sec**.
+### 5. Glasswall Validation 🛡️
+**Military-grade Integrity.** Every tool call is validated against strict schemas. All file reads are verified via SHA-256 pre-flight checks to prevent "stale-read" hallucinations.
 
 ---
 
-## 🛠️ MCP Toolset (Oracle Edition)
+## 🛠️ MCP & CLI Toolset
 
 | Tool | Capability |
 | :--- | :--- |
-| `scouter_predict` | **Oracle**: Suggests tests based on local Git changes. |
-| `scouter_impact` | **Blast Radius**: Trace the recursive impact of changing a symbol. |
-| `scouter_critical_code` | **Risk Map**: Identify the most central and fragile symbols. |
-| `scouter_index` | Analyze and index file AST, calls, and docs. |
-| `scouter_search` | BM25 semantic search across symbols and documentation. |
-| `scouter_callers` | List all project-wide invocations of a symbol. |
-| `scouter_visualize` | Generate a **Mermaid.js** diagram of dependencies. |
-| `scouter_health` | Diagnose failed tests and linked symbols. |
+| `scouter_goto_definition` | **Omniscience**: Jump to real source definition via LSP. |
+| `scouter_type_info` | **Omniscience**: Resolve precise types and documentation. |
+| `scouter_predict` | **Oracle**: Identify affected tests from local Git changes. |
+| `scouter_impact` | **Blast Radius**: Recursive dependency analysis. |
+| `scouter_critical_code` | **Risk Map**: Identify hotspots (Centrality & Fragility). |
+| `scouter_index` | Deep AST indexing with LSP enrichment. |
+| `scouter_search` | BM25 semantic search across symbols and docs. |
+| `scouter_visualize` | Generate risk-colored **Mermaid.js** call graphs. |
 | `scouter_read` | Surgical fragment reading with SHA-256 validation. |
 
+---
+
+## 🔮 Roadmap (v3.0 — Divine Sovereignty)
+- **Hybrid Search**: Merging BM25 with Local Vector Embeddings (SQLite-VSS).
+- **Agent Sampling**: Enabling Scouter to request reasoning completions from the AI during tool execution.
+- **Real-time Watching**: Instant index updates via LSP file-watcher integration.
+
 ## 📜 License
-MIT — *Omniscience for all.*
+MIT — *The signal must flow.*
