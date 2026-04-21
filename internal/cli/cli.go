@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Rogercode97/scouter/internal/config"
@@ -18,7 +19,7 @@ import (
 )
 
 // version is set at build time via -ldflags "-X ...". Do not reassign.
-var version = "2.5.1"
+var version = "2.6.0"
 
 // Run is the main entry point. Returns exit code.
 func Run(ctx context.Context, args []string) int {
@@ -27,6 +28,7 @@ func Run(ctx context.Context, args []string) int {
 		return 0
 	}
 
+	// 1. Separate Scouter flags from the command/args
 	flags, remaining := ParseFlags(args[1:])
 
 	if flags.Version {
@@ -41,11 +43,7 @@ func Run(ctx context.Context, args []string) int {
 	command := remaining[0]
 	cmdArgs := remaining[1:]
 
-	if reason := unproxyableReason(command); reason != "" {
-		fmt.Fprintf(os.Stderr, "scouter: %s cannot be proxied (%s)\n", command, reason)
-		return 1
-	}
-
+	// 2. Dispatch Built-in Commands
 	switch command {
 	case "init":
 		if err := initcmd.Run(cmdArgs); err != nil {
@@ -66,22 +64,22 @@ func Run(ctx context.Context, args []string) int {
 	case "sync":
 		return runSync(ctx, cmdArgs)
 
+	case "report":
+		return runReport(ctx)
+
 	case "gain":
 		if !telemetry.DriverAvailable {
-			display.PrintError("gain requires full build (this binary was built with -tags lite)")
+			display.PrintError("gain requires full build")
 			return 1
 		}
-		cfg, cfgErr := config.Load(ctx)
-		if cfgErr != nil {
-			cfg = config.DefaultConfig()
-		}
+		cfg, _ := config.Load(ctx)
 		dbPath := telemetry.DBPath(cfg.Tracking.DBPath)
 		tracker, err := telemetry.NewTracker(ctx, dbPath)
 		if err != nil {
 			display.PrintError(err.Error())
 			return 1
 		}
-		defer func() { _ = tracker.Close() }()
+		defer tracker.Close()
 		if err := display.RunGain(tracker, cmdArgs); err != nil {
 			display.PrintError(err.Error())
 			return 1
@@ -89,17 +87,9 @@ func Run(ctx context.Context, args []string) int {
 		return 0
 
 	case "config":
-		cfg, err := config.Load(ctx)
-		if err != nil {
-			display.PrintError(err.Error())
-			return 1
-		}
+		cfg, _ := config.Load(ctx)
 		fmt.Printf("telemetry.db_path: %s\n", cfg.Tracking.DBPath)
 		fmt.Printf("filters.dir: %s\n", cfg.Filters.Dir)
-		fmt.Printf("tee.mode: %s\n", cfg.Tee.Mode)
-		fmt.Printf("tee.max_files: %d\n", cfg.Tee.MaxFiles)
-		fmt.Printf("display.color: %v\n", cfg.Display.Color)
-		fmt.Printf("display.emoji: %v\n", cfg.Display.Emoji)
 		return 0
 
 	case "proxy":
@@ -109,6 +99,12 @@ func Run(ctx context.Context, args []string) int {
 		}
 		p := &engine.Pipeline{}
 		return p.Passthrough(ctx, cmdArgs[0], cmdArgs[1:])
+	}
+
+	// 3. Fallback to Proxy Pipeline
+	if reason := unproxyableReason(command); reason != "" {
+		fmt.Fprintf(os.Stderr, "scouter: %s cannot be proxied (%s)\n", command, reason)
+		return 1
 	}
 
 	return runPipeline(ctx, command, cmdArgs, flags)
@@ -135,8 +131,8 @@ func getOraclePredictions(ctx context.Context) (map[string]bool, error) {
 	fmt.Printf("\n--- 🔮 Oracle Prediction (Staged Changes) ---\n")
 	
 	for _, change := range changes {
-		absPath, _ := os.Getwd()
-		absPath = fmt.Sprintf("%s/%s", absPath, change.Path)
+		cwd, _ := os.Getwd()
+		absPath := filepath.Join(cwd, change.Path)
 		
 		symbols, _ := db.GetSymbolsByRange(ctx, absPath, change.StartLine, change.EndLine)
 		for _, sym := range symbols {
@@ -192,7 +188,6 @@ func runStrike(ctx context.Context, flags Flags) int {
 	runRegex := "^(" + strings.Join(testNames, "|") + ")$"
 	strikeArgs := []string{"test", "-v", "-run", runRegex, "./..."}
 	
-	// DIVINE REDEMPTION: Use the pipeline for Strike so it gets passive health ingestion
 	return runPipeline(ctx, "go", strikeArgs, flags)
 }
 
@@ -230,6 +225,56 @@ func runSync(ctx context.Context, args []string) int {
 		display.PrintError("Invalid sync mode. Use --push or --pull.")
 		return 1
 	}
+	return 0
+}
+
+func runReport(ctx context.Context) int {
+	cfg, _ := config.Load(ctx)
+	db, err := store.New(ctx, cfg.Tracking.DBPath)
+	if err != nil {
+		display.PrintError(err.Error())
+		return 1
+	}
+	defer db.Close()
+
+	fmt.Printf("\n🏛️  --- THE SOVEREIGN RISK REPORT (Wave 8.9) --- 🏛️\n\n")
+
+	files, symbols, _ := db.GetStats(ctx)
+	fmt.Printf("Ecosystem Health:\n")
+	fmt.Printf("  • Total Files Indexados: %d\n", files)
+	fmt.Printf("  • Total Símbolos (AST): %d\n", symbols)
+
+	critical, _ := db.GetCriticalSymbols(ctx, 5)
+	fmt.Printf("\n🔥 Top 5 Critical Hotspots (Impact & Fragility):\n")
+	fmt.Printf("  %-25s | %-10s | %-10s\n", "SYMBOL", "CENTRALITY", "FRAGILITY")
+	fmt.Println("  " + strings.Repeat("-", 50))
+	for _, s := range critical {
+		fmt.Printf("  %-25s | %-10d | %-10d\n", s.Name, s.Centrality, s.Fragility)
+	}
+
+	unused, _ := db.GetUnusedSymbols(ctx, false)
+	fmt.Printf("\n💀 Dead Code Clusters (%d orphan symbols found)\n", len(unused))
+	if len(unused) > 5 {
+		fmt.Printf("  (Displaying top 5 orphans. Use 'scouter dead_code' for full list)\n")
+		unused = unused[:5]
+	}
+	for _, s := range unused {
+		fmt.Printf("  • %s [%s]\n", s.Name, filepath.Base(s.Path))
+	}
+
+	fmt.Printf("\n⚖️  Sovereign Recommendation:\n")
+	if len(critical) > 0 && critical[0].Fragility > 0 {
+		fmt.Printf("  🚨 CRITICAL: Focus on '%s'. High centrality with recent test failures.\n", critical[0].Name)
+		fmt.Printf("  Action: Run 'scouter impact --symbol %s' to map breakages.\n", critical[0].Name)
+	} else if len(unused) > 0 {
+		fmt.Printf("  🧹 CLEANUP: High volume of orphan symbols detected.\n")
+		fmt.Printf("  Action: Initiate SDD cycle to purge technical debt in clusters.\n")
+	} else {
+		fmt.Printf("  🛡️ STABLE: No critical fragility or massive dead code detected.\n")
+		fmt.Printf("  Action: Continue expansion towards v3.0 omniscience.\n")
+	}
+
+	fmt.Println("\n" + strings.Repeat("=", 60))
 	return 0
 }
 
@@ -304,6 +349,7 @@ Intelligence Commands:
   predict      🔮 Identify affected tests from staged changes
   strike       ⚡ Execute affected tests automatically
   critical     📊 Show the project risk map (top critical symbols)
+  report       📋 Generate a full sovereign health diagnostic
   sync         📦 Distributed index synchronization (--push, --pull)
 
 System Commands:
