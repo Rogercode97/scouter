@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/Rogercode97/scouter/internal/config"
@@ -54,7 +56,9 @@ var healthFlag = flag.Bool("health", false, "Read go test -json from stdin and i
 func main() {
 	flag.Parse()
 	startTime := time.Now()
-	mainCtx := context.Background()
+	
+	mainCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	
 	cfg, err := config.Load(mainCtx)
 	if err != nil {
@@ -80,7 +84,6 @@ func main() {
 	workspacePath, _ := os.Getwd()
 	fmt.Printf("--- Indexing Workspace: %s ---\n", workspacePath)
 
-	// 0. Clear old dependencies
 	if err := s.ClearDependencies(mainCtx); err != nil {
 		log.Printf("Warning: failed to clear dependencies: %v", err)
 	}
@@ -89,7 +92,6 @@ func main() {
 	jobs := make(chan IndexingJob, 100)
 	results := make(chan IndexingResult, 100)
 
-	// 1. Dispatcher: Walk the workspace and push jobs.
 	g.Go(func() error {
 		defer close(jobs)
 		return filepath.Walk(workspacePath, func(path string, info os.FileInfo, err error) error {
@@ -114,7 +116,6 @@ func main() {
 					h, err := utils.CalculateHash(path)
 					if err == nil {
 						hash = h
-						// Selective Indexing: Skip if hash matches.
 						if idx, err := s.GetFileIndex(groupCtx, path); err == nil && idx.Hash == hash {
 							filesSkipped.Add(1)
 							return nil
@@ -132,13 +133,12 @@ func main() {
 		})
 	})
 
-	// 2. Workers: Consume jobs, perform hashing/parsing, and push results.
 	workerCount := runtime.NumCPU()
 	if workerCount < 4 {
 		workerCount = 4
 	}
 	if workerCount > 8 {
-		workerCount = 8 // OOM Guard
+		workerCount = 8
 	}
 
 	for i := 0; i < workerCount; i++ {
@@ -164,7 +164,6 @@ func main() {
 						res.Deps = deps
 					}
 				} else {
-					// Code file
 					h := job.Hash
 					if h == "" {
 						var hashErr error
@@ -196,13 +195,11 @@ func main() {
 		})
 	}
 
-	// Results Closer: Close results channel once dispatcher and workers are done.
 	go func() {
 		_ = g.Wait()
 		close(results)
 	}()
 
-	// 3. Single Writer: Consume results and perform sequential DB updates.
 	for res := range results {
 		if res.Error != nil {
 			fmt.Fprintf(os.Stderr, "  [Error] %s: %v\n", res.Path, res.Error)
@@ -213,15 +210,16 @@ func main() {
 		if res.IsManifest {
 			fmt.Printf("Indexing Ecosystem: %s\n", res.Path)
 			for _, d := range res.Deps {
-				_ = s.SaveDependency(mainCtx, &d)
+				if err := s.SaveDependency(mainCtx, &d); err != nil {
+					fmt.Fprintf(os.Stderr, "  [Error] Failed to save dependency %s: %v\n", d.Name, err)
+				}
 			}
 			filesIndexed.Add(1)
 			continue
 		}
 
-		// Save Code Index atomically.
-		err = s.WithTransaction(mainCtx, func(tx store.Repository) error {
-			if err := tx.SaveFileIndex(mainCtx, &store.FileIndex{
+		err = s.WithTransaction(mainCtx, func(txCtx context.Context, tx store.Repository) error {
+			if err := tx.SaveFileIndex(txCtx, &store.FileIndex{
 				Path:  res.Path,
 				Mtime: res.Info.ModTime().UnixNano(),
 				Hash:  res.Hash,
@@ -229,15 +227,15 @@ func main() {
 				return err
 			}
 
-			if err := tx.ClearSymbols(mainCtx, res.Path); err != nil {
+			if err := tx.ClearSymbols(txCtx, res.Path); err != nil {
 				return err
 			}
-			if err := tx.ClearCalls(mainCtx, res.Path); err != nil {
+			if err := tx.ClearCalls(txCtx, res.Path); err != nil {
 				return err
 			}
 
 			for _, sym := range res.Symbols {
-				if err := tx.SaveSymbol(mainCtx, &store.Symbol{
+				if err := tx.SaveSymbol(txCtx, &store.Symbol{
 					Name:      sym.Name,
 					Type:      sym.Type,
 					Path:      res.Path,
@@ -252,9 +250,11 @@ func main() {
 			}
 
 			for _, call := range res.Calls {
-				if err := tx.SaveCall(mainCtx, store.Call{
+				if err := tx.SaveCall(txCtx, store.Call{
 					CallerName: call.CallerName,
 					CalleeName: call.CalleeName,
+					CalleePath: call.CalleePath,
+					LinkType:   call.LinkType,
 					Path:       call.Path,
 					Line:       call.Line,
 				}); err != nil {
@@ -274,7 +274,7 @@ func main() {
 		}
 	}
 
-	// 4. Orphan Cleanup: Remove files from DB that no longer exist on disk.
+	// 4. Orphan Cleanup
 	dbPaths, err := s.GetAllFilePaths(mainCtx)
 	if err == nil {
 		for _, path := range dbPaths {
@@ -284,6 +284,12 @@ func main() {
 				}
 			}
 		}
+	}
+
+	// TASK 2.4: Sovereign Interface Resolution (Lazo Soberano)
+	fmt.Println("Resolving interfaces and contract fulfillments...")
+	if err := s.ResolveInterfaces(mainCtx); err != nil {
+		log.Printf("Warning: interface resolution failed: %v", err)
 	}
 
 	duration := time.Since(startTime)
@@ -299,6 +305,10 @@ func main() {
 	fmt.Printf("Symbols:  %d\n", symbolsCount)
 	fmt.Printf("Calls:    %d\n", callsCount)
 
-	throughput := float64(filesCount+failedCount+skippedCount) / duration.Seconds()
+	secs := duration.Seconds()
+	if secs == 0 {
+		secs = 0.001
+	}
+	throughput := float64(filesCount+failedCount+skippedCount) / secs
 	fmt.Printf("Time:     %.1fs (%.1f files/sec)\n", duration.Seconds(), throughput)
 }

@@ -80,11 +80,32 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []type
 				startPos := fset.Position(fn.Pos())
 				endPos := fset.Position(fn.End())
 				doc := utils.CleanComment(fn.Doc.Text())
-				content := fmt.Sprintf("%s:%s:%d:%d", "function", fn.Name.Name, startPos.Offset, endPos.Offset)
+				
+				fullName := fn.Name.Name
+				symType := "function"
+
+				// TASK 1.1: Capture method receiver for Go Divine mapping
+				if fn.Recv != nil && len(fn.Recv.List) > 0 {
+					symType = "method"
+					recvType := ""
+					switch r := fn.Recv.List[0].Type.(type) {
+					case *ast.Ident:
+						recvType = r.Name
+					case *ast.StarExpr:
+						if id, ok := r.X.(*ast.Ident); ok {
+							recvType = id.Name
+						}
+					}
+					if recvType != "" {
+						fullName = recvType + "." + fn.Name.Name
+					}
+				}
+
+				content := fmt.Sprintf("%s:%s:%d:%d", symType, fullName, startPos.Offset, endPos.Offset)
 				h := sha256.Sum256([]byte(content))
 				pointers = append(pointers, types.ASTPointer{
-					Type:      "function",
-					Name:      fn.Name.Name,
+					Type:      symType,
+					Name:      fullName,
 					Doc:       doc,
 					Range:     types.Range{Start: startPos.Offset, End: endPos.Offset},
 					StartLine: startPos.Line,
@@ -92,7 +113,7 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []type
 					Hash:      hex.EncodeToString(h[:]),
 				})
 				funcStack = append(funcStack, &funcCtx{
-					name: fn.Name.Name,
+					name: fullName,
 					end:  fn.End(),
 				})
 			}
@@ -102,11 +123,30 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []type
 				for _, spec := range gd.Specs {
 					if ts, ok := spec.(*ast.TypeSpec); ok {
 						var symType string
-						switch ts.Type.(type) {
+						switch it := ts.Type.(type) {
 						case *ast.StructType:
-							symType = "class" // Map struct to class for universal schema
+							symType = "class"
 						case *ast.InterfaceType:
 							symType = "interface"
+							// TASK 2.1: Extract methods from interface for contract mapping
+							if it.Methods != nil {
+								for _, field := range it.Methods.List {
+									if len(field.Names) > 0 {
+										methodName := field.Names[0].Name
+										fullMethodName := ts.Name.Name + ":" + methodName
+										mStart := fset.Position(field.Pos())
+										mEnd := fset.Position(field.End())
+										pointers = append(pointers, types.ASTPointer{
+											Type:      "method_spec",
+											Name:      fullMethodName,
+											Range:     types.Range{Start: mStart.Offset, End: mEnd.Offset},
+											StartLine: mStart.Line,
+											EndLine:   mEnd.Line,
+											Hash:      utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
+										})
+									}
+								}
+							}
 						default:
 							continue
 						}
@@ -146,7 +186,6 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []type
 						end:  fn.End(),
 					})
 				} else {
-					// Top-level anonymous function (rare in Go, but possible in variable initialization)
 					funcStack = append(funcStack, &funcCtx{
 						name: "global.func",
 						end:  fn.End(),
@@ -158,11 +197,13 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []type
 			if call, ok := n.(*ast.CallExpr); ok {
 				if len(funcStack) > 0 {
 					caller := funcStack[len(funcStack)-1]
-					calleeName := extractCalleeName(call.Fun)
+					calleeName, calleePath := resolveCallee(call.Fun, validatedPath)
 					if calleeName != "" {
 						calls = append(calls, types.ASTCall{
 							CallerName: caller.name,
 							CalleeName: calleeName,
+							CalleePath: calleePath,
+							LinkType:   "call",
 							Path:       validatedPath,
 							Line:       fset.Position(call.Lparen).Line,
 						})
@@ -182,19 +223,18 @@ func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []type
 		return pointers, calls, nil
 	}
 
-	// Fallback or specific error handling can go here
 	return nil, nil, fmt.Errorf("parsing failed for %s: %w", filePath, err)
 }
 
-// extractCalleeName attempts to get the name of the function being called.
-func extractCalleeName(fun ast.Expr) string {
+// resolveCallee attempts to get the name and potential path of the function being called.
+func resolveCallee(fun ast.Expr, currentPath string) (string, string) {
 	switch f := fun.(type) {
 	case *ast.Ident:
-		return f.Name
+		return f.Name, currentPath
 	case *ast.SelectorExpr:
-		return f.Sel.Name
+		return f.Sel.Name, ""
 	default:
-		return "" // Could be a more complex expression, ignore for now
+		return "", ""
 	}
 }
 
@@ -206,7 +246,6 @@ func ReadFragment(ctx context.Context, filePath string, rangeJSON string, expect
 	default:
 	}
 
-	// 1. Path Security Check
 	validatedPath, err := utils.ValidatePath(filePath)
 	if err != nil {
 		return "", err
@@ -217,20 +256,17 @@ func ReadFragment(ctx context.Context, filePath string, rangeJSON string, expect
 		return "", fmt.Errorf("error parsing range JSON: %w", err)
 	}
 
-	// 2. Size Limit Check (Ghost 4: MCP UX)
 	requestedSize := r.End - r.Start
 	if requestedSize > MaxFragmentSize {
 		return "", fmt.Errorf("requested fragment too large (%d bytes), limit is %d bytes", requestedSize, MaxFragmentSize)
 	}
 
-	// 3. Open file and read only the requested range (File Seeking)
 	f, err := os.Open(validatedPath)
 	if err != nil {
 		return "", fmt.Errorf("error opening file: %w", err)
 	}
 	defer f.Close()
 
-	// Check file size for consistency
 	fi, err := f.Stat()
 	if err != nil {
 		return "", fmt.Errorf("error stating file: %w", err)
@@ -246,12 +282,10 @@ func ReadFragment(ctx context.Context, filePath string, rangeJSON string, expect
 		return "", fmt.Errorf("error reading range: %w", err)
 	}
 
-	// 4. Encoding Guard
 	if !utf8.Valid(buffer) {
 		return "", fmt.Errorf("binary or invalid UTF-8 data detected: Scouter only analyzes text-based source code")
 	}
 
-	// 5. Hash Validation (Divine Integrity)
 	if expectedHash != "" {
 		currentFileHash, _ := utils.CalculateHash(validatedPath)
 		if currentFileHash != "" && currentFileHash != expectedHash {

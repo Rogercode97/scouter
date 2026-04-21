@@ -14,7 +14,6 @@ import (
 
 // Pipeline orchestrates command execution, filtering, tracking, and tee.
 type Pipeline struct {
-	ctx          context.Context
 	Registry     *filter.Registry
 	Tracker      *telemetry.Tracker
 	TeeConfig    tee.Config
@@ -68,7 +67,7 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 	}
 
 	// Apply filter pipeline
-	filtered, filterErr := ApplyPipeline(f, result.Stdout)
+	filtered, filterErr := ApplyPipeline(ctx, f, result.Stdout)
 	if filterErr != nil {
 		// Graceful degradation: use raw output
 		if p.Verbose > 0 {
@@ -95,7 +94,7 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 		originalCmd := command + " " + strings.Join(fullArgs, " ")
 		scouterCmd := command + " " + strings.Join(finalArgs, " ")
 		outputTokens := utils.EstimateTokens(filtered)
-		if err := timed.Track(p.ctx, originalCmd, scouterCmd, inputTokens, outputTokens); err != nil {
+		if err := timed.Track(ctx, originalCmd, scouterCmd, inputTokens, outputTokens); err != nil {
 			fmt.Fprintf(os.Stderr, "scouter: tracking error: %v\n", err)
 		}
 	}
@@ -117,7 +116,7 @@ func (p *Pipeline) Passthrough(ctx context.Context, command string, args []strin
 }
 
 // ApplyPipeline executes filter actions sequentially.
-func ApplyPipeline(f *filter.Filter, input string) (string, error) {
+func ApplyPipeline(ctx context.Context, f *filter.Filter, input string) (string, error) {
 	lines := strings.Split(input, "\n")
 	// Remove trailing empty line from split
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
@@ -130,6 +129,13 @@ func ApplyPipeline(f *filter.Filter, input string) (string, error) {
 	}
 
 	for i, action := range f.Pipeline {
+		// Check for context cancellation before each action
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+
 		fn, ok := filter.GetAction(action.ActionName)
 		if !ok {
 			return "", fmt.Errorf("unknown action %q at pipeline[%d]", action.ActionName, i)

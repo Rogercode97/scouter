@@ -8,6 +8,7 @@ import (
 )
 
 func TestApplyPipelineKeepLines(t *testing.T) {
+	ctx := t.Context()
 	f := &filter.Filter{
 		Name: "test",
 		Pipeline: filter.Pipeline{
@@ -16,7 +17,7 @@ func TestApplyPipelineKeepLines(t *testing.T) {
 	}
 
 	input := "hello\n\nworld\n\n"
-	out, err := ApplyPipeline(f, input)
+	out, err := ApplyPipeline(ctx, f, input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -27,6 +28,7 @@ func TestApplyPipelineKeepLines(t *testing.T) {
 }
 
 func TestApplyPipelineChained(t *testing.T) {
+	ctx := t.Context()
 	f := &filter.Filter{
 		Name: "test",
 		Pipeline: filter.Pipeline{
@@ -36,7 +38,7 @@ func TestApplyPipelineChained(t *testing.T) {
 	}
 
 	input := "a\nb\nc\nd\ne\n"
-	out, err := ApplyPipeline(f, input)
+	out, err := ApplyPipeline(ctx, f, input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -47,6 +49,7 @@ func TestApplyPipelineChained(t *testing.T) {
 }
 
 func TestApplyPipelineUnknownAction(t *testing.T) {
+	ctx := t.Context()
 	f := &filter.Filter{
 		Name: "test",
 		Pipeline: filter.Pipeline{
@@ -54,13 +57,14 @@ func TestApplyPipelineUnknownAction(t *testing.T) {
 		},
 	}
 
-	_, err := ApplyPipeline(f, "input")
+	_, err := ApplyPipeline(ctx, f, "input")
 	if err == nil {
 		t.Fatal("expected error for unknown action")
 	}
 }
 
 func TestApplyPipelineEmptyInput(t *testing.T) {
+	ctx := t.Context()
 	f := &filter.Filter{
 		Name: "test",
 		Pipeline: filter.Pipeline{
@@ -68,7 +72,7 @@ func TestApplyPipelineEmptyInput(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyPipeline(f, "")
+	out, err := ApplyPipeline(ctx, f, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -78,6 +82,7 @@ func TestApplyPipelineEmptyInput(t *testing.T) {
 }
 
 func TestApplyPipelineGracefulDegradation(t *testing.T) {
+	ctx := t.Context()
 	f := &filter.Filter{
 		Name: "test",
 		Pipeline: filter.Pipeline{
@@ -85,7 +90,7 @@ func TestApplyPipelineGracefulDegradation(t *testing.T) {
 		},
 	}
 
-	_, err := ApplyPipeline(f, "hello\nworld\n")
+	_, err := ApplyPipeline(ctx, f, "hello\nworld\n")
 	if err == nil {
 		t.Fatal("expected error for missing pattern")
 	}

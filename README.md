@@ -1,10 +1,10 @@
 # Scouter 🕶️ (Wave 8.9 — Absolute Sovereignty)
 **Status**: Sovereign. Divine Architecture (Go 1.25). Glasswall Validated. Rating 10.0.
 
-**The high-precision, semantic code analysis engine for AI agents.**  
-*Surgical AST indexing. FTS5 Semantic Search. Global Call Graph. Ecosystem Sovereignty. Test Sovereignty. Ghost Speed.*
+**The Omniscient Code Intelligence Engine for AI Agents.**  
+*Recursive Impact Analysis. Predictive Testing. Risk Mapping. Structural Duck-Typing. Ghost Speed.*
 
-Scouter gives AI agents (like Gemini CLI, OpenCode, and Claude Code) "X-ray vision" for your codebase. It eliminates token waste by providing surgical access to symbols, cross-file impact analysis, and real-time health diagnostics.
+Scouter gives AI agents (like Gemini CLI, OpenCode, and Claude Code) "X-ray vision" for your codebase. It eliminates token waste by providing surgical access to symbols, cross-file impact analysis, and real-time risk diagnostics.
 
 ## 🚀 Quick Start
 
@@ -14,60 +14,53 @@ go build -o bin/scouter cmd/scouter/main.go
 go build -o bin/index-vault cmd/index-vault/main.go
 ```
 
-### 2. Index the Workspace (Ghost Speed ⚡)
+### 2. Index the Workspace (Omniscience Mode ⚡)
 ```bash
 ./bin/index-vault
 ```
 
-### 3. Record Project Health
-```bash
-go test -json ./... | ./bin/index-vault -health
-```
-
 ---
 
-## 🏛️ Sovereign Pillars (v1.9.0)
+## 🏛️ Sovereign Pillars (v2.2.0 — Oracle Edition)
 
-Scouter is built on eight pillars of technical sovereignty:
+Scouter has transcended simple analysis into a predictive risk engine:
 
-### 1. Test Sovereignty (v1.9) 🧪
-The **Code Physician**. Indexes test results and maps failures directly to their source symbols. Agents can diagnose regressions without reading massive logs.
+### 1. Predictive Testing (Oracle Engine) 🔮
+**Predict the future of your errors.** Integrates with Git to analyze local changes (`diff HEAD`) and automatically suggest which tests to run based on the affected symbols and their impact radius.
 
-### 2. Semantic Search (v1.8) 🔍
+### 2. Recursive Impact Analysis (Blast Radius) 🕸️
+Deep visibility into dependency chains. Uses **SQLite Recursive CTEs** to trace calls through multiple levels, identifying exactly how a small change can break distant parts of the system.
+
+### 3. Risk Mapping (Centrality & Fragility) 📊
+Identifies the "Heart" and the "Glass" of your code. Calculates **Centrality** (indegree) and **Fragility** (test failure history) to pinpoint technical debt and critical refactoring targets.
+
+### 4. Interface Sovereignty (Lazo Soberano) 🧬
+Dynamic contract resolution. Automatically links Structs to the Interfaces they implement using structural analysis (Duck Typing), providing visibility into polymorphic call chains.
+
+### 5. Context Sovereignty (Go 1.24+) 🛡️
+Military-grade resource management. 100% compliant with `context.Context` standards and `signal.NotifyContext`, ensuring zero leaks and no `SQLITE_BUSY` deadlocks.
+
+### 6. Semantic Search 🔍
 Intelligent lookups using **BM25 ranking** across names and documentation. Find logic based on concepts (e.g., "db connection") rather than just literal names.
 
-### 3. Ghost Speed (v1.7) ⚡
+### 7. Ghost Speed ⚡
 Incremental indexing that skips unchanged files using SHA-256 pre-flight hashing. Performance reaches **+750 files/sec**.
-
-### 4. Global Call Graph (v2.0 Core) 🕸️
-Full visibility into "who calls whom", including **Closure Sovereignty** for tracking calls inside goroutines and anonymous functions.
-
-### 5. Documentation Sovereignty 📚
-Indexes GoDoc, JSDoc, and Python Docstrings. Provides 'Intent Visibility'—understanding *why* code exists with minimal context usage.
-
-### 6. Ecosystem Sovereignty 📦
-Vision beyond source code. Automatically maps project dependencies and versions from `go.mod` and `package.json`.
-
-### 7. Dead Code Analysis (Hakai) 💀
-Identifies orphan symbols across the workspace to automate technical debt elimination.
-
-### 8. Glasswall Security 🛡️
-Military-grade input validation and **OOM Guards** on all MCP endpoints.
 
 ---
 
-## 🛠️ MCP Toolset
+## 🛠️ MCP Toolset (Oracle Edition)
 
 | Tool | Capability |
 | :--- | :--- |
+| `scouter_predict` | **Oracle**: Suggests tests based on local Git changes. |
+| `scouter_impact` | **Blast Radius**: Trace the recursive impact of changing a symbol. |
+| `scouter_critical_code` | **Risk Map**: Identify the most central and fragile symbols. |
 | `scouter_index` | Analyze and index file AST, calls, and docs. |
 | `scouter_search` | BM25 semantic search across symbols and documentation. |
 | `scouter_callers` | List all project-wide invocations of a symbol. |
 | `scouter_visualize` | Generate a **Mermaid.js** diagram of dependencies. |
 | `scouter_health` | Diagnose failed tests and linked symbols. |
-| `scouter_dependencies` | List indexed Go/NPM libraries and versions. |
-| `scouter_dead_code` | Audit the project for orphan symbols. |
 | `scouter_read` | Surgical fragment reading with SHA-256 validation. |
 
 ## 📜 License
-MIT — *Sovereignty for all.*
+MIT — *Omniscience for all.*

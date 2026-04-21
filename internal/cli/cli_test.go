@@ -26,7 +26,8 @@ func TestUnproxyableCommands(t *testing.T) {
 }
 
 func TestRunRejectsCd(t *testing.T) {
-	code := Run([]string{"scouter", "cd", "/tmp"})
+	ctx := t.Context()
+	code := Run(ctx, []string{"scouter", "cd", "/tmp"})
 	if code != 1 {
 		t.Errorf("Run(cd) = %d, want 1", code)
 	}

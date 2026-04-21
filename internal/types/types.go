@@ -18,8 +18,17 @@ type ASTPointer struct {
 type ASTCall struct {
 	CallerName string `json:"caller_name" validate:"required"`
 	CalleeName string `json:"callee_name" validate:"required"`
+	CalleePath string `json:"callee_path"` // Optional: absolute path to the callee file
+	LinkType   string `json:"link_type"`   // call, implements, emits, etc.
 	Path       string `json:"path" validate:"required"`
 	Line       int    `json:"line" validate:"required,gte=1"`
+}
+
+type ImpactResult struct {
+	Symbol   string `json:"symbol"`
+	File     string `json:"file"`
+	Distance int    `json:"distance"`
+	LinkType string `json:"link_type"`
 }
 
 type Dependency struct {
@@ -31,20 +40,20 @@ type Dependency struct {
 }
 
 type TestResult struct {
-	TestName     string `json:"test_name"`
-	Status       string `json:"status"` // "pass", "fail", "skip"
+	TestName     string `json:"test_name" validate:"required"`
+	Status       string `json:"status" validate:"required,oneof=pass fail skip"`
 	ErrorMessage string `json:"error_message,omitempty"`
 	StackTrace   string `json:"stack_trace,omitempty"`
 	TargetSymbol string `json:"target_symbol,omitempty"`
-	DurationMS   int64  `json:"duration_ms"`
+	DurationMS   int64  `json:"duration_ms" validate:"gte=0"`
 	Project      string `json:"project,omitempty"`
 }
 
 type TestEvent struct {
 	Time    string  `json:"Time"`
-	Action  string  `json:"Action"`
+	Action  string  `json:"Action" validate:"required,oneof=run pause cont pass fail skip output bench"`
 	Package string  `json:"Package"`
 	Test    string  `json:"Test"`
 	Output  string  `json:"Output"`
-	Elapsed float64 `json:"Elapsed"`
+	Elapsed float64 `json:"Elapsed" validate:"gte=0"`
 }

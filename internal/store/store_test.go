@@ -2,12 +2,13 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 )
 
 func TestStoreSearch(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	dbPath := "test_scouter.db"
 	defer os.Remove(dbPath)
 
@@ -72,7 +73,7 @@ func TestStoreSearch(t *testing.T) {
 }
 
 func TestStoreCalls(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	dbPath := "test_scouter_calls.db"
 	defer os.Remove(dbPath)
 
@@ -128,8 +129,69 @@ func TestStoreCalls(t *testing.T) {
 	}
 }
 
+func TestGetImpact(t *testing.T) {
+	ctx := t.Context()
+	dbPath := "test_scouter_impact.db"
+	defer os.Remove(dbPath)
+
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	// 0. Satisfy FKs
+	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "a.go", Project: "p"})
+	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "b.go", Project: "p"})
+	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "c.go", Project: "p"})
+	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "d.go", Project: "p"}) // Added missing FK
+
+	// 1. Build Graph: A -> B, B -> C, C -> A (cycle), D -> B
+	calls := []Call{
+		{CallerName: "A", CalleeName: "B", Path: "a.go", CalleePath: "b.go"},
+		{CallerName: "B", CalleeName: "C", Path: "b.go", CalleePath: "c.go"},
+		{CallerName: "C", CalleeName: "A", Path: "c.go", CalleePath: "a.go"},
+		{CallerName: "D", CalleeName: "B", Path: "d.go", CalleePath: "b.go"},
+	}
+	for _, c := range calls {
+		if err := s.SaveCall(ctx, c); err != nil {
+			t.Fatalf("Failed to save call in test graph: %v", err)
+		}
+	}
+
+	// 2. Impact of B (Who calls B, and who calls them?)
+	// B is called by: A (dist 1), D (dist 1)
+	// A is called by: C (dist 2)
+	// C is called by: B (dist 3 - cycle)
+	impact, err := s.GetImpact(ctx, "B", "b.go", 3)
+	if err != nil {
+		t.Fatalf("GetImpact failed: %v", err)
+	}
+
+	// Expected: A(1), D(1), C(2), B(3)
+	foundA, foundD, foundC, foundB := false, false, false, false
+	for _, r := range impact {
+		switch r.Symbol {
+		case "A": foundA = true
+		case "D": foundD = true
+		case "C": foundC = true
+		case "B": foundB = true
+		}
+	}
+
+	if !foundA || !foundD || !foundC || !foundB {
+		t.Errorf("Incomplete impact results: %+v", impact)
+	}
+
+	// 3. Test depth capping (maxDepth 1 should only return direct callers A and D)
+	impact2, _ := s.GetImpact(ctx, "B", "b.go", 1)
+	if len(impact2) != 2 {
+		t.Errorf("Depth capping failed, expected 2 results, got %d: %+v", len(impact2), impact2)
+	}
+}
+
 func TestGetUnusedSymbols(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	dbPath := "test_scouter_deadcode.db"
 	defer os.Remove(dbPath)
 
@@ -194,5 +256,257 @@ func TestGetUnusedSymbols(t *testing.T) {
 
 	if len(unused) != 2 {
 		t.Errorf("Expected 2 unused symbols, got %d", len(unused))
+	}
+}
+
+func TestStoreSearch_Injection(t *testing.T) {
+	ctx := t.Context()
+	dbPath := "test_scouter_injection.db"
+	defer os.Remove(dbPath)
+
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	// 0. Save dummy file index to satisfy foreign key
+	err = s.SaveFileIndex(ctx, &FileIndex{
+		Path:    "store.go",
+		Mtime:   123456789,
+		Hash:    "dummyhash",
+		ASTJSON: "{}",
+		Project: "scouter",
+	})
+	if err != nil {
+		t.Fatalf("Failed to save file index: %v", err)
+	}
+
+	syms := []Symbol{
+		{Name: "NormalSymbol", Type: "method", Path: "store.go", StartByte: 100, EndByte: 200},
+		{Name: "Special+Symbol-With:Chars", Type: "function", Path: "store.go", StartByte: 10, EndByte: 50},
+	}
+
+	for _, sym := range syms {
+		if err := s.SaveSymbol(ctx, &sym); err != nil {
+			t.Fatalf("Failed to save symbol %s: %v", sym.Name, err)
+		}
+	}
+
+	// Try an injection attempt
+	_, err = s.SearchSymbols(ctx, "Normal\" OR 1=1 --", "")
+	if err != nil {
+		t.Errorf("Injection search failed (syntax error?): %v", err)
+	}
+}
+
+func TestSaveFileIndex_PreservesSymbols(t *testing.T) {
+	ctx := t.Context()
+	dbPath := "test_scouter_preserve.db"
+	defer os.Remove(dbPath)
+
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	path := "preserve.go"
+	// 1. Save file index
+	err = s.SaveFileIndex(ctx, &FileIndex{
+		Path:    path,
+		Mtime:   100,
+		Hash:    "h1",
+		ASTJSON: "{}",
+		Project: "p1",
+	})
+	if err != nil {
+		t.Fatalf("SaveFileIndex failed: %v", err)
+	}
+
+	// 2. Save a symbol linked to that file
+	sym := &Symbol{Name: "KeepMe", Type: "func", Path: path, StartByte: 0, EndByte: 10}
+	if err := s.SaveSymbol(ctx, sym); err != nil {
+		t.Fatalf("SaveSymbol failed: %v", err)
+	}
+
+	// 3. Update file index (same path)
+	err = s.SaveFileIndex(ctx, &FileIndex{
+		Path:    path,
+		Mtime:   200, // changed
+		Hash:    "h2",  // changed
+		ASTJSON: "{}",
+		Project: "p1",
+	})
+	if err != nil {
+		t.Fatalf("SaveFileIndex update failed: %v", err)
+	}
+
+	// 4. Verify symbol still exists
+	res, err := s.SearchSymbols(ctx, "KeepMe", "")
+	if err != nil {
+		t.Fatalf("SearchSymbols failed: %v", err)
+	}
+
+	if len(res) == 0 {
+		t.Error("Symbol was DELETED during FileIndex update (unintended cascade delete). INSERT OR REPLACE is likely the cause.")
+	}
+}
+
+func TestStore_DeleteCascade(t *testing.T) {
+	ctx := t.Context()
+	dbPath := "test_scouter_cascade.db"
+	defer os.Remove(dbPath)
+
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	path := "cascade.go"
+	// 1. Save file index
+	err = s.SaveFileIndex(ctx, &FileIndex{Path: path, Project: "p1"})
+	if err != nil {
+		t.Fatalf("SaveFileIndex failed: %v", err)
+	}
+
+	// 2. Save a symbol linked to that file
+	sym := &Symbol{Name: "DeleteMe", Type: "func", Path: path}
+	if err := s.SaveSymbol(ctx, sym); err != nil {
+		t.Fatalf("SaveSymbol failed: %v", err)
+	}
+
+	// 3. Delete file index
+	if err := s.DeleteFileIndex(ctx, path); err != nil {
+		t.Fatalf("DeleteFileIndex failed: %v", err)
+	}
+
+	// 4. Verify symbol is GONE (cascade delete)
+	res, err := s.SearchSymbols(ctx, "DeleteMe", "")
+	if err != nil {
+		t.Fatalf("SearchSymbols failed: %v", err)
+	}
+
+	if len(res) != 0 {
+		t.Error("Symbol was NOT deleted when file_index was deleted (foreign keys might be OFF)")
+	}
+}
+
+func TestStore_HasColumn(t *testing.T) {
+	ctx := t.Context()
+	dbPath := "test_scouter_hascolumn.db"
+	defer os.Remove(dbPath)
+
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	storeImpl := s.(*Store)
+	tx, _ := storeImpl.db.BeginTx(ctx, nil)
+	defer tx.Rollback()
+
+	// 1. Check existing column
+	has, err := hasColumn(ctx, tx, "symbols", "name")
+	if err != nil {
+		t.Fatalf("hasColumn(symbols, name) failed: %v", err)
+	}
+	if !has {
+		t.Error("Expected hasColumn(symbols, name) to be true")
+	}
+
+	// 2. Check non-existing column
+	has, err = hasColumn(ctx, tx, "symbols", "nonexistent")
+	if err != nil {
+		t.Fatalf("hasColumn(symbols, nonexistent) failed: %v", err)
+	}
+	if has {
+		t.Error("Expected hasColumn(symbols, nonexistent) to be false")
+	}
+
+	// 3. Check existing table but invalid column (handled above)
+	
+	// 4. Check non-existing table
+	has, err = hasColumn(ctx, tx, "nonexistent_table", "doc")
+	if err != nil {
+		t.Fatalf("hasColumn(nonexistent_table, doc) failed: %v", err)
+	}
+	if has {
+		t.Error("Expected hasColumn(nonexistent_table, doc) to be false")
+	}
+}
+
+func TestSanitizeFTS_SpecialCharacters(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"", ""},
+		{"*", "\"\"*"},
+		{"normal", "\"normal\""},
+		{"prefix*", "\"prefix\"*"},
+		{"with+plus", "\"with+plus\""},
+		{"with-minus", "\"with-minus\""},
+		{"with:colon", "\"with:colon\""},
+		{"with^caret", "\"with^caret\""},
+		{"AND", "\"AND\""},
+		{"OR", "\"OR\""},
+		{"NOT", "\"NOT\""},
+		{"NEAR", "\"NEAR\""},
+		{"\"quotes\"", "\"\"\"quotes\"\"\""},
+		{"a*b", "\"a*b\""},
+		{"*", "\"\"*"},
+	}
+
+	for _, tt := range tests {
+		actual := sanitizeFTS(tt.input)
+		if actual != tt.expected {
+			t.Errorf("sanitizeFTS(%q) = %q, expected %q", tt.input, actual, tt.expected)
+		}
+	}
+}
+
+func TestStore_TransactionSafety(t *testing.T) {
+	ctx := t.Context()
+	dbPath := "test_scouter_tx.db"
+	defer os.Remove(dbPath)
+
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	// 0. Save dummy file index to satisfy foreign key
+	err = s.SaveFileIndex(ctx, &FileIndex{
+		Path:    "store.go",
+		Mtime:   123456789,
+		Hash:    "dummyhash",
+		ASTJSON: "{}",
+		Project: "scouter",
+	})
+	if err != nil {
+		t.Fatalf("Failed to save file index: %v", err)
+	}
+
+	// Try a transaction that fails halfway
+	err = s.WithTransaction(ctx, func(txCtx context.Context, tx Repository) error {
+		sym := &Symbol{Name: "PartiallySaved", Type: "func", Path: "store.go"}
+		if err := tx.SaveSymbol(txCtx, sym); err != nil {
+			return err
+		}
+		return fmt.Errorf("simulated error")
+	})
+
+	if err == nil || err.Error() != "simulated error" {
+		t.Errorf("Expected simulated error, got %v", err)
+	}
+
+	// Verify the symbol was NOT saved
+	results, _ := s.SearchSymbols(ctx, "PartiallySaved", "")
+	if len(results) != 0 {
+		t.Errorf("Expected 0 results after rollback, got %d", len(results))
 	}
 }
