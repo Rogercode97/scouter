@@ -9,7 +9,8 @@
 | Go 1.24, Backend | go-dominion | ~/.gemini/skills/go-dominion/SKILL.md |
 | Security, JWT | security-dominion | ~/.gemini/skills/security-dominion/SKILL.md |
 | MCP, Deployment | deployment-sovereign | ~/.gemini/skills/deployment-sovereign/SKILL.md |
-| Scouter, Analysis | scouter-refactor-shinigami | .gemini/agents/scouter-refactor-shinigami.md |
+| Scouter, Analysis | scouter-dominion | ~/.gemini/skills/scouter-dominion/SKILL.md |
+| Architect, Refactor | scouter-oracle | .gemini/agents/scouter-oracle.md |
 
 ## Compact Rules
 
@@ -25,11 +26,11 @@
 - All external inputs (flags, JSON) MUST be validated with `validator/v10`.
 - Use `sanitizeFTS` for SQL queries to prevent injection in virtual tables.
 
-### scouter-mandate (Recursive Sovereignty)
-- **MANDATORY**: Before reading or writing code, sub-agents MUST use `scouter_index` to map symbols and `scouter_search` for semantic lookup.
-- **IMPACT FIRST**: Any change proposal MUST include a blast radius analysis using `scouter_impact`.
-- **PREDICTIVE VALIDATION**: After implementation, use `scouter_predict` to verify which tests must be executed.
-- **ZERO BLINDNESS**: Do not guess file paths or symbol locations; verify them in the Call Graph.
+### scouter-dominion
+- MANDATORY: Use `scouter_search` -> `scouter_callers` -> `scouter_read` for all code investigation. No `grep` or `read_file` allowed.
+- IMPACT FIRST: Always execute `scouter_impact` before proposing structural changes.
+- PREDICTIVE VALIDATION: Use `scouter_predict` to identify target tests after implementation.
+- ZERO BLINDNESS: Trust the AST and LSP data over filename guessing.
 
 ## Project Conventions
 
