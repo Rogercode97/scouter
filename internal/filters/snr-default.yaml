@@ -1,6 +1,6 @@
 name: snr-default
-command: "*"
-subcommand: "*"
+match:
+  command: "*"
 pipeline:
   - action: strip_ansi
   - action: snr_dedup

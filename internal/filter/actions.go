@@ -71,7 +71,7 @@ func snrDedup(input ActionResult, params map[string]any) (ActionResult, error) {
 		count = 1
 	}
 
-	// Last block
+	// ALWAYS append the last line/group to the output slice
 	if lastLine != "" {
 		if count > 1 {
 			out = append(out, fmt.Sprintf("%s [x%d]", lastLine, count))

@@ -47,6 +47,15 @@ func (r *Registry) Match(command, subcommand string, args []string) *Filter {
 		}
 	}
 
+	// Try wildcard match ('*') as a fallback for universal Truth Kernel coverage
+	if candidates, ok := r.byKey["*"]; ok {
+		for i := range candidates {
+			if matchesFlags(&candidates[i], args) {
+				return &candidates[i]
+			}
+		}
+	}
+
 	return nil
 }
 

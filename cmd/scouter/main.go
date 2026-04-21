@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Rogercode97/scouter/internal/cli"
 	"github.com/Rogercode97/scouter/internal/config"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
@@ -24,30 +25,23 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-var version = "2.3.1" // Visual Focus Edition
+var version = "2.6.0" // Oracle & Truth Edition
 
 //go:embed plugins/opencode/scouter.ts
 var openCodePluginFS embed.FS
 
 func main() {
 	if len(os.Args) < 2 {
-		printUsage()
-		os.Exit(1)
+		os.Exit(cli.Run(context.Background(), os.Args))
 	}
 
 	switch os.Args[1] {
 	case "mcp":
 		runMCPServer()
-	case "setup":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: scouter setup <agent> (supported: gemini-cli, opencode)")
-			os.Exit(1)
-		}
-		runSetup(os.Args[2])
-	case "version":
-		fmt.Printf("scouter %s\n", version)
 	default:
-		printUsage()
+		// Delegate all other commands (setup, init, predict, or any proxied command)
+		// to the centralized CLI runner for Wave 8.9 sovereignty.
+		os.Exit(cli.Run(context.Background(), os.Args))
 	}
 }
 
