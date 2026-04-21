@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Rogercode97/scouter/internal/config"
+	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/tee"
@@ -20,8 +21,10 @@ import (
 type Pipeline struct {
 	Registry     *filter.Registry
 	Tracker      *telemetry.Tracker
+	LSPManager   *lsp.Manager
 	TeeConfig    tee.Config
 	Verbose      int
+	GainLevel    int // 0: compact, 1: signal (SNR), 2: raw
 	UltraCompact bool
 }
 
@@ -36,8 +39,15 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 
 	f := p.Registry.Match(command, subcommand, filterArgs)
 
+	// Gain Control: RAW (2)
+	if p.GainLevel == 2 {
+		f = nil
+	}
+
 	if f == nil {
-		fmt.Fprintf(os.Stderr, "scouter: no filter for %q, passing through — you can run %q directly\n", command, command)
+		if p.Verbose > 0 {
+			fmt.Fprintf(os.Stderr, "scouter: gain=raw or no filter for %q, passing through\n", command)
+		}
 		return p.Passthrough(ctx, command, args)
 	}
 
@@ -74,6 +84,18 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 			fmt.Fprintf(os.Stderr, "scouter: filter error: %v\n", filterErr)
 		}
 		filtered = result.Stdout
+	}
+
+	// Gain Control: COMPACT (0)
+	if p.GainLevel == 0 {
+		lines := strings.Split(strings.TrimSpace(filtered), "\n")
+		if len(lines) > 5 {
+			// Reuse same signaling as head_tail action for consistency
+			headN, tailN := 2, 2
+			filtered = strings.Join(lines[:headN], "\n") + 
+				fmt.Sprintf("\n... [scouter: truncated %d lines of noise in compact mode] ...\n", len(lines)-headN-tailN) + 
+				strings.Join(lines[len(lines)-tailN:], "\n") + "\n"
+		}
 	}
 
 	hint := tee.MaybeSave(result.Stdout, result.ExitCode, command, p.TeeConfig)
@@ -152,7 +174,11 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 			}
 		}
 
-		idx, calls, parseErr := ParseFile(ctx, absPath)
+		if p.LSPManager == nil {
+			p.LSPManager = lsp.NewManager()
+		}
+
+		idx, calls, parseErr := ParseFile(ctx, absPath, p.LSPManager)
 		if parseErr != nil {
 			continue
 		}

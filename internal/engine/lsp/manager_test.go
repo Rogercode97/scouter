@@ -21,15 +21,16 @@ func (c *mockClient) Close() error {
 
 func TestLSPManager(t *testing.T) {
 	m := NewManager()
+	ctx := context.Background()
 
 	// Mock client creation
-	m.clientCreator = func(binary string, args ...string) (LSPClient, error) {
+	m.clientCreator = func(ctx context.Context, binary string, args ...string) (LSPClient, error) {
 		return &mockClient{binary: binary}, nil
 	}
 
 	// Test extension mapping
 	ext := "test.go"
-	client, err := m.GetClient(ext)
+	client, err := m.GetClient(ctx, ext)
 	if err != nil {
 		t.Fatalf("GetClient failed: %v", err)
 	}
@@ -40,7 +41,7 @@ func TestLSPManager(t *testing.T) {
 	}
 
 	// Test caching
-	client2, _ := m.GetClient(ext)
+	client2, _ := m.GetClient(ctx, ext)
 	if client != client2 {
 		t.Errorf("Client not cached")
 	}

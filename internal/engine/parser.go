@@ -10,8 +10,10 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"unicode/utf8"
 
+	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
 )
@@ -23,12 +25,17 @@ const MaxFragmentSize = 100 * 1024
 const MaxParseSize = 5 * 1024 * 1024
 
 // ParseFile analyzes a file using the AST engine to index its structure and call graph.
-func ParseFile(ctx context.Context, filePath string) ([]types.ASTPointer, []types.ASTCall, error) {
+func ParseFile(ctx context.Context, filePath string, lspMgr *lsp.Manager) ([]types.ASTPointer, []types.ASTCall, error) {
 	// 1. Context check
 	select {
 	case <-ctx.Done():
 		return nil, nil, ctx.Err()
 	default:
+	}
+
+	ext := filepath.Ext(filePath)
+	if ext != ".go" {
+		return ParseWithTreeSitter(ctx, filePath)
 	}
 
 	// 2. Path Security Check

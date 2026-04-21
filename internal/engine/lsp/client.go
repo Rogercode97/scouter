@@ -34,8 +34,8 @@ type jsonrpcClient struct {
 	done chan struct{}
 }
 
-func NewClient(binary string, args ...string) (LSPClient, error) {
-	cmd := exec.Command(binary, args...)
+func NewClient(ctx context.Context, binary string, args ...string) (LSPClient, error) {
+	cmd := exec.CommandContext(ctx, binary, args...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -61,7 +61,6 @@ func NewClient(binary string, args ...string) (LSPClient, error) {
 	go c.listen()
 
 	// Initialize
-	ctx := context.Background() // Or passed in? Design says initialize on startup.
 	if err := c.initialize(ctx); err != nil {
 		c.Close()
 		return nil, err

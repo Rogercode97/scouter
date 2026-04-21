@@ -27,7 +27,7 @@ func Callee() {}
 	}
 
 	ctx := context.Background()
-	pointers, calls, err := ParseFile(ctx, filePath)
+	pointers, calls, err := ParseFile(ctx, filePath, nil)
 	if err != nil {
 		t.Fatalf("ParseFile failed: %v", err)
 	}
@@ -75,7 +75,7 @@ func Nested() {}
 	}
 
 	ctx := context.Background()
-	_, calls, err := ParseFile(ctx, filePath)
+	_, calls, err := ParseFile(ctx, filePath, nil)
 	if err != nil {
 		t.Fatalf("ParseFile failed: %v", err)
 	}
@@ -130,7 +130,7 @@ func NestedCallee() {}
 	}
 
 	ctx := context.Background()
-	_, calls, err := ParseFile(ctx, filePath)
+	_, calls, err := ParseFile(ctx, filePath, nil)
 	if err != nil {
 		t.Fatalf("ParseFile failed: %v", err)
 	}
@@ -192,7 +192,7 @@ func World() {}
 	}
 
 	ctx := context.Background()
-	pointers, _, err := ParseFile(ctx, filePath)
+	pointers, _, err := ParseFile(ctx, filePath, nil)
 	if err != nil {
 		t.Fatalf("ParseFile failed: %v", err)
 	}
@@ -239,7 +239,7 @@ function callee() {}
 	}
 
 	ctx := context.Background()
-	_, calls, err := ParseFile(ctx, filePath)
+	_, calls, err := ParseFile(ctx, filePath, nil)
 	if err != nil {
 		t.Fatalf("ParseFile failed: %v", err)
 	}
