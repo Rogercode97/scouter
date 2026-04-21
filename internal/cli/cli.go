@@ -10,6 +10,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/config"
 	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/Rogercode97/scouter/internal/engine"
+	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/initcmd"
 	"github.com/Rogercode97/scouter/internal/store"
@@ -308,7 +309,13 @@ func runPipeline(ctx context.Context, command string, args []string, flags Flags
 		cfg = config.DefaultConfig()
 	}
 
-	filters, err := filter.LoadAll(cfg.Filters.Dir)
+	filterDir := cfg.Filters.Dir
+	if _, err := os.Stat(filterDir); os.IsNotExist(err) {
+		// Fallback to local project filters for development/Truth Kernel mode
+		filterDir = "internal/filters"
+	}
+
+	filters, err := filter.LoadAll(filterDir)
 	if err != nil {
 		display.PrintError(fmt.Sprintf("load filters: %v", err))
 		return 1
@@ -332,9 +339,22 @@ func runPipeline(ctx context.Context, command string, args []string, flags Flags
 	pipeline := &engine.Pipeline{
 		Registry:     registry,
 		Tracker:      tracker,
+		LSPManager:   lsp.NewManager(), // Add LSP support to CLI proxy
 		TeeConfig:    teeCfg,
 		Verbose:      flags.Verbose,
+		GainLevel:    1, // Default to SIGNAL (1) for CLI proxy
 		UltraCompact: flags.UltraCompact,
+	}
+
+	if g := os.Getenv("SCOUTER_GAIN"); g != "" {
+		switch g {
+		case "0", "compact":
+			pipeline.GainLevel = 0
+		case "1", "signal":
+			pipeline.GainLevel = 1
+		case "2", "raw":
+			pipeline.GainLevel = 2
+		}
 	}
 
 	return pipeline.Run(ctx, command, args)
