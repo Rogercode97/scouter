@@ -1,0 +1,57 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/telemetry/schema.go",
+  "hash": "502c89efe3b4d07e558d27a509fd0f2e2564daf5a51ee05b375826b9d1b7d323",
+  "symbols": [
+    {
+      "name": "Summary",
+      "type": "class",
+      "doc": "Summary holds aggregate tracking stats.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/telemetry/schema.go",
+      "start_byte": 2678,
+      "end_byte": 2778,
+      "start_line": 97,
+      "end_line": 102
+    },
+    {
+      "name": "DayStats",
+      "type": "class",
+      "doc": "DayStats holds daily tracking stats.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/telemetry/schema.go",
+      "start_byte": 2825,
+      "end_byte": 2959,
+      "start_line": 105,
+      "end_line": 112
+    },
+    {
+      "name": "CommandRecord",
+      "type": "class",
+      "doc": "CommandRecord holds a single tracked command.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/telemetry/schema.go",
+      "start_byte": 3015,
+      "end_byte": 3198,
+      "start_line": 115,
+      "end_line": 124
+    },
+    {
+      "name": "CommandStats",
+      "type": "class",
+      "doc": "CommandStats holds aggregate stats per command.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/telemetry/schema.go",
+      "start_byte": 3256,
+      "end_byte": 3394,
+      "start_line": 127,
+      "end_line": 134
+    },
+    {
+      "name": "PeriodStats",
+      "type": "class",
+      "doc": "PeriodStats holds aggregate stats for a time period (week or month).",
+      "path": "/data/data/com.termux/files/home/scouter/internal/telemetry/schema.go",
+      "start_byte": 3473,
+      "end_byte": 3610,
+      "start_line": 137,
+      "end_line": 144
+    }
+  ],
+  "calls": null
+}

@@ -1,0 +1,286 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+  "hash": "f119bc682eb665f498c6eefa5de5bc18e308f89acfd2821b2b4288931fcc5d68",
+  "symbols": [
+    {
+      "name": "TestResultStore",
+      "type": "interface",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "start_byte": 135,
+      "end_byte": 230,
+      "start_line": 13,
+      "end_line": 15
+    },
+    {
+      "name": "HealthEngine",
+      "type": "class",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "start_byte": 237,
+      "end_byte": 283,
+      "start_line": 17,
+      "end_line": 19
+    },
+    {
+      "name": "NewHealthEngine",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "start_byte": 285,
+      "end_byte": 382,
+      "start_line": 21,
+      "end_line": 23
+    },
+    {
+      "name": "Ingest",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "start_byte": 384,
+      "end_byte": 1504,
+      "start_line": 25,
+      "end_line": 65
+    },
+    {
+      "name": "extractErrorAndStack",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "start_byte": 1506,
+      "end_byte": 2242,
+      "start_line": 67,
+      "end_line": 91
+    },
+    {
+      "name": "mapToSymbol",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "start_byte": 2244,
+      "end_byte": 2904,
+      "start_line": 93,
+      "end_line": 110
+    },
+    {
+      "name": "mapToSymbol",
+      "type": "function",
+      "doc": "Internal version for testing if needed",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "start_byte": 2948,
+      "end_byte": 3056,
+      "start_line": 113,
+      "end_line": 116
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "Ingest",
+      "callee_name": "NewDecoder",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 26
+    },
+    {
+      "caller_name": "Ingest",
+      "callee_name": "make",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 27
+    },
+    {
+      "caller_name": "Ingest",
+      "callee_name": "More",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 29
+    },
+    {
+      "caller_name": "Ingest",
+      "callee_name": "Decode",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 31
+    },
+    {
+      "caller_name": "Ingest",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 32
+    },
+    {
+      "caller_name": "Ingest",
+      "callee_name": "append",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 44
+    },
+    {
+      "caller_name": "Ingest",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 46
+    },
+    {
+      "caller_name": "Ingest",
+      "callee_name": "extractErrorAndStack",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 47
+    },
+    {
+      "caller_name": "Ingest",
+      "callee_name": "int64",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 54
+    },
+    {
+      "caller_name": "Ingest",
+      "callee_name": "mapToSymbol",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 55
+    },
+    {
+      "caller_name": "Ingest",
+      "callee_name": "SaveTestResult",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 58
+    },
+    {
+      "caller_name": "Ingest",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 59
+    },
+    {
+      "caller_name": "Ingest",
+      "callee_name": "delete",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 61
+    },
+    {
+      "caller_name": "extractErrorAndStack",
+      "callee_name": "Split",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 68
+    },
+    {
+      "caller_name": "extractErrorAndStack",
+      "callee_name": "Contains",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 73
+    },
+    {
+      "caller_name": "extractErrorAndStack",
+      "callee_name": "TrimSpace",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 78
+    },
+    {
+      "caller_name": "extractErrorAndStack",
+      "callee_name": "Contains",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 83
+    },
+    {
+      "caller_name": "extractErrorAndStack",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 83
+    },
+    {
+      "caller_name": "extractErrorAndStack",
+      "callee_name": "append",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 84
+    },
+    {
+      "caller_name": "extractErrorAndStack",
+      "callee_name": "append",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 87
+    },
+    {
+      "caller_name": "extractErrorAndStack",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 90
+    },
+    {
+      "caller_name": "extractErrorAndStack",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 90
+    },
+    {
+      "caller_name": "mapToSymbol",
+      "callee_name": "TrimPrefix",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 94
+    },
+    {
+      "caller_name": "mapToSymbol",
+      "callee_name": "Split",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 95
+    },
+    {
+      "caller_name": "mapToSymbol",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 96
+    },
+    {
+      "caller_name": "mapToSymbol",
+      "callee_name": "mapToSymbol",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/health.go",
+      "line": 115
+    }
+  ]
+}

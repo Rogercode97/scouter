@@ -1,0 +1,26 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/tests/fixtures/test.py",
+  "hash": "e9c42f70ea5a20701f80f3d4812a89e60b503ef0ccea3b73fe450df101ba80a1",
+  "symbols": [
+    {
+      "name": "hello",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/tests/fixtures/test.py",
+      "start_byte": 0,
+      "end_byte": 31,
+      "start_line": 1,
+      "end_line": 2
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "hello",
+      "callee_name": "print",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/tests/fixtures/test.py",
+      "line": 2
+    }
+  ]
+}

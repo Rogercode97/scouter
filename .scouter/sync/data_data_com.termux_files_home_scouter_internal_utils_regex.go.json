@@ -1,0 +1,54 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex.go",
+  "hash": "99f73e6bee24d95566af3b800190d0ea1a26cf37f7d326ae6e6761c321a5f8a7",
+  "symbols": [
+    {
+      "name": "LazyRegex",
+      "type": "class",
+      "doc": "LazyRegex compiles a regex pattern on first use and caches the result.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex.go",
+      "start_byte": 124,
+      "end_byte": 203,
+      "start_line": 9,
+      "end_line": 13
+    },
+    {
+      "name": "NewLazyRegex",
+      "type": "function",
+      "doc": "NewLazyRegex creates a LazyRegex that will compile pattern on first use.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex.go",
+      "start_byte": 281,
+      "end_byte": 366,
+      "start_line": 16,
+      "end_line": 18
+    },
+    {
+      "name": "Re",
+      "type": "function",
+      "doc": "Re returns the compiled regexp, compiling it on first call.\nPanics if the pattern is invalid.",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex.go",
+      "start_byte": 468,
+      "end_byte": 592,
+      "start_line": 22,
+      "end_line": 27
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "Re",
+      "callee_name": "Do",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex.go",
+      "line": 23
+    },
+    {
+      "caller_name": "Re.func1",
+      "callee_name": "MustCompile",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex.go",
+      "line": 24
+    }
+  ]
+}

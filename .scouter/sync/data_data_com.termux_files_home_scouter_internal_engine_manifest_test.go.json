@@ -1,0 +1,260 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+  "hash": "dd8b5152368af8d26f6de08d779fde1dff1fe92d6a3b8e40b185209cc830d719",
+  "symbols": [
+    {
+      "name": "TestParseGoMod",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "start_byte": 73,
+      "end_byte": 1185,
+      "start_line": 10,
+      "end_line": 60
+    },
+    {
+      "name": "TestParsePackageJSON",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "start_byte": 1187,
+      "end_byte": 2211,
+      "start_line": 62,
+      "end_line": 110
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "MkdirTemp",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 20
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "Fatal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 22
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "RemoveAll",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 24
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 26
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "WriteFile",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 27
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "Fatal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 28
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "ParseGoMod",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 31
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 31
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 33
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 36
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 37
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 37
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 46
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 52
+    },
+    {
+      "caller_name": "TestParseGoMod",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 58
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "MkdirTemp",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 73
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "Fatal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 75
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "RemoveAll",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 77
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 79
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "WriteFile",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 80
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "Fatal",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 81
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "ParsePackageJSON",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 84
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 84
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 86
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 89
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 90
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "len",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 90
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 103
+    },
+    {
+      "caller_name": "TestParsePackageJSON",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/engine/manifest_test.go",
+      "line": 108
+    }
+  ]
+}

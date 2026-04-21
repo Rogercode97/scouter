@@ -1,0 +1,1332 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+  "hash": "15d4055cbb11c742d61bf1f279b6d53190a8c055ae746ff88d1384ceddf128d6",
+  "symbols": [
+    {
+      "name": "TestStoreSearch",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "start_byte": 62,
+      "end_byte": 1597,
+      "start_line": 10,
+      "end_line": 73
+    },
+    {
+      "name": "TestStoreCalls",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "start_byte": 1599,
+      "end_byte": 2980,
+      "start_line": 75,
+      "end_line": 130
+    },
+    {
+      "name": "TestGetImpact",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "start_byte": 2982,
+      "end_byte": 4909,
+      "start_line": 132,
+      "end_line": 191
+    },
+    {
+      "name": "TestGetUnusedSymbols",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "start_byte": 4911,
+      "end_byte": 6863,
+      "start_line": 193,
+      "end_line": 260
+    },
+    {
+      "name": "TestStoreSearch_Injection",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "start_byte": 6865,
+      "end_byte": 7914,
+      "start_line": 262,
+      "end_line": 301
+    },
+    {
+      "name": "TestSaveFileIndex_PreservesSymbols",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "start_byte": 7916,
+      "end_byte": 9181,
+      "start_line": 303,
+      "end_line": 354
+    },
+    {
+      "name": "TestStore_DeleteCascade",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "start_byte": 9183,
+      "end_byte": 10200,
+      "start_line": 356,
+      "end_line": 394
+    },
+    {
+      "name": "TestStore_HasColumn",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "start_byte": 10202,
+      "end_byte": 11330,
+      "start_line": 396,
+      "end_line": 439
+    },
+    {
+      "name": "TestSanitizeFTS_SpecialCharacters",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "start_byte": 11332,
+      "end_byte": 12029,
+      "start_line": 441,
+      "end_line": 469
+    },
+    {
+      "name": "TestStore_TransactionSafety",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "start_byte": 12031,
+      "end_byte": 13154,
+      "start_line": 471,
+      "end_line": 512
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "Context",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 11
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "Remove",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 13
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "New",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 15
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 17
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 19
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "SaveFileIndex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 22
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 30
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "SaveSymbol",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 41
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 42
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "SearchSymbols",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 47
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 49
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 52
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 53
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 65
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "SearchSymbols",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 69
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 70
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 71
+    },
+    {
+      "caller_name": "TestStoreSearch",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 71
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "Context",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 76
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "Remove",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 78
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "New",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 80
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 82
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 84
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "SaveFileIndex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 87
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 95
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "SaveCall",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 106
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 107
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "GetCallers",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 112
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 114
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 117
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 118
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 118
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "ClearCalls",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 122
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 123
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "GetCallers",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 126
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 127
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 128
+    },
+    {
+      "caller_name": "TestStoreCalls",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 128
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "Context",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 133
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "Remove",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 135
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "New",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 137
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 139
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 141
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "SaveFileIndex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 144
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "SaveFileIndex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 145
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "SaveFileIndex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 146
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "SaveFileIndex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 147
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "SaveCall",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 157
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 158
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "GetImpact",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 166
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 168
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 183
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "GetImpact",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 187
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 188
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 189
+    },
+    {
+      "caller_name": "TestGetImpact",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 189
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "Context",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 194
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "Remove",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 196
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "New",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 198
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 200
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 202
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "SaveFileIndex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 205
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 213
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "SaveSymbol",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 226
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 227
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "SaveCall",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 232
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 234
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "GetUnusedSymbols",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 239
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 241
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 244
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 245
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 245
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 247
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "GetUnusedSymbols",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 252
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 254
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 257
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 258
+    },
+    {
+      "caller_name": "TestGetUnusedSymbols",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 258
+    },
+    {
+      "caller_name": "TestStoreSearch_Injection",
+      "callee_name": "Context",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 263
+    },
+    {
+      "caller_name": "TestStoreSearch_Injection",
+      "callee_name": "Remove",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 265
+    },
+    {
+      "caller_name": "TestStoreSearch_Injection",
+      "callee_name": "New",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 267
+    },
+    {
+      "caller_name": "TestStoreSearch_Injection",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 269
+    },
+    {
+      "caller_name": "TestStoreSearch_Injection",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 271
+    },
+    {
+      "caller_name": "TestStoreSearch_Injection",
+      "callee_name": "SaveFileIndex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 274
+    },
+    {
+      "caller_name": "TestStoreSearch_Injection",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 282
+    },
+    {
+      "caller_name": "TestStoreSearch_Injection",
+      "callee_name": "SaveSymbol",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 291
+    },
+    {
+      "caller_name": "TestStoreSearch_Injection",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 292
+    },
+    {
+      "caller_name": "TestStoreSearch_Injection",
+      "callee_name": "SearchSymbols",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 297
+    },
+    {
+      "caller_name": "TestStoreSearch_Injection",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 299
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "Context",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 304
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "Remove",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 306
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "New",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 308
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 310
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 312
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "SaveFileIndex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 316
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 324
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "SaveSymbol",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 329
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 330
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "SaveFileIndex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 334
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 342
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "SearchSymbols",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 346
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 348
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 351
+    },
+    {
+      "caller_name": "TestSaveFileIndex_PreservesSymbols",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 352
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "Context",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 357
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "Remove",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 359
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "New",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 361
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 363
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 365
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "SaveFileIndex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 369
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 371
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "SaveSymbol",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 376
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 377
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "DeleteFileIndex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 381
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 382
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "SearchSymbols",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 386
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 388
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 391
+    },
+    {
+      "caller_name": "TestStore_DeleteCascade",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 392
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "Context",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 397
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "Remove",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 399
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "New",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 401
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 403
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 405
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "BeginTx",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 408
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "Rollback",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 409
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "hasColumn",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 412
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 414
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 417
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "hasColumn",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 421
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 423
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 426
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "hasColumn",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 432
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 434
+    },
+    {
+      "caller_name": "TestStore_HasColumn",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 437
+    },
+    {
+      "caller_name": "TestSanitizeFTS_SpecialCharacters",
+      "callee_name": "sanitizeFTS",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 464
+    },
+    {
+      "caller_name": "TestSanitizeFTS_SpecialCharacters",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 466
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "Context",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 472
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "Remove",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 474
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "New",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 476
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 478
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 480
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "SaveFileIndex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 483
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 491
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "WithTransaction",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 495
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety.func1",
+      "callee_name": "SaveSymbol",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 497
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety.func1",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 500
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 503
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 504
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "SearchSymbols",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 508
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 509
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "Errorf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 510
+    },
+    {
+      "caller_name": "TestStore_TransactionSafety",
+      "callee_name": "len",
+      "callee_path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/store/store_test.go",
+      "line": 510
+    }
+  ]
+}

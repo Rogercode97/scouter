@@ -1,0 +1,644 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+  "hash": "b18c4c6fb3fa39d00157ffbbfa29e2b4f2c5ec08bfe904e39e0a639eea07b709",
+  "symbols": [
+    {
+      "name": "newTestTracker",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 140,
+      "end_byte": 439,
+      "start_line": 13,
+      "end_line": 22
+    },
+    {
+      "name": "seedTracker",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 441,
+      "end_byte": 853,
+      "start_line": 24,
+      "end_line": 30
+    },
+    {
+      "name": "TestRunGainNoData",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 855,
+      "end_byte": 1015,
+      "start_line": 32,
+      "end_line": 38
+    },
+    {
+      "name": "TestRunGainWithData",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 1017,
+      "end_byte": 1205,
+      "start_line": 40,
+      "end_line": 48
+    },
+    {
+      "name": "TestRunGainDaily",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 1207,
+      "end_byte": 1408,
+      "start_line": 50,
+      "end_line": 58
+    },
+    {
+      "name": "TestRunGainWeekly",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 1410,
+      "end_byte": 1613,
+      "start_line": 60,
+      "end_line": 68
+    },
+    {
+      "name": "TestRunGainMonthly",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 1615,
+      "end_byte": 1820,
+      "start_line": 70,
+      "end_line": 78
+    },
+    {
+      "name": "TestRunGainTop",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 1822,
+      "end_byte": 2024,
+      "start_line": 80,
+      "end_line": 88
+    },
+    {
+      "name": "TestRunGainTopDefault",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 2026,
+      "end_byte": 2230,
+      "start_line": 90,
+      "end_line": 98
+    },
+    {
+      "name": "TestRunGainHistory",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 2232,
+      "end_byte": 2442,
+      "start_line": 100,
+      "end_line": 108
+    },
+    {
+      "name": "TestRunGainHistoryDefault",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 2444,
+      "end_byte": 2656,
+      "start_line": 110,
+      "end_line": 118
+    },
+    {
+      "name": "TestRunGainJSON",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 2658,
+      "end_byte": 2857,
+      "start_line": 120,
+      "end_line": 128
+    },
+    {
+      "name": "TestRunGainCSV",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 2859,
+      "end_byte": 3056,
+      "start_line": 130,
+      "end_line": 138
+    },
+    {
+      "name": "TestRunGainNilTracker",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "start_byte": 3058,
+      "end_byte": 3188,
+      "start_line": 140,
+      "end_line": 145
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "newTestTracker",
+      "callee_name": "Helper",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 14
+    },
+    {
+      "caller_name": "newTestTracker",
+      "callee_name": "Join",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 15
+    },
+    {
+      "caller_name": "newTestTracker",
+      "callee_name": "TempDir",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 15
+    },
+    {
+      "caller_name": "newTestTracker",
+      "callee_name": "NewTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 16
+    },
+    {
+      "caller_name": "newTestTracker",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 16
+    },
+    {
+      "caller_name": "newTestTracker",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 18
+    },
+    {
+      "caller_name": "newTestTracker",
+      "callee_name": "Cleanup",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 20
+    },
+    {
+      "caller_name": "newTestTracker.func1",
+      "callee_name": "Close",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 20
+    },
+    {
+      "caller_name": "seedTracker",
+      "callee_name": "Helper",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 25
+    },
+    {
+      "caller_name": "seedTracker",
+      "callee_name": "Track",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 26
+    },
+    {
+      "caller_name": "seedTracker",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 26
+    },
+    {
+      "caller_name": "seedTracker",
+      "callee_name": "Track",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 27
+    },
+    {
+      "caller_name": "seedTracker",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 27
+    },
+    {
+      "caller_name": "seedTracker",
+      "callee_name": "Track",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 28
+    },
+    {
+      "caller_name": "seedTracker",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 28
+    },
+    {
+      "caller_name": "seedTracker",
+      "callee_name": "Track",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 29
+    },
+    {
+      "caller_name": "seedTracker",
+      "callee_name": "Background",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 29
+    },
+    {
+      "caller_name": "TestRunGainNoData",
+      "callee_name": "newTestTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 33
+    },
+    {
+      "caller_name": "TestRunGainNoData",
+      "callee_name": "RunGain",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 34
+    },
+    {
+      "caller_name": "TestRunGainNoData",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 36
+    },
+    {
+      "caller_name": "TestRunGainWithData",
+      "callee_name": "newTestTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 41
+    },
+    {
+      "caller_name": "TestRunGainWithData",
+      "callee_name": "seedTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 42
+    },
+    {
+      "caller_name": "TestRunGainWithData",
+      "callee_name": "RunGain",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 44
+    },
+    {
+      "caller_name": "TestRunGainWithData",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 46
+    },
+    {
+      "caller_name": "TestRunGainDaily",
+      "callee_name": "newTestTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 51
+    },
+    {
+      "caller_name": "TestRunGainDaily",
+      "callee_name": "seedTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 52
+    },
+    {
+      "caller_name": "TestRunGainDaily",
+      "callee_name": "RunGain",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 54
+    },
+    {
+      "caller_name": "TestRunGainDaily",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 56
+    },
+    {
+      "caller_name": "TestRunGainWeekly",
+      "callee_name": "newTestTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 61
+    },
+    {
+      "caller_name": "TestRunGainWeekly",
+      "callee_name": "seedTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 62
+    },
+    {
+      "caller_name": "TestRunGainWeekly",
+      "callee_name": "RunGain",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 64
+    },
+    {
+      "caller_name": "TestRunGainWeekly",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 66
+    },
+    {
+      "caller_name": "TestRunGainMonthly",
+      "callee_name": "newTestTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 71
+    },
+    {
+      "caller_name": "TestRunGainMonthly",
+      "callee_name": "seedTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 72
+    },
+    {
+      "caller_name": "TestRunGainMonthly",
+      "callee_name": "RunGain",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 74
+    },
+    {
+      "caller_name": "TestRunGainMonthly",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 76
+    },
+    {
+      "caller_name": "TestRunGainTop",
+      "callee_name": "newTestTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 81
+    },
+    {
+      "caller_name": "TestRunGainTop",
+      "callee_name": "seedTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 82
+    },
+    {
+      "caller_name": "TestRunGainTop",
+      "callee_name": "RunGain",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 84
+    },
+    {
+      "caller_name": "TestRunGainTop",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 86
+    },
+    {
+      "caller_name": "TestRunGainTopDefault",
+      "callee_name": "newTestTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 91
+    },
+    {
+      "caller_name": "TestRunGainTopDefault",
+      "callee_name": "seedTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 92
+    },
+    {
+      "caller_name": "TestRunGainTopDefault",
+      "callee_name": "RunGain",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 94
+    },
+    {
+      "caller_name": "TestRunGainTopDefault",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 96
+    },
+    {
+      "caller_name": "TestRunGainHistory",
+      "callee_name": "newTestTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 101
+    },
+    {
+      "caller_name": "TestRunGainHistory",
+      "callee_name": "seedTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 102
+    },
+    {
+      "caller_name": "TestRunGainHistory",
+      "callee_name": "RunGain",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 104
+    },
+    {
+      "caller_name": "TestRunGainHistory",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 106
+    },
+    {
+      "caller_name": "TestRunGainHistoryDefault",
+      "callee_name": "newTestTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 111
+    },
+    {
+      "caller_name": "TestRunGainHistoryDefault",
+      "callee_name": "seedTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 112
+    },
+    {
+      "caller_name": "TestRunGainHistoryDefault",
+      "callee_name": "RunGain",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 114
+    },
+    {
+      "caller_name": "TestRunGainHistoryDefault",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 116
+    },
+    {
+      "caller_name": "TestRunGainJSON",
+      "callee_name": "newTestTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 121
+    },
+    {
+      "caller_name": "TestRunGainJSON",
+      "callee_name": "seedTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 122
+    },
+    {
+      "caller_name": "TestRunGainJSON",
+      "callee_name": "RunGain",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 124
+    },
+    {
+      "caller_name": "TestRunGainJSON",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 126
+    },
+    {
+      "caller_name": "TestRunGainCSV",
+      "callee_name": "newTestTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 131
+    },
+    {
+      "caller_name": "TestRunGainCSV",
+      "callee_name": "seedTracker",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 132
+    },
+    {
+      "caller_name": "TestRunGainCSV",
+      "callee_name": "RunGain",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 134
+    },
+    {
+      "caller_name": "TestRunGainCSV",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 136
+    },
+    {
+      "caller_name": "TestRunGainNilTracker",
+      "callee_name": "RunGain",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 141
+    },
+    {
+      "caller_name": "TestRunGainNilTracker",
+      "callee_name": "Fatalf",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/display/gain_test.go",
+      "line": 143
+    }
+  ]
+}

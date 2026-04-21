@@ -1,0 +1,132 @@
+{
+  "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+  "hash": "4bb44e7d88887cd54d1321ba45b37790322b9f5ae4a27d3a4f543c89ded24d40",
+  "symbols": [
+    {
+      "name": "TestLazyRegex",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "start_byte": 38,
+      "end_byte": 417,
+      "start_line": 7,
+      "end_line": 24
+    },
+    {
+      "name": "TestLazyRegexConcurrent",
+      "type": "function",
+      "doc": "",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "start_byte": 419,
+      "end_byte": 691,
+      "start_line": 26,
+      "end_line": 43
+    }
+  ],
+  "calls": [
+    {
+      "caller_name": "TestLazyRegex",
+      "callee_name": "NewLazyRegex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "line": 8
+    },
+    {
+      "caller_name": "TestLazyRegex",
+      "callee_name": "Re",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "line": 11
+    },
+    {
+      "caller_name": "TestLazyRegex",
+      "callee_name": "MatchString",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "line": 12
+    },
+    {
+      "caller_name": "TestLazyRegex",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "line": 13
+    },
+    {
+      "caller_name": "TestLazyRegex",
+      "callee_name": "MatchString",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "line": 15
+    },
+    {
+      "caller_name": "TestLazyRegex",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "line": 16
+    },
+    {
+      "caller_name": "TestLazyRegex",
+      "callee_name": "Re",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "line": 20
+    },
+    {
+      "caller_name": "TestLazyRegex",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "line": 22
+    },
+    {
+      "caller_name": "TestLazyRegexConcurrent",
+      "callee_name": "NewLazyRegex",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "line": 27
+    },
+    {
+      "caller_name": "TestLazyRegexConcurrent",
+      "callee_name": "make",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "line": 28
+    },
+    {
+      "caller_name": "TestLazyRegexConcurrent.func1",
+      "callee_name": "Re",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "line": 32
+    },
+    {
+      "caller_name": "TestLazyRegexConcurrent.func1",
+      "callee_name": "MatchString",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "line": 33
+    },
+    {
+      "caller_name": "TestLazyRegexConcurrent.func1",
+      "callee_name": "Error",
+      "callee_path": "",
+      "link_type": "call",
+      "path": "/data/data/com.termux/files/home/scouter/internal/utils/regex_test.go",
+      "line": 34
+    }
+  ]
+}
