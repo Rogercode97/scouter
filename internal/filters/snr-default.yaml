@@ -1,0 +1,10 @@
+name: snr-default
+command: "*"
+subcommand: "*"
+pipeline:
+  - action: strip_ansi
+  - action: snr_dedup
+  - action: head_tail
+    params:
+      head: 20
+      tail: 20

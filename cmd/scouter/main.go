@@ -250,7 +250,7 @@ Use 'scouter_visualize' to generate a risk-colored call graph (Mermaid).`),
 			}
 		}
 
-		idxResult, calls, err := engine.ParseFile(ctx, filePath)
+		idxResult, calls, err := engine.ParseFile(ctx, filePath, lspMgr)
 		if err != nil {
 			return mcpError(fmt.Sprintf("Indexing failed: %v", err)), nil
 		}
@@ -727,7 +727,7 @@ Use 'scouter_visualize' to generate a risk-colored call graph (Mermaid).`),
 			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
 		}
 
-		client, err := lspMgr.GetClient(req.FilePath)
+		client, err := lspMgr.GetClient(ctx, req.FilePath)
 		if err != nil {
 			return mcpError(fmt.Sprintf("LSP unavailable: %v", err)), nil
 		}
@@ -764,7 +764,7 @@ Use 'scouter_visualize' to generate a risk-colored call graph (Mermaid).`),
 			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
 		}
 
-		client, err := lspMgr.GetClient(req.FilePath)
+		client, err := lspMgr.GetClient(ctx, req.FilePath)
 		if err != nil {
 			return mcpError(fmt.Sprintf("LSP unavailable: %v", err)), nil
 		}

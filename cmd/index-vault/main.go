@@ -141,6 +141,9 @@ func main() {
 		workerCount = 8
 	}
 
+	lspMgr := lsp.NewManager()
+	defer lspMgr.Close()
+
 	for i := 0; i < workerCount; i++ {
 		g.Go(func() error {
 			for job := range jobs {
@@ -175,7 +178,7 @@ func main() {
 
 					if res.Error == nil {
 						res.Hash = h
-						syms, calls, parseErr := engine.ParseFile(groupCtx, job.Path)
+						syms, calls, parseErr := engine.ParseFile(groupCtx, job.Path, lspMgr)
 						if parseErr != nil {
 							res.Error = parseErr
 						} else {

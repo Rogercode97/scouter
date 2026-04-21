@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
+
+	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 // Config for tee behavior.
@@ -27,8 +28,8 @@ func DefaultConfig() Config {
 	return Config{
 		Enabled:     true,
 		Mode:        "failures",
-		MaxFiles:    20,
-		MaxFileSize: 1 << 20, // 1MB
+		MaxFiles:    50,                // RTK-inspired higher limit for unique commands
+		MaxFileSize: 2 * 1024 * 1024,   // 2MB for deeper context
 		Dir:         filepath.Join(home, ".local", "share", "scouter", "tee"),
 	}
 }
@@ -49,8 +50,8 @@ func MaybeSave(raw string, exitCode int, cmd string, cfg Config) string {
 		return ""
 	}
 
-	// Skip if output is too small
-	if len(raw) < 500 {
+	// Skip if output is too small to be meaningful context
+	if len(raw) < 200 {
 		return ""
 	}
 
@@ -63,37 +64,31 @@ func MaybeSave(raw string, exitCode int, cmd string, cfg Config) string {
 		return "" // Silent failure
 	}
 
+	// CAS: Filename is the hash of the command string
+	hash := utils.HashString(cmd)
+	filename := fmt.Sprintf("%s.log", hash)
+	path := filepath.Join(dir, filename)
+
 	// Truncate if too large (rune-safe)
 	data := raw
 	if int64(len(data)) > cfg.MaxFileSize {
 		runes := []rune(data)
-		// Find the rune boundary within MaxFileSize bytes
 		byteCount := 0
 		for i, r := range runes {
 			byteCount += len(string(r))
 			if int64(byteCount) > cfg.MaxFileSize {
-				data = string(runes[:i])
+				data = string(runes[:i]) + "\n[scouter: output truncated due to MaxFileSize limit]"
 				break
 			}
 		}
 	}
 
-	// Sanitize command name for filename
-	safeName := strings.Map(func(r rune) rune {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
-			return r
-		}
-		return '-'
-	}, cmd)
-
-	filename := fmt.Sprintf("%d-%s.log", time.Now().Unix(), safeName)
-	path := filepath.Join(dir, filename)
-
+	// Write latest trace for this specific command hash
 	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		return "" // Silent failure
 	}
 
-	// Rotate
+	// Rotate by access/modification time if we reach MaxFiles
 	rotateFiles(dir, cfg.MaxFiles)
 
 	return fmt.Sprintf("[full output: %s]", path)
@@ -105,10 +100,12 @@ func rotateFiles(dir string, maxFiles int) {
 		return
 	}
 
-	var logFiles []os.DirEntry
+	var logFiles []os.FileInfo
 	for _, e := range entries {
 		if !e.IsDir() && strings.HasSuffix(e.Name(), ".log") {
-			logFiles = append(logFiles, e)
+			if info, err := e.Info(); err == nil {
+				logFiles = append(logFiles, info)
+			}
 		}
 	}
 
@@ -116,12 +113,12 @@ func rotateFiles(dir string, maxFiles int) {
 		return
 	}
 
-	// Sort by name (timestamp prefix = chronological)
+	// Sort by modification time (oldest first)
 	sort.Slice(logFiles, func(i, j int) bool {
-		return logFiles[i].Name() < logFiles[j].Name()
+		return logFiles[i].ModTime().Before(logFiles[j].ModTime())
 	})
 
-	// Remove oldest
+	// Remove oldest unique command traces
 	toRemove := len(logFiles) - maxFiles
 	for i := 0; i < toRemove; i++ {
 		_ = os.Remove(filepath.Join(dir, logFiles[i].Name()))

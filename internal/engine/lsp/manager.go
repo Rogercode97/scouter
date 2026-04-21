@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -17,7 +18,7 @@ type Manager struct {
 	mu      sync.RWMutex
 
 	// clientCreator allows mocking for tests
-	clientCreator func(binary string, args ...string) (LSPClient, error)
+	clientCreator func(ctx context.Context, binary string, args ...string) (LSPClient, error)
 }
 
 func NewManager() *Manager {
@@ -27,7 +28,7 @@ func NewManager() *Manager {
 	}
 }
 
-func (m *Manager) GetClient(filePath string) (LSPClient, error) {
+func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, error) {
 	ext := filepath.Ext(filePath)
 	binary := ""
 	var args []string
@@ -57,7 +58,11 @@ func (m *Manager) GetClient(filePath string) (LSPClient, error) {
 	}
 
 	entry.once.Do(func() {
-		entry.client, entry.err = m.clientCreator(binary, args...)
+		// IMPORTANT: LSP server processes are long-running and MUST NOT be tied 
+		// to a request context that might time out. We use a background context
+		// for the process lifecycle.
+		bgCtx := context.Background()
+		entry.client, entry.err = m.clientCreator(bgCtx, binary, args...)
 	})
 
 	if entry.err != nil {

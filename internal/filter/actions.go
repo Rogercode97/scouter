@@ -29,12 +29,75 @@ var actions = map[string]ActionFunc{
 	"aggregate":       aggregate,
 	"format_template": formatTemplate,
 	"compact_path":    compactPath,
+	"snr_dedup":       snrDedup,
+	"head_tail":       headTail,
 }
 
 // GetAction returns the ActionFunc for the given action name.
 func GetAction(name string) (ActionFunc, bool) {
 	fn, ok := actions[name]
 	return fn, ok
+}
+
+func snrDedup(input ActionResult, params map[string]any) (ActionResult, error) {
+	if len(input.Lines) == 0 {
+		return input, nil
+	}
+
+	var out []string
+	lastLine := ""
+	count := 0
+
+	for _, line := range input.Lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+
+		if trimmed == lastLine {
+			count++
+			continue
+		}
+
+		if lastLine != "" {
+			if count > 1 {
+				out = append(out, fmt.Sprintf("%s [x%d]", lastLine, count))
+			} else {
+				out = append(out, lastLine)
+			}
+		}
+
+		lastLine = trimmed
+		count = 1
+	}
+
+	// Last block
+	if lastLine != "" {
+		if count > 1 {
+			out = append(out, fmt.Sprintf("%s [x%d]", lastLine, count))
+		} else {
+			out = append(out, lastLine)
+		}
+	}
+
+	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
+}
+
+func headTail(input ActionResult, params map[string]any) (ActionResult, error) {
+	headN := getInt(params, "head", 10)
+	tailN := getInt(params, "tail", 10)
+	threshold := headN + tailN + 5 // Margin to avoid tiny truncations
+
+	if len(input.Lines) <= threshold {
+		return input, nil
+	}
+
+	var out []string
+	out = append(out, input.Lines[:headN]...)
+	out = append(out, fmt.Sprintf("... [scouter: truncated %d lines of noise] ...", len(input.Lines)-headN-tailN))
+	out = append(out, input.Lines[len(input.Lines)-tailN:]...)
+
+	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
 }
 
 // --- helpers ---
