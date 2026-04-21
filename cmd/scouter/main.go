@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/Rogercode97/scouter/internal/config"
@@ -22,7 +24,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-var version = "2.0.0" // Omniscience Edition
+var version = "2.2.0" // Risk Edition
 
 //go:embed plugins/opencode/scouter.ts
 var openCodePluginFS embed.FS
@@ -89,6 +91,20 @@ type CallersRequest struct {
 	CalleeName string `json:"calleeName" validate:"required,min=1"`
 }
 
+type ImpactRequest struct {
+	SymbolName string `json:"symbolName" validate:"required"`
+	FilePath   string `json:"filePath" validate:"omitempty"`
+	MaxDepth   int    `json:"maxDepth" validate:"omitempty,min=1,max=10"`
+}
+
+type PredictRequest struct {
+	MaxDepth int `json:"maxDepth" validate:"omitempty,min=1,max=10"`
+}
+
+type CriticalRequest struct {
+	Limit int `json:"limit" validate:"omitempty,min=1,max=100"`
+}
+
 type VisualizeRequest struct {
 	SymbolName string `json:"symbolName" validate:"required,min=1"`
 	Depth      int    `json:"depth" validate:"omitempty,min=1,max=3"`
@@ -111,7 +127,10 @@ type TypeInfoRequest struct {
 }
 
 func runMCPServer() {
-	ctx := context.Background()
+	// Create root context with signal notification for Go 1.24+ sovereignty
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	cfg, err := config.Load(ctx)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
@@ -125,11 +144,17 @@ func runMCPServer() {
 	if err != nil {
 		log.Fatalf("Failed to initialize store: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		log.Println("Closing database connection...")
+		db.Close()
+	}()
 
 	// Initialize LSP Manager
 	lspMgr := lsp.NewManager()
-	defer lspMgr.Close()
+	defer func() {
+		log.Println("Closing LSP manager...")
+		lspMgr.Close()
+	}()
 
 	v := validator.New(validator.WithRequiredStructEnabled())
 
@@ -142,7 +167,10 @@ Use 'scouter_index' to understand a file's structure and documentation.
 Use 'scouter_search' for intelligent lookups using BM25 ranking.
 Use 'scouter_goto_definition' and 'scouter_type_info' for high-precision real-time semantic intelligence.
 Use 'scouter_callers' to find all locations where a symbol is invoked.
-Use 'scouter_health' to list failed tests and their associated symbols.`),
+Use 'scouter_health' to list failed tests and their associated symbols.
+Use 'scouter_impact' to calculate the blast radius of changing a symbol.
+Use 'scouter_predict' to identify which tests to run based on current local changes (git diff).
+Use 'scouter_critical_code' to identify the most central and fragile symbols in the project.`),
 	)
 
 	// Resource: scouter://status
@@ -225,25 +253,32 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 			return mcpError(fmt.Sprintf("Indexing failed: %v", err)), nil
 		}
 
-		err = db.WithTransaction(ctx, func(tx store.Repository) error {
+		err = db.WithTransaction(ctx, func(txCtx context.Context, tx store.Repository) error {
 			astJSON, _ := json.Marshal(idxResult)
-			if err := tx.SaveFileIndex(ctx, &store.FileIndex{
+			if err := tx.SaveFileIndex(txCtx, &store.FileIndex{
 				Path: filePath, Mtime: stats.ModTime().UnixNano(), Hash: currentHash, ASTJSON: string(astJSON),
 			}); err != nil {
 				return err
 			}
 
-			tx.ClearSymbols(ctx, filePath)
-			tx.ClearCalls(ctx, filePath)
+			tx.ClearSymbols(txCtx, filePath)
+			tx.ClearCalls(txCtx, filePath)
 			for _, ptr := range idxResult {
-				tx.SaveSymbol(ctx, &store.Symbol{
+				tx.SaveSymbol(txCtx, &store.Symbol{
 					Name: ptr.Name, Type: ptr.Type, Doc: ptr.Doc, Path: filePath,
 					StartByte: ptr.Range.Start, EndByte: ptr.Range.End,
 					StartLine: ptr.StartLine, EndLine: ptr.EndLine,
 				})
 			}
 			for _, c := range calls {
-				tx.SaveCall(ctx, store.Call{CallerName: c.CallerName, CalleeName: c.CalleeName, Path: filePath, Line: c.Line})
+				tx.SaveCall(txCtx, store.Call{
+					CallerName: c.CallerName,
+					CalleeName: c.CalleeName,
+					CalleePath: c.CalleePath, // Enriched Impact metadata
+					LinkType:   c.LinkType,   // Enriched Impact metadata
+					Path:       filePath,
+					Line:       c.Line,
+				})
 			}
 			return nil
 		})
@@ -316,6 +351,154 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 		}
 
 		resJSON, _ := json.Marshal(callers)
+		return mcpJSONResponse(resJSON), nil
+	})
+
+	// Tool: scouter_impact
+	impactTool := mcp.NewTool("scouter_impact",
+		mcp.WithDescription("Calculate the blast radius of changing a specific symbol."),
+		mcp.WithString("symbolName", mcp.Required(), mcp.Description("The name of the symbol being changed.")),
+		mcp.WithString("filePath", mcp.Description("Optional: absolute path to the file where the symbol is defined.")),
+		mcp.WithNumber("maxDepth", mcp.Description("Maximum recursion depth (default 3, max 10).")),
+	)
+
+	s.AddTool(impactTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var req ImpactRequest
+		argsJSON, _ := json.Marshal(request.GetArguments())
+		json.Unmarshal(argsJSON, &req)
+
+		if err := v.Struct(req); err != nil {
+			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
+		}
+
+		// Disambiguation Logic
+		if req.FilePath == "" {
+			results, err := db.SearchSymbols(ctx, req.SymbolName, "")
+			if err != nil {
+				return mcpError(fmt.Sprintf("Failed to disambiguate symbol: %v", err)), nil
+			}
+
+			// Filter exact matches only
+			var exactMatches []string
+			for _, s := range results {
+				if s.Name == req.SymbolName {
+					exactMatches = append(exactMatches, s.Path)
+				}
+			}
+
+			if len(exactMatches) > 1 {
+				return mcpError(fmt.Sprintf("Ambiguous symbol name. Found in multiple files: %s. Please provide 'filePath'.", strings.Join(exactMatches, ", "))), nil
+			} else if len(exactMatches) == 1 {
+				req.FilePath = exactMatches[0]
+			}
+		}
+
+		impact, err := db.GetImpact(ctx, req.SymbolName, req.FilePath, req.MaxDepth)
+		if err != nil {
+			return mcpError(fmt.Sprintf("Impact analysis failed: %v", err)), nil
+		}
+
+		resJSON, _ := json.Marshal(impact)
+		return mcpJSONResponse(resJSON), nil
+	})
+
+	// Tool: scouter_predict
+	predictTool := mcp.NewTool("scouter_predict",
+		mcp.WithDescription("Identify which tests to run based on current local changes (git diff)."),
+		mcp.WithNumber("maxDepth", mcp.Description("Maximum impact recursion depth (default 5, max 10).")),
+	)
+
+	s.AddTool(predictTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var req PredictRequest
+		argsJSON, _ := json.Marshal(request.GetArguments())
+		json.Unmarshal(argsJSON, &req)
+		if req.MaxDepth == 0 {
+			req.MaxDepth = 5
+		}
+
+		if err := v.Struct(req); err != nil {
+			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
+		}
+
+		changes, err := utils.GetLocalChanges(ctx)
+		if err != nil {
+			return mcpError(fmt.Sprintf("Failed to get git changes: %v", err)), nil
+		}
+
+		if len(changes) == 0 {
+			return mcpJSONResponse([]byte(`{"message": "No local changes detected."}`)), nil
+		}
+
+		type Prediction struct {
+			Symbol string `json:"symbol"`
+			File   string `json:"file"`
+			Impact []types.ImpactResult `json:"impact"`
+		}
+		var predictions []Prediction
+		suggestedTests := make(map[string]bool)
+
+		cwd, _ := os.Getwd()
+
+		for _, change := range changes {
+			// Convert relative git path to absolute for DB lookup
+			absPath := filepath.Join(cwd, change.Path)
+			symbols, err := db.GetSymbolsByRange(ctx, absPath, change.StartLine, change.EndLine)
+			if err != nil {
+				continue
+			}
+
+			for _, sym := range symbols {
+				impact, _ := db.GetImpact(ctx, sym.Name, sym.Path, req.MaxDepth)
+				
+				// Identify tests in impact
+				for _, imp := range impact {
+					if strings.HasPrefix(imp.Symbol, "Test") || strings.HasSuffix(imp.File, "_test.go") {
+						suggestedTests[imp.Symbol] = true
+					}
+				}
+
+				predictions = append(predictions, Prediction{
+					Symbol: sym.Name,
+					File:   change.Path,
+					Impact: impact,
+				})
+			}
+		}
+
+		testsList := make([]string, 0, len(suggestedTests))
+		for t := range suggestedTests {
+			testsList = append(testsList, t)
+		}
+
+		res := map[string]interface{}{
+			"suggested_tests": testsList,
+			"affected_symbols": predictions,
+		}
+		resJSON, _ := json.Marshal(res)
+		return mcpJSONResponse(resJSON), nil
+	})
+
+	// Tool: scouter_critical_code
+	criticalTool := mcp.NewTool("scouter_critical_code",
+		mcp.WithDescription("Identify the most central and fragile symbols in the project."),
+		mcp.WithNumber("limit", mcp.Description("Number of symbols to return (default 20, max 100).")),
+	)
+
+	s.AddTool(criticalTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var req CriticalRequest
+		argsJSON, _ := json.Marshal(request.GetArguments())
+		json.Unmarshal(argsJSON, &req)
+
+		if err := v.Struct(req); err != nil {
+			return mcpError(fmt.Sprintf("Validation failed: %v", err)), nil
+		}
+
+		critical, err := db.GetCriticalSymbols(ctx, req.Limit)
+		if err != nil {
+			return mcpError(fmt.Sprintf("Risk analysis failed: %v", err)), nil
+		}
+
+		resJSON, _ := json.Marshal(critical)
 		return mcpJSONResponse(resJSON), nil
 	})
 
@@ -566,8 +749,20 @@ Use 'scouter_health' to list failed tests and their associated symbols.`),
 		}, nil
 	})
 
-	if err := server.ServeStdio(s); err != nil {
-		log.Fatalf("MCP server failed: %v", err)
+	// Launch server in a goroutine to allow signal handling
+	errChan := make(chan error, 1)
+	go func() {
+		log.Printf("Starting MCP server v%s (stdio)...", version)
+		if err := server.ServeStdio(s); err != nil {
+			errChan <- err
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		log.Println("Shutdown signal received. Cleaning up...")
+	case err := <-errChan:
+		log.Fatalf("MCP server error: %v", err)
 	}
 }
 

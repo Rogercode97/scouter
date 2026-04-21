@@ -19,13 +19,12 @@ import (
 var version = "dev"
 
 // Run is the main entry point. Returns exit code.
-func Run(args []string) int {
+func Run(ctx context.Context, args []string) int {
 	if len(args) < 2 {
 		printUsage()
 		return 0
 	}
 
-	ctx := context.Background()
 	flags, remaining := ParseFlags(args[1:])
 
 	if flags.Version {

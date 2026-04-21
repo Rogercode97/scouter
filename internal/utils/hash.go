@@ -23,3 +23,9 @@ func CalculateHash(filePath string) (string, error) {
 
 	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
 }
+
+// HashString computes the SHA-256 hash of a string.
+func HashString(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return fmt.Sprintf("%x", h[:])
+}
