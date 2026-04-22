@@ -82,3 +82,53 @@ func (s *Server) handleRead(ctx context.Context, args map[string]interface{}) (i
 		},
 	}, nil
 }
+
+func (s *Server) handleCallers(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	calleeName, _ := args["calleeName"].(string)
+	if calleeName == "" {
+		return nil, fmt.Errorf("missing calleeName")
+	}
+	results, err := s.store.GetCallers(ctx, calleeName)
+	if err != nil {
+		return nil, err
+	}
+	out, _ := json.Marshal(results)
+	return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": string(out)}}}, nil
+}
+
+func (s *Server) handleImpact(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	symbolName, _ := args["symbolName"].(string)
+	filePath, _ := args["filePath"].(string)
+	maxDepth := 5
+	if d, ok := args["maxDepth"].(float64); ok {
+		maxDepth = int(d)
+	}
+	results, err := s.store.GetImpact(ctx, symbolName, filePath, maxDepth)
+	if err != nil {
+		return nil, err
+	}
+	out, _ := json.Marshal(results)
+	return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": string(out)}}}, nil
+}
+
+func (s *Server) handleCritical(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	limit := 10
+	if l, ok := args["limit"].(float64); ok {
+		limit = int(l)
+	}
+	results, err := s.store.GetCriticalSymbols(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	out, _ := json.Marshal(results)
+	return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": string(out)}}}, nil
+}
+
+func (s *Server) handleDependencies(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	res, err := s.store.GetDependencies(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out, _ := json.Marshal(res)
+	return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": string(out)}}}, nil
+}

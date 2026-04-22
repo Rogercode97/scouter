@@ -88,6 +88,14 @@ func (s *Server) dispatchToolCall(ctx context.Context, id interface{}, name stri
 		result, err = s.handleSearch(ctx, args)
 	case "scouter_read":
 		result, err = s.handleRead(ctx, args)
+	case "scouter_callers":
+		result, err = s.handleCallers(ctx, args)
+	case "scouter_impact":
+		result, err = s.handleImpact(ctx, args)
+	case "scouter_critical_code":
+		result, err = s.handleCritical(ctx, args)
+	case "scouter_dependencies":
+		result, err = s.handleDependencies(ctx, args)
 	default:
 		s.sendError(id, fmt.Sprintf("tool not found: %s", name))
 		return
@@ -135,6 +143,49 @@ func (s *Server) getToolsList() []map[string]interface{} {
 					"pointer":  map[string]interface{}{"type": "string"},
 				},
 				"required": []string{"filePath", "pointer"},
+			},
+		},
+		{
+			"name":        "scouter_callers",
+			"description": "Find callers of a specific symbol",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"calleeName": map[string]interface{}{"type": "string"},
+				},
+				"required": []string{"calleeName"},
+			},
+		},
+		{
+			"name":        "scouter_impact",
+			"description": "Analyze blast radius of a change",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"symbolName": map[string]interface{}{"type": "string"},
+					"filePath":   map[string]interface{}{"type": "string"},
+					"maxDepth":   map[string]interface{}{"type": "integer"},
+				},
+				"required": []string{"symbolName"},
+			},
+		},
+		{
+			"name":        "scouter_critical_code",
+			"description": "Identify code with highest centrality and impact",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"limit": map[string]interface{}{"type": "integer"},
+				},
+			},
+		},
+		{
+			"name":        "scouter_dependencies",
+			"description": "List all tracked inter-file dependencies",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+				},
 			},
 		},
 	}
