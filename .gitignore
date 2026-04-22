@@ -1,17 +1,37 @@
-# Binaries
+# === SCOUTER SOVEREIGNTY ===
+.scouter/
+.agent/
+.engram/
+.gemini/tmp/
+*.log
+session_summary.md
+
+# === BINARIES & BUILD ===
 bin/
+dist/
+pkg/
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+__debug_bin
 
-# Test and coverage
+# === GO ECOSYSTEM ===
 *.test
 *.out
 coverage.txt
+vendor/
+go.work
+go.work.sum
 
-# OS-specific
+# === DATABASE & PERSISTENCE ===
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# === OS & IDE NOISE ===
 .DS_Store
 .DS_Store?
 ._*
@@ -19,20 +39,16 @@ coverage.txt
 .Trashes
 ehthumbs.db
 Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
 
-# Project-specific
-.engram/
-.gemini/tmp/
-skill-arena/sacrifice-mcp.go
-
-# ModernC SQLite temp files
-*.db-journal
-*.db-wal
-*.db-shm
-
-# Vendor
-vendor/
-
-# Local configuration
+# === LOCAL CONFIGURATION ===
 .env
 *.local.toml
+*.local.yaml
+
+# === EXPERIMENTAL & ARENA ===
+skill-arena/
+arena/
