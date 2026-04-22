@@ -88,6 +88,8 @@ func (s *Server) dispatchToolCall(ctx context.Context, id interface{}, name stri
 		result, err = s.handleSearch(ctx, args)
 	case "scouter_read":
 		result, err = s.handleRead(ctx, args)
+	case "scouter_pure_signal":
+		result, err = s.handlePureSignal(ctx, args)
 	case "scouter_callers":
 		result, err = s.handleCallers(ctx, args)
 	case "scouter_impact":
@@ -143,6 +145,19 @@ func (s *Server) getToolsList() []map[string]interface{} {
 					"pointer":  map[string]interface{}{"type": "string"},
 				},
 				"required": []string{"filePath", "pointer"},
+			},
+		},
+		{
+			"name":        "scouter_pure_signal",
+			"description": "Purify noisy text (logs or code) using the Rust Token Killer (rtk) engine.",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"text": map[string]interface{}{"type": "string", "description": "The raw noisy text to purify"},
+					"mode": map[string]interface{}{"type": "string", "description": "Processing mode: 'log' or 'read'. Default: auto-detect."},
+					"level": map[string]interface{}{"type": "string", "description": "Filtering level: 'minimal' or 'aggressive'. Default: aggressive."},
+				},
+				"required": []string{"text"},
 			},
 		},
 		{
