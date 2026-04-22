@@ -11,6 +11,7 @@
 | MCP, Deployment | deployment-sovereign | ~/.gemini/skills/deployment-sovereign/SKILL.md |
 | Scouter, Analysis | scouter-dominion | ~/.gemini/skills/scouter-dominion/SKILL.md |
 | Architect, Refactor | scouter-oracle | .gemini/agents/scouter-oracle.md |
+| Purge, Refactor | scouter-refactor-shinigami | .gemini/agents/scouter-refactor-shinigami.md |
 | Web, UI | web-dominion | ~/.gemini/skills/web-dominion/SKILL.md |
 
 ## Compact Rules
@@ -18,26 +19,37 @@
 ### go-dominion
 - Use Go 1.24+ standards: `context.Context` is mandatory in all functions involving I/O or long tasks.
 - No global mutable state. Use dependency injection (Interfaces/Structs).
-- Errors must be wrapped (`fmt.Errorf("...: %w", err)`) and handle sentinel errors if applicable.
-- Testing: Native `go test` with `iter.Seq` where applicable for high-performance iteration.
-- FTS5: Manual virtual table sync required after schema changes in content tables.
+- Errors: Wrap with `%w`, handle sentinel errors. Use `t.Context()` in tests for resource cleanup.
+- MCP Server: Use `mu sync.Mutex` for `os.Stdout` to prevent framing corruption. Avoid `fmt.Fprint` on stdout.
+- Database: WAL mode mandatory. Use CTEs for recursive queries (faster). Compute metrics in SQL (synthesis).
 
 ### security-dominion
-- Never log secrets or include them in code. Use environment variables.
-- All external inputs (flags, JSON) MUST be validated with `validator/v10`.
-- Use `sanitizeFTS` for SQL queries to prevent injection in virtual tables.
+- Zero Logs: Never log secrets, keys, or PII. Use environment variables.
+- Validation: All external inputs (flags, JSON) MUST be validated with `validator/v10` or Zod.
+- SQL Safety: Use `sanitizeFTS` for virtual tables to prevent injection.
 
 ### scouter-dominion
-- MANDATORY: Use `scouter_search` -> `scouter_callers` -> `scouter_read` for all code investigation. No `grep` or `read_file` allowed.
-- IMPACT FIRST: Always execute `scouter_impact` before proposing structural changes.
-- PREDICTIVE VALIDATION: Use `scouter_predict` to identify target tests after implementation.
-- ZERO BLINDNESS: Trust the AST and LSP data over filename guessing.
+- MANDATORY: Use `scouter_search` -> `scouter_callers` -> `scouter_read` for all code investigation.
+- IMPACT FIRST: Execute `scouter_impact` before proposing structural changes.
+- SIGNAL: Use `scouter_pure_signal` via MCP to purify large noisy outputs using RTK.
+- PREDICTIVE: Use `scouter_predict` to identify target tests post-implementation.
+
+### scouter-oracle
+- OMNISCIENCE: Map the entire dependency tree before suggesting refactors.
+- ARCHITECTURE: Enforce Hexagonal decoupling and Domain Sovereignty.
+- PROACTIVE: Identify symbols with high risk (centrality + fragility) using `scouter critical`.
+
+### scouter-refactor-shinigami
+- PURGE: Detect and eliminate dead code or redundant abstractions.
+- DECOUPLING: Inject `context.Context` into legacy signatures to enable observability.
+- STANDARDS: Align all refactored code with Go 1.24+ idioms.
 
 ## Project Conventions
 
 | File | Path | Notes |
 |------|------|-------|
-| GEMINI.md | GEMINI.md | Main project mandate and conventions |
-| SABIDURIA.md | SABIDURIA.md | Architectural Wisdom and Oracle Log |
+| GEMINI.md | GEMINI.md | Main project mandate (Wave 8.9) |
+| SABIDURIA.md | SABIDURIA.md | Architectural Wisdom and Battle Log |
+| .atl/skill-registry.md | .atl/skill-registry.md | This registry |
 
 Read the convention files listed above for project-specific patterns and rules.
