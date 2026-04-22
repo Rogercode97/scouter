@@ -14,7 +14,7 @@ func TestPatchSettingsNew(t *testing.T) {
 	path := filepath.Join(dir, "settings.json")
 	hookPath := filepath.Join(dir, "scouter-rewrite.sh")
 
-	err := patchSettings(path, hookPath)
+	err := patchClaudeSettings(path, hookPath)
 	if err != nil {
 		t.Fatalf("patch: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestPatchSettingsExisting(t *testing.T) {
 	data, _ := json.MarshalIndent(existing, "", "  ")
 	_ = os.WriteFile(path, data, 0644)
 
-	err := patchSettings(path, hookPath)
+	err := patchClaudeSettings(path, hookPath)
 	if err != nil {
 		t.Fatalf("patch: %v", err)
 	}
@@ -117,8 +117,8 @@ func TestPatchSettingsIdempotent(t *testing.T) {
 	hookPath := filepath.Join(dir, "scouter-rewrite.sh")
 
 	// Patch twice
-	_ = patchSettings(path, hookPath)
-	_ = patchSettings(path, hookPath)
+	_ = patchClaudeSettings(path, hookPath)
+	_ = patchClaudeSettings(path, hookPath)
 
 	settings := readSettings(t, path)
 	hooks := settings["hooks"].(map[string]any)
@@ -130,16 +130,16 @@ func TestPatchSettingsIdempotent(t *testing.T) {
 	}
 }
 
-func TestUnpatchSettings(t *testing.T) {
+func TestUnpatchClaudeSettings(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
 	hookPath := filepath.Join(dir, "scouter-rewrite.sh")
 
 	// Patch first
-	_ = patchSettings(path, hookPath)
+	_ = patchClaudeSettings(path, hookPath)
 
 	// Unpatch
-	unpatchSettings(path)
+	unpatchClaudeSettings(path)
 
 	settings := readSettings(t, path)
 
@@ -172,7 +172,7 @@ func TestUnpatchPreservesOtherHooks(t *testing.T) {
 	_ = os.WriteFile(path, data, 0644)
 
 	// Add scouter
-	_ = patchSettings(path, hookPath)
+	_ = patchClaudeSettings(path, hookPath)
 
 	// Verify both present
 	settings := readSettings(t, path)
@@ -182,7 +182,7 @@ func TestUnpatchPreservesOtherHooks(t *testing.T) {
 	}
 
 	// Unpatch — should remove scouter but keep the Write hook
-	unpatchSettings(path)
+	unpatchClaudeSettings(path)
 
 	settings = readSettings(t, path)
 	hooks := settings["hooks"].(map[string]any)
