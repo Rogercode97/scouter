@@ -238,6 +238,9 @@ func resolveCallee(fun ast.Expr, currentPath string) (string, string) {
 	case *ast.Ident:
 		return f.Name, currentPath
 	case *ast.SelectorExpr:
+		if x, ok := f.X.(*ast.Ident); ok {
+			return x.Name + "." + f.Sel.Name, ""
+		}
 		return f.Sel.Name, ""
 	default:
 		return "", ""
@@ -273,7 +276,7 @@ func ReadFragment(ctx context.Context, filePath string, r types.Range) (string, 
 		return "", fmt.Errorf("error stating file: %w", err)
 	}
 
-	if r.Start < -1 || int64(r.End) > fi.Size() || r.Start > r.End {
+	if r.Start < -1 || int64(r.End) > fi.Size() || (r.Start > r.End && r.Start != -1) {
 		return "", fmt.Errorf("file out of sync or invalid range: index is stale, please re-index the file")
 	}
 

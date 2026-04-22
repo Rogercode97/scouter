@@ -36,7 +36,10 @@ func (r *PointerResolver) Resolve(ctx context.Context, filePath, pointer string)
 
 	// 2. Hash validation for full file (Solving the Pointer Paradox fully).
 	if len(pointer) == 64 {
-		currentFileHash, _ := utils.CalculateHash(filePath)
+		currentFileHash, err := utils.CalculateHash(filePath)
+		if err != nil {
+			return types.Range{}, err
+		}
 		if currentFileHash == pointer {
 			// It matches the full file hash. A range of 0, 0 in engine indicates full file read.
 			return types.Range{Start: -1, End: -1}, nil
@@ -51,7 +54,7 @@ func (r *PointerResolver) Resolve(ctx context.Context, filePath, pointer string)
 
 	// 4. Filter symbols that match the exact filePath and name.
 	for _, sym := range symbols {
-		if sym.Path == filePath && (sym.Name == pointer || strings.Contains(sym.Name, pointer)) {
+		if sym.Path == filePath && sym.Name == pointer {
 			return types.Range{
 				Start: sym.StartByte,
 				End:   sym.EndByte,

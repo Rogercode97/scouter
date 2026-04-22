@@ -145,7 +145,7 @@ func (s *Server) handlePureSignal(ctx context.Context, args map[string]interface
 	mode, _ := args["mode"].(string)
 	if mode == "" {
 		// Heuristic: if it contains function keywords or braces, it's code. Otherwise log.
-		if strings.Contains(text, "func ") || strings.Contains(text, "package ") || strings.Contains(text, "{") {
+		if strings.Contains(text, "func ") || strings.Contains(text, "package ") || strings.HasPrefix(strings.TrimSpace(text), "import ") {
 			mode = "read"
 		} else {
 			mode = "log"

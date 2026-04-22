@@ -70,8 +70,11 @@ func (s *Server) Run(ctx context.Context) error {
 				s.sendResponse(id, map[string]interface{}{"tools": s.getToolsList()})
 			case "tools/call":
 				toolName, _ := params["name"].(string)
-				args, _ := params["arguments"].(map[string]interface{})
-				s.dispatchToolCall(ctx, id, toolName, args)
+				args, ok := params["arguments"].(map[string]interface{})
+		if !ok {
+			args = make(map[string]interface{})
+		}
+				go s.dispatchToolCall(ctx, id, toolName, args)
 			}
 		}
 	}
