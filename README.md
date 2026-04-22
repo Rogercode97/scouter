@@ -16,12 +16,21 @@ For the ultimate Hakaishin experience, Scouter (Static Intelligence) and **RTK**
 brew install rtk && rtk init -g --gemini
 
 # 2. Build the Brain (Scouter)
-go build -o bin/scouter ./cmd/scouter && ./bin/scouter setup gemini-cli
+make build && ./bin/scouter setup gemini
 ```
 
 ### Why both?
 - **RTK (Rust)**: Installs global shell hooks to kill 90% of noise in every command (`git`, `npm`, `go test`).
 - **Scouter (Go)**: Provides semantic omniscience (AST, Symbol search, Impact analysis) and the MCP bridge for Gemini CLI.
+
+---
+
+## 🏗️ Pure Signal Architecture (Wave 8.9)
+
+Scouter enforces a strict **Signal Isolation** protocol to ensure 100% stability in MCP environments:
+- **Sacred Channel**: `os.Stdout` is reserved exclusively for JSON-RPC messages. 
+- **Isolated Telemetry**: All internal logs, warnings, and process outputs (via `Passthrough`) are redirected to `os.Stderr`.
+- **Atomic Writes**: Every message is protected by a `sync.Mutex` and formatted as single-line JSON with explicit flushing to prevent framing errors.
 
 ---
 
