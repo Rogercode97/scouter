@@ -61,8 +61,10 @@ func (s *Server) Run(ctx context.Context) error {
 			case "initialize":
 				s.sendResponse(id, map[string]interface{}{
 					"protocolVersion": "2024-11-05",
-					"capabilities":    map[string]interface{}{},
-					"serverInfo":      map[string]string{"name": "scouter", "version": "2.6.0"},
+					"capabilities": map[string]interface{}{
+						"tools": map[string]interface{}{},
+					},
+					"serverInfo": map[string]string{"name": "scouter", "version": "2.6.0"},
 				})
 			case "tools/list":
 				s.sendResponse(id, map[string]interface{}{"tools": s.getToolsList()})
