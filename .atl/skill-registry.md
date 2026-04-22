@@ -11,6 +11,7 @@
 | MCP, Deployment | deployment-sovereign | ~/.gemini/skills/deployment-sovereign/SKILL.md |
 | Scouter, Analysis | scouter-dominion | ~/.gemini/skills/scouter-dominion/SKILL.md |
 | Architect, Refactor | scouter-oracle | .gemini/agents/scouter-oracle.md |
+| Web, UI | web-dominion | ~/.gemini/skills/web-dominion/SKILL.md |
 
 ## Compact Rules
 
