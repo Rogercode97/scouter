@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/Rogercode97/scouter/internal/store"
 )
@@ -14,6 +15,7 @@ type Server struct {
 	store    store.Repository
 	resolver *PointerResolver
 	encoder  *json.Encoder
+	wg       sync.WaitGroup
 }
 
 func NewServer(st store.Repository) *Server {
@@ -49,12 +51,17 @@ func (s *Server) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			s.wg.Wait()
 			return ctx.Err()
 		case <-errChan:
+			s.wg.Wait()
 			return nil
 		case msg := <-msgChan:
 			method, _ := msg["method"].(string)
-			params, _ := msg["params"].(map[string]interface{})
+			params, ok := msg["params"].(map[string]interface{})
+			if !ok {
+				params = make(map[string]interface{})
+			}
 			id, _ := msg["id"]
 
 			switch method {
@@ -71,10 +78,15 @@ func (s *Server) Run(ctx context.Context) error {
 			case "tools/call":
 				toolName, _ := params["name"].(string)
 				args, ok := params["arguments"].(map[string]interface{})
-		if !ok {
-			args = make(map[string]interface{})
-		}
-				go s.dispatchToolCall(ctx, id, toolName, args)
+				if !ok {
+					args = make(map[string]interface{})
+				}
+
+				s.wg.Add(1)
+				go func(id interface{}, toolName string, args map[string]interface{}) {
+					defer s.wg.Done()
+					s.dispatchToolCall(ctx, id, toolName, args)
+				}(id, toolName, args)
 			}
 		}
 	}
@@ -156,8 +168,8 @@ func (s *Server) getToolsList() []map[string]interface{} {
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"text": map[string]interface{}{"type": "string", "description": "The raw noisy text to purify"},
-					"mode": map[string]interface{}{"type": "string", "description": "Processing mode: 'log' or 'read'. Default: auto-detect."},
+					"text":  map[string]interface{}{"type": "string", "description": "The raw noisy text to purify"},
+					"mode":  map[string]interface{}{"type": "string", "description": "Processing mode: 'log' (deduplication) or 'read' (code stripping). Default: auto-detect."},
 					"level": map[string]interface{}{"type": "string", "description": "Filtering level: 'minimal' or 'aggressive'. Default: aggressive."},
 				},
 				"required": []string{"text"},
@@ -202,8 +214,7 @@ func (s *Server) getToolsList() []map[string]interface{} {
 			"description": "List all tracked inter-file dependencies",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
-				"properties": map[string]interface{}{
-				},
+				"properties": map[string]interface{}{},
 			},
 		},
 	}
