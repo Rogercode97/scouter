@@ -8,7 +8,7 @@ all: clean build
 
 build:
 	@mkdir -p $(BIN_DIR)
-	@echo "Building Scouter..."
+	@echo "Building Scouter for Production..."
 	@go build -o $(BIN_DIR)/$(APP_NAME) ./cmd/scouter
 	@echo "Build complete: $(BIN_DIR)/$(APP_NAME)"
 

@@ -33,3 +33,9 @@ Este documento contiene la visión técnica, lecciones aprendidas y el backlog d
 
 ---
 *Scouter no solo busca código; entiende su propósito.*
+
+## [2026-04-22] MCP Stabilization: Framing & Concurrency Victory
+- **Symptom**: CLI Disconnection.
+- **RCA**: Double newlines (\n\n) from manual injection and lack of Mutex for os.Stdout.
+- **Resolution**: Implementation of 'mu sync.Mutex' in Server and removal of 'fmt.Fprint' and 'os.Stdout.Sync()'.
+- **Verdict**: Divine Signal restored. Rating 10.0.

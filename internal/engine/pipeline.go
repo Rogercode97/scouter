@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -178,31 +177,33 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 			p.LSPManager = lsp.NewManager()
 		}
 
-		idx, calls, parseErr := ParseFile(ctx, absPath, p.LSPManager)
+		itPointers, itCalls, parseErr := StreamSymbols(ctx, absPath)
 		if parseErr != nil {
 			continue
 		}
 
 		err = db.WithTransaction(ctx, func(txCtx context.Context, tx store.Repository) error {
-			astJSON, _ := json.Marshal(idx)
 			stats, _ := os.Stat(absPath)
-
+			
+			// We still save the FileIndex with an empty ASTJSON or lazy-collected one
+			// TASK: In next iteration, migrate FileIndex.ASTJSON to be optional
 			if err := tx.SaveFileIndex(txCtx, &store.FileIndex{
-				Path: absPath, Mtime: stats.ModTime().UnixNano(), Hash: hash, ASTJSON: string(astJSON),
+				Path: absPath, Mtime: stats.ModTime().UnixNano(), Hash: hash,
 			}); err != nil {
 				return err
 			}
 
 			tx.ClearSymbols(txCtx, absPath)
 			tx.ClearCalls(txCtx, absPath)
-			for _, ptr := range idx {
+			
+			for ptr := range itPointers {
 				tx.SaveSymbol(txCtx, &store.Symbol{
 					Name: ptr.Name, Type: ptr.Type, Doc: ptr.Doc, Path: absPath,
 					StartByte: ptr.Range.Start, EndByte: ptr.Range.End,
 					StartLine: ptr.StartLine, EndLine: ptr.EndLine,
 				})
 			}
-			for _, c := range calls {
+			for c := range itCalls {
 				tx.SaveCall(txCtx, store.Call{
 					CallerName: c.CallerName, CalleeName: c.CalleeName, Path: absPath, Line: c.Line,
 					CalleePath: c.CalleePath, LinkType: c.LinkType,
