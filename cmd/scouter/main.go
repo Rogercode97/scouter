@@ -54,7 +54,11 @@ func main() {
 		tracker, _ := telemetry.NewTracker(ctx, "local")
 		display.RunGain(tracker, os.Args[2:])
 	case "config":
-		cfg, _ := config.Load(ctx)
+		cfg, err := config.Load(ctx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+			os.Exit(1)
+		}
 		fmt.Printf("Config loaded from: %s\n", cfg.Tracking.DBPath)
 	case "proxy":
 		engine.Passthrough(ctx, os.Args[2], os.Args[3:])
