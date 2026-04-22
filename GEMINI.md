@@ -15,8 +15,13 @@
 - **Interaction**: La comunicación con el usuario en el chat debe ser en **ESPAÑOL**.
 - **Stack**: Go 1.24+, LSP intelligence vía `scouter_index`.
 
-## 📱 III. TACTICAL PERFORMANCE (ARM64 OPTIMIZED)
+## 📱 III. TACTICAL PERFORMANCE & ARSENAL (ZERO SLOP)
 - **Scouter-Preferred**: Priorice `scouter_index` antes de leer archivos >50 líneas, pero el uso de herramientas estándar (`grep`, `run_shell_command`) está permitido si es más directo.
+- **Arsenal de Señal Pura**:
+  - **Búsqueda (`rg` / `fd`)**: Use `rg -l "patrón"` para obtener solo listas de archivos o `rg --vimgrep` para líneas exactas. Use `fd -e ext` para buscar archivos velozmente. Evite búsquedas sin filtros.
+  - **Lectura Quirúrgica (`bat`)**: Reemplace `cat` por **`bat -p`** (Plain mode obligatorio para evitar ruido de interfaz). Para archivos grandes, use SIEMPRE rangos: `bat -p -r 10:50`.
+  - **Data Parsing (`jq` / `yq`)**: Úselos para extraer fragmentos de configuraciones (JSON/YAML) en lugar de leer el archivo completo.
+- **Validación Empírica**: Ejecute comandos de forma silenciosa (ej. `go test -v`, `cargo check -q`).
 - **Truth Kernel**: Use `scouter` como proxy para cualquier comando ruidoso.
 - **Gain Control**: Ajuste `SCOUTER_GAIN` (0: compact, 1: signal, 2: raw) según la densidad de información requerida.
 - **Ki Management**: Delegue tareas de >3 archivos al Agente especialista `scouter-oracle`.
