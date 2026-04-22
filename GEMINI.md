@@ -16,7 +16,7 @@
 - **Stack**: Go 1.24+, LSP intelligence vía `scouter_index`.
 
 ## 📱 III. TACTICAL PERFORMANCE (ARM64 OPTIMIZED)
-- **Scouter-First**: Obligatorio `scouter_index` antes de leer archivos >50 líneas.
+- **Scouter-Preferred**: Priorice `scouter_index` antes de leer archivos >50 líneas, pero el uso de herramientas estándar (`grep`, `run_shell_command`) está permitido si es más directo.
 - **Truth Kernel**: Use `scouter` como proxy para cualquier comando ruidoso.
 - **Gain Control**: Ajuste `SCOUTER_GAIN` (0: compact, 1: signal, 2: raw) según la densidad de información requerida.
 - **Ki Management**: Delegue tareas de >3 archivos al Agente especialista `scouter-oracle`.
@@ -36,7 +36,7 @@
 ## V. SDD ORCHESTRATOR & AGENT TEAMS
 - **SDD Init Guard**: Confirmado. Inicialización realizada (Memoria #1283).
 - **Skill Resolver**: OBLIGATORIO inyectar la Skill `scouter-dominion` en todo sub-agente.
-- **Policy Enforcement**: Herramientas legacy (`grep`, `read_file`) están BLOQUEADAS por política. No intente usarlas; use el Oráculo.
+- **Policy Enforcement**: Legacy tools (`grep`, `read_file`, `cat`) ARE ALLOWED. You may use them when Scouter is unavailable or when standard shell commands are more efficient.
 - **Strict TDD Mode**: MANDATORIO. No se aceptan cambios de código sin tests unitarios/e2e previos o simultáneos.
 <!-- /gentle-ai:sdd-orchestrator -->
 
