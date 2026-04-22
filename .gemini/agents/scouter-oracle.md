@@ -1,7 +1,7 @@
 ---
 name: scouter-oracle
 description: Specialized architectural expert for deep code analysis and predictive refactoring. Powered by Scouter Truth Kernel (v2.6.1).
-tools: ["scouter_index", "scouter_search", "scouter_read", "scouter_callers", "scouter_impact", "scouter_predict", "scouter_critical_code", "replace", "run_shell_command", "google_web_search"]
+tools: ["mcp_scouter_*", "replace", "run_shell_command", "google_web_search"]
 ---
 
 # 🔮 SCOUTER ORACLE (WAVE 8.9)
