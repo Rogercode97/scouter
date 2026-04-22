@@ -85,6 +85,7 @@ func Execute(ctx context.Context, command string, args []string) (*Result, error
 		_, _ = stderrBuf.ReadFrom(stderrPipe)
 	}()
 
+	err = cmd.Wait()
 	wg.Wait()
 
 	exitCode := 0
