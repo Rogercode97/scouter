@@ -3,7 +3,10 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os/exec"
+	"strings"
 
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/utils"
@@ -131,4 +134,53 @@ func (s *Server) handleDependencies(ctx context.Context, args map[string]interfa
 	}
 	out, _ := json.Marshal(res)
 	return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": string(out)}}}, nil
+}
+
+func (s *Server) handlePureSignal(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	text, _ := args["text"].(string)
+	if text == "" {
+		return nil, fmt.Errorf("missing 'text' argument")
+	}
+
+	mode, _ := args["mode"].(string)
+	if mode == "" {
+		// Heuristic: if it contains function keywords or braces, it's code. Otherwise log.
+		if strings.Contains(text, "func ") || strings.Contains(text, "package ") || strings.Contains(text, "{") {
+			mode = "read"
+		} else {
+			mode = "log"
+		}
+	}
+
+	var cmd *exec.Cmd
+	switch mode {
+	case "log":
+		cmd = exec.CommandContext(ctx, "rtk", "log")
+	case "read":
+		level, _ := args["level"].(string)
+		if level == "" {
+			level = "aggressive"
+		}
+		cmd = exec.CommandContext(ctx, "rtk", "read", "-", "--level", level)
+	default:
+		return nil, fmt.Errorf("invalid mode: %s (supported: log, read)", mode)
+	}
+
+	cmd.Stdin = strings.NewReader(text)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			return nil, fmt.Errorf("rtk not found, please install it via 'brew install rtk'")
+		}
+		// Return output even on error as RTK might have filtered partially
+		if len(out) == 0 {
+			return nil, fmt.Errorf("rtk execution failed (%s): %w", mode, err)
+		}
+	}
+
+	return map[string]interface{}{
+		"content": []map[string]interface{}{
+			{"type": "text", "text": string(out)},
+		},
+	}, nil
 }

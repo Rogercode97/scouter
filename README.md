@@ -6,44 +6,22 @@
 
 Scouter is more than a tool; it is a **Truth Kernel (RTK)** that sits between the OS and your AI agent. It purges noise, amplifies signal, and provides real-time semantic intelligence through an integrated LSP Bridge.
 
-## 🚀 The Truth Kernel Experience
+## 🚀 The Divine Synergy (Scouter + RTK)
 
-### 1. Build & Activate (Go 1.25+)
+For the ultimate Hakaishin experience, Scouter (Static Intelligence) and **RTK** (Dynamic Filtering) work together. 
+
+**Activate the synergy in one strike:**
 ```bash
-go build -o scouter cmd/scouter/main.go
-./scouter init  # Installs the Truth Kernel shell hooks
+# 1. Install the Muscle (RTK)
+brew install rtk && rtk init -g --gemini
+
+# 2. Build the Brain (Scouter)
+go build -o bin/scouter ./cmd/scouter && ./bin/scouter setup gemini-cli
 ```
 
-### 2. High-Fidelity Signal (SNR)
-Scouter automatically intercepts noisy commands (git, go, npm, etc.) and delivers pure signal to the agent:
-```bash
-# Collapses 1000 lines of duplicates and noise into a pure signal
-scouter cat noisy_logs.txt
-```
-
----
-
-## 🏛️ Sovereign Pillars (v2.6.1)
-
-### 1. Truth Kernel (RTK Absorption) 🧬
-**Eliminate Token Waste.** Intercepts command streams using **SNR (Signal-to-Noise Ratio)** filtering.
-- **snr_dedup**: Collapses consecutive duplicate lines into single [xN] counters.
-- **head_tail**: Smart truncation that preserves critical error contexts while cutting middle noise.
-- **Gain Control**: Tiered output verbosity (Compact, Signal, Raw) for budget-conscious agents.
-
-### 2. Tee CAS (Content-Addressable Storage) 📦
-**The Memory of the Machine.** Stores every unique execution trace using SHA-256 command hashing. No more redundant logs or re-running failed tests just to "see what happened." The agent can query the CAS for previous truths instantly.
-
-### 3. LSP Bridge (Omniscience v2) 🔮
-**Real-time Semantic Intelligence.** Connects Scouter to Language Servers (gopls, tsserver, pyright). 
-- **Definition & Hover**: High-precision jump-to-source and type resolution across package boundaries.
-- **Cross-Language**: Unified semantic visibility for Go, TypeScript, and Python.
-
-### 4. Oracle Engine (Predictive Testing) 🎯
-**Predict the Blast Radius.** Analyzes local changes (`git diff`) and suggests exactly which tests to run. Uses **Recursive CTEs** in SQLite to trace dependencies through infinite levels.
-
-### 5. Glasswall Validation 🛡️
-**Military-grade Integrity.** Every tool call is validated against strict schemas. All file reads are verified via SHA-256 pre-flight checks to prevent "stale-read" hallucinations.
+### Why both?
+- **RTK (Rust)**: Installs global shell hooks to kill 90% of noise in every command (`git`, `npm`, `go test`).
+- **Scouter (Go)**: Provides semantic omniscience (AST, Symbol search, Impact analysis) and the MCP bridge for Gemini CLI.
 
 ---
 
@@ -51,15 +29,14 @@ scouter cat noisy_logs.txt
 
 | Tool | Capability |
 | :--- | :--- |
-| `scouter_goto_definition` | **Omniscience**: Jump to real source definition via LSP. |
-| `scouter_type_info` | **Omniscience**: Resolve precise types and documentation. |
-| `scouter_predict` | **Oracle**: Identify affected tests from local Git changes. |
-| `scouter_impact` | **Blast Radius**: Recursive dependency analysis. |
-| `scouter_critical_code` | **Risk Map**: Identify hotspots (Centrality & Fragility). |
-| `scouter_index` | Deep AST indexing with LSP enrichment. |
-| `scouter_search` | BM25 semantic search across symbols and docs. |
-| `scouter_visualize` | Generate risk-colored **Mermaid.js** call graphs. |
-| `scouter_read` | Surgical fragment reading with SHA-256 validation. |
+| `scouter_pure_signal` | **Synergy**: Pipes any text into RTK's Rust engine for instant purification. |
+| `scouter_read` | **Surgical**: Semantic fragment reading with Pointer Resolution. |
+| `scouter_search` | **Search**: BM25 semantic search across symbols and docs. |
+| `scouter_index` | **Index**: Deep AST indexing for Go, TS, and Python. |
+| `scouter_impact` | **Impact**: Analyze the recursive blast radius of a change. |
+| `scouter_callers` | **Graph**: Find all callers of a specific symbol. |
+| `scouter_critical_code` | **Risk**: Identify hotspots with highest centrality. |
+| `scouter_dependencies` | **Audit**: Map inter-file and package-level dependencies. |
 
 ---
 
