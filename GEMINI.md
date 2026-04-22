@@ -14,35 +14,28 @@
 - **Language**: Todo el código, comentarios de archivos, documentación técnica y mensajes de commit deben ser en **INGLÉS**.
 - **Interaction**: La comunicación con el usuario en el chat debe ser en **ESPAÑOL**.
 - **Stack**: Go 1.24+, LSP intelligence vía `scouter_index`.
+- **TDD Status**: Standard Mode (TDD optional, prioritization on speed and signal).
 
 ## 📱 III. TACTICAL PERFORMANCE & ARSENAL (ZERO SLOP)
-- **Scouter-Preferred**: Priorice `scouter_index` antes de leer archivos >50 líneas, pero el uso de herramientas estándar (`grep`, `run_shell_command`) está permitido si es más directo.
+- **Tool Sovereignty**: OBLIGATORIO el uso de `scouter` y `rtk` para toda operación de análisis y lectura.
 - **Arsenal de Señal Pura**:
-  - **Búsqueda (`rg` / `fd`)**: Use `rg -l "patrón"` para obtener solo listas de archivos o `rg --vimgrep` para líneas exactas. Use `fd -e ext` para buscar archivos velozmente. Evite búsquedas sin filtros.
-  - **Lectura Quirúrgica (`bat`)**: Reemplace `cat` por **`bat -p`** (Plain mode obligatorio para evitar ruido de interfaz). Para archivos grandes, use SIEMPRE rangos: `bat -p -r 10:50`.
-  - **Data Parsing (`jq` / `yq`)**: Úselos para extraer fragmentos de configuraciones (JSON/YAML) en lugar de leer el archivo completo.
-- **Validación Empírica**: Ejecute comandos de forma silenciosa (ej. `go test -v`, `cargo check -q`).
-- **Truth Kernel**: Use `scouter` como proxy para cualquier comando ruidoso.
-- **Gain Control**: Ajuste `SCOUTER_GAIN` (0: compact, 1: signal, 2: raw) según la densidad de información requerida.
+  - **Análisis AST (`scouter`)**: Use `scouter_search`, `scouter_index` y `scouter_read` para navegar el código.
+  - **Compresión de Tokens (`rtk`)**: Use `rtk proxy` para ejecutar comandos con alta densidad de logs y `scouter_pure_signal` para purificar el contexto.
+  - **Lectura Quirúrgica (`bat`)**: Reemplace `cat` por `bat -p`. Para archivos grandes, use SIEMPRE rangos.
+- **Truth Kernel**: Scouter es el proxy mandatorio para cualquier comando ruidoso.
 - **Ki Management**: Delegue tareas de >3 archivos al Agente especialista `scouter-oracle`.
 
 ---
 <!-- gentle-ai:engram-protocol -->
 ## IV. ENGRAM PERSISTENT MEMORY PROTOCOL (MANDATORY)
-
-- **Engram Sync (Recovery)**: Al inicio de cada sesión o tarea, ejecute `mem_search(query: "session_summary", project: "scouter")` y lea la observación más reciente para sincronizar el estado actual del proyecto.
-- **Proactive Save (`mem_save`)**: Ejecute INMEDIATAMENTE tras decisiones de arquitectura, convenciones, o bugs resueltos. No espere confirmación.
-- **Topic Keys**: Use el prefijo `scouter/` para búsquedas técnicas y `sdd/scouter/` para artefactos de planificación.
-- **Session Close (`mem_session_summary`)**: OBLIGATORIO antes de finalizar la tarea.
-- **Post-Compaction**: Si el contexto se compacta, ejecute `mem_session_summary` con el contenido compactado y luego `mem_context`.
+...
 <!-- /gentle-ai:engram-protocol -->
 
 <!-- gentle-ai:sdd-orchestrator -->
 ## V. SDD ORCHESTRATOR & AGENT TEAMS
-- **SDD Init Guard**: Confirmado. Inicialización realizada (Memoria #1283).
-- **Skill Resolver**: OBLIGATORIO inyectar la Skill `scouter-dominion` en todo sub-agente.
-- **Policy Enforcement**: Legacy tools (`grep`, `read_file`, `cat`) ARE ALLOWED. You may use them when Scouter is unavailable or when standard shell commands are more efficient.
-- **Strict TDD Mode**: MANDATORIO. No se aceptan cambios de código sin tests unitarios/e2e previos o simultáneos.
+- **SDD Init Guard**: Confirmado.
+- **Skill Resolver**: OBLIGATORIO inyectar la Skill `scouter-dominion` y `web-search-sovereign` (Exa) en todo sub-agente.
+- **Policy Enforcement**: Legacy tools (`grep`, `read_file`) are deprecated. Use Scouter tools unless technically impossible.
 <!-- /gentle-ai:sdd-orchestrator -->
 
 <!-- gentle-ai:scouter-mandate -->

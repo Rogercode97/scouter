@@ -8,8 +8,10 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"iter"
 	"os"
 	"path/filepath"
+	"slices"
 	"unicode/utf8"
 
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
@@ -24,7 +26,23 @@ const MaxFragmentSize = 100 * 1024
 const MaxParseSize = 5 * 1024 * 1024
 
 // ParseFile analyzes a file using the AST engine to index its structure and call graph.
+// It is now a wrapper around StreamSymbols for backward compatibility.
 func ParseFile(ctx context.Context, filePath string, lspMgr *lsp.Manager) ([]types.ASTPointer, []types.ASTCall, error) {
+	itPointers, itCalls, err := StreamSymbols(ctx, filePath)
+	if err != nil {
+		// Try Tree-sitter for multi-language support as fallback
+		p, c, tsErr := ParseWithTreeSitter(ctx, filePath)
+		if tsErr == nil {
+			return p, c, nil
+		}
+		return nil, nil, fmt.Errorf("parsing failed for %s: %w (fallback error: %v)", filePath, err, tsErr)
+	}
+	return slices.Collect(itPointers), slices.Collect(itCalls), nil
+}
+
+// StreamSymbols analyzes a file and returns iterators for symbols and calls.
+// Optimized for Go 1.25 to avoid large slice allocations.
+func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPointer], iter.Seq[types.ASTCall], error) {
 	// 1. Context check
 	select {
 	case <-ctx.Done():
@@ -34,7 +52,12 @@ func ParseFile(ctx context.Context, filePath string, lspMgr *lsp.Manager) ([]typ
 
 	ext := filepath.Ext(filePath)
 	if ext != ".go" {
-		return ParseWithTreeSitter(ctx, filePath)
+		// Tree-sitter fallback still returns slices for now, we wrap them in iterators
+		p, c, err := ParseWithTreeSitter(ctx, filePath)
+		if err != nil {
+			return nil, nil, err
+		}
+		return slices.Values(p), slices.Values(c), nil
 	}
 
 	// 2. Path Security Check
@@ -43,7 +66,7 @@ func ParseFile(ctx context.Context, filePath string, lspMgr *lsp.Manager) ([]typ
 		return nil, nil, err
 	}
 
-	// 1.5. Size Limit Check (Indexing Memory Guard)
+	// 1.5. Size Limit Check
 	fi, err := os.Stat(validatedPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error stating file: %w", err)
@@ -52,186 +75,191 @@ func ParseFile(ctx context.Context, filePath string, lspMgr *lsp.Manager) ([]typ
 		return nil, nil, fmt.Errorf("file too large to index (%d bytes), limit is %d bytes", fi.Size(), MaxParseSize)
 	}
 
-	// 2. Try native Go parser first (more reliable for now)
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, validatedPath, nil, parser.ParseComments)
-	if err == nil {
-		var pointers []types.ASTPointer
-		var calls []types.ASTCall
+	if err != nil {
+		return nil, nil, err
+	}
 
-		type funcCtx struct {
-			name           string
-			end            token.Pos
-			anonymousCount int
-		}
-		var funcStack []*funcCtx
-
-		ast.Inspect(file, func(n ast.Node) bool {
-			if n == nil {
-				return false
+	// We return closures that perform the AST inspection lazily
+	return func(yield func(types.ASTPointer) bool) {
+			type funcCtx struct {
+				name           string
+				end            token.Pos
+				anonymousCount int
 			}
+			var funcStack []*funcCtx
 
-			// Pop functions from the stack when the current node is outside their scope.
-			for len(funcStack) > 0 {
-				top := funcStack[len(funcStack)-1]
-				if n.Pos() >= top.end {
-					funcStack = funcStack[:len(funcStack)-1]
-				} else {
-					break
+			ast.Inspect(file, func(n ast.Node) bool {
+				if n == nil {
+					return false
 				}
-			}
+				for len(funcStack) > 0 {
+					top := funcStack[len(funcStack)-1]
+					if n.Pos() >= top.end {
+						funcStack = funcStack[:len(funcStack)-1]
+					} else {
+						break
+					}
+				}
 
-			// Push a new function declaration onto the stack.
-			if fn, ok := n.(*ast.FuncDecl); ok {
-				startPos := fset.Position(fn.Pos())
-				endPos := fset.Position(fn.End())
-				doc := utils.CleanComment(fn.Doc.Text())
-				
-				fullName := fn.Name.Name
-				symType := "function"
-
-				// TASK 1.1: Capture method receiver for Go Divine mapping
-				if fn.Recv != nil && len(fn.Recv.List) > 0 {
-					symType = "method"
-					recvType := ""
-					switch r := fn.Recv.List[0].Type.(type) {
-					case *ast.Ident:
-						recvType = r.Name
-					case *ast.StarExpr:
-						if id, ok := r.X.(*ast.Ident); ok {
-							recvType = id.Name
+				if fn, ok := n.(*ast.FuncDecl); ok {
+					startPos := fset.Position(fn.Pos())
+					endPos := fset.Position(fn.End())
+					doc := utils.CleanComment(fn.Doc.Text())
+					fullName := fn.Name.Name
+					symType := "function"
+					if fn.Recv != nil && len(fn.Recv.List) > 0 {
+						symType = "method"
+						recvType := ""
+						switch r := fn.Recv.List[0].Type.(type) {
+						case *ast.Ident:
+							recvType = r.Name
+						case *ast.StarExpr:
+							if id, ok := r.X.(*ast.Ident); ok {
+								recvType = id.Name
+							}
+						}
+						if recvType != "" {
+							fullName = recvType + "." + fn.Name.Name
 						}
 					}
-					if recvType != "" {
-						fullName = recvType + "." + fn.Name.Name
+					content := fmt.Sprintf("%s:%s:%d:%d", symType, fullName, startPos.Offset, endPos.Offset)
+					h := sha256.Sum256([]byte(content))
+					p := types.ASTPointer{
+						Type:      symType,
+						Name:      fullName,
+						Doc:       doc,
+						Range:     types.Range{Start: startPos.Offset, End: endPos.Offset},
+						StartLine: startPos.Line,
+						EndLine:   endPos.Line,
+						Hash:      hex.EncodeToString(h[:]),
 					}
+					if !yield(p) {
+						return false
+					}
+					funcStack = append(funcStack, &funcCtx{name: fullName, end: fn.End()})
 				}
 
-				content := fmt.Sprintf("%s:%s:%d:%d", symType, fullName, startPos.Offset, endPos.Offset)
-				h := sha256.Sum256([]byte(content))
-				pointers = append(pointers, types.ASTPointer{
-					Type:      symType,
-					Name:      fullName,
-					Doc:       doc,
-					Range:     types.Range{Start: startPos.Offset, End: endPos.Offset},
-					StartLine: startPos.Line,
-					EndLine:   endPos.Line,
-					Hash:      hex.EncodeToString(h[:]),
-				})
-				funcStack = append(funcStack, &funcCtx{
-					name: fullName,
-					end:  fn.End(),
-				})
-			}
-
-			// Capture Structs and Interfaces from GenDecl
-			if gd, ok := n.(*ast.GenDecl); ok && (gd.Tok == token.STRUCT || gd.Tok == token.INTERFACE || gd.Tok == token.TYPE) {
-				for _, spec := range gd.Specs {
-					if ts, ok := spec.(*ast.TypeSpec); ok {
-						var symType string
-						switch it := ts.Type.(type) {
-						case *ast.StructType:
-							symType = "class"
-						case *ast.InterfaceType:
-							symType = "interface"
-							// TASK 2.1: Extract methods from interface for contract mapping
-							if it.Methods != nil {
-								for _, field := range it.Methods.List {
-									if len(field.Names) > 0 {
-										methodName := field.Names[0].Name
-										fullMethodName := ts.Name.Name + ":" + methodName
-										mStart := fset.Position(field.Pos())
-										mEnd := fset.Position(field.End())
-										pointers = append(pointers, types.ASTPointer{
-											Type:      "method_spec",
-											Name:      fullMethodName,
-											Range:     types.Range{Start: mStart.Offset, End: mEnd.Offset},
-											StartLine: mStart.Line,
-											EndLine:   mEnd.Line,
-											Hash:      utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
-										})
+				// Capture Structs and Interfaces from GenDecl
+				if gd, ok := n.(*ast.GenDecl); ok && (gd.Tok == token.STRUCT || gd.Tok == token.INTERFACE || gd.Tok == token.TYPE) {
+					for _, spec := range gd.Specs {
+						if ts, ok := spec.(*ast.TypeSpec); ok {
+							var symType string
+							switch it := ts.Type.(type) {
+							case *ast.StructType:
+								symType = "class"
+							case *ast.InterfaceType:
+								symType = "interface"
+								if it.Methods != nil {
+									for _, field := range it.Methods.List {
+										if len(field.Names) > 0 {
+											methodName := field.Names[0].Name
+											fullMethodName := ts.Name.Name + ":" + methodName
+											mStart := fset.Position(field.Pos())
+											mEnd := fset.Position(field.End())
+											p := types.ASTPointer{
+												Type:      "method_spec",
+												Name:      fullMethodName,
+												Range:     types.Range{Start: mStart.Offset, End: mEnd.Offset},
+												StartLine: mStart.Line,
+												EndLine:   mEnd.Line,
+												Hash:      utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
+											}
+											if !yield(p) {
+												return false
+											}
+										}
 									}
 								}
+							default:
+								continue
 							}
-						default:
-							continue
-						}
 
-						startPos := fset.Position(ts.Pos())
-						endPos := fset.Position(ts.End())
-						doc := utils.CleanComment(gd.Doc.Text())
-						if doc == "" {
-							doc = utils.CleanComment(ts.Doc.Text())
-						}
+							startPos := fset.Position(ts.Pos())
+							endPos := fset.Position(ts.End())
+							doc := utils.CleanComment(gd.Doc.Text())
+							if doc == "" {
+								doc = utils.CleanComment(ts.Doc.Text())
+							}
 
-						content := fmt.Sprintf("%s:%s:%d:%d", symType, ts.Name.Name, startPos.Offset, endPos.Offset)
-						h := sha256.Sum256([]byte(content))
-						pointers = append(pointers, types.ASTPointer{
-							Type:      symType,
-							Name:      ts.Name.Name,
-							Doc:       doc,
-							Range:     types.Range{Start: startPos.Offset, End: endPos.Offset},
-							StartLine: startPos.Line,
-							EndLine:   endPos.Line,
-							Hash:      hex.EncodeToString(h[:]),
-						})
+							content := fmt.Sprintf("%s:%s:%d:%d", symType, ts.Name.Name, startPos.Offset, endPos.Offset)
+							h := sha256.Sum256([]byte(content))
+							p := types.ASTPointer{
+								Type:      symType,
+								Name:      ts.Name.Name,
+								Doc:       doc,
+								Range:     types.Range{Start: startPos.Offset, End: endPos.Offset},
+								StartLine: startPos.Line,
+								EndLine:   endPos.Line,
+								Hash:      hex.EncodeToString(h[:]),
+							}
+							if !yield(p) {
+								return false
+							}
+						}
 					}
 				}
+				return true
+			})
+		}, func(yield func(types.ASTCall) bool) {
+			type funcCtx struct {
+				name           string
+				end            token.Pos
+				anonymousCount int
 			}
+			var funcStack []*funcCtx
 
-			// Push anonymous functions onto the stack.
-			if fn, ok := n.(*ast.FuncLit); ok {
-				parentName := "global"
-				if len(funcStack) > 0 {
+			ast.Inspect(file, func(n ast.Node) bool {
+				if n == nil {
+					return false
+				}
+				for len(funcStack) > 0 {
 					top := funcStack[len(funcStack)-1]
-					top.anonymousCount++
-					parentName = top.name
-					anonName := fmt.Sprintf("%s.func%d", parentName, top.anonymousCount)
-					funcStack = append(funcStack, &funcCtx{
-						name: anonName,
-						end:  fn.End(),
-					})
-				} else {
-					funcStack = append(funcStack, &funcCtx{
-						name: "global.func",
-						end:  fn.End(),
-					})
-				}
-			}
-
-			// If we are inside a function, record any call expressions.
-			if call, ok := n.(*ast.CallExpr); ok {
-				if len(funcStack) > 0 {
-					caller := funcStack[len(funcStack)-1]
-					calleeName, calleePath := resolveCallee(call.Fun, validatedPath)
-					if calleeName != "" {
-						calls = append(calls, types.ASTCall{
-							CallerName: caller.name,
-							CalleeName: calleeName,
-							CalleePath: calleePath,
-							LinkType:   "call",
-							Path:       validatedPath,
-							Line:       fset.Position(call.Lparen).Line,
-						})
+					if n.Pos() >= top.end {
+						funcStack = funcStack[:len(funcStack)-1]
+					} else {
+						break
 					}
 				}
-			}
-
-			return true
-		})
-
-		return pointers, calls, nil
-	}
-
-	// 3. Try Tree-sitter for multi-language support as fallback
-	pointers, calls, err := ParseWithTreeSitter(ctx, validatedPath)
-	if err == nil {
-		return pointers, calls, nil
-	}
-
-	return nil, nil, fmt.Errorf("parsing failed for %s: %w", filePath, err)
+				if fn, ok := n.(*ast.FuncDecl); ok {
+					funcStack = append(funcStack, &funcCtx{name: fn.Name.Name, end: fn.End()})
+				}
+				if fn, ok := n.(*ast.FuncLit); ok {
+					parentName := "global"
+					count := 1
+					if len(funcStack) > 0 {
+						top := funcStack[len(funcStack)-1]
+						top.anonymousCount++
+						parentName = top.name
+						count = top.anonymousCount
+					}
+					anonName := fmt.Sprintf("%s.func%d", parentName, count)
+					funcStack = append(funcStack, &funcCtx{name: anonName, end: fn.End()})
+				}
+				if call, ok := n.(*ast.CallExpr); ok {
+					if len(funcStack) > 0 {
+						caller := funcStack[len(funcStack)-1]
+						calleeName, calleePath := resolveCallee(call.Fun, validatedPath)
+						if calleeName != "" {
+							c := types.ASTCall{
+								CallerName: caller.name,
+								CalleeName: calleeName,
+								CalleePath: calleePath,
+								LinkType:   "call",
+								Path:       validatedPath,
+								Line:       fset.Position(call.Lparen).Line,
+							}
+							if !yield(c) {
+								return false
+							}
+						}
+					}
+				}
+				return true
+			})
+		}, nil
 }
-
 // resolveCallee attempts to get the name and potential path of the function being called.
 func resolveCallee(fun ast.Expr, currentPath string) (string, string) {
 	switch f := fun.(type) {

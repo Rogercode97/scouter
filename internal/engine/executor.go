@@ -89,7 +89,6 @@ func Execute(ctx context.Context, command string, args []string) (*Result, error
 	wg.Wait()
 
 	exitCode := 0
-	err = cmd.Wait()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
@@ -110,7 +109,9 @@ func Execute(ctx context.Context, command string, args []string) (*Result, error
 func Passthrough(ctx context.Context, command string, args []string) (int, error) {
 	cmd := makeCommand(ctx, command, args)
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
+	// When running as MCP server, we MUST NOT write to os.Stdout directly
+	// as it will corrupt the JSON-RPC stream. Redirecting to Stderr is safer.
+	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 
 	err := cmd.Run()
