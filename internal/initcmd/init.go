@@ -102,7 +102,7 @@ func installGeminiCLI(home string) error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, newData, 0644); err != nil {
+	if err := os.WriteFile(configPath, newData, 0600); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}
 	fmt.Printf("✅ Scouter integrated with Gemini CLI (MCP)!\n")
@@ -142,7 +142,7 @@ func installOpenCode(home string) error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, newData, 0644); err != nil {
+	if err := os.WriteFile(configPath, newData, 0600); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}
 	fmt.Printf("✅ Scouter integrated with OpenCode (MCP)!\n")
@@ -192,7 +192,7 @@ func removeMCPServer(path, name string) {
 	}
 	delete(mcpServers, name)
 	newData, _ := json.MarshalIndent(config, "", "  ")
-	_ = os.WriteFile(path, newData, 0644)
+	_ = os.WriteFile(path, newData, 0600)
 }
 
 // patchClaudeSettings adds the scouter hook to Claude Code settings.json.
@@ -253,7 +253,7 @@ func patchClaudeSettings(path, hookPath string) error {
 		return fmt.Errorf("marshal settings: %w", err)
 	}
 
-	return os.WriteFile(path, out, 0644)
+	return os.WriteFile(path, out, 0600)
 }
 
 func unpatchClaudeSettings(path string) {
@@ -299,7 +299,7 @@ func unpatchClaudeSettings(path string) {
 	if err != nil {
 		return
 	}
-	_ = os.WriteFile(path, out, 0644)
+	_ = os.WriteFile(path, out, 0600)
 }
 
 func isScouterEntry(entry any) bool {
