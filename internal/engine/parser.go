@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -245,8 +244,8 @@ func resolveCallee(fun ast.Expr, currentPath string) (string, string) {
 	}
 }
 
-// ReadFragment reads a specific code fragment and validates it against its expected hash.
-func ReadFragment(ctx context.Context, filePath string, rangeJSON string, expectedHash string) (string, error) {
+// ReadFragment reads a specific code fragment from a file within the given range.
+func ReadFragment(ctx context.Context, filePath string, r types.Range) (string, error) {
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
@@ -256,11 +255,6 @@ func ReadFragment(ctx context.Context, filePath string, rangeJSON string, expect
 	validatedPath, err := utils.ValidatePath(filePath)
 	if err != nil {
 		return "", err
-	}
-
-	var r types.Range
-	if err := json.Unmarshal([]byte(rangeJSON), &r); err != nil {
-		return "", fmt.Errorf("error parsing range JSON: %w", err)
 	}
 
 	requestedSize := r.End - r.Start
@@ -279,7 +273,7 @@ func ReadFragment(ctx context.Context, filePath string, rangeJSON string, expect
 		return "", fmt.Errorf("error stating file: %w", err)
 	}
 
-	if r.Start < 0 || int64(r.End) > fi.Size() || r.Start > r.End {
+	if r.Start < -1 || int64(r.End) > fi.Size() || r.Start > r.End {
 		return "", fmt.Errorf("file out of sync or invalid range: index is stale, please re-index the file")
 	}
 
@@ -291,13 +285,6 @@ func ReadFragment(ctx context.Context, filePath string, rangeJSON string, expect
 
 	if !utf8.Valid(buffer) {
 		return "", fmt.Errorf("binary or invalid UTF-8 data detected: Scouter only analyzes text-based source code")
-	}
-
-	if expectedHash != "" {
-		currentFileHash, _ := utils.CalculateHash(validatedPath)
-		if currentFileHash != "" && currentFileHash != expectedHash {
-			return "", fmt.Errorf("integrity violation: the file has been modified since it was last indexed (expected %s, got %s); please re-index the project", expectedHash, currentFileHash)
-		}
 	}
 
 	return string(buffer), nil
