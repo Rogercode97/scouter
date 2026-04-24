@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/Rogercode97/scouter/internal/utils"
@@ -31,6 +32,7 @@ var actions = map[string]ActionFunc{
 	"compact_path":    compactPath,
 	"snr_dedup":       snrDedup,
 	"head_tail":       headTail,
+	"pure_signal":     pureSignal,
 }
 
 // GetAction returns the ActionFunc for the given action name.
@@ -38,6 +40,70 @@ func GetAction(name string) (ActionFunc, bool) {
 	fn, ok := actions[name]
 	return fn, ok
 }
+
+var (
+	moderateNoisePatterns   []*regexp.Regexp
+	aggressiveNoisePatterns []*regexp.Regexp
+	noisePatternsOnce       sync.Once
+)
+
+func pureSignal(input ActionResult, params map[string]any) (ActionResult, error) {
+	level := getStr(params, "level")
+	if level == "" {
+		level = "moderate"
+	}
+
+	noisePatternsOnce.Do(func() {
+		mod := []string{`^\s*$`, `^\.+$`, `^(\s*)\d+/\d+\s+.*$`, `(?i)progress:?`}
+		agg := append(append([]string(nil), mod...), `(?i)debug`, `(?i)trace`, `(?i)info`)
+
+		for _, p := range mod {
+			if re, err := regexp.Compile(p); err == nil {
+				moderateNoisePatterns = append(moderateNoisePatterns, re)
+			}
+		}
+		for _, p := range agg {
+			if re, err := regexp.Compile(p); err == nil {
+				aggressiveNoisePatterns = append(aggressiveNoisePatterns, re)
+			}
+		}
+	})
+
+	// 1. Strip ANSI (always good for Pure Signal)
+	for i, line := range input.Lines {
+		input.Lines[i] = utils.StripANSI(line)
+	}
+
+	// 2. Intelligent Dedup
+	deduped, _ := snrDedup(input, nil)
+
+	// 3. Heuristic Filtering based on level
+	var finalLines []string
+	res := moderateNoisePatterns
+	if level == "aggressive" {
+		res = aggressiveNoisePatterns
+	}
+
+	for _, line := range deduped.Lines {
+		isNoise := false
+		for _, re := range res {
+			if re.MatchString(line) {
+				isNoise = true
+				break
+			}
+		}
+		if !isNoise {
+			finalLines = append(finalLines, line)
+		}
+	}
+
+	// 4. Safety Truncation if still too large
+	input.Lines = finalLines
+	headN := getInt(params, "head", 25)
+	tailN := getInt(params, "tail", 25)
+	return headTail(input, map[string]any{"head": headN, "tail": tailN})
+}
+
 
 func snrDedup(input ActionResult, params map[string]any) (ActionResult, error) {
 	if len(input.Lines) == 0 {

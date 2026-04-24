@@ -3,12 +3,11 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/Rogercode97/scouter/internal/engine"
+	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/utils"
 )
 
@@ -47,7 +46,10 @@ func (s *Server) handleSearch(ctx context.Context, args map[string]interface{}) 
 		return nil, err
 	}
 
-	out, _ := json.Marshal(results)
+	out, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("marshal search results: %w", err)
+	}
 	return map[string]interface{}{
 		"content": []map[string]interface{}{
 			{"type": "text", "text": string(out)},
@@ -95,7 +97,10 @@ func (s *Server) handleCallers(ctx context.Context, args map[string]interface{})
 	if err != nil {
 		return nil, err
 	}
-	out, _ := json.Marshal(results)
+	out, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("marshal callers: %w", err)
+	}
 	return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": string(out)}}}, nil
 }
 
@@ -110,7 +115,10 @@ func (s *Server) handleImpact(ctx context.Context, args map[string]interface{}) 
 	if err != nil {
 		return nil, err
 	}
-	out, _ := json.Marshal(results)
+	out, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("marshal impact: %w", err)
+	}
 	return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": string(out)}}}, nil
 }
 
@@ -123,7 +131,10 @@ func (s *Server) handleCritical(ctx context.Context, args map[string]interface{}
 	if err != nil {
 		return nil, err
 	}
-	out, _ := json.Marshal(results)
+	out, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("marshal critical: %w", err)
+	}
 	return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": string(out)}}}, nil
 }
 
@@ -132,8 +143,45 @@ func (s *Server) handleDependencies(ctx context.Context, args map[string]interfa
 	if err != nil {
 		return nil, err
 	}
-	out, _ := json.Marshal(res)
+	out, err := json.Marshal(res)
+	if err != nil {
+		return nil, fmt.Errorf("marshal dependencies: %w", err)
+	}
 	return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": string(out)}}}, nil
+}
+
+func (s *Server) handleStructuralSearch(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	pattern, _ := args["pattern"].(string)
+	ext, _ := args["ext"].(string)
+	filePath, _ := args["path"].(string)
+
+	if pattern == "" || ext == "" {
+		return nil, fmt.Errorf("missing pattern or ext")
+	}
+
+	if filePath == "" {
+		filePath = "."
+	}
+
+	path, err := utils.ValidatePath(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	results, err := engine.StructuralSearch(ctx, path, pattern, ext)
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := json.Marshal(results)
+	if err != nil {
+		return nil, fmt.Errorf("marshal structural search results: %w", err)
+	}
+	return map[string]interface{}{
+		"content": []map[string]interface{}{
+			{"type": "text", "text": string(out)},
+		},
+	}, nil
 }
 
 func (s *Server) handlePureSignal(ctx context.Context, args map[string]interface{}) (interface{}, error) {
@@ -142,45 +190,26 @@ func (s *Server) handlePureSignal(ctx context.Context, args map[string]interface
 		return nil, fmt.Errorf("missing 'text' argument")
 	}
 
-	mode, _ := args["mode"].(string)
-	if mode == "" {
-		// Heuristic: if it contains function keywords or braces, it's code. Otherwise log.
-		if strings.Contains(text, "func ") || strings.Contains(text, "package ") || strings.HasPrefix(strings.TrimSpace(text), "import ") {
-			mode = "read"
-		} else {
-			mode = "log"
-		}
+	level, _ := args["level"].(string)
+	if level == "" {
+		level = "aggressive" // Default to aggressive for MCP tasks
 	}
 
-	var cmd *exec.Cmd
-	switch mode {
-	case "log":
-		cmd = exec.CommandContext(ctx, "rtk", "log")
-	case "read":
-		level, _ := args["level"].(string)
-		if level == "" {
-			level = "aggressive"
-		}
-		cmd = exec.CommandContext(ctx, "rtk", "read", "-", "--level", level)
-	default:
-		return nil, fmt.Errorf("invalid mode: %s (supported: log, read)", mode)
+	// Use the new native action
+	fn, ok := filter.GetAction("pure_signal")
+	if !ok {
+		return nil, fmt.Errorf("pure_signal action not found")
 	}
 
-	cmd.Stdin = strings.NewReader(text)
-	out, err := cmd.CombinedOutput()
+	res, err := fn(filter.ActionResult{Lines: strings.Split(text, "\n"), Metadata: make(map[string]any)}, map[string]any{"level": level})
 	if err != nil {
-		if errors.Is(err, exec.ErrNotFound) {
-			return nil, fmt.Errorf("rtk not found, please install it via 'brew install rtk'")
-		}
-		// Return output even on error as RTK might have filtered partially
-		if len(out) == 0 {
-			return nil, fmt.Errorf("rtk execution failed (%s): %w", mode, err)
-		}
+		return nil, err
 	}
 
 	return map[string]interface{}{
 		"content": []map[string]interface{}{
-			{"type": "text", "text": string(out)},
+			{"type": "text", "text": strings.Join(res.Lines, "\n")},
 		},
 	}, nil
 }
+

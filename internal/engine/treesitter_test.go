@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,7 +19,7 @@ func TestParseWithTreeSitter_Calls(t *testing.T) {
 	filePath := filepath.Join(tmpDir, "test.ts")
 	os.WriteFile(filePath, content, 0644)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	pointers, calls, err := ParseWithTreeSitter(ctx, filePath)
 	if err != nil {
 		t.Fatalf("ParseWithTreeSitter failed: %v", err)
@@ -60,7 +59,7 @@ func TestParseWithTreeSitter_Doc(t *testing.T) {
 		filePath := filepath.Join(tmpDir, "test.ts")
 		os.WriteFile(filePath, content, 0644)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		pointers, _, err := ParseWithTreeSitter(ctx, filePath)
 		if err != nil {
 			t.Fatalf("ParseWithTreeSitter failed: %v", err)
@@ -105,7 +104,7 @@ class World:
 		filePath := filepath.Join(tmpDir, "test.py")
 		os.WriteFile(filePath, content, 0644)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		pointers, _, err := ParseWithTreeSitter(ctx, filePath)
 		if err != nil {
 			t.Fatalf("ParseWithTreeSitter failed: %v", err)

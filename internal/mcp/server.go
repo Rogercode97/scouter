@@ -1,5 +1,4 @@
 package mcp
-
 import (
 	"context"
 	"encoding/json"
@@ -27,10 +26,20 @@ type Server struct {
 }
 
 func NewServer(st store.Repository) *Server {
+	// Duplicate original stdout for MCP traffic
+	originalStdout, err := os.Open("/dev/stdout")
+	if err != nil {
+		// Fallback to direct stdout if duplication fails
+		originalStdout = os.Stdout
+	} else {
+		// Redirect standard stdout to stderr to prevent noise from dependencies
+		os.Stdout = os.Stderr
+	}
+
 	s := &Server{
 		store:    st,
 		resolver: NewPointerResolver(st),
-		enc:      json.NewEncoder(os.Stdout),
+		enc:      json.NewEncoder(originalStdout),
 	}
 	s.initTools()
 	return s
@@ -112,6 +121,19 @@ func (s *Server) initTools() {
 			"description": "Get a map of all project dependencies",
 			"inputSchema": map[string]any{
 				"type": "object",
+			},
+		},
+		{
+			"name":        "scouter_structural_search",
+			"description": "Search for code using structural patterns (ast-grep style)",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"pattern": map[string]any{"type": "string", "description": "Code pattern with wildcards (e.g. 'func $NAME() { $$$ }')"},
+					"ext":     map[string]any{"type": "string", "description": "File extension (e.g. '.go', '.ts')"},
+					"path":    map[string]any{"type": "string", "description": "Root path to search (default: current directory)"},
+				},
+				"required": []string{"pattern", "ext"},
 			},
 		},
 		{
@@ -226,10 +248,12 @@ func (s *Server) dispatchToolCall(ctx context.Context, id any, name string, args
 	case "scouter_critical_code": result, err = s.handleCritical(ctx, args)
 	case "scouter_dependencies": result, err = s.handleDependencies(ctx, args)
 	case "scouter_pure_signal": result, err = s.handlePureSignal(ctx, args)
+	case "scouter_structural_search": result, err = s.handleStructuralSearch(ctx, args)
 	default:
 		s.sendError(id, -32601, "method not found: "+name)
 		return
 	}
+
 	if err != nil {
 		s.sendError(id, -32603, err.Error())
 		return

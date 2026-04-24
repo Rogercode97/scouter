@@ -308,3 +308,45 @@ func TestGetAction(t *testing.T) {
 		t.Error("expected nonexistent action to not be found")
 	}
 }
+
+func TestPureSignal(t *testing.T) {
+	input := lines(
+		"\x1b[31mFAIL: test_foo\x1b[0m",
+		"progress: 1/100",
+		"progress: 2/100",
+		"progress: 2/100", // Duplicated
+		"DEBUG: low level noise",
+		"INFO: doing something",
+		"test result: failed",
+		"",    // Empty line
+		"...", // Dots
+	)
+
+	t.Run("moderate", func(t *testing.T) {
+		res, err := pureSignal(input, map[string]any{"level": "moderate"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		joined := strings.Join(res.Lines, "\n")
+		if !strings.Contains(joined, "FAIL: test_foo") {
+			t.Errorf("missing FAIL: %q", joined)
+		}
+		if strings.Contains(joined, "progress") {
+			t.Errorf("noise 'progress' not removed: %q", joined)
+		}
+		if strings.Contains(joined, "...") {
+			t.Errorf("noise '...' not removed: %q", joined)
+		}
+	})
+
+	t.Run("aggressive", func(t *testing.T) {
+		res, err := pureSignal(input, map[string]any{"level": "aggressive"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		joined := strings.Join(res.Lines, "\n")
+		if strings.Contains(strings.ToLower(joined), "debug") || strings.Contains(strings.ToLower(joined), "info") {
+			t.Errorf("aggressive mode should remove INFO/DEBUG: %q", joined)
+		}
+	})
+}
