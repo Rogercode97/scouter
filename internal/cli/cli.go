@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
+	"os"
 
 	"github.com/Rogercode97/scouter/internal/config"
 	"github.com/Rogercode97/scouter/internal/engine"
@@ -11,9 +13,10 @@ import (
 	"github.com/Rogercode97/scouter/internal/mcp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/telemetry"
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var version = "2.6.1-redemption"
+var version = "2.6.2-sovereign"
 
 type App struct {
 	Stdout io.Writer
@@ -52,8 +55,11 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		defer db.Close()
 
-		server := mcp.NewServer(db)
-		if err := server.Run(ctx); err != nil {
+		logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+		server := mcp.NewServer(db, logger)
+		
+		transport := &sdk.StdioTransport{}
+		if err := server.Start(ctx, transport); err != nil {
 			fmt.Fprintf(stderr, "MCP Server stopped: %v\n", err)
 		}
 		return 0

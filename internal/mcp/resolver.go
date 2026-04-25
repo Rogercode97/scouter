@@ -8,7 +8,6 @@ import (
 
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
-	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 // PointerResolver handles the resolution of MCP pointers to physical file ranges.
@@ -36,30 +35,25 @@ func (r *PointerResolver) Resolve(ctx context.Context, filePath, pointer string)
 
 	// 2. Hash validation for full file (Solving the Pointer Paradox fully).
 	if len(pointer) == 64 {
-		currentFileHash, err := utils.CalculateHash(filePath)
-		if err != nil {
-			return types.Range{}, err
-		}
-		if currentFileHash == pointer {
-			// It matches the full file hash. A range of 0, 0 in engine indicates full file read.
+		idx, err := r.store.GetFileIndex(ctx, filePath)
+		if err == nil && idx.Hash == pointer {
+			// It matches the full file hash. A range of -1, -1 in engine indicates full file read.
 			return types.Range{Start: -1, End: -1}, nil
 		}
 	}
 
 	// 3. Treat pointer as a symbol name and query the store.
-	symbols, err := r.store.SearchSymbols(ctx, pointer, "")
+	symbols, err := r.store.GetSymbolsByNameInFile(ctx, pointer, filePath)
 	if err != nil {
 		return types.Range{}, fmt.Errorf("failed to search for pointer: %w", err)
 	}
 
-	// 4. Filter symbols that match the exact filePath and name.
-	for _, sym := range symbols {
-		if sym.Path == filePath && sym.Name == pointer {
-			return types.Range{
-				Start: sym.StartByte,
-				End:   sym.EndByte,
-			}, nil
-		}
+	// 4. If we have matches, use the first one.
+	if len(symbols) > 0 {
+		return types.Range{
+			Start: symbols[0].StartByte,
+			End:   symbols[0].EndByte,
+		}, nil
 	}
 
 	return types.Range{}, fmt.Errorf("pointer '%s' not found in file '%s'", pointer, filePath)

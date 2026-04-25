@@ -8,6 +8,18 @@ Este documento contiene la visión técnica, lecciones aprendidas y el backlog d
 3. **Glasswall Validation**: Integridad de datos infranqueable mediante tags de validación.
 4. **Hexagonal Isolation**: Desacoplamiento total entre lógica de negocio y persistencia.
 
+## 🏹 Análisis de Mercado y Posicionamiento (Omnisciencia)
+Tras una investigación profunda del ecosistema (Abril 2026), Scouter se posiciona como el sucesor inteligente de los proxies de reducción de ruido:
+
+| Herramienta | Enfoque | Diferencia vs Scouter |
+| :--- | :--- | :--- |
+| **RTK / RTK-AI** | Proxy CLI universal | Basado en patrones estáticos; Scouter usa AST. |
+| **Tokf / Tokf.net** | Filtrado via TOML | Requiere autoría manual; Scouter es autónomo. |
+| **Chop / getchop.run** | Interceptor de agentes | Heurístico; Scouter es semántico (Global Call Graph). |
+| **Unlog** | Ingesta de logs + RCA | Post-mortem; Scouter es interactivo y preventivo. |
+
+**El Diferencial Soberano (V2.0)**: Mientras otros "recortan" texto, Scouter **entiende la estructura**. Gracias al *Global Call Graph* y el *Blast Radius Analysis*, Scouter no solo ahorra tokens, sino que inyecta el contexto crítico que otros filtros eliminan por error.
+
 ## 🕸️ El Motor de Impacto (Blast Radius)
 - **Recursive CTE**: Uso de recursión nativa en SQLite para trazar el impacto en grafos cíclicos.
 - **Fuzzy Joining**: Capacidad de unir nodos por nombre o por path completo para máxima precisión.

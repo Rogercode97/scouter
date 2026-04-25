@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
@@ -83,6 +84,12 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 
 	// We return closures that perform the AST inspection lazily
 	return func(yield func(types.ASTPointer) bool) {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			type funcCtx struct {
 				name           string
 				end            token.Pos
@@ -91,6 +98,12 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 			var funcStack []*funcCtx
 
 			ast.Inspect(file, func(n ast.Node) bool {
+				select {
+				case <-ctx.Done():
+					return false
+				default:
+				}
+
 				if n == nil {
 					return false
 				}
@@ -124,11 +137,14 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 							fullName = recvType + "." + fn.Name.Name
 						}
 					}
-					content := fmt.Sprintf("%s:%s:%d:%d", symType, fullName, startPos.Offset, endPos.Offset)
+
+					signature := extractSignature(fn.Type)
+					content := fmt.Sprintf("%s:%s:%s:%d:%d", symType, fullName, signature, startPos.Offset, endPos.Offset)
 					h := sha256.Sum256([]byte(content))
 					p := types.ASTPointer{
 						Type:      symType,
 						Name:      fullName,
+						Signature: signature,
 						Doc:       doc,
 						Range:     types.Range{Start: startPos.Offset, End: endPos.Offset},
 						StartLine: startPos.Line,
@@ -158,13 +174,20 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 											fullMethodName := ts.Name.Name + ":" + methodName
 											mStart := fset.Position(field.Pos())
 											mEnd := fset.Position(field.End())
+
+											var sig string
+											if ft, ok := field.Type.(*ast.FuncType); ok {
+												sig = extractSignature(ft)
+											}
+
 											p := types.ASTPointer{
 												Type:      "method_spec",
 												Name:      fullMethodName,
+												Signature: sig,
 												Range:     types.Range{Start: mStart.Offset, End: mEnd.Offset},
 												StartLine: mStart.Line,
 												EndLine:   mEnd.Line,
-												Hash:      utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
+												Hash:      utils.HashString(fmt.Sprintf("spec:%s:%s", fullMethodName, sig)),
 											}
 											if !yield(p) {
 												return false
@@ -203,6 +226,12 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 				return true
 			})
 		}, func(yield func(types.ASTCall) bool) {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			type funcCtx struct {
 				name           string
 				end            token.Pos
@@ -211,6 +240,12 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 			var funcStack []*funcCtx
 
 			ast.Inspect(file, func(n ast.Node) bool {
+				select {
+				case <-ctx.Done():
+					return false
+				default:
+				}
+
 				if n == nil {
 					return false
 				}
@@ -319,4 +354,80 @@ func ReadFragment(ctx context.Context, filePath string, r types.Range) (string, 
 	}
 
 	return string(buffer), nil
+}
+
+func extractSignature(ft *ast.FuncType) string {
+	if ft == nil {
+		return ""
+	}
+
+	params := ""
+	if ft.Params != nil {
+		var pList []string
+		for _, field := range ft.Params.List {
+			pType := exprToString(field.Type)
+			if len(field.Names) > 0 {
+				for range field.Names {
+					pList = append(pList, pType)
+				}
+			} else {
+				pList = append(pList, pType)
+			}
+		}
+		params = "(" + strings.Join(pList, ", ") + ")"
+	}
+
+	results := ""
+	if ft.Results != nil {
+		var rList []string
+		for _, field := range ft.Results.List {
+			rList = append(rList, exprToString(field.Type))
+		}
+		results = "(" + strings.Join(rList, ", ") + ")"
+	}
+
+	if results == "" {
+		return params
+	}
+	return params + " -> " + results
+}
+
+func exprToString(expr ast.Expr) string {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name
+	case *ast.SelectorExpr:
+		return exprToString(t.X) + "." + t.Sel.Name
+	case *ast.StarExpr:
+		return "*" + exprToString(t.X)
+	case *ast.ArrayType:
+		return "[]" + exprToString(t.Elt)
+	case *ast.MapType:
+		return "map[" + exprToString(t.Key) + "]" + exprToString(t.Value)
+	case *ast.InterfaceType:
+		if t.Methods == nil || len(t.Methods.List) == 0 {
+			return "interface{}"
+		}
+		return fmt.Sprintf("interface{%d methods}", len(t.Methods.List))
+	case *ast.StructType:
+		if t.Fields == nil || len(t.Fields.List) == 0 {
+			return "struct{}"
+		}
+		return fmt.Sprintf("struct{%d fields}", len(t.Fields.List))
+	case *ast.ChanType:
+		if t.Dir == ast.RECV {
+			return "<-chan " + exprToString(t.Value)
+		} else if t.Dir == ast.SEND {
+			return "chan<- " + exprToString(t.Value)
+		}
+		return "chan " + exprToString(t.Value)
+	case *ast.FuncType:
+		return "func" + extractSignature(t)
+	case *ast.Ellipsis:
+		return "..." + exprToString(t.Elt)
+	case *ast.ParenExpr:
+		return "(" + exprToString(t.X) + ")"
+	default:
+		return "unknown"
+	}
 }

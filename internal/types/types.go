@@ -6,8 +6,9 @@ type Range struct {
 }
 
 type ASTPointer struct {
-	Type      string `json:"type" validate:"required,oneof=function class method variable interface"`
+	Type      string `json:"type" validate:"required,oneof=function class method variable interface method_spec"`
 	Name      string `json:"name" validate:"required"`
+	Signature string `json:"signature,omitempty"`
 	Doc       string `json:"doc"`
 	Range     Range  `json:"range" validate:"required"`
 	StartLine int    `json:"start_line" validate:"required,gte=1"`
