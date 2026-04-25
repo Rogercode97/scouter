@@ -9,207 +9,230 @@ import (
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/utils"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// ToolHandler defines the function signature for an MCP tool.
-type ToolHandler func(ctx context.Context, args map[string]interface{}) (interface{}, error)
+// Tool param structs for type safety
 
-func (s *Server) handleIndex(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	filePath, _ := args["filePath"].(string)
-	if filePath == "" {
-		return nil, fmt.Errorf("missing filePath")
+type IndexParams struct {
+	FilePath string `json:"filePath"`
+}
+
+type SearchParams struct {
+	Query string `json:"query"`
+	Type  string `json:"type,omitempty"`
+}
+
+type ReadParams struct {
+	FilePath string `json:"filePath"`
+	Pointer  string `json:"pointer"`
+}
+
+type CallersParams struct {
+	CalleeName string `json:"calleeName"`
+}
+
+type ImpactParams struct {
+	SymbolName string `json:"symbolName"`
+	FilePath   string `json:"filePath"`
+	MaxDepth   int    `json:"maxDepth,omitempty"`
+}
+
+type CriticalParams struct {
+	Limit int `json:"limit,omitempty"`
+}
+
+type DependenciesParams struct{}
+
+type StructuralSearchParams struct {
+	Pattern string `json:"pattern"`
+	Ext     string `json:"ext"`
+	Path    string `json:"path,omitempty"`
+}
+
+type PureSignalParams struct {
+	Text  string `json:"text"`
+	Mode  string `json:"mode,omitempty"`
+	Level string `json:"level,omitempty"`
+}
+
+// Handlers adapted to mcp.AddTool signature
+
+func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args IndexParams) (*mcp.CallToolResult, any, error) {
+	if args.FilePath == "" {
+		return nil, nil, fmt.Errorf("missing filePath")
 	}
 
-	path, err := utils.ValidatePath(filePath)
+	path, err := utils.ValidatePath(args.FilePath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	_, _, err = engine.ParseFile(ctx, path, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return map[string]interface{}{
-		"content": []map[string]interface{}{
-			{"type": "text", "text": "✅ Indexed " + filePath},
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: "✅ Indexed " + args.FilePath},
 		},
-	}, nil
+	}, nil, nil
 }
 
-func (s *Server) handleSearch(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	query, _ := args["query"].(string)
-	symbolType, _ := args["type"].(string)
-
-	results, err := s.store.SearchSymbols(ctx, query, symbolType)
+func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, args SearchParams) (*mcp.CallToolResult, any, error) {
+	results, err := s.store.SearchSymbols(ctx, args.Query, args.Type)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	out, err := json.Marshal(results)
 	if err != nil {
-		return nil, fmt.Errorf("marshal search results: %w", err)
+		return nil, nil, fmt.Errorf("marshal search results: %w", err)
 	}
-	return map[string]interface{}{
-		"content": []map[string]interface{}{
-			{"type": "text", "text": string(out)},
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(out)},
 		},
-	}, nil
+	}, nil, nil
 }
 
-func (s *Server) handleRead(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	filePath, _ := args["filePath"].(string)
-	pointer, _ := args["pointer"].(string)
-
-	if filePath == "" || pointer == "" {
-		return nil, fmt.Errorf("missing filePath or pointer")
+func (s *Server) handleRead(ctx context.Context, req *mcp.CallToolRequest, args ReadParams) (*mcp.CallToolResult, any, error) {
+	if args.FilePath == "" || args.Pointer == "" {
+		return nil, nil, fmt.Errorf("missing filePath or pointer")
 	}
 
-	path, err := utils.ValidatePath(filePath)
+	path, err := utils.ValidatePath(args.FilePath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	// Use the resolver to get the range
-	rng, err := s.resolver.Resolve(ctx, path, pointer)
+	rng, err := s.resolver.Resolve(ctx, path, args.Pointer)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	content, err := engine.ReadFragment(ctx, path, rng)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return map[string]interface{}{
-		"content": []map[string]interface{}{
-			{"type": "text", "text": content},
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: content},
 		},
-	}, nil
+	}, nil, nil
 }
 
-func (s *Server) handleCallers(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	calleeName, _ := args["calleeName"].(string)
-	if calleeName == "" {
-		return nil, fmt.Errorf("missing calleeName")
+func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, args CallersParams) (*mcp.CallToolResult, any, error) {
+	if args.CalleeName == "" {
+		return nil, nil, fmt.Errorf("missing calleeName")
 	}
-	results, err := s.store.GetCallers(ctx, calleeName)
+	results, err := s.store.GetCallers(ctx, args.CalleeName)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out, err := json.Marshal(results)
 	if err != nil {
-		return nil, fmt.Errorf("marshal callers: %w", err)
+		return nil, nil, err
 	}
-	return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": string(out)}}}, nil
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
 }
 
-func (s *Server) handleImpact(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	symbolName, _ := args["symbolName"].(string)
-	filePath, _ := args["filePath"].(string)
-	maxDepth := 5
-	if d, ok := args["maxDepth"].(float64); ok {
-		maxDepth = int(d)
+func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, args ImpactParams) (*mcp.CallToolResult, any, error) {
+	maxDepth := args.MaxDepth
+	if maxDepth == 0 {
+		maxDepth = 5
 	}
-	results, err := s.store.GetImpact(ctx, symbolName, filePath, maxDepth)
+	results, err := s.store.GetImpact(ctx, args.SymbolName, args.FilePath, maxDepth)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out, err := json.Marshal(results)
 	if err != nil {
-		return nil, fmt.Errorf("marshal impact: %w", err)
+		return nil, nil, err
 	}
-	return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": string(out)}}}, nil
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
 }
 
-func (s *Server) handleCritical(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	limit := 10
-	if l, ok := args["limit"].(float64); ok {
-		limit = int(l)
+func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, args CriticalParams) (*mcp.CallToolResult, any, error) {
+	limit := args.Limit
+	if limit == 0 {
+		limit = 10
 	}
 	results, err := s.store.GetCriticalSymbols(ctx, limit)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out, err := json.Marshal(results)
 	if err != nil {
-		return nil, fmt.Errorf("marshal critical: %w", err)
+		return nil, nil, err
 	}
-	return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": string(out)}}}, nil
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
 }
 
-func (s *Server) handleDependencies(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (s *Server) handleDependencies(ctx context.Context, req *mcp.CallToolRequest, args DependenciesParams) (*mcp.CallToolResult, any, error) {
 	res, err := s.store.GetDependencies(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out, err := json.Marshal(res)
 	if err != nil {
-		return nil, fmt.Errorf("marshal dependencies: %w", err)
+		return nil, nil, err
 	}
-	return map[string]interface{}{"content": []map[string]interface{}{{"type": "text", "text": string(out)}}}, nil
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
 }
 
-func (s *Server) handleStructuralSearch(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	pattern, _ := args["pattern"].(string)
-	ext, _ := args["ext"].(string)
-	filePath, _ := args["path"].(string)
-
-	if pattern == "" || ext == "" {
-		return nil, fmt.Errorf("missing pattern or ext")
+func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRequest, args StructuralSearchParams) (*mcp.CallToolResult, any, error) {
+	if args.Pattern == "" || args.Ext == "" {
+		return nil, nil, fmt.Errorf("missing pattern or ext")
 	}
 
-	if filePath == "" {
-		filePath = "."
+	searchPath := args.Path
+	if searchPath == "" {
+		searchPath = "."
 	}
 
-	path, err := utils.ValidatePath(filePath)
+	path, err := utils.ValidatePath(searchPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	results, err := engine.StructuralSearch(ctx, path, pattern, ext)
+	results, err := engine.StructuralSearch(ctx, path, args.Pattern, args.Ext)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	out, err := json.Marshal(results)
 	if err != nil {
-		return nil, fmt.Errorf("marshal structural search results: %w", err)
+		return nil, nil, err
 	}
-	return map[string]interface{}{
-		"content": []map[string]interface{}{
-			{"type": "text", "text": string(out)},
-		},
-	}, nil
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
 }
 
-func (s *Server) handlePureSignal(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	text, _ := args["text"].(string)
-	if text == "" {
-		return nil, fmt.Errorf("missing 'text' argument")
+func (s *Server) handlePureSignal(ctx context.Context, req *mcp.CallToolRequest, args PureSignalParams) (*mcp.CallToolResult, any, error) {
+	if args.Text == "" {
+		return nil, nil, fmt.Errorf("missing 'text' argument")
 	}
 
-	level, _ := args["level"].(string)
+	level := args.Level
 	if level == "" {
-		level = "aggressive" // Default to aggressive for MCP tasks
+		level = "aggressive"
 	}
 
-	// Use the new native action
 	fn, ok := filter.GetAction("pure_signal")
 	if !ok {
-		return nil, fmt.Errorf("pure_signal action not found")
+		return nil, nil, fmt.Errorf("pure_signal action not found")
 	}
 
-	res, err := fn(filter.ActionResult{Lines: strings.Split(text, "\n"), Metadata: make(map[string]any)}, map[string]any{"level": level})
+	res, err := fn(filter.ActionResult{Lines: strings.Split(args.Text, "\n"), Metadata: make(map[string]any)}, map[string]any{"level": level})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return map[string]interface{}{
-		"content": []map[string]interface{}{
-			{"type": "text", "text": strings.Join(res.Lines, "\n")},
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: strings.Join(res.Lines, "\n")},
 		},
-	}, nil
+	}, nil, nil
 }
-

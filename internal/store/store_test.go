@@ -509,4 +509,37 @@ func TestStore_TransactionSafety(t *testing.T) {
 	if len(results) != 0 {
 		t.Errorf("Expected 0 results after rollback, got %d", len(results))
 	}
-}
+	}
+
+	func TestGetSymbolsByNameInFile(t *testing.T) {
+	ctx := t.Context()
+	dbPath := "test_scouter_namefile.db"
+	defer os.Remove(dbPath)
+
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	path1 := "file1.go"
+	path2 := "file2.go"
+	_ = s.SaveFileIndex(ctx, &FileIndex{Path: path1, Project: "p"})
+	_ = s.SaveFileIndex(ctx, &FileIndex{Path: path2, Project: "p"})
+
+	sym1 := Symbol{Name: "MySym", Type: "func", Path: path1, StartByte: 10, EndByte: 20}
+	sym2 := Symbol{Name: "MySym", Type: "func", Path: path2, StartByte: 30, EndByte: 40}
+	_ = s.SaveSymbol(ctx, &sym1)
+	_ = s.SaveSymbol(ctx, &sym2)
+
+	res, err := s.GetSymbolsByNameInFile(ctx, "MySym", path1)
+	if err != nil {
+		t.Fatalf("GetSymbolsByNameInFile failed: %v", err)
+	}
+
+	if len(res) != 1 {
+		t.Errorf("Expected 1 result, got %d", len(res))
+	} else if res[0].Path != path1 {
+		t.Errorf("Expected path %s, got %s", path1, res[0].Path)
+	}
+	}
