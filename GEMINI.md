@@ -1,4 +1,4 @@
-# 🏛️ EL CÓDICE DE SCOUTER (WAVE 8.9) 👑
+# 🏛️ EL CÓDICE DE SCOUTER (WAVE 9) 👑
 
 "La perfección es el único estado aceptable. Scouter no tolera el ruido. Solo existe la señal pura."
 
