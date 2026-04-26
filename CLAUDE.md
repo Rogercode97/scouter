@@ -6,7 +6,7 @@ This file provides strict guidance for Claude, Gemini, or any AI agent operating
 You are operating within **Scouter**, the Sovereign Truth Kernel (RTK) & Architectural Oracle for AI Agents. 
 Your standard is impact. You do not write "slop".
 
-## ⚖️ The Supreme Mandates (Wave 8.9)
+## ⚖️ The Supreme Mandates (Wave 9)
 1. **Absolute Signal**: Every word without technical value is a waste of Ki. Destroy chitchat.
 2. **Empirical Absolute**: Without validation (`make test`), code does not exist.
 3. **Iron Law (RCA)**: Every fix MUST document its Root Cause.

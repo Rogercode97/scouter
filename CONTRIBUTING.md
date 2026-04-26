@@ -1,4 +1,4 @@
-# ⚔️ Contributing to Scouter (Wave 8.9)
+# ⚔️ Contributing to Scouter (Wave 9)
 
 Thank you for your interest in contributing to **Scouter**, the Sovereign Truth Kernel for AI Agents.
 

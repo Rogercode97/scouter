@@ -1,4 +1,4 @@
-# 🏛️ EL LIBRO DE SABIDURÍA DE SCOUTER (WAVE 8.9) 👑
+# 🏛️ EL LIBRO DE SABIDURÍA DE SCOUTER (WAVE 9) 👑
 
 Este documento contiene la visión técnica, lecciones aprendidas y el backlog de trascendencia de Scouter.
 
