@@ -86,6 +86,10 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 		return nil, nil, err
 	}
 
+	if len(results) > 500 {
+		results = results[:500]
+	}
+
 	out, err := json.Marshal(results)
 	if err != nil {
 		return nil, nil, fmt.Errorf("marshal search results: %w", err)
@@ -132,6 +136,9 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 	if err != nil {
 		return nil, nil, err
 	}
+	if len(results) > 500 {
+		results = results[:500]
+	}
 	out, err := json.Marshal(results)
 	if err != nil {
 		return nil, nil, err
@@ -144,11 +151,17 @@ func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, arg
 	if maxDepth == 0 {
 		maxDepth = 5
 	}
-	results, err := s.store.GetImpact(ctx, args.SymbolName, args.FilePath, maxDepth)
+	res, err := s.store.GetImpact(ctx, args.SymbolName, args.FilePath, maxDepth)
 	if err != nil {
 		return nil, nil, err
 	}
-	out, err := json.Marshal(results)
+	
+	// Limit callers if they exceed 500
+	if len(res.Callers) > 500 {
+		res.Callers = res.Callers[:500]
+	}
+
+	out, err := json.Marshal(res)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -159,6 +172,9 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 	limit := args.Limit
 	if limit == 0 {
 		limit = 10
+	}
+	if limit > 500 {
+		limit = 500
 	}
 	results, err := s.store.GetCriticalSymbols(ctx, limit)
 	if err != nil {
@@ -175,6 +191,9 @@ func (s *Server) handleDependencies(ctx context.Context, req *mcp.CallToolReques
 	res, err := s.store.GetDependencies(ctx)
 	if err != nil {
 		return nil, nil, err
+	}
+	if len(res) > 500 {
+		res = res[:500]
 	}
 	out, err := json.Marshal(res)
 	if err != nil {
@@ -201,6 +220,10 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 	results, err := engine.StructuralSearch(ctx, path, args.Pattern, args.Ext)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if len(results) > 500 {
+		results = results[:500]
 	}
 
 	out, err := json.Marshal(results)

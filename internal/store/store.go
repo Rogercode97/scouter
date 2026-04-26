@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/Rogercode97/scouter/internal/types"
+	"github.com/Rogercode97/scouter/internal/utils"
 	_ "modernc.org/sqlite"
 )
 
@@ -322,7 +323,7 @@ func (s *Store) SaveSymbol(ctx context.Context, sym *Symbol) error {
 }
 
 func (s *Store) SearchSymbols(ctx context.Context, q, t string) ([]Symbol, error) {
-	safe := sanitizeFTS(q)
+	safe := utils.SanitizeFTS(q)
 	if safe == "" {
 		return nil, nil
 	}
@@ -334,7 +335,7 @@ func (s *Store) SearchSymbols(ctx context.Context, q, t string) ([]Symbol, error
 		sql += " AND symbols.type = ?"
 		args = append(args, t)
 	}
-	sql += " LIMIT 100"
+	sql += " LIMIT 500"
 	rows, err := s.query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("search symbols failed: %w", err)
@@ -373,7 +374,7 @@ func (s *Store) GetSymbolsByNameInFile(ctx context.Context, name, path string) (
 
 func (s *Store) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq2[Symbol, error] {
 	return func(yield func(Symbol, error) bool) {
-		safe := sanitizeFTS(q)
+		safe := utils.SanitizeFTS(q)
 		if safe == "" {
 			return
 		}
@@ -385,7 +386,7 @@ func (s *Store) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq
 			sql += " AND symbols.type = ?"
 			args = append(args, t)
 		}
-		sql += " ORDER BY relevance ASC LIMIT 100"
+		sql += " ORDER BY relevance ASC LIMIT 500"
 		rows, err := s.query(ctx, sql, args...)
 		if err != nil {
 			yield(Symbol{}, fmt.Errorf("weighted search failed: %w", err))
@@ -911,20 +912,6 @@ func (s *Store) GetUnusedSymbols(ctx context.Context, exp bool) ([]Symbol, error
 		res = append(res, sym)
 	}
 	return res, nil
-}
-
-func sanitizeFTS(q string) string {
-	if q == "" {
-		return ""
-	}
-	pre := strings.HasSuffix(q, "*")
-	s := strings.ReplaceAll(strings.TrimSuffix(q, "*"), "\"", "\"\"")
-	s = strings.TrimLeft(s, "*")
-	res := "\"" + s + "\""
-	if pre {
-		res += "*"
-	}
-	return res
 }
 
 func (s *Store) SaveTestResult(ctx context.Context, r *types.TestResult) error {

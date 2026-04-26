@@ -126,3 +126,36 @@ func isWithinSovereignty(path, root, tmp string) bool {
 	
 	return inRepo || inTmp
 }
+
+// SanitizeFTS sanitizes a raw search string for safe use in SQLite FTS5 MATCH expressions.
+// It escapes double quotes and wraps the query in double quotes to neutralize control characters.
+func SanitizeFTS(q string) string {
+	if q == "" {
+		return ""
+	}
+	
+	// Check for trailing wildcard
+	hasWildcard := strings.HasSuffix(q, "*")
+	
+	// 1. Clean the string
+	s := strings.TrimSpace(q)
+	s = strings.TrimSuffix(s, "*")
+	
+	// 2. Escape double quotes (FTS5 uses double double-quotes for literal quotes)
+	s = strings.ReplaceAll(s, "\"", "\"\"")
+	
+	// 3. Remove leading wildcards (SQLite doesn't support them at the start of a term)
+	s = strings.TrimLeft(s, "*")
+	
+	if s == "" {
+		return ""
+	}
+
+	// 4. Wrap in quotes to neutralize OR, AND, NEAR, etc.
+	res := "\"" + s + "\""
+	if hasWildcard {
+		res += "*"
+	}
+	
+	return res
+}
