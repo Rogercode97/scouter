@@ -1,11 +1,13 @@
 # === SCOUTER SOVEREIGNTY ===
-# Agent tooling metadata (generated per-user, not project-wide)
 .scouter/
 .agent/
 .engram/
 .gemini/
 *.log
 session_summary.md
+
+# Agent tooling metadata (generated per-user, not product code)
+.atl/
 
 # === BINARIES & BUILD ===
 bin/
@@ -16,10 +18,7 @@ pkg/
 *.dll
 *.so
 *.dylib
-*.tar
 __debug_bin
-/gentle-ai
-cmd/gentle-ai/main
 
 # === GO ECOSYSTEM ===
 *.test
@@ -59,5 +58,5 @@ Thumbs.db
 skill-arena/
 arena/
 
-# === AGENT LOCK FILES ===
-.atl/*.#
+# === DOCKER & ARTIFACTS ===
+*.tar
