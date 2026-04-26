@@ -91,7 +91,7 @@ func TestIntegration_InterfaceTracing(t *testing.T) {
 	}
 
 	foundIface := false
-	for _, res := range impact {
+	for _, res := range impact.Callers {
 		if res.Symbol == "Area" && res.LinkType == "dynamic" {
 			foundIface = true
 			break

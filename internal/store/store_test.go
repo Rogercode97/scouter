@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 func TestStoreSearch(t *testing.T) {
@@ -457,7 +459,7 @@ func TestSanitizeFTS_SpecialCharacters(t *testing.T) {
 		expected string
 	}{
 		{"", ""},
-		{"*", "\"\"*"},
+		{"*", ""},
 		{"normal", "\"normal\""},
 		{"prefix*", "\"prefix\"*"},
 		{"with+plus", "\"with+plus\""},
@@ -470,13 +472,13 @@ func TestSanitizeFTS_SpecialCharacters(t *testing.T) {
 		{"NEAR", "\"NEAR\""},
 		{"\"quotes\"", "\"\"\"quotes\"\"\""},
 		{"a*b", "\"a*b\""},
-		{"*", "\"\"*"},
+		{"*", ""},
 	}
 
 	for _, tt := range tests {
-		actual := sanitizeFTS(tt.input)
+		actual := utils.SanitizeFTS(tt.input)
 		if actual != tt.expected {
-			t.Errorf("sanitizeFTS(%q) = %q, expected %q", tt.input, actual, tt.expected)
+			t.Errorf("SanitizeFTS(%q) = %q, expected %q", tt.input, actual, tt.expected)
 		}
 	}
 }
