@@ -119,6 +119,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 				if fn, ok := n.(*ast.FuncDecl); ok {
 					startPos := fset.Position(fn.Pos())
 					endPos := fset.Position(fn.End())
+					identPos := fset.Position(fn.Name.Pos())
 					doc := utils.CleanComment(fn.Doc.Text())
 					fullName := fn.Name.Name
 					symType := "function"
@@ -147,7 +148,8 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 						Signature: signature,
 						Doc:       doc,
 						Range:     types.Range{Start: startPos.Offset, End: endPos.Offset},
-						StartLine: startPos.Line,
+						StartLine: identPos.Line,
+						StartCol:  identPos.Column,
 						EndLine:   endPos.Line,
 						Hash:      hex.EncodeToString(h[:]),
 					}
@@ -161,6 +163,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 				if gd, ok := n.(*ast.GenDecl); ok && (gd.Tok == token.STRUCT || gd.Tok == token.INTERFACE || gd.Tok == token.TYPE) {
 					for _, spec := range gd.Specs {
 						if ts, ok := spec.(*ast.TypeSpec); ok {
+							identPos := fset.Position(ts.Name.Pos())
 							var symType string
 							switch it := ts.Type.(type) {
 							case *ast.StructType:
@@ -174,6 +177,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 											fullMethodName := ts.Name.Name + ":" + methodName
 											mStart := fset.Position(field.Pos())
 											mEnd := fset.Position(field.End())
+											mIdent := fset.Position(field.Names[0].Pos())
 
 											var sig string
 											if ft, ok := field.Type.(*ast.FuncType); ok {
@@ -185,7 +189,8 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 												Name:      fullMethodName,
 												Signature: sig,
 												Range:     types.Range{Start: mStart.Offset, End: mEnd.Offset},
-												StartLine: mStart.Line,
+												StartLine: mIdent.Line,
+												StartCol:  mIdent.Column,
 												EndLine:   mEnd.Line,
 												Hash:      utils.HashString(fmt.Sprintf("spec:%s:%s", fullMethodName, sig)),
 											}
@@ -213,7 +218,8 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 								Name:      ts.Name.Name,
 								Doc:       doc,
 								Range:     types.Range{Start: startPos.Offset, End: endPos.Offset},
-								StartLine: startPos.Line,
+								StartLine: identPos.Line,
+								StartCol:  identPos.Column,
 								EndLine:   endPos.Line,
 								Hash:      hex.EncodeToString(h[:]),
 							}
@@ -299,9 +305,14 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 func resolveCallee(fun ast.Expr, currentPath string) (string, string) {
 	switch f := fun.(type) {
 	case *ast.Ident:
+		// Local call in the same file
 		return f.Name, currentPath
 	case *ast.SelectorExpr:
+		// Potential call to another package or a method on a struct
 		if x, ok := f.X.(*ast.Ident); ok {
+			// Heuristic: if X is lowercase, it might be a variable (method call).
+			// If X is Uppercase, it might be a package name.
+			// For now, we return the selector string.
 			return x.Name + "." + f.Sel.Name, ""
 		}
 		return f.Sel.Name, ""

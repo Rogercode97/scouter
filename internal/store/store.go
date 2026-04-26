@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"iter"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,6 +32,7 @@ type Symbol struct {
 	StartByte int     `json:"start_byte"`
 	EndByte   int     `json:"end_byte"`
 	StartLine int     `json:"start_line"`
+	StartCol  int     `json:"start_col"`
 	EndLine   int     `json:"end_line"`
 	Relevance float64 `json:"relevance,omitempty"`
 }
@@ -68,14 +70,16 @@ type Repository interface {
 	GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]Symbol, error)
 	SearchSymbolsWeighted(ctx context.Context, query string, symType string) iter.Seq2[Symbol, error]
 	GetSymbolsByRange(ctx context.Context, path string, startLine, endLine int) ([]Symbol, error)
+	GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error)
 	GetCriticalSymbols(ctx context.Context, limit int) ([]CriticalSymbol, error)
 	ResolveInterfaces(ctx context.Context) error
+	ResolveCentrality(ctx context.Context) error
 	ExportDelta(ctx context.Context, syncDir string) error
 	ImportDelta(ctx context.Context, syncDir string) error
 	SaveCall(ctx context.Context, call Call) error
 	GetCallers(ctx context.Context, calleeName string) ([]Call, error)
 	GetCallees(ctx context.Context, callerName string) ([]Call, error)
-	GetImpact(ctx context.Context, symbolName string, filePath string, maxDepth int) ([]types.ImpactResult, error)
+	GetImpact(ctx context.Context, symbolName string, filePath string, maxDepth int) (*types.ImpactResult, error)
 	ClearCalls(ctx context.Context, path string) error
 	GetStats(ctx context.Context) (int, int, error)
 	GetAllFilePaths(ctx context.Context) ([]string, error)
@@ -130,14 +134,14 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 func migrate(ctx context.Context, tx *sql.Tx) error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS file_index (path TEXT PRIMARY KEY, mtime INTEGER, hash TEXT, ast_json TEXT, project TEXT);`,
-		`CREATE TABLE IF NOT EXISTS symbols (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, signature TEXT DEFAULT '', doc TEXT, path TEXT, start_byte INTEGER, end_byte INTEGER, start_line INTEGER, end_line INTEGER, FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);`,
+		`CREATE TABLE IF NOT EXISTS symbols (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, signature TEXT DEFAULT '', doc TEXT, path TEXT, start_byte INTEGER, end_byte INTEGER, start_line INTEGER, start_col INTEGER, end_line INTEGER, indegree INTEGER DEFAULT 0, FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);`,
 		`CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(name, type, signature, doc, path, content='symbols', content_rowid='id');`,
 		`CREATE TRIGGER IF NOT EXISTS symbols_ai AFTER INSERT ON symbols BEGIN INSERT INTO symbols_fts(rowid, name, type, signature, doc, path) VALUES (new.id, new.name, new.type, new.signature, new.doc, new.path); END;`,
 		`CREATE TRIGGER IF NOT EXISTS symbols_ad AFTER DELETE ON symbols BEGIN INSERT INTO symbols_fts(symbols_fts, rowid, name, type, signature, doc, path) VALUES('delete', old.id, old.name, old.type, old.signature, old.doc, old.path); END;`,
 		`CREATE TRIGGER IF NOT EXISTS symbols_au AFTER UPDATE ON symbols BEGIN INSERT INTO symbols_fts(symbols_fts, rowid, name, type, signature, doc, path) VALUES('delete', old.id, old.name, old.type, old.signature, old.doc, old.path); INSERT INTO symbols_fts(rowid, name, type, signature, doc, path) VALUES (new.id, new.name, new.type, new.signature, new.doc, new.path); END;`,
 		`CREATE INDEX IF NOT EXISTS idx_symbols_path ON symbols(path);`,
 		`CREATE INDEX IF NOT EXISTS idx_symbols_resolution ON symbols(name, path);`,
-		`CREATE TABLE IF NOT EXISTS calls (id INTEGER PRIMARY KEY AUTOINCREMENT, caller_name TEXT NOT NULL, callee_name TEXT NOT NULL, path TEXT NOT NULL, line INTEGER NOT NULL, callee_path TEXT DEFAULT '', link_type TEXT DEFAULT 'call', FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);`,
+		`CREATE TABLE IF NOT EXISTS calls (id INTEGER PRIMARY KEY AUTOINCREMENT, caller_name TEXT NOT NULL, callee_name TEXT NOT NULL, path TEXT NOT NULL, line INTEGER NOT NULL, callee_path TEXT DEFAULT '', link_type TEXT DEFAULT 'call', indegree INTEGER DEFAULT 0, FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);`,
 		`CREATE INDEX IF NOT EXISTS idx_calls_callee ON calls(callee_name);`,
 		`CREATE INDEX IF NOT EXISTS idx_calls_impact ON calls(callee_name, callee_path);`,
 		`CREATE TABLE IF NOT EXISTS dependencies (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, version TEXT, type TEXT, project TEXT, direct INTEGER);`,
@@ -204,6 +208,39 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 	for _, tq := range triggerQueries {
 		if _, err := tx.ExecContext(ctx, tq); err != nil {
 			return fmt.Errorf("failed to recreate trigger: %w", err)
+		}
+	}
+
+	// Dynamic column check for 'start_col'
+	hasCol, err := hasColumn(ctx, tx, "symbols", "start_col")
+	if err != nil {
+		return fmt.Errorf("failed to check column symbols.start_col: %w", err)
+	}
+	if !hasCol {
+		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN start_col INTEGER DEFAULT 0;"); err != nil {
+			return fmt.Errorf("failed to alter table symbols (start_col): %w", err)
+		}
+	}
+
+	// Dynamic column check for 'indegree' in 'calls'
+	hasIndegree, err := hasColumn(ctx, tx, "calls", "indegree")
+	if err != nil {
+		return fmt.Errorf("failed to check column calls.indegree: %w", err)
+	}
+	if !hasIndegree {
+		if _, err := tx.ExecContext(ctx, "ALTER TABLE calls ADD COLUMN indegree INTEGER DEFAULT 0;"); err != nil {
+			return fmt.Errorf("failed to alter table calls (indegree): %w", err)
+		}
+	}
+
+	// Dynamic column check for 'indegree' in 'symbols'
+	hasSymIndegree, err := hasColumn(ctx, tx, "symbols", "indegree")
+	if err != nil {
+		return fmt.Errorf("failed to check column symbols.indegree: %w", err)
+	}
+	if !hasSymIndegree {
+		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN indegree INTEGER DEFAULT 0;"); err != nil {
+			return fmt.Errorf("failed to alter table symbols (indegree): %w", err)
 		}
 	}
 
@@ -277,7 +314,7 @@ func (s *Store) ClearSymbols(ctx context.Context, p string) error {
 }
 
 func (s *Store) SaveSymbol(ctx context.Context, sym *Symbol) error {
-	_, err := s.exec(ctx, "INSERT INTO symbols (name, type, signature, doc, path, start_byte, end_byte, start_line, end_line) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", sym.Name, sym.Type, sym.Signature, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.EndLine)
+	_, err := s.exec(ctx, "INSERT INTO symbols (name, type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", sym.Name, sym.Type, sym.Signature, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.StartCol, sym.EndLine)
 	if err != nil {
 		return fmt.Errorf("failed to save symbol: %w", err)
 	}
@@ -289,7 +326,7 @@ func (s *Store) SearchSymbols(ctx context.Context, q, t string) ([]Symbol, error
 	if safe == "" {
 		return nil, nil
 	}
-	sql := `SELECT symbols.name, symbols.type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.end_line 
+	sql := `SELECT symbols.name, symbols.type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.start_col, symbols.end_line 
             FROM symbols JOIN symbols_fts ON symbols.id = symbols_fts.rowid 
             WHERE symbols_fts MATCH ?`
 	args := []any{safe}
@@ -306,7 +343,7 @@ func (s *Store) SearchSymbols(ctx context.Context, q, t string) ([]Symbol, error
 	var res []Symbol
 	for rows.Next() {
 		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine); err != nil {
 			return nil, fmt.Errorf("scan symbol failed: %w", err)
 		}
 		res = append(res, sym)
@@ -315,7 +352,7 @@ func (s *Store) SearchSymbols(ctx context.Context, q, t string) ([]Symbol, error
 }
 
 func (s *Store) GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]Symbol, error) {
-	sql := `SELECT name, type, signature, doc, path, start_byte, end_byte, start_line, end_line 
+	sql := `SELECT name, type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line 
             FROM symbols 
             WHERE name = ? AND path = ?`
 	rows, err := s.query(ctx, sql, name, path)
@@ -326,7 +363,7 @@ func (s *Store) GetSymbolsByNameInFile(ctx context.Context, name, path string) (
 	var res []Symbol
 	for rows.Next() {
 		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine); err != nil {
 			return nil, fmt.Errorf("scan symbol failed: %w", err)
 		}
 		res = append(res, sym)
@@ -340,7 +377,7 @@ func (s *Store) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq
 		if safe == "" {
 			return
 		}
-		sql := `SELECT symbols.name, symbols.type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.end_line, bm25(symbols_fts, 10.0, 2.0, 5.0, 1.0, 0.5) as relevance 
+		sql := `SELECT symbols.name, symbols.type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.start_col, symbols.end_line, bm25(symbols_fts, 10.0, 2.0, 5.0, 1.0, 0.5) as relevance 
                 FROM symbols JOIN symbols_fts ON symbols.id = symbols_fts.rowid 
                 WHERE symbols_fts MATCH ?`
 		args := []any{safe}
@@ -357,7 +394,7 @@ func (s *Store) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq
 		defer rows.Close()
 		for rows.Next() {
 			var sym Symbol
-			if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine, &sym.Relevance); err != nil {
+			if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.Relevance); err != nil {
 				if !yield(Symbol{}, fmt.Errorf("scan weighted symbol failed: %w", err)) {
 					return
 				}
@@ -371,7 +408,7 @@ func (s *Store) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq
 }
 
 func (s *Store) GetSymbolsByRange(ctx context.Context, path string, start, end int) ([]Symbol, error) {
-	sql := `SELECT name, type, signature, doc, path, start_byte, end_byte, start_line, end_line 
+	sql := `SELECT name, type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line 
             FROM symbols 
             WHERE path = ? AND NOT (start_line > ? OR end_line < ?)`
 	rows, err := s.query(ctx, sql, path, end, start)
@@ -382,8 +419,28 @@ func (s *Store) GetSymbolsByRange(ctx context.Context, path string, start, end i
 	var res []Symbol
 	for rows.Next() {
 		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine); err != nil {
 			return nil, fmt.Errorf("scan symbol range failed: %w", err)
+		}
+		res = append(res, sym)
+	}
+	return res, nil
+}
+
+func (s *Store) GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error) {
+	sql := `SELECT name, type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line 
+            FROM symbols 
+            WHERE type = ?`
+	rows, err := s.query(ctx, sql, symType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get symbols by type: %w", err)
+	}
+	defer rows.Close()
+	var res []Symbol
+	for rows.Next() {
+		var sym Symbol
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine); err != nil {
+			return nil, fmt.Errorf("scan symbol by type failed: %w", err)
 		}
 		res = append(res, sym)
 	}
@@ -396,7 +453,7 @@ func (s *Store) GetCriticalSymbols(ctx context.Context, limit int) ([]CriticalSy
 	}
 	sql := `
 		SELECT 
-			s.name, s.type, s.signature, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line,
+			s.name, s.type, s.signature, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.start_col, s.end_line,
 			COUNT(DISTINCT c.id) as centrality,
 			COUNT(DISTINCT tr.id) as fragility
 		FROM symbols s
@@ -415,7 +472,7 @@ func (s *Store) GetCriticalSymbols(ctx context.Context, limit int) ([]CriticalSy
 	var results []CriticalSymbol
 	for rows.Next() {
 		var cs CriticalSymbol
-		if err := rows.Scan(&cs.Name, &cs.Type, &cs.Signature, &cs.Doc, &cs.Path, &cs.StartByte, &cs.EndByte, &cs.StartLine, &cs.EndLine, &cs.Centrality, &cs.Fragility); err != nil {
+		if err := rows.Scan(&cs.Name, &cs.Type, &cs.Signature, &cs.Doc, &cs.Path, &cs.StartByte, &cs.EndByte, &cs.StartLine, &cs.StartCol, &cs.EndLine, &cs.Centrality, &cs.Fragility); err != nil {
 			return nil, err
 		}
 		results = append(results, cs)
@@ -603,6 +660,30 @@ func (s *Store) SaveCall(ctx context.Context, c Call) error {
 	if err != nil {
 		return fmt.Errorf("failed to save call: %w", err)
 	}
+
+	// Increment indegree for the callee symbol
+	_, err = s.exec(ctx, "UPDATE symbols SET indegree = indegree + 1 WHERE name = ? AND (path = ? OR ? = '')", c.CalleeName, c.CalleePath, c.CalleePath)
+	if err != nil {
+		// Log but don't fail, as symbol might not be indexed yet
+		return nil
+	}
+
+	return nil
+}
+
+// ResolveCentrality performs a batch update of all indegree counts based on the current call graph.
+func (s *Store) ResolveCentrality(ctx context.Context) error {
+	query := `
+		UPDATE symbols 
+		SET indegree = (
+			SELECT COUNT(DISTINCT caller_name || path) 
+			FROM calls 
+			WHERE callee_name = symbols.name AND (callee_path = symbols.path OR callee_path = '')
+		);`
+	_, err := s.exec(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to resolve centrality: %w", err)
+	}
 	return nil
 }
 
@@ -640,7 +721,7 @@ func (s *Store) GetCallees(ctx context.Context, caller string) ([]Call, error) {
 	return res, nil
 }
 
-func (s *Store) GetImpact(ctx context.Context, symbol string, path string, maxDepth int) ([]types.ImpactResult, error) {
+func (s *Store) GetImpact(ctx context.Context, symbol string, path string, maxDepth int) (*types.ImpactResult, error) {
 	if maxDepth <= 0 {
 		maxDepth = 3
 	}
@@ -648,6 +729,7 @@ func (s *Store) GetImpact(ctx context.Context, symbol string, path string, maxDe
 		maxDepth = 10
 	}
 
+	// 1. Recursive CTE Traversal
 	query := `
 	WITH RECURSIVE blast_radius(caller_name, caller_path, distance, link_type) AS (
 		SELECT caller_name, path, 1, link_type
@@ -671,15 +753,88 @@ func (s *Store) GetImpact(ctx context.Context, symbol string, path string, maxDe
 	}
 	defer rows.Close()
 
-	var results []types.ImpactResult
+	// 2. Fetch Target Metadata (Public Export, Initial Centrality)
+	var isExported bool
+	var centrality int
+	err = s.queryRow(ctx, "SELECT (name GLOB '[A-Z]*'), indegree FROM symbols WHERE name = ? AND (path = ? OR ? = '') LIMIT 1", symbol, path, path).Scan(&isExported, &centrality)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, fmt.Errorf("failed to fetch target metadata: %w", err)
+	}
+
+	res := &types.ImpactResult{
+		Target: types.ImpactEntity{
+			Symbol: symbol,
+			File:   path,
+			Metrics: types.RiskMetrics{
+				Centrality:   float64(centrality),
+				PublicExport: isExported,
+			},
+		},
+		Callers: []types.ImpactEntity{},
+	}
+
+	// 3. Build Graph and Calculate Blast Radius
+	mermaid := "graph TD\n"
+	blastRadius := 0
+	
+	// Track nodes for Mermaid to avoid duplicates
+	edges := make(map[string]bool)
+
 	for rows.Next() {
-		var r types.ImpactResult
+		var r types.ImpactEntity
 		if err := rows.Scan(&r.Symbol, &r.File, &r.Distance, &r.LinkType); err != nil {
 			return nil, err
 		}
-		results = append(results, r)
+		
+		// Add to callers
+		res.Callers = append(res.Callers, r)
+		blastRadius++
+
+		// Build Mermaid Edge
+		// Determine edge parent (if distance 1, parent is Target)
+		parent := symbol
+		if r.Distance > 1 {
+			// Find a caller at distance-1 that calls this one (heuristic)
+			for _, prev := range res.Callers {
+				if prev.Distance == r.Distance-1 {
+					parent = prev.Symbol
+					break
+				}
+			}
+		}
+		edge := fmt.Sprintf("    %s[\"%s\"] --> %s[\"%s\"]", r.Symbol, r.Symbol, parent, parent)
+		if !edges[edge] {
+			mermaid += edge + "\n"
+			edges[edge] = true
+		}
 	}
-	return results, nil
+	res.Mermaid = mermaid
+
+	// 4. Calculate Risk Score (Wave 9 formula)
+	// Normalize Centrality (max 20) and Blast Radius (max 100)
+	cScore := math.Min(1.0, float64(centrality)/20.0)
+	bScore := math.Min(1.0, float64(blastRadius)/100.0)
+	eScore := 0.0
+	if isExported {
+		eScore = 0.2
+	}
+
+	res.Target.RiskScore = (cScore * 0.4) + (bScore * 0.4) + eScore
+	res.Target.RiskScore = math.Min(1.0, res.Target.RiskScore)
+
+	// Determine Risk Level
+	switch {
+	case res.Target.RiskScore >= 0.8:
+		res.RiskLevel = "Critical"
+	case res.Target.RiskScore >= 0.5:
+		res.RiskLevel = "High"
+	case res.Target.RiskScore >= 0.2:
+		res.RiskLevel = "Medium"
+	default:
+		res.RiskLevel = "Low"
+	}
+
+	return res, nil
 }
 
 func (s *Store) ClearCalls(ctx context.Context, p string) error {

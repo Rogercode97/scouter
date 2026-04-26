@@ -53,6 +53,7 @@ var (
 )
 
 var healthFlag = flag.Bool("health", false, "Read go test -json from stdin and ingest health data")
+var enrichFlag = flag.Bool("enrich", false, "Perform semantic enrichment using LSP (Interface Tracing)")
 
 func main() {
 	flag.Parse()
@@ -79,6 +80,19 @@ func main() {
 			log.Fatalf("Health ingestion failed: %v", err)
 		}
 		fmt.Println("Health data ingested successfully")
+		return
+	}
+
+	lspMgr := lsp.NewManager()
+	defer lspMgr.Close()
+
+	if *enrichFlag {
+		fmt.Println("--- Performing Semantic Enrichment ---")
+		en := engine.NewEnricher(s, lspMgr)
+		if err := en.Enrich(mainCtx); err != nil {
+			log.Fatalf("Enrichment failed: %v", err)
+		}
+		fmt.Println("Enrichment complete")
 		return
 	}
 
@@ -141,9 +155,6 @@ func main() {
 	if workerCount > 8 {
 		workerCount = 8
 	}
-
-	lspMgr := lsp.NewManager()
-	defer lspMgr.Close()
 
 	for i := 0; i < workerCount; i++ {
 		g.Go(func() error {
@@ -294,6 +305,14 @@ func main() {
 	fmt.Println("Resolving interfaces and contract fulfillments...")
 	if err := s.ResolveInterfaces(mainCtx); err != nil {
 		log.Printf("Warning: interface resolution failed: %v", err)
+	}
+
+	if *enrichFlag {
+		fmt.Println("Performing semantic enrichment (LSP)...")
+		en := engine.NewEnricher(s, lspMgr)
+		if err := en.Enrich(mainCtx); err != nil {
+			log.Printf("Warning: enrichment failed: %v", err)
+		}
 	}
 
 	duration := time.Since(startTime)
