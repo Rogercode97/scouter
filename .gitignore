@@ -1,8 +1,10 @@
 # === SCOUTER SOVEREIGNTY ===
+# Agent tooling metadata (generated per-user, not product code)
 .scouter/
 .agent/
 .engram/
 .gemini/
+.atl/
 *.log
 session_summary.md
 
@@ -10,6 +12,8 @@ session_summary.md
 bin/
 dist/
 pkg/
+scouter
+index-vault
 *.exe
 *.exe~
 *.dll
@@ -17,10 +21,12 @@ pkg/
 *.dylib
 __debug_bin
 
-# === GO ECOSYSTEM ===
+# === TEST & COVERAGE ===
 *.test
 *.out
 coverage.txt
+
+# === GO ECOSYSTEM ===
 vendor/
 go.work
 go.work.sum
@@ -42,7 +48,12 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+*.swo
+*.swx
 *~
+
+# === DOCKER & ARTIFACTS ===
+*.tar
 
 # === LOCAL CONFIGURATION ===
 .env
