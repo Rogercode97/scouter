@@ -12,6 +12,7 @@ type ASTPointer struct {
 	Doc       string `json:"doc"`
 	Range     Range  `json:"range" validate:"required"`
 	StartLine int    `json:"start_line" validate:"required,gte=1"`
+	StartCol  int    `json:"start_col" validate:"required,gte=1"`
 	EndLine   int    `json:"end_line" validate:"required,gtfield=StartLine"`
 	Hash      string `json:"hash" validate:"required,len=64"`
 }
@@ -25,11 +26,26 @@ type ASTCall struct {
 	Line       int    `json:"line" validate:"required,gte=1"`
 }
 
+type RiskMetrics struct {
+	Centrality   float64 `json:"centrality"`
+	BlastRadius  float64 `json:"blast_radius"`
+	PublicExport bool    `json:"public_export"`
+}
+
+type ImpactEntity struct {
+	Symbol    string      `json:"symbol"`
+	File      string      `json:"file"`
+	Distance  int         `json:"distance"`
+	RiskScore float64     `json:"risk_score"`
+	LinkType  string      `json:"link_type"`
+	Metrics   RiskMetrics `json:"metrics"`
+}
+
 type ImpactResult struct {
-	Symbol   string `json:"symbol"`
-	File     string `json:"file"`
-	Distance int    `json:"distance"`
-	LinkType string `json:"link_type"`
+	Target    ImpactEntity   `json:"target"`
+	Callers   []ImpactEntity `json:"callers"`
+	Mermaid   string         `json:"mermaid"`
+	RiskLevel string         `json:"risk_level"` // Low, Medium, High, Critical
 }
 
 type Dependency struct {

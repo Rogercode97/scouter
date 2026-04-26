@@ -144,7 +144,12 @@ func TestGetImpact(t *testing.T) {
 	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "a.go", Project: "p"})
 	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "b.go", Project: "p"})
 	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "c.go", Project: "p"})
-	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "d.go", Project: "p"}) // Added missing FK
+	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "d.go", Project: "p"})
+
+	s.SaveSymbol(ctx, &Symbol{Name: "A", Type: "func", Path: "a.go", StartByte: 0, EndByte: 10})
+	s.SaveSymbol(ctx, &Symbol{Name: "B", Type: "func", Path: "b.go", StartByte: 0, EndByte: 10})
+	s.SaveSymbol(ctx, &Symbol{Name: "C", Type: "func", Path: "c.go", StartByte: 0, EndByte: 10})
+	s.SaveSymbol(ctx, &Symbol{Name: "D", Type: "func", Path: "d.go", StartByte: 0, EndByte: 10})
 
 	// 1. Build Graph: A -> B, B -> C, C -> A (cycle), D -> B
 	calls := []Call{
@@ -158,19 +163,16 @@ func TestGetImpact(t *testing.T) {
 			t.Fatalf("Failed to save call in test graph: %v", err)
 		}
 	}
+	s.ResolveCentrality(ctx)
 
-	// 2. Impact of B (Who calls B, and who calls them?)
-	// B is called by: A (dist 1), D (dist 1)
-	// A is called by: C (dist 2)
-	// C is called by: B (dist 3 - cycle)
+	// 2. Impact of B
 	impact, err := s.GetImpact(ctx, "B", "b.go", 3)
 	if err != nil {
 		t.Fatalf("GetImpact failed: %v", err)
 	}
 
-	// Expected: A(1), D(1), C(2), B(3)
 	foundA, foundD, foundC, foundB := false, false, false, false
-	for _, r := range impact {
+	for _, r := range impact.Callers {
 		switch r.Symbol {
 		case "A": foundA = true
 		case "D": foundD = true
@@ -180,16 +182,27 @@ func TestGetImpact(t *testing.T) {
 	}
 
 	if !foundA || !foundD || !foundC || !foundB {
-		t.Errorf("Incomplete impact results: %+v", impact)
+		t.Errorf("Incomplete impact results: %+v", impact.Callers)
 	}
 
-	// 3. Test depth capping (maxDepth 1 should only return direct callers A and D)
+	if !impact.Target.Metrics.PublicExport {
+		t.Errorf("Expected B to be public export")
+	}
+	if impact.RiskLevel != "Medium" {
+		t.Errorf("Expected RiskLevel 'Medium', got %s", impact.RiskLevel)
+	}
+	if impact.Target.RiskScore < 0.2 || impact.Target.RiskScore >= 0.5 {
+		t.Errorf("Risk score %v outside of expected bounds", impact.Target.RiskScore)
+	}
+	if impact.Mermaid == "" || impact.Mermaid[:8] != "graph TD" {
+		t.Errorf("Expected valid Mermaid graph, got: %s", impact.Mermaid)
+	}
+
 	impact2, _ := s.GetImpact(ctx, "B", "b.go", 1)
-	if len(impact2) != 2 {
-		t.Errorf("Depth capping failed, expected 2 results, got %d: %+v", len(impact2), impact2)
+	if len(impact2.Callers) != 2 {
+		t.Errorf("Depth capping failed, expected 2 results, got %d: %+v", len(impact2.Callers), impact2)
 	}
 }
-
 func TestGetUnusedSymbols(t *testing.T) {
 	ctx := t.Context()
 	dbPath := "test_scouter_deadcode.db"
@@ -542,4 +555,54 @@ func TestStore_TransactionSafety(t *testing.T) {
 	} else if res[0].Path != path1 {
 		t.Errorf("Expected path %s, got %s", path1, res[0].Path)
 	}
+}
+
+func TestGetSymbolsByType(t *testing.T) {
+	ctx := t.Context()
+	dbPath := "test_scouter_type.db"
+	defer os.Remove(dbPath)
+
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
 	}
+	defer s.Close()
+
+	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "types.go", Project: "p"})
+	_ = s.SaveSymbol(ctx, &Symbol{Name: "Shape", Type: "interface", Path: "types.go"})
+	_ = s.SaveSymbol(ctx, &Symbol{Name: "Circle", Type: "struct", Path: "types.go"})
+	_ = s.SaveSymbol(ctx, &Symbol{Name: "Area", Type: "method", Path: "types.go"})
+
+	res, err := s.GetSymbolsByType(ctx, "interface")
+	if err != nil {
+		t.Fatalf("GetSymbolsByType failed: %v", err)
+	}
+
+	if len(res) != 1 || res[0].Name != "Shape" {
+		t.Errorf("Expected 1 interface (Shape), got %v", res)
+	}
+}
+
+func TestCallLinkTypePersistence(t *testing.T) {
+	ctx := t.Context()
+	dbPath := "test_scouter_linktype.db"
+	defer os.Remove(dbPath)
+
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "main.go", Project: "p"})
+
+	// Test default link type
+	_ = s.SaveCall(ctx, Call{CallerName: "A", CalleeName: "B", Path: "main.go"})
+	// Test dynamic link type
+	_ = s.SaveCall(ctx, Call{CallerName: "Iface.M", CalleeName: "Impl.M", Path: "main.go", LinkType: "dynamic"})
+
+	callers, _ := s.GetCallers(ctx, "Impl.M")
+	if len(callers) != 1 || callers[0].LinkType != "dynamic" {
+		t.Errorf("Expected dynamic link type, got %v", callers)
+	}
+}

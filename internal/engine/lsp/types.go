@@ -36,6 +36,11 @@ type DefinitionParams struct {
 	TextDocumentPositionParams
 }
 
+// ImplementationParams represents parameters for the textDocument/implementation request.
+type ImplementationParams struct {
+	TextDocumentPositionParams
+}
+
 // HoverParams represents parameters for the textDocument/hover request.
 type HoverParams struct {
 	TextDocumentPositionParams

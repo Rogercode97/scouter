@@ -43,9 +43,10 @@
 - **Web Authority**: Use `web-dominion` for any UI/Frontend task (Mermaid, Dashboard). Follow its Version-Lock mandate.
 - **Wisdom Protocol**: Investigation MUST follow the MEM-FIRST -> SURGICAL-FETCH flow to protect Ki budget.
 
-## VI. SCOUTER TRUTH KERNEL MANDATE
-- **Priority**: Always use Scouter tools (`scouter_search`, `scouter_index`, `scouter_goto_definition`, etc.) before falling back to built-in tools.
+## VI. SCOUTER TRUTH KERNEL & OMNISCIENCE MANDATE
+- **Priority**: Always use Scouter tools (`scouter_search`, `scouter_index`, `scouter_impact`, etc.) before falling back to built-in tools.
 - **Divine Synergy**: Use `scouter_pure_signal` via MCP to purify ANY large, noisy block of text, logs, or code strings using the underlying Rust Token Killer (RTK) engine. This guarantees maximum token preservation.
-- **Signal**: Prefer Scouter's SNR-filtered outputs to minimize token consumption.
-- **Verification**: Use `scouter_impact` and `scouter_predict` before proposing any cross-cutting change.
+- **Impact Analysis**: OBLIGATORIO ejecutar `scouter_impact` antes de proponer cambios en entidades con alta centralidad (indegree > 5).
+- **Risk Gating**: Todo cambio con un `RiskScore > 0.8` (Critical) DEBE ser sometido a un `supreme-judgment` adversarial antes de su integración.
+- **Verification**: Use `scouter_impact` and `scouter_predict` to identify missing tests for affected dependents in the blast radius.
 <!-- /gentle-ai:scouter-mandate -->

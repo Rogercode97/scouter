@@ -65,6 +65,8 @@ func TestJSONRPCClient(t *testing.T) {
 				resp.Result = json.RawMessage(`{"capabilities": {}}`)
 			case "textDocument/definition":
 				resp.Result = json.RawMessage(`[{"uri": "file:///test.go", "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 5}}}]`)
+			case "textDocument/implementation":
+				resp.Result = json.RawMessage(`[{"uri": "file:///impl.go", "range": {"start": {"line": 10, "character": 5}, "end": {"line": 10, "character": 15}}}]`)
 			case "shutdown":
 				resp.Result = json.RawMessage(`null`)
 			}
@@ -104,5 +106,22 @@ func TestJSONRPCClient(t *testing.T) {
 
 	if len(locs) != 1 || locs[0].URI != "file:///test.go" {
 		t.Errorf("Unexpected result: %v", locs)
+	}
+
+	// Test Implementation
+	implParams := ImplementationParams{
+		TextDocumentPositionParams: TextDocumentPositionParams{
+			TextDocument: TextDocumentIdentifier{URI: "file:///test.go"},
+			Position:     Position{Line: 1, Character: 1},
+		},
+	}
+
+	impls, err := client.Implementation(ctx, implParams)
+	if err != nil {
+		t.Fatalf("Implementation failed: %v", err)
+	}
+
+	if len(impls) != 1 || impls[0].URI != "file:///impl.go" {
+		t.Errorf("Unexpected implementation result: %v", impls)
 	}
 }

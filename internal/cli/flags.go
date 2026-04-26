@@ -9,6 +9,7 @@ type Flags struct {
 	SkipEnv      bool
 	Version      bool
 	Help         bool
+	Enrich       bool
 }
 
 // ParseFlags extracts global flags from args and returns remaining args.
@@ -34,6 +35,8 @@ func ParseFlags(args []string) (Flags, []string) {
 			}
 		case arg == "-u":
 			flags.UltraCompact = true
+		case arg == "--enrich":
+			flags.Enrich = true
 		case arg == "--skip-env":
 			flags.SkipEnv = true
 		case arg == "--version":

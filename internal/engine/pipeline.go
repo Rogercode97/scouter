@@ -25,6 +25,7 @@ type Pipeline struct {
 	Verbose      int
 	GainLevel    int // 0: compact, 1: signal (SNR), 2: raw
 	UltraCompact bool
+	Enrich       bool
 }
 
 // Run executes a command through the full pipeline.
@@ -200,7 +201,7 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 				tx.SaveSymbol(txCtx, &store.Symbol{
 					Name: ptr.Name, Type: ptr.Type, Doc: ptr.Doc, Path: absPath,
 					StartByte: ptr.Range.Start, EndByte: ptr.Range.End,
-					StartLine: ptr.StartLine, EndLine: ptr.EndLine,
+					StartLine: ptr.StartLine, StartCol: ptr.StartCol, EndLine: ptr.EndLine,
 				})
 			}
 			for c := range itCalls {
@@ -219,6 +220,16 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 
 	if indexedCount > 0 && p.Verbose > 0 {
 		fmt.Fprintf(os.Stderr, "scouter: shadow-indexed %d modified files\n", indexedCount)
+	}
+
+	if p.Enrich && indexedCount > 0 {
+		if p.Verbose > 0 {
+			fmt.Fprintf(os.Stderr, "scouter: performing semantic enrichment (Omniscience)...\n")
+		}
+		en := NewEnricher(db, p.LSPManager)
+		if err := en.Enrich(ctx); err != nil && p.Verbose > 0 {
+			fmt.Fprintf(os.Stderr, "scouter: enrichment failed: %v\n", err)
+		}
 	}
 }
 

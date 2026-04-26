@@ -33,13 +33,18 @@ func (app *App) printUsage() {
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	app := &App{Stdout: stdout, Stderr: stderr}
 
-	if len(args) < 2 {
+	flags, remaining := ParseFlags(args[1:])
+	if len(remaining) == 0 {
+		if flags.Version {
+			fmt.Fprintf(stdout, "scouter v%s\n", version)
+			return 0
+		}
 		app.printUsage()
 		return 0
 	}
 
-	cmd := args[1]
-	cmdArgs := args[2:]
+	cmd := remaining[0]
+	cmdArgs := remaining[1:]
 
 	switch cmd {
 	case "mcp":
@@ -89,7 +94,11 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	
 	default:
 		// Fallback to pipeline
-		p := &engine.Pipeline{}
+		p := &engine.Pipeline{
+			Verbose:      flags.Verbose,
+			UltraCompact: flags.UltraCompact,
+			Enrich:       flags.Enrich,
+		}
 		return p.Passthrough(ctx, cmd, cmdArgs)
 	}
 }
