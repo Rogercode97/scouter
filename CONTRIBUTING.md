@@ -1,42 +1,24 @@
-# Contributing to scouter
+# ⚔️ Contributing to Scouter (Wave 8.9)
 
-Thanks for your interest! Here's how to get started.
+Thank you for your interest in contributing to **Scouter**, the Sovereign Truth Kernel for AI Agents.
 
-## Quick Start
+## ⚖️ The Supreme Mandates
+By contributing, you agree to abide by the Hakaishin Engineering Standards:
+1. **Absolute Signal**: No chitchat in PRs or issues. State the problem, the RCA (Root Cause Analysis), and the solution.
+2. **Empirical Absolute**: Code without tests (`go test ./...`) does not exist. All fixes must include verification.
+3. **Zero Slop**: Keep functions small, architecture clean, and respect the Go 1.25+ idioms. No `any`, no naked panics.
 
-```bash
-git clone https://github.com/Rogercode97/scouter/internal/engine.git
-cd scouter
-make build
-make test
-```
+## 🚀 Development Workflow
+1. Fork the repository and create a feature branch.
+2. Install dependencies and ensure you are using Go 1.25+.
+3. Run `make build` and `make test`.
+4. Run the validation suite: `scouter strike` (if available) or `go vet ./...`.
+5. Commit using conventional commits (`feat:`, `fix:`, `chore:`).
 
-## Adding a Filter
+## 🛡️ Pull Request Process
+1. Ensure your PR is focused on a single concern.
+2. Include the output of your tests.
+3. If your change affects architecture, provide the `scouter_impact` analysis.
+4. Wait for the Supreme Judgment.
 
-Filters are YAML files in `filters/`. No Go knowledge required.
-
-1. Create `filters/your-tool.yaml` following existing filters as examples
-2. Add test fixtures in `tests/fixtures/`
-3. Run `make test`
-4. Open a PR
-
-See the [Filter DSL documentation](https://github.com/Rogercode97/scouter/internal/engine/wiki) for available actions.
-
-## Code Changes
-
-1. Fork and create a feature branch
-2. Write tests first (TDD)
-3. Run `make test && make lint`
-4. Commit with [conventional prefixes](https://www.conventionalcommits.org/): `fix:`, `feat:`, `docs:`, `ci:`, `test:`
-5. Open a PR against `master`
-
-## Guidelines
-
-- Keep PRs focused — one fix or feature per PR
-- All code, comments, and commits in English
-- Generated files (`db/`, `gql/generated.go`) should not be edited manually
-- Startup performance matters — scouter intercepts every shell command
-
-## Questions?
-
-Open a [discussion](https://github.com/Rogercode97/scouter/internal/engine/issues) or check existing issues.
+*Results over process. Impact over dogma. Hakai.*

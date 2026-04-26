@@ -1,16 +1,23 @@
-# Security Policy
+# 🛡️ Security Policy (Scouter)
 
 ## Supported Versions
 
-| Version | Supported |
-|---------|-----------|
-| latest  | ✅        |
-| < latest | ❌       |
+| Version | Supported          |
+| ------- | ------------------ |
+| V2.x    | ✅ Sovereign Path |
+| < V2.0  | ❌ Hakai (EOL)     |
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability, please report it via [GitHub Security Advisories](https://github.com/Rogercode97/scouter/internal/engine/security/advisories/new).
+If you discover a security vulnerability (such as a Path Traversal, CWE-22, or SQL Injection vector), please report it privately.
 
-**Do not open a public issue.**
+**Do NOT open a public issue.** 
 
-You can expect an initial response within 72 hours.
+Send a direct message or use the GitHub Security Advisories feature on the [Rogercode97/scouter](https://github.com/Rogercode97/scouter) repository. 
+
+All reports must include:
+1. The exact Root Cause Analysis (RCA).
+2. Empirical proof (Proof of Concept).
+3. The affected component.
+
+You can expect an initial response within 48 hours.
