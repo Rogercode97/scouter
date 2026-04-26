@@ -2,7 +2,7 @@
 .scouter/
 .agent/
 .engram/
-.gemini/tmp/
+.gemini/
 *.log
 session_summary.md
 
