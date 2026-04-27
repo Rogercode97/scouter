@@ -13,6 +13,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/mcp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/telemetry"
+	"github.com/Rogercode97/scouter/internal/utils"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -67,6 +68,60 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		if err := server.Start(ctx, transport); err != nil {
 			fmt.Fprintf(stderr, "MCP Server stopped: %v\n", err)
 		}
+		return 0
+
+	case "index":
+		cfg, err := config.Load(ctx)
+		if err != nil {
+			fmt.Fprintf(stderr, "error loading config: %v\n", err)
+			return 1
+		}
+		db, err := store.New(ctx, cfg.Tracking.DBPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "error opening database: %v\n", err)
+			return 1
+		}
+		defer db.Close()
+
+		if len(cmdArgs) == 0 {
+			fmt.Fprintf(stderr, "usage: scouter index <path>\n")
+			return 1
+		}
+
+		// Use the same logic as the MCP handler
+		path, err := utils.ValidatePath(cmdArgs[0])
+		if err != nil {
+			fmt.Fprintf(stderr, "invalid path: %v\n", err)
+			return 1
+		}
+
+		pointers, _, err := engine.ParseFile(ctx, path, nil)
+		if err != nil {
+			fmt.Fprintf(stderr, "parse error: %v\n", err)
+			return 1
+		}
+
+		err = db.WithTransaction(ctx, func(ctx context.Context, tx store.Repository) error {
+			tx.ClearSymbols(ctx, path)
+			tx.ClearCalls(ctx, path)
+			for _, p := range pointers {
+				_ = tx.SaveSymbol(ctx, &store.Symbol{
+					Name:      p.Name,
+					Type:      p.Type,
+					Signature: p.Signature,
+					Path:      path,
+					StartLine: p.StartLine,
+					EndLine:   p.EndLine,
+				})
+			}
+			return nil
+		})
+		if err != nil {
+			fmt.Fprintf(stderr, "store error: %v\n", err)
+			return 1
+		}
+
+		fmt.Printf("✅ Indexed %s: %d symbols\n", path, len(pointers))
 		return 0
 
 	case "gain":

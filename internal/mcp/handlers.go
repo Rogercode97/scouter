@@ -104,14 +104,72 @@ func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args
 		return nil, nil, err
 	}
 
-	_, _, err = engine.ParseFile(ctx, path, nil)
+	pointers, calls, err := engine.ParseFile(ctx, path, nil)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	// Calculate hash for file index integrity
+	hash, _ := utils.CalculateHash(path)
+	fi, _ := os.Stat(path)
+	mtime := int64(0)
+	if fi != nil {
+		mtime = fi.ModTime().Unix()
+	}
+
+	// Persist to store (Sovereignty Mandate: Done is validated)
+	err = s.store.WithTransaction(ctx, func(ctx context.Context, tx store.Repository) error {
+		tx.SaveFileIndex(ctx, &store.FileIndex{
+			Path:    path,
+			Mtime:   mtime,
+			Hash:    hash,
+			ASTJSON: "{}", // Compact context optimization
+			Project: utils.GetRepoName(ctx),
+		})
+		tx.ClearSymbols(ctx, path)
+		tx.ClearCalls(ctx, path)
+
+		for _, p := range pointers {
+			err := tx.SaveSymbol(ctx, &store.Symbol{
+				Name:      p.Name,
+				Type:      p.Type,
+				Signature: p.Signature,
+				Doc:       p.Doc,
+				Path:      path,
+				StartByte: p.Range.Start,
+				EndByte:   p.Range.End,
+				StartLine: p.StartLine,
+				StartCol:  p.StartCol,
+				EndLine:   p.EndLine,
+			})
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, c := range calls {
+			err := tx.SaveCall(ctx, store.Call{
+				CallerName: c.CallerName,
+				CalleeName: c.CalleeName,
+				CalleePath: c.CalleePath,
+				LinkType:   c.LinkType,
+				Path:       path,
+				Line:       c.Line,
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to save index: %w", err)
+	}
+
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: "✅ Indexed " + args.FilePath},
+			&mcp.TextContent{Text: fmt.Sprintf("✅ Indexed %s: %d symbols, %d calls", args.FilePath, len(pointers), len(calls))},
 		},
 	}, nil, nil
 }

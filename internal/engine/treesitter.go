@@ -28,13 +28,11 @@ var languageConfigs map[string]*LanguageConfig
 func init() {
 	languageConfigs = make(map[string]*LanguageConfig)
 
-	// Go Configuration: Enriched to capture method receivers and interface specs
+	// Go Configuration: Native parser is preferred, TS is backup.
 	goLang := tree_sitter.NewLanguage(tree_sitter_go.Language())
 	registerLanguage(".go", goLang,
-		`(function_declaration (identifier) @name) @function 
-         (method_declaration receiver: (method_receiver (type_identifier) @recv) (field_identifier) @name) @method
-         (method_declaration receiver: (method_receiver (pointer_type (type_identifier) @recv)) (field_identifier) @name) @method
-         (type_spec name: (type_identifier) @name type: (interface_type (method_spec (field_identifier) @mname))) @interface_spec`,
+		`(function_declaration name: (identifier) @name) @function 
+         (method_declaration name: (field_identifier) @name) @method`,
 		`(call_expression function: (identifier) @callee) (call_expression function: (selector_expression field: (field_identifier) @callee))`)
 
 	// TS Configuration: Enriched to capture interface methods
@@ -56,8 +54,14 @@ func init() {
 }
 
 func registerLanguage(ext string, lang *tree_sitter.Language, qSrc, cSrc string) {
-	q, _ := tree_sitter.NewQuery(lang, qSrc)
-	cq, _ := tree_sitter.NewQuery(lang, cSrc)
+	q, err := tree_sitter.NewQuery(lang, qSrc)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to register symbol query for %s: %v\n", ext, err)
+	}
+	cq, err := tree_sitter.NewQuery(lang, cSrc)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to register call query for %s: %v\n", ext, err)
+	}
 	languageConfigs[ext] = &LanguageConfig{Language: lang, Query: q, CallQuery: cq}
 }
 
@@ -66,6 +70,10 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 	config, ok := languageConfigs[ext]
 	if !ok {
 		return []types.ASTPointer{}, []types.ASTCall{}, nil
+	}
+
+	if config.Query == nil || config.CallQuery == nil {
+		return nil, nil, fmt.Errorf("tree-sitter queries not initialized for %s", ext)
 	}
 
 	content, err := os.ReadFile(filePath)
