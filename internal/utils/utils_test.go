@@ -111,3 +111,43 @@ func TestGetRepoRoot(t *testing.T) {
 		t.Errorf("expected root to contain 'scouter', got %s", root)
 	}
 }
+
+func TestExtractJSON(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"Pure JSON", `{"a":1}`, `{"a":1}`},
+		{"Conversational JSON", `Here it is: {"a":1} hope it helps`, `{"a":1}`},
+		{"JSON Array", `[1,2,3]`, `[1,2,3]`},
+		{"No JSON", `hello world`, `hello world`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ExtractJSON(tt.in); got != tt.want {
+				t.Errorf("ExtractJSON() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractCodeBlock(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"Markdown Go", "```go\nfunc main() {}\n```", "func main() {}"},
+		{"Markdown Raw", "```\ncode\n```", "code"},
+		{"Plain Code with braces", "func main() {}", "func main() {}"},
+		{"Conversational Markdown", "Sure!\n```go\nfunc test() {}\n```\nEnjoy", "func test() {}"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ExtractCodeBlock(tt.in); got != tt.want {
+				t.Errorf("ExtractCodeBlock() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
