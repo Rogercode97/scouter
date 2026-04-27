@@ -1,10 +1,12 @@
 package filter
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -33,6 +35,7 @@ var actions = map[string]ActionFunc{
 	"snr_dedup":       snrDedup,
 	"head_tail":       headTail,
 	"pure_signal":     pureSignal,
+	"semantic_purify": semanticPurify,
 }
 
 // GetAction returns the ActionFunc for the given action name.
@@ -47,7 +50,7 @@ var (
 	noisePatternsOnce       sync.Once
 )
 
-func pureSignal(input ActionResult, params map[string]any) (ActionResult, error) {
+func pureSignal(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	level := getStr(params, "level")
 	if level == "" {
 		level = "moderate"
@@ -75,7 +78,7 @@ func pureSignal(input ActionResult, params map[string]any) (ActionResult, error)
 	}
 
 	// 2. Intelligent Dedup
-	deduped, _ := snrDedup(input, nil)
+	deduped, _ := snrDedup(ctx, input, nil)
 
 	// 3. Heuristic Filtering based on level
 	var finalLines []string
@@ -101,11 +104,10 @@ func pureSignal(input ActionResult, params map[string]any) (ActionResult, error)
 	input.Lines = finalLines
 	headN := getInt(params, "head", 25)
 	tailN := getInt(params, "tail", 25)
-	return headTail(input, map[string]any{"head": headN, "tail": tailN})
+	return headTail(ctx, input, map[string]any{"head": headN, "tail": tailN})
 }
 
-
-func snrDedup(input ActionResult, params map[string]any) (ActionResult, error) {
+func snrDedup(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	if len(input.Lines) == 0 {
 		return input, nil
 	}
@@ -149,7 +151,7 @@ func snrDedup(input ActionResult, params map[string]any) (ActionResult, error) {
 	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
 }
 
-func headTail(input ActionResult, params map[string]any) (ActionResult, error) {
+func headTail(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	headN := getInt(params, "head", 10)
 	tailN := getInt(params, "tail", 10)
 	threshold := headN + tailN + 5 // Margin to avoid tiny truncations
@@ -208,7 +210,7 @@ func compilePattern(params map[string]any, key string) (*regexp.Regexp, error) {
 
 // --- actions ---
 
-func keepLines(input ActionResult, params map[string]any) (ActionResult, error) {
+func keepLines(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	re, err := compilePattern(params, "pattern")
 	if err != nil {
 		return input, err
@@ -222,7 +224,7 @@ func keepLines(input ActionResult, params map[string]any) (ActionResult, error) 
 	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
 }
 
-func removeLines(input ActionResult, params map[string]any) (ActionResult, error) {
+func removeLines(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	re, err := compilePattern(params, "pattern")
 	if err != nil {
 		return input, err
@@ -236,7 +238,7 @@ func removeLines(input ActionResult, params map[string]any) (ActionResult, error
 	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
 }
 
-func truncateLines(input ActionResult, params map[string]any) (ActionResult, error) {
+func truncateLines(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	max := getInt(params, "max", 80)
 	ellipsis := getStr(params, "ellipsis")
 	if ellipsis == "" {
@@ -258,7 +260,7 @@ func truncateLines(input ActionResult, params map[string]any) (ActionResult, err
 	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
 }
 
-func stripANSI(input ActionResult, params map[string]any) (ActionResult, error) {
+func stripANSI(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	out := make([]string, len(input.Lines))
 	for i, line := range input.Lines {
 		out[i] = utils.StripANSI(line)
@@ -266,7 +268,7 @@ func stripANSI(input ActionResult, params map[string]any) (ActionResult, error) 
 	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
 }
 
-func head(input ActionResult, params map[string]any) (ActionResult, error) {
+func head(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	n := getInt(params, "n", 10)
 	if len(input.Lines) <= n {
 		return input, nil
@@ -282,7 +284,7 @@ func head(input ActionResult, params map[string]any) (ActionResult, error) {
 	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
 }
 
-func tail(input ActionResult, params map[string]any) (ActionResult, error) {
+func tail(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	n := getInt(params, "n", 10)
 	if len(input.Lines) <= n {
 		return input, nil
@@ -293,7 +295,7 @@ func tail(input ActionResult, params map[string]any) (ActionResult, error) {
 	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
 }
 
-func groupBy(input ActionResult, params map[string]any) (ActionResult, error) {
+func groupBy(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	re, err := compilePattern(params, "pattern")
 	if err != nil {
 		return input, err
@@ -346,7 +348,7 @@ func groupBy(input ActionResult, params map[string]any) (ActionResult, error) {
 	return ActionResult{Lines: out, Metadata: meta}, nil
 }
 
-func dedup(input ActionResult, params map[string]any) (ActionResult, error) {
+func dedup(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	top := getInt(params, "top", 0)
 
 	// Build normalize patterns
@@ -407,7 +409,7 @@ func dedup(input ActionResult, params map[string]any) (ActionResult, error) {
 	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
 }
 
-func jsonExtract(input ActionResult, params map[string]any) (ActionResult, error) {
+func jsonExtract(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	fieldsRaw, ok := params["fields"]
 	if !ok {
 		return input, fmt.Errorf("json_extract: missing 'fields' param")
@@ -449,7 +451,7 @@ func jsonExtract(input ActionResult, params map[string]any) (ActionResult, error
 	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
 }
 
-func jsonSchema(input ActionResult, params map[string]any) (ActionResult, error) {
+func jsonSchema(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	maxDepth := getInt(params, "max_depth", 3)
 
 	joined := strings.Join(input.Lines, "\n")
@@ -496,7 +498,7 @@ func extractSchema(v any, depth, maxDepth int) string {
 	}
 }
 
-func ndjsonStream(input ActionResult, params map[string]any) (ActionResult, error) {
+func ndjsonStream(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	groupField := getStr(params, "group_by")
 	fmtStr := getStr(params, "format")
 
@@ -560,7 +562,7 @@ func ndjsonStream(input ActionResult, params map[string]any) (ActionResult, erro
 	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
 }
 
-func regexExtract(input ActionResult, params map[string]any) (ActionResult, error) {
+func regexExtract(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	re, err := compilePattern(params, "pattern")
 	if err != nil {
 		return input, err
@@ -590,7 +592,7 @@ func regexExtract(input ActionResult, params map[string]any) (ActionResult, erro
 	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
 }
 
-func stateMachine(input ActionResult, params map[string]any) (ActionResult, error) {
+func stateMachine(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	statesRaw, ok := params["states"]
 	if !ok {
 		return input, fmt.Errorf("state_machine: missing 'states' param")
@@ -660,7 +662,7 @@ func stateMachine(input ActionResult, params map[string]any) (ActionResult, erro
 	return ActionResult{Lines: out, Metadata: input.Metadata}, nil
 }
 
-func aggregate(input ActionResult, params map[string]any) (ActionResult, error) {
+func aggregate(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	patternsRaw, ok := params["patterns"]
 	if !ok {
 		return input, fmt.Errorf("aggregate: missing 'patterns' param")
@@ -728,7 +730,7 @@ func aggregate(input ActionResult, params map[string]any) (ActionResult, error) 
 	return ActionResult{Lines: out, Metadata: meta}, nil
 }
 
-func formatTemplate(input ActionResult, params map[string]any) (ActionResult, error) {
+func formatTemplate(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	tmplStr := getStr(params, "template")
 	if tmplStr == "" {
 		return input, fmt.Errorf("format_template: missing 'template' param")
@@ -757,7 +759,7 @@ func formatTemplate(input ActionResult, params map[string]any) (ActionResult, er
 	return ActionResult{Lines: lines, Metadata: input.Metadata}, nil
 }
 
-func compactPath(input ActionResult, params map[string]any) (ActionResult, error) {
+func compactPath(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	out := make([]string, len(input.Lines))
 	for i, line := range input.Lines {
 		out[i] = utils.CompactPath(line)
@@ -792,4 +794,33 @@ func toStringSlice(v any) ([]string, bool) {
 	default:
 		return nil, false
 	}
+}
+
+var goTestFailureRegex = regexp.MustCompile(`^\s+([a-zA-Z0-9_/.]+\.go):(\d+):`)
+
+func semanticPurify(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
+	if input.Resolver == nil {
+		return input, nil
+	}
+
+	var enrichedLines []string
+	for _, line := range input.Lines {
+		enrichedLines = append(enrichedLines, line)
+
+		matches := goTestFailureRegex.FindStringSubmatch(line)
+		if len(matches) == 3 {
+			file := matches[1]
+			lineNum, _ := strconv.Atoi(matches[2])
+
+			// Try to resolve the symbol source
+			source, err := input.Resolver.ResolveSource(ctx, file, lineNum)
+			if err == nil && source != "" {
+				enrichedLines = append(enrichedLines, "\n--- 🧬 SOURCE CONTEXT ---")
+				enrichedLines = append(enrichedLines, source)
+				enrichedLines = append(enrichedLines, "--- END CONTEXT ---\n")
+			}
+		}
+	}
+	input.Lines = enrichedLines
+	return input, nil
 }

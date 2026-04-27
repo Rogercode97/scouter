@@ -86,4 +86,14 @@ func (s *Server) registerTools() {
 		Name:        "scouter_pure_signal",
 		Description: "Extract Pure Signal from text using RTK synergy",
 	}, s.handlePureSignal)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_obsidian_export",
+		Description: "Export impact analysis as an Obsidian-ready markdown note",
+	}, s.handleObsidianExport)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_hybrid_search",
+		Description: "Unify AST symbols with Engram technical wisdom for context-aware search",
+	}, s.handleHybridSearch)
 }

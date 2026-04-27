@@ -4,10 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/filter"
+	"github.com/Rogercode97/scouter/internal/store"
+	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -21,6 +26,10 @@ type IndexParams struct {
 type SearchParams struct {
 	Query string `json:"query"`
 	Type  string `json:"type,omitempty"`
+}
+
+type HybridSearchParams struct {
+	Query string `json:"query"`
 }
 
 type ReadParams struct {
@@ -54,6 +63,12 @@ type PureSignalParams struct {
 	Text  string `json:"text"`
 	Mode  string `json:"mode,omitempty"`
 	Level string `json:"level,omitempty"`
+}
+
+type ObsidianExportParams struct {
+	SymbolName string `json:"symbolName"`
+	FilePath   string `json:"filePath"`
+	VaultPath  string `json:"vaultPath,omitempty"`
 }
 
 // Handlers adapted to mcp.AddTool signature
@@ -165,6 +180,35 @@ func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, arg
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// 4. [Divine Synergy] Sampling Oracle
+	// If Risk is Critical (>0.8), request a refactoring proposal from the Model via MCP Sampling.
+	if res.Target.RiskScore >= 0.8 {
+		samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
+			Messages: []*mcp.SamplingMessage{
+				{
+					Role: "user",
+					Content: &mcp.TextContent{
+						Text: fmt.Sprintf("The function '%s' in '%s' has a CRITICAL Risk Score of %.4f. Based on its centrality and blast radius, please provide a brief architectural refactoring proposal to reduce its impact.", args.SymbolName, args.FilePath, res.Target.RiskScore),
+					},
+				},
+			},
+			MaxTokens: 1024,
+		})
+		if err == nil {
+			if txt, ok := samplingRes.Content.(*mcp.TextContent); ok {
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{
+						&mcp.TextContent{Text: string(out)},
+						&mcp.TextContent{Text: "\n\n--- 🔮 ORACLE REFACTORING PROPOSAL ---\n" + txt.Text},
+					},
+				}, nil, nil
+			}
+		} else {
+			s.logger.Warn("Sampling Oracle failed", "error", err)
+		}
+	}
+
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
 }
 
@@ -248,7 +292,7 @@ func (s *Server) handlePureSignal(ctx context.Context, req *mcp.CallToolRequest,
 		return nil, nil, fmt.Errorf("pure_signal action not found")
 	}
 
-	res, err := fn(filter.ActionResult{Lines: strings.Split(args.Text, "\n"), Metadata: make(map[string]any)}, map[string]any{"level": level})
+	res, err := fn(ctx, filter.ActionResult{Lines: strings.Split(args.Text, "\n"), Metadata: make(map[string]any)}, map[string]any{"level": level})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -256,6 +300,146 @@ func (s *Server) handlePureSignal(ctx context.Context, req *mcp.CallToolRequest,
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: strings.Join(res.Lines, "\n")},
+		},
+	}, nil, nil
+}
+
+func (s *Server) handleObsidianExport(ctx context.Context, req *mcp.CallToolRequest, args ObsidianExportParams) (*mcp.CallToolResult, any, error) {
+	if args.SymbolName == "" || args.FilePath == "" {
+		return nil, nil, fmt.Errorf("missing symbolName or filePath")
+	}
+
+	// [Sovereignty Fix] Path Traversal Armor (Moved to Top)
+	exportPath := args.VaultPath
+	if exportPath == "" {
+		exportPath = "scouter_exports"
+	}
+	cwd, _ := os.Getwd()
+	cleanPath := filepath.Clean(exportPath)
+	if !filepath.IsAbs(cleanPath) {
+		cleanPath = filepath.Join(cwd, cleanPath)
+	}
+	if !strings.HasPrefix(cleanPath, cwd) {
+		return nil, nil, fmt.Errorf("security violation: export path '%s' is outside the workspace", exportPath)
+	}
+
+	res, err := s.store.GetImpact(ctx, args.SymbolName, args.FilePath, 5)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	now := time.Now().Format("2006-01-02")
+	content := fmt.Sprintf(`---
+symbol: %s
+file: %s
+risk_score: %.2f
+risk_level: %s
+historical_bugfixes: %d
+date: %s
+---
+# Impact Analysis: [[%s]]
+
+## Metadata
+- **File**: %s
+- **Risk Score**: %.4f
+- **Risk Level**: %s
+- **Historical Bugfixes**: %d (from Engram)
+
+## Blast Radius (Mermaid)
+%s%s%s
+
+## Affected Callers
+`, args.SymbolName, args.FilePath, res.Target.RiskScore, res.RiskLevel, res.Target.Metrics.HistoricalBugfixes, now,
+		args.SymbolName, args.FilePath, res.Target.RiskScore, res.RiskLevel, res.Target.Metrics.HistoricalBugfixes,
+		"```mermaid\n", res.Mermaid, "\n```")
+
+	for _, caller := range res.Callers {
+		content += fmt.Sprintf("- [[%s]] (%s, distance: %d)\n", caller.Symbol, caller.File, caller.Distance)
+	}
+
+	if err := os.MkdirAll(cleanPath, 0755); err != nil {
+		return nil, nil, fmt.Errorf("failed to create export directory: %w", err)
+	}
+
+	fileName := fmt.Sprintf("Impact-%s.md", strings.ReplaceAll(args.SymbolName, ":", "_"))
+	fullPath := filepath.Join(cleanPath, fileName)
+
+	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+		return nil, nil, fmt.Errorf("failed to write obsidian note: %w", err)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: "✅ Obsidian note exported to: " + fullPath},
+		},
+	}, nil, nil
+}
+
+func (s *Server) handleHybridSearch(ctx context.Context, req *mcp.CallToolRequest, args HybridSearchParams) (*mcp.CallToolResult, any, error) {
+	if args.Query == "" {
+		return nil, nil, fmt.Errorf("missing query")
+	}
+
+	// Execute AST and Engram searches in parallel
+	type symRes struct {
+		symbols []store.Symbol
+		err     error
+	}
+	type insRes struct {
+		insights []types.MemoryInsight
+		err      error
+	}
+
+	symChan := make(chan symRes, 1)
+	insChan := make(chan insRes, 1)
+
+	go func() {
+		res, err := s.store.SearchSymbols(ctx, args.Query, "")
+		symChan <- symRes{res, err}
+	}()
+
+	go func() {
+		res, err := s.store.GetMemoryInsights(ctx, args.Query)
+		insChan <- insRes{res, err}
+	}()
+
+	sRes := <-symChan
+	if sRes.err != nil {
+		return nil, nil, fmt.Errorf("AST search failed: %w", sRes.err)
+	}
+
+	iRes := <-insChan
+	if iRes.err != nil {
+		return nil, nil, fmt.Errorf("Engram search failed: %w", iRes.err)
+	}
+
+	// Map store.Symbol to types.Symbol
+	var symbols []types.Symbol
+	for _, s := range sRes.symbols {
+		symbols = append(symbols, types.Symbol{
+			Name:      s.Name,
+			Type:      s.Type,
+			Signature: s.Signature,
+			Doc:       s.Doc,
+			Path:      s.Path,
+			StartLine: s.StartLine,
+			EndLine:   s.EndLine,
+		})
+	}
+
+	result := types.HybridSearchResult{
+		Symbols:  symbols,
+		Insights: iRes.insights,
+	}
+
+	out, err := json.Marshal(result)
+	if err != nil {
+		return nil, nil, fmt.Errorf("marshal hybrid results: %w", err)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(out)},
 		},
 	}, nil, nil
 }

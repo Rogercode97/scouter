@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -22,7 +23,7 @@ func TestKeepLines(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res, err := keepLines(lines(tt.input...), map[string]any{"pattern": tt.pattern})
+			res, err := keepLines(context.Background(), lines(tt.input...), map[string]any{"pattern": tt.pattern})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -35,7 +36,7 @@ func TestKeepLines(t *testing.T) {
 
 func TestRemoveLines(t *testing.T) {
 	input := lines("Compiling foo", "Running test", "Compiling bar", "test result: ok")
-	res, err := removeLines(input, map[string]any{"pattern": `^Compiling`})
+	res, err := removeLines(context.Background(), input, map[string]any{"pattern": `^Compiling`})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +47,7 @@ func TestRemoveLines(t *testing.T) {
 
 func TestTruncateLines(t *testing.T) {
 	input := lines("short", "this is a very long line that should be truncated at some point")
-	res, err := truncateLines(input, map[string]any{"max": 20, "ellipsis": "..."})
+	res, err := truncateLines(context.Background(), input, map[string]any{"max": 20, "ellipsis": "..."})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +64,7 @@ func TestTruncateLines(t *testing.T) {
 
 func TestStripANSI(t *testing.T) {
 	input := lines("\x1b[31mred\x1b[0m", "normal")
-	res, err := stripANSI(input, nil)
+	res, err := stripANSI(context.Background(), input, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +75,7 @@ func TestStripANSI(t *testing.T) {
 
 func TestHead(t *testing.T) {
 	input := lines("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11")
-	res, err := head(input, map[string]any{"n": 5})
+	res, err := head(context.Background(), input, map[string]any{"n": 5})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +90,7 @@ func TestHead(t *testing.T) {
 
 func TestHeadNoOverflow(t *testing.T) {
 	input := lines("1", "2", "3")
-	res, err := head(input, map[string]any{"n": 5})
+	res, err := head(context.Background(), input, map[string]any{"n": 5})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +101,7 @@ func TestHeadNoOverflow(t *testing.T) {
 
 func TestTail(t *testing.T) {
 	input := lines("1", "2", "3", "4", "5")
-	res, err := tail(input, map[string]any{"n": 2})
+	res, err := tail(context.Background(), input, map[string]any{"n": 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +115,7 @@ func TestTail(t *testing.T) {
 
 func TestGroupBy(t *testing.T) {
 	input := lines("ERR foo", "WARN bar", "ERR baz", "ERR qux", "WARN quux")
-	res, err := groupBy(input, map[string]any{
+	res, err := groupBy(context.Background(), input, map[string]any{
 		"pattern": `^(\w+)`,
 		"format":  "{{.Key}}: {{.Count}}",
 	})
@@ -132,7 +133,7 @@ func TestGroupBy(t *testing.T) {
 
 func TestDedup(t *testing.T) {
 	input := lines("error: foo", "error: foo", "error: foo", "warn: bar", "warn: bar")
-	res, err := dedup(input, map[string]any{})
+	res, err := dedup(context.Background(), input, map[string]any{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +147,7 @@ func TestDedup(t *testing.T) {
 
 func TestRegexExtract(t *testing.T) {
 	input := lines("file: main.go line: 42", "file: utils.go line: 10")
-	res, err := regexExtract(input, map[string]any{
+	res, err := regexExtract(context.Background(), input, map[string]any{
 		"pattern": `file: (\S+) line: (\d+)`,
 		"format":  "$1:$2",
 	})
@@ -163,7 +164,7 @@ func TestRegexExtract(t *testing.T) {
 
 func TestAggregate(t *testing.T) {
 	input := lines("PASS foo", "FAIL bar", "PASS baz", "PASS qux", "FAIL quux")
-	res, err := aggregate(input, map[string]any{
+	res, err := aggregate(context.Background(), input, map[string]any{
 		"patterns": map[string]any{
 			"pass": `^PASS`,
 			"fail": `^FAIL`,
@@ -183,7 +184,7 @@ func TestFormatTemplate(t *testing.T) {
 		Lines:    []string{"a", "b", "c"},
 		Metadata: map[string]any{},
 	}
-	res, err := formatTemplate(input, map[string]any{
+	res, err := formatTemplate(context.Background(), input, map[string]any{
 		"template": "{{.count}} items:\n{{.lines}}",
 	})
 	if err != nil {
@@ -197,7 +198,7 @@ func TestFormatTemplate(t *testing.T) {
 
 func TestCompactPath(t *testing.T) {
 	input := lines("src/main.go", "lib/utils.js", "README.md")
-	res, err := compactPath(input, nil)
+	res, err := compactPath(context.Background(), input, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +212,7 @@ func TestCompactPath(t *testing.T) {
 
 func TestJsonExtract(t *testing.T) {
 	input := lines(`{"name":"scouter","version":"0.1","count":42}`)
-	res, err := jsonExtract(input, map[string]any{
+	res, err := jsonExtract(context.Background(), input, map[string]any{
 		"fields": []any{"name", "version"},
 	})
 	if err != nil {
@@ -229,7 +230,7 @@ func TestNdjsonStream(t *testing.T) {
 		`{"action":"run","pkg":"bar"}`,
 		`{"action":"fail","pkg":"bar"}`,
 	)
-	res, err := ndjsonStream(input, map[string]any{"group_by": "pkg"})
+	res, err := ndjsonStream(context.Background(), input, map[string]any{"group_by": "pkg"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +248,7 @@ func TestStateMachine(t *testing.T) {
 		"bar: assertion error",
 		"--- end ---",
 	)
-	res, err := stateMachine(input, map[string]any{
+	res, err := stateMachine(context.Background(), input, map[string]any{
 		"states": map[string]any{
 			"start": map[string]any{
 				"keep":  `^test`,
@@ -287,7 +288,7 @@ func TestEmptyInput(t *testing.T) {
 	}
 	for _, tt := range actionTests {
 		t.Run(tt.name, func(t *testing.T) {
-			res, err := tt.fn(empty, tt.params)
+			res, err := tt.fn(context.Background(), empty, tt.params)
 			if err != nil {
 				t.Fatalf("unexpected error on empty input: %v", err)
 			}
@@ -323,7 +324,7 @@ func TestPureSignal(t *testing.T) {
 	)
 
 	t.Run("moderate", func(t *testing.T) {
-		res, err := pureSignal(input, map[string]any{"level": "moderate"})
+		res, err := pureSignal(context.Background(), input, map[string]any{"level": "moderate"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -340,7 +341,7 @@ func TestPureSignal(t *testing.T) {
 	})
 
 	t.Run("aggressive", func(t *testing.T) {
-		res, err := pureSignal(input, map[string]any{"level": "aggressive"})
+		res, err := pureSignal(context.Background(), input, map[string]any{"level": "aggressive"})
 		if err != nil {
 			t.Fatal(err)
 		}

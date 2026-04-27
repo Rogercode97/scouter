@@ -52,11 +52,6 @@ func GetLocalChanges(ctx context.Context) ([]DiffRange, error) {
 					count, _ = strconv.Atoi(matches[2])
 				}
 				
-				// Handle deletions (count 0)
-				if count == 0 {
-					continue
-				}
-
 				changes = append(changes, DiffRange{
 					Path:      currentFile,
 					StartLine: start,
@@ -68,4 +63,22 @@ func GetLocalChanges(ctx context.Context) ([]DiffRange, error) {
 
 	_ = cmd.Wait()
 	return changes, nil
+}
+
+// GetRepoName returns the name of the repository (e.g., "scouter") from origin remote.
+func GetRepoName(ctx context.Context) string {
+	cmd := exec.CommandContext(ctx, "git", "remote", "get-url", "origin")
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	url := strings.TrimSpace(string(out))
+	if url == "" {
+		return ""
+	}
+
+	// Handle git@github.com:org/repo.git or https://github.com/org/repo.git
+	parts := strings.Split(url, "/")
+	last := parts[len(parts)-1]
+	return strings.TrimSuffix(last, ".git")
 }

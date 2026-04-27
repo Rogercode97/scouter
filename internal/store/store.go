@@ -8,7 +8,10 @@ import (
 	"iter"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/Rogercode97/scouter/internal/types"
@@ -92,6 +95,7 @@ type Repository interface {
 	SaveTestResult(ctx context.Context, res *types.TestResult) error
 	GetHealthReport(ctx context.Context, symbol string, failuresOnly bool) iter.Seq2[types.TestResult, error]
 	ClearTestResults(ctx context.Context) error
+	GetMemoryInsights(ctx context.Context, query string) ([]types.MemoryInsight, error)
 	WithTransaction(ctx context.Context, fn func(context.Context, Repository) error) error
 	Close() error
 }
@@ -129,7 +133,13 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 		return nil, fmt.Errorf("failed to commit migration: %w", err)
 	}
 
-	return &Store{db: db}, nil
+	s := &Store{db: db}
+	// Go 1.25 native cleanup
+	runtime.AddCleanup(s, func(db *sql.DB) {
+		_ = db.Close()
+	}, db)
+
+	return s, nil
 }
 
 func migrate(ctx context.Context, tx *sql.Tx) error {
@@ -730,19 +740,19 @@ func (s *Store) GetImpact(ctx context.Context, symbol string, path string, maxDe
 		maxDepth = 10
 	}
 
-	// 1. Recursive CTE Traversal
+	// 1. Recursive CTE Traversal with Cycle Detection
 	query := `
-	WITH RECURSIVE blast_radius(caller_name, caller_path, distance, link_type) AS (
-		SELECT caller_name, path, 1, link_type
+	WITH RECURSIVE blast_radius(caller_name, caller_path, distance, link_type, path_trace) AS (
+		SELECT caller_name, path, 1, link_type, ',' || caller_name || ':' || path || ','
 		FROM calls
 		WHERE callee_name = ? AND (callee_path = ? OR callee_path = '')
 		
 		UNION
 		
-		SELECT c.caller_name, c.path, br.distance + 1, c.link_type
+		SELECT c.caller_name, c.path, br.distance + 1, c.link_type, br.path_trace || c.caller_name || ':' || c.path || ','
 		FROM calls c
 		JOIN blast_radius br ON c.callee_name = br.caller_name AND (c.callee_path = br.caller_path OR c.callee_path = '')
-		WHERE br.distance < ?
+		WHERE br.distance < ? AND br.path_trace NOT LIKE '%,' || c.caller_name || ':' || c.path || ',%'
 	)
 	SELECT DISTINCT caller_name, caller_path, distance, link_type 
 	FROM blast_radius 
@@ -767,8 +777,9 @@ func (s *Store) GetImpact(ctx context.Context, symbol string, path string, maxDe
 			Symbol: symbol,
 			File:   path,
 			Metrics: types.RiskMetrics{
-				Centrality:   float64(centrality),
-				PublicExport: isExported,
+				Centrality:         float64(centrality),
+				PublicExport:       isExported,
+				HistoricalBugfixes: getHistoricalRisk(ctx, symbol, path),
 			},
 		},
 		Callers: []types.ImpactEntity{},
@@ -811,16 +822,20 @@ func (s *Store) GetImpact(ctx context.Context, symbol string, path string, maxDe
 	}
 	res.Mermaid = mermaid
 
-	// 4. Calculate Risk Score (Wave 9 formula)
-	// Normalize Centrality (max 20) and Blast Radius (max 100)
-	cScore := math.Min(1.0, float64(centrality)/20.0)
-	bScore := math.Min(1.0, float64(blastRadius)/100.0)
+	// 4. Calculate Risk Score (Wave 9 Logarithmic formula + Historical Synergy)
+	// Logarithmic normalization prevents premature saturation in large codebases
+	cScore := math.Min(1.0, math.Log1p(float64(centrality))/math.Log1p(100.0))
+	bScore := math.Min(1.0, math.Log1p(float64(blastRadius))/math.Log1p(500.0))
+	
+	// Historical Risk: Each bugfix in Engram adds 0.05 to the score (max 0.2)
+	hScore := math.Min(0.2, float64(res.Target.Metrics.HistoricalBugfixes)*0.05)
+	
 	eScore := 0.0
 	if isExported {
 		eScore = 0.2
 	}
 
-	res.Target.RiskScore = (cScore * 0.4) + (bScore * 0.4) + eScore
+	res.Target.RiskScore = (cScore * 0.4) + (bScore * 0.4) + hScore + eScore
 	res.Target.RiskScore = math.Min(1.0, res.Target.RiskScore)
 
 	// Determine Risk Level
@@ -1012,3 +1027,95 @@ func (s *Store) WithTransaction(ctx context.Context, fn func(context.Context, Re
 }
 
 func (s *Store) Close() error { return s.db.Close() }
+
+var engramIDRegex = regexp.MustCompile(`\[\d+\] #\d+`)
+
+func getHistoricalRisk(ctx context.Context, symbol string, path string) int {
+	project := utils.GetRepoName(ctx)
+	if project == "" {
+		return 0
+	}
+
+	// Heuristic: relative path is better for Engram search
+	relPath := path
+	if cwd, err := os.Getwd(); err == nil {
+		if rel, err := filepath.Rel(cwd, path); err == nil {
+			relPath = rel
+		}
+	}
+
+	// Search by symbol AND by file path to increase recall
+	queries := []string{symbol, relPath}
+	uniqueIDs := make(map[string]bool)
+
+	for _, q := range queries {
+		cmd := exec.CommandContext(ctx, "engram", "search", q, "--type", "bugfix", "--project", project, "--limit", "10")
+		out, err := cmd.Output()
+		if err != nil {
+			continue
+		}
+		matches := engramIDRegex.FindAllString(string(out), -1)
+		for _, m := range matches {
+			uniqueIDs[m] = true
+		}
+	}
+
+	return len(uniqueIDs)
+}
+
+func (s *Store) GetMemoryInsights(ctx context.Context, query string) ([]types.MemoryInsight, error) {
+	project := utils.GetRepoName(ctx)
+	if project == "" {
+		return nil, nil
+	}
+
+	cmd := exec.CommandContext(ctx, "engram", "search", query, "--project", project, "--limit", "5")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("engram search failed: %w", err)
+	}
+
+	return parseEngramInsights(string(out)), nil
+}
+
+func parseEngramInsights(input string) []types.MemoryInsight {
+	var insights []types.MemoryInsight
+	lines := strings.Split(input, "\n")
+
+	headerRegex := regexp.MustCompile(`^\[\d+\] #(\d+) \((\w+)\) (?:—|-) (.+)$`)
+	whyRegex := regexp.MustCompile(`(?i)\*\*Why\*\*: (.+)$`)
+	learnedRegex := regexp.MustCompile(`(?i)\*\*Learned\*\*: (.+)$`)
+
+	var current *types.MemoryInsight
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if matches := headerRegex.FindStringSubmatch(trimmed); matches != nil {
+			if current != nil {
+				insights = append(insights, *current)
+			}
+			current = &types.MemoryInsight{
+				ID:    matches[1],
+				Type:  matches[2],
+				Title: matches[3],
+			}
+			continue
+		}
+
+		if current == nil {
+			continue
+		}
+
+		if matches := whyRegex.FindStringSubmatch(trimmed); matches != nil {
+			current.Why = matches[1]
+		} else if matches := learnedRegex.FindStringSubmatch(trimmed); matches != nil {
+			current.Learned = matches[1]
+		}
+	}
+
+	if current != nil {
+		insights = append(insights, *current)
+	}
+
+	return insights
+}

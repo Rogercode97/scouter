@@ -90,14 +90,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 			default:
 			}
 
-			type funcCtx struct {
-				name           string
-				end            token.Pos
-				anonymousCount int
-			}
-			var funcStack []*funcCtx
-
-			ast.Inspect(file, func(n ast.Node) bool {
+			ast.PreorderStack(file, nil, func(n ast.Node, stack []ast.Node) bool {
 				select {
 				case <-ctx.Done():
 					return false
@@ -105,15 +98,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 				}
 
 				if n == nil {
-					return false
-				}
-				for len(funcStack) > 0 {
-					top := funcStack[len(funcStack)-1]
-					if n.Pos() >= top.end {
-						funcStack = funcStack[:len(funcStack)-1]
-					} else {
-						break
-					}
+					return true
 				}
 
 				if fn, ok := n.(*ast.FuncDecl); ok {
@@ -156,7 +141,6 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 					if !yield(p) {
 						return false
 					}
-					funcStack = append(funcStack, &funcCtx{name: fullName, end: fn.End()})
 				}
 
 				// Capture Structs and Interfaces from GenDecl
@@ -238,14 +222,11 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 			default:
 			}
 
-			type funcCtx struct {
-				name           string
-				end            token.Pos
-				anonymousCount int
-			}
-			var funcStack []*funcCtx
+			names := make(map[ast.Node]string)
+			anonCounts := make(map[ast.Node]int)
+			globalAnonCount := 0
 
-			ast.Inspect(file, func(n ast.Node) bool {
+			ast.PreorderStack(file, nil, func(n ast.Node, stack []ast.Node) bool {
 				select {
 				case <-ctx.Done():
 					return false
@@ -253,38 +234,54 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 				}
 
 				if n == nil {
-					return false
+					return true
 				}
-				for len(funcStack) > 0 {
-					top := funcStack[len(funcStack)-1]
-					if n.Pos() >= top.end {
-						funcStack = funcStack[:len(funcStack)-1]
-					} else {
-						break
-					}
-				}
+
 				if fn, ok := n.(*ast.FuncDecl); ok {
-					funcStack = append(funcStack, &funcCtx{name: fn.Name.Name, end: fn.End()})
-				}
-				if fn, ok := n.(*ast.FuncLit); ok {
+					names[fn] = fn.Name.Name
+				} else if fn, ok := n.(*ast.FuncLit); ok {
 					parentName := "global"
-					count := 1
-					if len(funcStack) > 0 {
-						top := funcStack[len(funcStack)-1]
-						top.anonymousCount++
-						parentName = top.name
-						count = top.anonymousCount
+					var parentNode ast.Node
+					for i := len(stack) - 1; i >= 0; i-- {
+						p := stack[i]
+						if _, ok := p.(*ast.FuncDecl); ok {
+							parentNode = p
+							parentName = names[p]
+							break
+						}
+						if _, ok := p.(*ast.FuncLit); ok {
+							parentNode = p
+							parentName = names[p]
+							break
+						}
+					}
+					var count int
+					if parentNode != nil {
+						anonCounts[parentNode]++
+						count = anonCounts[parentNode]
+					} else {
+						globalAnonCount++
+						count = globalAnonCount
 					}
 					anonName := fmt.Sprintf("%s.func%d", parentName, count)
-					funcStack = append(funcStack, &funcCtx{name: anonName, end: fn.End()})
+					names[fn] = anonName
 				}
+
 				if call, ok := n.(*ast.CallExpr); ok {
-					if len(funcStack) > 0 {
-						caller := funcStack[len(funcStack)-1]
+					var callerName string
+					for i := len(stack) - 1; i >= 0; i-- {
+						p := stack[i]
+						if name, ok := names[p]; ok {
+							callerName = name
+							break
+						}
+					}
+
+					if callerName != "" {
 						calleeName, calleePath := resolveCallee(call.Fun, validatedPath)
 						if calleeName != "" {
 							c := types.ASTCall{
-								CallerName: caller.name,
+								CallerName: callerName,
 								CalleeName: calleeName,
 								CalleePath: calleePath,
 								LinkType:   "call",

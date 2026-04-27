@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/Rogercode97/scouter/internal/config"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
@@ -21,6 +22,7 @@ type Pipeline struct {
 	Registry     *filter.Registry
 	Tracker      *telemetry.Tracker
 	LSPManager   *lsp.Manager
+	mu           sync.Mutex
 	TeeConfig    tee.Config
 	Verbose      int
 	GainLevel    int // 0: compact, 1: signal (SNR), 2: raw
@@ -78,7 +80,7 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 		p.PassiveHealthIngest(ctx, result.Stdout)
 	}
 
-	filtered, filterErr := ApplyPipeline(ctx, f, result.Stdout)
+	filtered, filterErr := ApplyPipeline(ctx, f, result.Stdout, &LocalFileResolver{})
 	if filterErr != nil {
 		if p.Verbose > 0 {
 			fmt.Fprintf(os.Stderr, "scouter: filter error: %v\n", filterErr)
@@ -108,9 +110,8 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 		fmt.Fprint(os.Stderr, result.Stderr)
 	}
 
-	// DIVINE REDEMPTION: Universal Shadow Indexing
-	// Always re-index on exit (0 or failure) to ensure the agent's view matches the current code.
-	p.ShadowIndex(ctx)
+	// DIVINE REDEMPTION: Universal Shadow Indexing (Asynchronous)
+	go p.ShadowIndex(context.Background())
 
 	inputTokens := utils.EstimateTokens(result.Stdout)
 	if inputTokens > 0 {
@@ -174,9 +175,11 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 			}
 		}
 
+		p.mu.Lock()
 		if p.LSPManager == nil {
 			p.LSPManager = lsp.NewManager()
 		}
+		p.mu.Unlock()
 
 		itPointers, itCalls, parseErr := StreamSymbols(ctx, absPath)
 		if parseErr != nil {
@@ -241,12 +244,12 @@ func (p *Pipeline) Passthrough(ctx context.Context, command string, args []strin
 		return 1
 	}
 	
-	p.ShadowIndex(ctx)
+	go p.ShadowIndex(context.Background())
 	return code
 }
 
 // ApplyPipeline executes filter actions sequentially.
-func ApplyPipeline(ctx context.Context, f *filter.Filter, input string) (string, error) {
+func ApplyPipeline(ctx context.Context, f *filter.Filter, input string, resolver filter.SourceResolver) (string, error) {
 	lines := strings.Split(input, "\n")
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
@@ -255,6 +258,7 @@ func ApplyPipeline(ctx context.Context, f *filter.Filter, input string) (string,
 	result := filter.ActionResult{
 		Lines:    lines,
 		Metadata: make(map[string]any),
+		Resolver: resolver,
 	}
 
 	for i, action := range f.Pipeline {
@@ -270,7 +274,7 @@ func ApplyPipeline(ctx context.Context, f *filter.Filter, input string) (string,
 		}
 
 		var err error
-		result, err = fn(result, action.Params)
+		result, err = fn(ctx, result, action.Params)
 		if err != nil {
 			return "", fmt.Errorf("pipeline[%d] %s: %w", i, action.ActionName, err)
 		}

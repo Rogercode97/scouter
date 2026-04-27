@@ -1,46 +1,23 @@
-# Scouter 🕶️ (V2.0 — Omniscience Edition)
+# Scouter 🕶️ (V3.0 — Divine Sovereignty Alpha)
 **Status**: Sovereign. Divine Architecture (Go 1.25). Rating 10.0.
 
-**The Sovereign Truth Kernel (RTK) & Architectural Oracle for AI Agents.**  
-*Predictive Impact Analysis. 0.0-1.0 Risk Scoring. Mermaid Blast Radius. Semantic Omniscience.*
+**Architectural Oracle for AI Agents.**  
+*Predictive Impact Analysis. Historical Risk Scoring (Engram). Sampling Oracle. Obsidian Knowledge Graph.*
 
-Scouter is more than a tool; it is an **Architectural Oracle** that sits between your codebase and your AI agent. It uses high-performance SQLite Recursive CTEs to map the recursive blast radius of changes, surfacing structural risks before they are committed.
+Scouter is an **Architectural Oracle** that sits between your codebase and your AI agent. It uses high-performance SQLite Recursive CTEs to map the recursive blast radius of changes, surfacing structural risks before they are committed.
 
-## 🚀 The Divine Synergy (Scouter + RTK)
+## 🎯 Divine Synergy (V3.0)
 
-For the ultimate Hakaishin experience, Scouter (Static Intelligence) and **RTK** (Dynamic Filtering) work together. 
+Scouter V3.0 introduces **Agentic Sovereignty**, transforming the tool into a pro-active participant in the dev loop:
 
-**Activate the synergy in one strike:**
-```bash
-# 1. Install the Muscle (RTK)
-brew install rtk && rtk init -g --gemini
+### 🧠 Historical Risk Scoring (Engram)
+Every entity is cross-referenced with your persistent memory in **Engram**. If a function has a history of bugfixes, its Risk Score increases automatically.
 
-# 2. Build the Brain (Scouter)
-make build && ./bin/scouter setup gemini
-```
+### 🔮 Sampling Oracle (MCP)
+When a **Critical Risk** (>0.8) is detected, Scouter doesn't just warn you—it uses **MCP Sampling** to request a refactoring proposal from the Model, delivering a solution alongside the problem.
 
-### Why both?
-- **RTK (Rust)**: Installs global shell hooks to kill 90% of noise in every command (`git`, `npm`, `go test`).
-- **Scouter (Go)**: Provides semantic omniscience (Recursive Impact, Risk Scoring, AST search) and the MCP bridge for Gemini CLI.
-
----
-
-## 🎯 Omniscience Engine (V2.0)
-
-Scouter V2.0 introduces the **Impact Analysis Engine**, transforming the tool into a predictive oracle:
-
-### 🧠 Predictive Risk Scoring (0.0 - 1.0)
-Every entity (function/method) is assigned a dynamic Risk Score based on:
-- **Centrality**: Direct dependency count (indegree).
-- **Blast Radius**: Size of the transitive dependency tree.
-- **Exported Status**: Public API exposure risk.
-*Gating criteria: Changes with Risk > 0.8 (Critical) require Divine Review.*
-
-### 📈 Visual Blast Radius (Mermaid.js)
-Generate ready-to-render Mermaid.js flowchart code for any impact chain. Visualize how a modification in `internal/utils` ripples through the entire system.
-
-### 🧬 Entity-Level Granularity
-Move beyond file-level diffs. Scouter understands precisely which function or method is affected, providing O(1) architectural lookup via optimized B-tree indexes.
+### 📈 Visual Blast Radius & Obsidian
+Generate Mermaid.js charts and export them directly to your **Obsidian Knowledge Graph** with `scouter_obsidian_export`.
 
 ---
 
@@ -58,13 +35,14 @@ Scouter enforces a strict **Signal Isolation** protocol to ensure 100% stability
 | Tool | Capability |
 | :--- | :--- |
 | `scouter_impact` | **Oracle**: Perform recursive impact analysis with 0.0-1.0 Risk Scoring and Mermaid maps. |
-| `scouter_pure_signal` | **Synergy**: Pipes any text into RTK's Rust engine for instant purification. |
+| `scouter_pure_signal` | **Purification**: Pipes any text into the high-performance engine for instant noise removal. |
 | `scouter_read` | **Surgical**: Semantic fragment reading with Pointer Resolution. |
 | `scouter_search` | **Search**: BM25 semantic search across symbols and docs. |
 | `scouter_index` | **Index**: Deep AST indexing for Go, TS, and Python with centrality tracking. |
 | `scouter_callers` | **Graph**: Find all callers of a specific symbol (Global Call Graph). |
 | `scouter_critical_code` | **Risk**: Identify hotspots with highest centrality and fragility. |
 | `scouter_dependencies` | **Audit**: Map inter-file and package-level dependencies. |
+| `scouter_obsidian_export` | **Knowledge**: Export impact analysis as an Obsidian-ready markdown note. |
 
 ---
 
