@@ -796,7 +796,7 @@ func toStringSlice(v any) ([]string, bool) {
 	}
 }
 
-var goTestFailureRegex = regexp.MustCompile(`^\s+([a-zA-Z0-9_/.]+\.go):(\d+):`)
+var GoTestFailureRegex = regexp.MustCompile(`^\s+([a-zA-Z0-9_/.]+\.go):(\d+):`)
 
 func semanticPurify(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	if input.Resolver == nil {
@@ -807,7 +807,7 @@ func semanticPurify(ctx context.Context, input ActionResult, params map[string]a
 	for _, line := range input.Lines {
 		enrichedLines = append(enrichedLines, line)
 
-		matches := goTestFailureRegex.FindStringSubmatch(line)
+		matches := GoTestFailureRegex.FindStringSubmatch(line)
 		if len(matches) == 3 {
 			file := matches[1]
 			lineNum, _ := strconv.Atoi(matches[2])
