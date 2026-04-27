@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"sync"
 )
 
@@ -22,10 +23,20 @@ type Manager struct {
 }
 
 func NewManager() *Manager {
-	return &Manager{
-		clients:       make(map[string]*clientEntry),
+	clients := make(map[string]*clientEntry)
+	m := &Manager{
+		clients:       clients,
 		clientCreator: NewClient,
 	}
+	// Go 1.25 native cleanup for the manager singleton
+	runtime.AddCleanup(m, func(c map[string]*clientEntry) {
+		for _, entry := range c {
+			if entry.client != nil {
+				entry.client.Close()
+			}
+		}
+	}, clients)
+	return m
 }
 
 func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, error) {

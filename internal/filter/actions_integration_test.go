@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -80,7 +81,7 @@ func applyPipeline(f *Filter, input string) (string, error) {
 			return "", nil
 		}
 		var err error
-		result, err = fn(result, action.Params)
+		result, err = fn(context.Background(), result, action.Params)
 		if err != nil {
 			return "", err
 		}

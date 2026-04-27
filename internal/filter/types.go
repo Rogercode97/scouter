@@ -1,5 +1,9 @@
 package filter
 
+import (
+	"context"
+)
+
 // Filter represents a declarative YAML filter for a command.
 type Filter struct {
 	Name        string   `yaml:"name"`
@@ -35,11 +39,17 @@ type Action struct {
 // Pipeline is an ordered sequence of actions.
 type Pipeline []Action
 
+// SourceResolver defines an interface for actions to retrieve code fragments.
+type SourceResolver interface {
+	ResolveSource(ctx context.Context, file string, line int) (string, error)
+}
+
 // ActionResult is the data passed between pipeline actions.
 type ActionResult struct {
 	Lines    []string
 	Metadata map[string]any
+	Resolver SourceResolver
 }
 
 // ActionFunc is the signature for built-in action implementations.
-type ActionFunc func(input ActionResult, params map[string]any) (ActionResult, error)
+type ActionFunc func(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error)

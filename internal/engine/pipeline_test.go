@@ -17,7 +17,7 @@ func TestApplyPipelineKeepLines(t *testing.T) {
 	}
 
 	input := "hello\n\nworld\n\n"
-	out, err := ApplyPipeline(ctx, f, input)
+	out, err := ApplyPipeline(ctx, f, input, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestApplyPipelineChained(t *testing.T) {
 	}
 
 	input := "a\nb\nc\nd\ne\n"
-	out, err := ApplyPipeline(ctx, f, input)
+	out, err := ApplyPipeline(ctx, f, input, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestApplyPipelineUnknownAction(t *testing.T) {
 		},
 	}
 
-	_, err := ApplyPipeline(ctx, f, "input")
+	_, err := ApplyPipeline(ctx, f, "input", nil)
 	if err == nil {
 		t.Fatal("expected error for unknown action")
 	}
@@ -72,7 +72,7 @@ func TestApplyPipelineEmptyInput(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyPipeline(ctx, f, "")
+	out, err := ApplyPipeline(ctx, f, "", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestApplyPipelineGracefulDegradation(t *testing.T) {
 		},
 	}
 
-	_, err := ApplyPipeline(ctx, f, "hello\nworld\n")
+	_, err := ApplyPipeline(ctx, f, "hello\nworld\n", nil)
 	if err == nil {
 		t.Fatal("expected error for missing pattern")
 	}

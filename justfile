@@ -3,11 +3,11 @@ default:
 
 # Run the analyzer
 run target="":
-    go run . {{target}}
+    go run ./cmd/scouter {{target}}
 
 # Build the binary
 build:
-    go build -o bin/scouter .
+    go build -o bin/scouter ./cmd/scouter
 
 # Run tests
 test:

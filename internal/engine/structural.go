@@ -96,10 +96,12 @@ func StructuralSearch(ctx context.Context, rootPath, pattern, ext string) ([]Str
 			return nil
 		}
 
-		tree := parser.Parse(content, nil)
-		defer tree.Close()
-
-		findMatches(tree.RootNode(), patternRoot, pContent, content, path, &matches)
+		// Use anonymous function to safely defer tree.Close() (Strike 1 Redemption)
+		func() {
+			tree := parser.Parse(content, nil)
+			defer tree.Close()
+			findMatches(tree.RootNode(), patternRoot, pContent, content, path, &matches)
+		}()
 		return nil
 	})
 

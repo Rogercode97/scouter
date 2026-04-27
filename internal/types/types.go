@@ -27,9 +27,10 @@ type ASTCall struct {
 }
 
 type RiskMetrics struct {
-	Centrality   float64 `json:"centrality"`
-	BlastRadius  float64 `json:"blast_radius"`
-	PublicExport bool    `json:"public_export"`
+	Centrality         float64 `json:"centrality"`
+	BlastRadius        float64 `json:"blast_radius"`
+	PublicExport       bool    `json:"public_export"`
+	HistoricalBugfixes int     `json:"historical_bugfixes"`
 }
 
 type ImpactEntity struct {
@@ -73,4 +74,27 @@ type TestEvent struct {
 	Test    string  `json:"Test"`
 	Output  string  `json:"Output"`
 	Elapsed float64 `json:"Elapsed" validate:"gte=0"`
+}
+
+type MemoryInsight struct {
+	ID      string `json:"id"`
+	Type    string `json:"type"`
+	Title   string `json:"title"`
+	Learned string `json:"learned"`
+	Why     string `json:"why"`
+}
+
+type HybridSearchResult struct {
+	Symbols  []Symbol        `json:"symbols"`
+	Insights []MemoryInsight `json:"insights"`
+}
+
+type Symbol struct {
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	Signature string `json:"signature,omitempty"`
+	Doc       string `json:"doc"`
+	Path      string `json:"path"`
+	StartLine int    `json:"start_line"`
+	EndLine   int    `json:"end_line"`
 }
