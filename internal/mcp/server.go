@@ -118,4 +118,9 @@ func (s *Server) registerTools() {
 		Name:        "evolve",
 		Description: "Apply a multi-file architectural evolution proposal with atomic rollback and safe evaluation",
 	}, s.handleEvolve)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "compact_context",
+		Description: "Trigger a self-summarization loop to reduce context window noise",
+	}, s.handleCompactContext)
 }
