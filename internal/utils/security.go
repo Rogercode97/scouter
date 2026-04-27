@@ -50,13 +50,13 @@ func ValidatePath(path string) (string, error) {
 		return "", err
 	}
 
-	// MANDATE: Reject absolute paths unless they belong to a verified safe temp dir.
+	// MANDATE: Reject absolute paths unless they belong to a verified safe root or temp dir.
 	// We pin the allowed temp dir to the system default to prevent TMPDIR injection attacks.
 	systemTmp := os.TempDir()
-	
+
 	if filepath.IsAbs(path) {
-		if !strings.HasPrefix(path, systemTmp) {
-			return "", fmt.Errorf("security violation: absolute paths outside /tmp are prohibited (%s)", path)
+		if !isWithinSovereignty(path, root, systemTmp) {
+			return "", fmt.Errorf("security violation: absolute paths outside project root or /tmp are prohibited (%s)", path)
 		}
 	}
 

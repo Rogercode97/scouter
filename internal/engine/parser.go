@@ -79,6 +79,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, validatedPath, nil, parser.ParseComments)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Go native parser failed for %s: %v\n", validatedPath, err)
 		return nil, nil, err
 	}
 

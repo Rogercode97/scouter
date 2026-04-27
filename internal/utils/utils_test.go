@@ -54,7 +54,7 @@ func TestValidatePath_Security(t *testing.T) {
 			name:    "Absolute path violation",
 			path:    "/etc/passwd",
 			wantErr: true,
-			errSub:  "absolute paths outside /tmp are prohibited",
+			errSub:  "absolute paths outside project root or /tmp are prohibited",
 		},
 		{
 			name:    "Project inside restricted folder (Parent Pollution Fix)",
