@@ -58,22 +58,22 @@ func TestServer_Handlers(t *testing.T) {
 		wantSub   string
 	}{
 		{
-			name:      "scouter_search",
+			name:      "search",
 			arguments: map[string]any{"query": "test"},
 			wantSub:   "[]",
 		},
 		{
-			name:      "scouter_pure_signal",
+			name:      "pure_signal",
 			arguments: map[string]any{"text": "line1\nline2", "level": "light"},
 			wantSub:   "line1",
 		},
 		{
-			name:      "scouter_dependencies",
+			name:      "dependencies",
 			arguments: map[string]any{},
 			wantSub:   "{}",
 		},
 		{
-			name:      "scouter_critical_code",
+			name:      "critical_code",
 			arguments: map[string]any{"limit": 5},
 			wantSub:   "[]",
 		},
@@ -103,21 +103,21 @@ func TestServer_ErrorHandling(t *testing.T) {
 	_, session, cleanup := setupTestServer(ctx)
 	defer cleanup()
 
-	// Test missing arguments for scouter_index (should fail validation)
+	// Test missing arguments for index (should fail validation)
 	res, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "scouter_index",
+		Name:      "index",
 		Arguments: map[string]any{},
 	})
 	if err != nil {
-		t.Fatalf("call to scouter_index failed: %v", err)
+		t.Fatalf("call to index failed: %v", err)
 	}
 	if !res.IsError {
 		t.Error("expected IsError to be true for missing arguments")
 	}
 
-	// Test invalid path for scouter_read
+	// Test invalid path for read
 	res, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "scouter_read",
+		Name: "read",
 		Arguments: map[string]any{
 			"filePath": "/invalid/path",
 			"pointer":  "main",

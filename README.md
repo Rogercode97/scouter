@@ -38,20 +38,20 @@ Protect your Ki. Scouter implements **Progressive Disclosure**, returning 85% le
 
 | Tool | Capability |
 | :--- | :--- |
-| `scouter_self_heal` | **Nivel 9**: Autonomous RCA -> Fix -> Verify loop for Go tests. |
-| `scouter_ripple_refactor` | **Nivel 8**: Project-wide change propagation via Call Graph. |
-| `scouter_evolve` | **Nivel 10**: Self-mutation of the Scouter codebase (GEP). |
-| `scouter_impact` | **Oracle**: Recursive impact analysis with Progressive Disclosure. |
-| `scouter_hybrid_search` | **Knowledge**: Unify AST results with Engram technical wisdom. |
-| `scouter_save_anchor` | **Sovereignty**: Agent-led session state handoff to Engram. |
-| `scouter_obsidian_export` | **Visualization**: Export impact maps to your Obsidian vault. |
-| `scouter_pure_signal` | **Purification**: Context-aware noise removal from terminal logs. |
-| `scouter_read` | **Surgical**: Semantic fragment reading with Pointer Resolution. |
-| `scouter_callers` | **Graph**: Find all callers across the entire project (Global Call Graph). |
-| `scouter_index` | **Index**: Deep AST indexing (Go, TS, Python) with JIT precision. |
-| `scouter_critical_code` | **Risk**: Identify hotspots based on centrality and fragility. |
-| `scouter_dependencies` | **Audit**: Map inter-file and package-level dependencies. |
-| `scouter_structural_search` | **Search**: Pattern-based code discovery (ast-grep style). |
+| `self_heal` | **Nivel 9**: Autonomous RCA -> Fix -> Verify loop for Go tests. |
+| `ripple_refactor` | **Nivel 8**: Project-wide change propagation via Call Graph. |
+| `evolve` | **Nivel 10**: Self-mutation of the Scouter codebase (GEP). |
+| `impact` | **Oracle**: Recursive impact analysis with Progressive Disclosure. |
+| `hybrid_search` | **Knowledge**: Unify AST results with Engram technical wisdom. |
+| `save_anchor` | **Sovereignty**: Agent-led session state handoff to Engram. |
+| `obsidian_export` | **Visualization**: Export impact maps to your Obsidian vault. |
+| `pure_signal` | **Purification**: Context-aware noise removal from terminal logs. |
+| `read` | **Surgical**: Semantic fragment reading with Pointer Resolution. |
+| `callers` | **Graph**: Find all callers across the entire project (Global Call Graph). |
+| `index` | **Index**: Deep AST indexing (Go, TS, Python) with JIT precision. |
+| `critical_code` | **Risk**: Identify hotspots based on centrality and fragility. |
+| `dependencies` | **Audit**: Map inter-file and package-level dependencies. |
+| `structural_search` | **Search**: Pattern-based code discovery (ast-grep style). |
 
 ---
 
