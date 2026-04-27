@@ -479,6 +479,46 @@ func (s *Server) handleHybridSearch(ctx context.Context, req *mcp.CallToolReques
 	}, nil, nil
 }
 
+func (s *Server) handleCompactContext(ctx context.Context, req *mcp.CallToolRequest, args CompactContextParams) (*mcp.CallToolResult, any, error) {
+	// 1. Sampling Request
+	samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
+		SystemPrompt: CompactContextSystemPrompt,
+		Messages: []*mcp.SamplingMessage{
+			{
+				Role:    "user",
+				Content: &mcp.TextContent{Text: "Please provide a high-density summary of our current technical state, tasks, and decisions."},
+			},
+		},
+		MaxTokens: 2048,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("sampling compaction failed: %w", err)
+	}
+
+	txt, ok := samplingRes.Content.(*mcp.TextContent)
+	if !ok {
+		return nil, nil, fmt.Errorf("unexpected sampling response type")
+	}
+
+	// 2. Persistence
+	scouterDir := ".scouter"
+	if err := os.MkdirAll(scouterDir, 0755); err != nil {
+		return nil, nil, fmt.Errorf("failed to create scouter directory: %w", err)
+	}
+
+	anchorPath := filepath.Join(scouterDir, "anchor.md")
+	header := fmt.Sprintf("# 🏛️ SCOUTER ANCHOR\n*Compacted on: %s*\n\n", time.Now().Format(time.RFC3339))
+	if err := os.WriteFile(anchorPath, []byte(header+txt.Text), 0644); err != nil {
+		return nil, nil, fmt.Errorf("failed to write anchor file: %w", err)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: "✅ Context compacted and anchored to: " + anchorPath},
+		},
+	}, nil, nil
+}
+
 type SaveAnchorParams struct {
 	Summary string `json:"summary"`
 }
