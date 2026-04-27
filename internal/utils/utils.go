@@ -19,6 +19,18 @@ func ExtractJSON(s string) string {
 	return match
 }
 
+var codeBlockRegex = regexp.MustCompile("(?s)```(?:[a-zA-Z0-9]+)?\n?(.*?)\n?```")
+
+// ExtractCodeBlock isolates code from Markdown blocks or returns the raw string if no blocks found.
+// Unlike ExtractJSON, it does not attempt to match braces, making it safe for Go code.
+func ExtractCodeBlock(s string) string {
+	match := codeBlockRegex.FindStringSubmatch(s)
+	if len(match) > 1 {
+		return strings.TrimSpace(match[1])
+	}
+	return strings.TrimSpace(s)
+}
+
 var ansiRe = NewLazyRegex(`\x1b\[[0-9;]*[a-zA-Z]`)
 
 // Truncate truncates s to max runes, appending "..." if truncated.

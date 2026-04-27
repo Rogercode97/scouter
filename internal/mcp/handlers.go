@@ -590,8 +590,7 @@ func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, a
 	}
 
 	// MANDATE: Sanitize Fix
-	newCode := utils.ExtractJSON(fixTxt.Text)
-	newCode = strings.TrimSpace(newCode)
+	newCode := utils.ExtractCodeBlock(fixTxt.Text)
 
 	// MANDATE: Atomic Backup
 	backupFile := failingFile + ".bak"
@@ -717,8 +716,8 @@ func (s *Server) handleRippleRefactor(ctx context.Context, req *mcp.CallToolRequ
 		
 		if err == nil {
 			if txt, ok := samplingRes.Content.(*mcp.TextContent); ok {
-				newCode := utils.ExtractJSON(txt.Text)
-				os.WriteFile(file, []byte(strings.TrimSpace(newCode)), 0644)
+				newCode := utils.ExtractCodeBlock(txt.Text)
+				os.WriteFile(file, []byte(newCode), 0644)
 			}
 		}
 	}
