@@ -767,10 +767,14 @@ func (s *Store) GetImpact(ctx context.Context, symbol string, path string, maxDe
 	// 2. Fetch Target Metadata (Public Export, Initial Centrality)
 	var isExported bool
 	var centrality int
-	err = s.queryRow(ctx, "SELECT (name GLOB '[A-Z]*'), indegree FROM symbols WHERE name = ? AND (path = ? OR ? = '') LIMIT 1", symbol, path, path).Scan(&isExported, &centrality)
+	var signature string
+	err = s.queryRow(ctx, "SELECT (name GLOB '[A-Z]*'), indegree, signature FROM symbols WHERE name = ? AND (path = ? OR ? = '') LIMIT 1", symbol, path, path).Scan(&isExported, &centrality, &signature)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("failed to fetch target metadata: %w", err)
 	}
+
+	// [Strike 3] Identity Sovereignty: Create unique hash based on name + path + signature
+	symbolID := utils.SymbolSignatureHash(symbol, path, signature)
 
 	res := &types.ImpactResult{
 		Target: types.ImpactEntity{
@@ -779,7 +783,7 @@ func (s *Store) GetImpact(ctx context.Context, symbol string, path string, maxDe
 			Metrics: types.RiskMetrics{
 				Centrality:         float64(centrality),
 				PublicExport:       isExported,
-				HistoricalBugfixes: getHistoricalRisk(ctx, symbol, path),
+				HistoricalBugfixes: getHistoricalRisk(ctx, symbol, path, symbolID),
 			},
 		},
 		Callers: []types.ImpactEntity{},
@@ -1030,11 +1034,14 @@ func (s *Store) Close() error { return s.db.Close() }
 
 var engramIDRegex = regexp.MustCompile(`\[\d+\] #\d+`)
 
-func getHistoricalRisk(ctx context.Context, symbol string, path string) int {
+func getHistoricalRisk(ctx context.Context, symbol string, path string, symbolID string) int {
 	project := utils.GetRepoName(ctx)
 	if project == "" {
 		return 0
 	}
+
+	// [Strike 3] Stable Topic Key based on unique symbol ID
+	topicKey := "scouter/risk/" + symbolID
 
 	// Heuristic: relative path is better for Engram search
 	relPath := path
@@ -1044,16 +1051,25 @@ func getHistoricalRisk(ctx context.Context, symbol string, path string) int {
 		}
 	}
 
-	// Search by symbol AND by file path to increase recall
+	// [Strike 2] Defensive Argument Layering: Use -- to prevent injection
 	queries := []string{symbol, relPath}
 	uniqueIDs := make(map[string]bool)
 
 	for _, q := range queries {
-		cmd := exec.CommandContext(ctx, "engram", "search", q, "--type", "bugfix", "--project", project, "--limit", "10")
+		// Search by query OR topicKey to aggregate history
+		cmd := exec.CommandContext(ctx, "engram", "search", "--type", "bugfix", "--project", project, "--limit", "10", "--", q)
 		out, err := cmd.Output()
-		if err != nil {
-			continue
+		if err == nil {
+			matches := engramIDRegex.FindAllString(string(out), -1)
+			for _, m := range matches {
+				uniqueIDs[m] = true
+			}
 		}
+	}
+
+	// Also search by specific topicKey to find evolved records
+	cmd := exec.CommandContext(ctx, "engram", "search", "--type", "bugfix", "--project", project, "--", topicKey)
+	if out, err := cmd.Output(); err == nil {
 		matches := engramIDRegex.FindAllString(string(out), -1)
 		for _, m := range matches {
 			uniqueIDs[m] = true
@@ -1069,7 +1085,7 @@ func (s *Store) GetMemoryInsights(ctx context.Context, query string) ([]types.Me
 		return nil, nil
 	}
 
-	cmd := exec.CommandContext(ctx, "engram", "search", query, "--project", project, "--limit", "5")
+	cmd := exec.CommandContext(ctx, "engram", "search", "--project", project, "--limit", "5", "--", query)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("engram search failed: %w", err)

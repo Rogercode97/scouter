@@ -82,3 +82,8 @@ func GetRepoName(ctx context.Context) string {
 	last := parts[len(parts)-1]
 	return strings.TrimSuffix(last, ".git")
 }
+
+// RestoreFile executes 'git restore <file>' to revert changes in a specific file.
+func RestoreFile(ctx context.Context, path string) error {
+	return exec.CommandContext(ctx, "git", "restore", path).Run()
+}

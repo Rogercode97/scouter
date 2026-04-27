@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,6 +47,7 @@ type ImpactParams struct {
 	SymbolName string `json:"symbolName"`
 	FilePath   string `json:"filePath"`
 	MaxDepth   int    `json:"maxDepth,omitempty"`
+	Verbose    bool   `json:"verbose,omitempty"`
 }
 
 type CriticalParams struct {
@@ -65,10 +68,28 @@ type PureSignalParams struct {
 	Level string `json:"level,omitempty"`
 }
 
+type SelfHealParams struct {
+	ErrorLog string `json:"errorLog"`
+}
+
+type RippleRefactorParams struct {
+	SymbolName     string `json:"symbolName"`
+	Transformation string `json:"transformation"`
+}
+
 type ObsidianExportParams struct {
 	SymbolName string `json:"symbolName"`
 	FilePath   string `json:"filePath"`
 	VaultPath  string `json:"vaultPath,omitempty"`
+}
+
+type CompactContextParams struct {
+	Force bool `json:"force,omitempty"`
+}
+
+type EvolveParams struct {
+	Proposal string `json:"proposal"`
+	Force    bool   `json:"force,omitempty"`
 }
 
 // Handlers adapted to mcp.AddTool signature
@@ -176,12 +197,26 @@ func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, arg
 		res.Callers = res.Callers[:500]
 	}
 
+	// 4. [Divine Synergy] Progressive Disclosure (Context OS)
+	if !args.Verbose {
+		summary := map[string]any{
+			"symbol":      res.Target.Symbol,
+			"file":        res.Target.File,
+			"risk_score":  res.Target.RiskScore,
+			"risk_level":  res.RiskLevel,
+			"callers":     len(res.Callers),
+			"instruction": "For full Mermaid graph and callers list, use 'verbose: true'.",
+		}
+		summaryJSON, _ := json.Marshal(summary)
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(summaryJSON)}}}, nil, nil
+	}
+
 	out, err := json.Marshal(res)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// 4. [Divine Synergy] Sampling Oracle
+	// 5. [Divine Synergy] Sampling Oracle
 	// If Risk is Critical (>0.8), request a refactoring proposal from the Model via MCP Sampling.
 	if res.Target.RiskScore >= 0.8 {
 		samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
@@ -440,6 +475,387 @@ func (s *Server) handleHybridSearch(ctx context.Context, req *mcp.CallToolReques
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: string(out)},
+		},
+	}, nil, nil
+}
+
+type SaveAnchorParams struct {
+	Summary string `json:"summary"`
+}
+
+func (s *Server) handleSaveAnchor(ctx context.Context, req *mcp.CallToolRequest, args SaveAnchorParams) (*mcp.CallToolResult, any, error) {
+	if args.Summary == "" {
+		return nil, nil, fmt.Errorf("missing summary")
+	}
+
+	// [Singularity Upgrade] Invisible Orchestration
+	project := utils.GetRepoName(ctx)
+	if project == "" {
+		project = "scouter-anchor"
+	}
+	now := time.Now().Format(time.RFC3339)
+	title := fmt.Sprintf("[ANCHOR] Session State %s", now)
+	engramContent := fmt.Sprintf("**What**: Latent session state compaction.\n**Why**: Context window optimization.\n**Where**: Project: %s\n**Learned**: %s", project, args.Summary)
+
+	// Invoke Engram CLI autonomously
+	cmd := exec.CommandContext(ctx, "engram", "save", "--title", title, "--type", "session_summary", "--project", project, "--", engramContent)
+	if err := cmd.Run(); err != nil {
+		s.logger.Warn("Failed to persist anchor to Engram, using local fallback", "error", err)
+		
+		scouterDir := ".scouter"
+		os.MkdirAll(scouterDir, 0755)
+		anchorPath := filepath.Join(scouterDir, "anchor.md")
+		header := fmt.Sprintf("# 🏛️ SCOUTER ANCHOR (Local Fallback)\n*Compacted on: %s*\n\n", now)
+		os.WriteFile(anchorPath, []byte(header+args.Summary), 0644)
+		
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: "⚠️ Engram save failed. Anchor saved to local fallback: " + anchorPath},
+			},
+		}, nil, nil
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: "✅ Latent memory anchored in Engram for project: " + project},
+		},
+	}, nil, nil
+}
+
+func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, args SelfHealParams) (*mcp.CallToolResult, any, error) {
+	if args.ErrorLog == "" {
+		return nil, nil, fmt.Errorf("missing errorLog")
+	}
+
+	// 0. MANDATE: Serial execution via Mutex
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// 1. RCA: Extract File and Line from log
+	matches := filter.GoTestFailureRegex.FindStringSubmatch(args.ErrorLog)
+	if len(matches) != 3 {
+		return nil, nil, fmt.Errorf("could not identify failing file:line in log")
+	}
+	failingFileRaw := matches[1]
+	lineNum, _ := strconv.Atoi(matches[2])
+
+	// MANDATE: FS Armor
+	failingFile, err := utils.ValidatePath(failingFileRaw)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid path: %w", err)
+	}
+
+	// 2. JIT Resolve Symbol and Context (Strike Stale Offsets)
+	// Instead of using the store, we parse the file now to get exact byte ranges.
+	itPointers, _, err := engine.StreamSymbols(ctx, failingFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("jit parse failed: %w", err)
+	}
+
+	var target *types.ASTPointer
+	for p := range itPointers {
+		if lineNum >= p.StartLine && lineNum <= p.EndLine {
+			target = &p
+			break
+		}
+	}
+
+	if target == nil {
+		return nil, nil, fmt.Errorf("could not resolve symbol for %s:%d", failingFile, lineNum)
+	}
+
+	code, err := engine.ReadFragment(ctx, failingFile, target.Range)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read source context: %w", err)
+	}
+
+	// 3. Sampling: Request Fix
+	prompt := fmt.Sprintf("Failing File: %s\nTarget Symbol: %s\nError Log:\n%s\n\nCurrent Code:\n%s", failingFile, target.Name, args.ErrorLog, code)
+	samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
+		SystemPrompt: SelfHealSystemPrompt,
+		Messages: []*mcp.SamplingMessage{
+			{
+				Role: "user",
+				Content: &mcp.TextContent{Text: prompt},
+			},
+		},
+		MaxTokens: 2048,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("sampling fix failed: %w", err)
+	}
+	fixTxt, ok := samplingRes.Content.(*mcp.TextContent)
+	if !ok {
+		return nil, nil, fmt.Errorf("unexpected fix response type")
+	}
+
+	// MANDATE: Sanitize Fix
+	newCode := utils.ExtractJSON(fixTxt.Text)
+	newCode = strings.TrimSpace(newCode)
+
+	// MANDATE: Atomic Backup
+	backupFile := failingFile + ".bak"
+	input, err := os.ReadFile(failingFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read file for backup: %w", err)
+	}
+	if err := os.WriteFile(backupFile, input, 0644); err != nil {
+		return nil, nil, fmt.Errorf("failed to create backup: %w", err)
+	}
+	defer os.Remove(backupFile)
+
+	// 4. Apply & Verify (Strike Loop)
+	updatedContent := string(input[:target.Range.Start]) + newCode + string(input[target.Range.End:])
+	if err := os.WriteFile(failingFile, []byte(updatedContent), 0644); err != nil {
+		return nil, nil, fmt.Errorf("failed to apply fix: %w", err)
+	}
+
+	// Run tests on the package
+	pkgDir := filepath.Dir(failingFile)
+	root, _ := utils.GetRepoRoot()
+	relPkgDir, _ := filepath.Rel(root, pkgDir)
+	if relPkgDir == "" || relPkgDir == "." {
+		relPkgDir = "./"
+	} else {
+		relPkgDir = "./" + relPkgDir
+	}
+
+	cmd := exec.CommandContext(ctx, "go", "test", "-v", relPkgDir)
+	testOut, testErr := cmd.CombinedOutput()
+	
+	status := "SUCCESS"
+	if testErr != nil {
+		status = "FAILED"
+		// MANDATE: Atomic Restore (Do not use git restore)
+		if err := os.WriteFile(failingFile, input, 0644); err != nil {
+			s.logger.Error("failed to restore file from backup", "file", failingFile, "error", err)
+		}
+	} else {
+		// [Strike 4] Async Passive Learning Hook
+		// Anchor technical wisdom in Engram asynchronously to not block the response.
+		go func(file, code, log string) {
+			project := utils.GetRepoName(context.Background())
+			if project == "" { return }
+			
+			title := fmt.Sprintf("[FIX] Autonomous Redención: %s", filepath.Base(file))
+			learned := fmt.Sprintf("**What**: Fixed failing test in %s\n**Why**: Automated Strike\n**Learned**: %s", file, code)
+			
+			// Use -- to prevent argument injection
+			cmd := exec.Command("engram", "save", "--type", "bugfix", "--project", project, "--title", title, "--", learned)
+			_ = cmd.Run()
+		}(failingFile, newCode, args.ErrorLog)
+	}
+
+	res := map[string]string{
+		"status":      status,
+		"fixedCode":   newCode,
+		"testOutput":  string(testOut),
+		"failingFile": failingFile,
+	}
+	out, _ := json.Marshal(res)
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
+}
+
+func (s *Server) handleRippleRefactor(ctx context.Context, req *mcp.CallToolRequest, args RippleRefactorParams) (*mcp.CallToolResult, any, error) {
+	if args.SymbolName == "" || args.Transformation == "" {
+		return nil, nil, fmt.Errorf("missing symbolName or transformation")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// 1. Trace: Find all unique files that call this symbol
+	callers, err := s.store.GetCallers(ctx, args.SymbolName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to trace callers: %w", err)
+	}
+
+	affectedFiles := make(map[string]bool)
+	for _, c := range callers {
+		affectedFiles[c.Path] = true
+	}
+
+	// Also include the file where the symbol is defined (heuristic search)
+	results, _ := s.store.SearchSymbols(ctx, args.SymbolName, "")
+	for _, sym := range results {
+		if sym.Name == args.SymbolName {
+			affectedFiles[sym.Path] = true
+		}
+	}
+
+	var plan []string
+	backups := make(map[string][]byte)
+
+	// 2. [Strike Loop] Prepare Plan & Backup
+	for file := range affectedFiles {
+		cleanFile, err := utils.ValidatePath(file)
+		if err != nil {
+			continue
+		}
+
+		// Backup
+		content, err := os.ReadFile(cleanFile)
+		if err != nil {
+			continue
+		}
+		backups[cleanFile] = content
+		plan = append(plan, cleanFile)
+	}
+
+	// 3. [Strike Loop] Apply Transformation
+	for _, file := range plan {
+		currentContent := string(backups[file])
+		
+		prompt := fmt.Sprintf("File: %s\nTarget Symbol: %s\nTransformation: %s\n\nSource Code:\n%s", file, args.SymbolName, args.Transformation, currentContent)
+		samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
+			SystemPrompt: "You are Scouter's Ripple Engine. Apply the requested transformation to the provided source code. Return ONLY the complete modified source code. NO MARKDOWN. NO COMMENTS.",
+			Messages: []*mcp.SamplingMessage{
+				{Role: "user", Content: &mcp.TextContent{Text: prompt}},
+			},
+			MaxTokens: 4096,
+		})
+		
+		if err == nil {
+			if txt, ok := samplingRes.Content.(*mcp.TextContent); ok {
+				newCode := utils.ExtractJSON(txt.Text)
+				os.WriteFile(file, []byte(strings.TrimSpace(newCode)), 0644)
+			}
+		}
+	}
+
+	// 4. Verify
+	cmd := exec.CommandContext(ctx, "go", "test", "./...")
+	testOut, testErr := cmd.CombinedOutput()
+
+	status := "SUCCESS"
+	if testErr != nil {
+		status = "FAILED"
+		// [Sovereignty Rollback] Restore all files
+		for file, original := range backups {
+			os.WriteFile(file, original, 0644)
+		}
+	}
+
+	res := map[string]any{
+		"status":        status,
+		"affectedFiles": plan,
+		"testOutput":    string(testOut),
+	}
+	out, _ := json.Marshal(res)
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
+}
+
+func (s *Server) handleEvolve(ctx context.Context, req *mcp.CallToolRequest, args EvolveParams) (*mcp.CallToolResult, any, error) {
+	if args.Proposal == "" {
+		return nil, nil, fmt.Errorf("missing proposal")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// 1. Sampling: Request Genome Mutation
+	samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
+		SystemPrompt: GEPSystemPrompt,
+		Messages: []*mcp.SamplingMessage{
+			{
+				Role:    "user",
+				Content: &mcp.TextContent{Text: args.Proposal},
+			},
+		},
+		MaxTokens: 4096,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("sampling evolution failed: %w", err)
+	}
+
+	txt, ok := samplingRes.Content.(*mcp.TextContent)
+	if !ok {
+		return nil, nil, fmt.Errorf("unexpected sampling response type")
+	}
+
+	// 2. Parse JSON Mutations (Robust Extraction)
+	var mutations []struct {
+		File    string `json:"file"`
+		Content string `json:"content"`
+	}
+	rawJSON := utils.ExtractJSON(txt.Text)
+	if err := json.Unmarshal([]byte(rawJSON), &mutations); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse mutation JSON: %w\nRaw: %s", err, txt.Text)
+	}
+
+	// [Strike 3 Redemption] Core Armor Protection
+	for _, m := range mutations {
+		if !args.Force && strings.Contains(m.File, "internal/mcp/handlers.go") {
+			return nil, nil, fmt.Errorf("SOVEREIGNTY VIOLATION: Mutation attempts to modify GEP core logic in '%s'. Use 'force:true' if this is an intended self-lobotomy.", m.File)
+		}
+	}
+
+	// 3. Atomic Snapshots & Application
+	backups := make(map[string][]byte)
+	rollback := func() {
+		for f, b := range backups {
+			if b == nil { os.Remove(f) } else { os.WriteFile(f, b, 0644) }
+		}
+	}
+
+	for _, m := range mutations {
+		cleanPath, err := utils.ValidatePath(m.File)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid path in mutation: %s - %w", m.File, err)
+		}
+
+		// Read original for backup
+		original, err := os.ReadFile(cleanPath)
+		if err != nil {
+			backups[cleanPath] = nil
+		} else {
+			backups[cleanPath] = original
+		}
+
+		// Apply mutation
+		if err := os.WriteFile(cleanPath, []byte(m.Content), 0644); err != nil {
+			rollback()
+			return nil, nil, fmt.Errorf("failed to apply mutation to %s: %w", cleanPath, err)
+		}
+	}
+
+	// 4. [Strike 2 Redemption] Ouroboros Verification (Build + Smoke Test + Unit Tests)
+	// A. Compilation
+	buildCmd := exec.CommandContext(ctx, "just", "build")
+	if buildOut, err := buildCmd.CombinedOutput(); err != nil {
+		rollback()
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: fmt.Sprintf("❌ Evolution failed: Compilation Error\n\n%s", string(buildOut))},
+			},
+		}, nil, nil
+	}
+
+	// B. [NEW] Runtime Smoke Test (Detect start-up panics)
+	smokeCmd := exec.CommandContext(ctx, "./bin/scouter", "--version")
+	if smokeOut, err := smokeCmd.CombinedOutput(); err != nil {
+		rollback()
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: fmt.Sprintf("❌ Evolution failed: Runtime Smoke Test (Possible startup panic)\n\n%s", string(smokeOut))},
+			},
+		}, nil, nil
+	}
+
+	// C. Unit Tests
+	testCmd := exec.CommandContext(ctx, "go", "test", "./...")
+	if testOut, err := testCmd.CombinedOutput(); err != nil {
+		rollback()
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: fmt.Sprintf("❌ Evolution failed: Test Failures\n\n%s", string(testOut))},
+			},
+		}, nil, nil
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: "✅ Evolution Successful. Applied mutations to " + fmt.Sprint(len(mutations)) + " files."},
 		},
 	}, nil, nil
 }

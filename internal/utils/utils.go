@@ -3,9 +3,21 @@ package utils
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 )
+
+var jsonRegex = regexp.MustCompile(`(?s)([\[\{].*[\]\}])`)
+
+// ExtractJSON isolates a JSON block from potentially conversational text.
+func ExtractJSON(s string) string {
+	match := jsonRegex.FindString(s)
+	if match == "" {
+		return s
+	}
+	return match
+}
 
 var ansiRe = NewLazyRegex(`\x1b\[[0-9;]*[a-zA-Z]`)
 

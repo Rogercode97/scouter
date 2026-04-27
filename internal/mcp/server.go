@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -14,6 +15,7 @@ type Server struct {
 	store     store.Repository
 	resolver  *PointerResolver
 	logger    *slog.Logger
+	mu        sync.Mutex
 }
 
 // NewServer initializes a sovereign, SDK-based MCP server.
@@ -96,4 +98,24 @@ func (s *Server) registerTools() {
 		Name:        "scouter_hybrid_search",
 		Description: "Unify AST symbols with Engram technical wisdom for context-aware search",
 	}, s.handleHybridSearch)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_save_anchor",
+		Description: "Save a technical session summary directly into Engram memory",
+	}, s.handleSaveAnchor)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_self_heal",
+		Description: "Execute an autonomous RCA -> Fix -> Verify loop for Go test failures",
+	}, s.handleSelfHeal)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_ripple_refactor",
+		Description: "Propagate architectural changes (rename, signature change) across the entire codebase",
+	}, s.handleRippleRefactor)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_evolve",
+		Description: "Apply a multi-file architectural evolution proposal with atomic rollback and safe evaluation",
+	}, s.handleEvolve)
 }
