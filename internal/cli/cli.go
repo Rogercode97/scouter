@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 
 	"github.com/Rogercode97/scouter/internal/config"
 	"github.com/Rogercode97/scouter/internal/engine"
@@ -144,6 +145,48 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		if err := initcmd.Run(cmdArgs); err != nil {
 			fmt.Fprintf(stderr, "setup failed: %v\n", err)
 			return 1
+		}
+		return 0
+
+	case "predict":
+		cfg, err := config.Load(ctx)
+		if err != nil {
+			fmt.Fprintf(stderr, "error loading config: %v\n", err)
+			return 1
+		}
+		db, err := store.New(ctx, cfg.Tracking.DBPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "error opening database: %v\n", err)
+			return 1
+		}
+		defer db.Close()
+
+		diff := ""
+		if len(cmdArgs) > 0 {
+			diff = cmdArgs[0]
+		} else {
+			out, err := exec.CommandContext(ctx, "git", "diff", "HEAD", "--unified=0").Output()
+			if err != nil {
+				fmt.Fprintf(stderr, "error getting git diff: %v\n", err)
+				return 1
+			}
+			diff = string(out)
+		}
+
+		results, err := engine.PredictTests(ctx, db, diff)
+		if err != nil {
+			fmt.Fprintf(stderr, "prediction error: %v\n", err)
+			return 1
+		}
+
+		if len(results) == 0 {
+			fmt.Fprintln(stdout, "No affected tests identified.")
+			return 0
+		}
+
+		fmt.Fprintln(stdout, "🎯 Affected Tests:")
+		for _, r := range results {
+			fmt.Fprintf(stdout, "- %s (%s)\n", r.Name, r.File)
 		}
 		return 0
 	

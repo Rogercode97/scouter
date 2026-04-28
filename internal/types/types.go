@@ -89,6 +89,11 @@ type HybridSearchResult struct {
 	Insights []MemoryInsight `json:"insights"`
 }
 
+type TestTarget struct {
+	Name string `json:"name"`
+	File string `json:"file"`
+}
+
 type Symbol struct {
 	Name      string `json:"name"`
 	Type      string `json:"type"`

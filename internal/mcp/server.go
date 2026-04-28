@@ -120,6 +120,11 @@ func (s *Server) registerTools() {
 	}, s.handleEvolve)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "predict",
+		Description: "Identify tests affected by current changes using the Global Call Graph",
+	}, s.handlePredict)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "compact_context",
 		Description: "Trigger a self-summarization loop to reduce context window noise",
 	}, s.handleCompactContext)

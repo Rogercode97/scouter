@@ -84,6 +84,7 @@ type Repository interface {
 	GetCallers(ctx context.Context, calleeName string) ([]Call, error)
 	GetCallees(ctx context.Context, callerName string) ([]Call, error)
 	GetImpact(ctx context.Context, symbolName string, filePath string, maxDepth int) (*types.ImpactResult, error)
+	GetAffectedTests(ctx context.Context, symbol, path string) ([]Symbol, error)
 	ClearCalls(ctx context.Context, path string) error
 	GetStats(ctx context.Context) (int, int, error)
 	GetAllFilePaths(ctx context.Context) ([]string, error)
@@ -854,6 +855,47 @@ func (s *Store) GetImpact(ctx context.Context, symbol string, path string, maxDe
 		res.RiskLevel = "Low"
 	}
 
+	return res, nil
+}
+
+func (s *Store) GetAffectedTests(ctx context.Context, symbol, path string) ([]Symbol, error) {
+	query := `
+	WITH RECURSIVE affected(name, path, distance) AS (
+		-- Base case: the initial symbol
+		SELECT name, path, 0
+		FROM symbols
+		WHERE name = ? AND path = ?
+		
+		UNION
+		
+		-- Recursive step: find callers of symbols in the 'affected' set
+		-- We include 'implements' and 'dynamic' links by not filtering on link_type
+		SELECT c.caller_name, c.path, a.distance + 1
+		FROM calls c
+		JOIN affected a ON c.callee_name = a.name AND (c.callee_path = a.path OR c.callee_path = '')
+		WHERE a.distance < 10 AND c.caller_name NOT IN ('main', 'init')
+	)
+	SELECT DISTINCT s.name, s.type, s.signature, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.start_col, s.end_line
+	FROM symbols s
+	JOIN affected a ON s.name = a.name AND s.path = a.path
+	WHERE (s.name LIKE 'Test%' AND (s.type = 'function' OR s.type = 'method'))
+	   OR s.path LIKE '%_test.go'
+	ORDER BY s.path, s.start_line;`
+
+	rows, err := s.query(ctx, query, symbol, path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get affected tests: %w", err)
+	}
+	defer rows.Close()
+
+	var res []Symbol
+	for rows.Next() {
+		var sym Symbol
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine); err != nil {
+			return nil, fmt.Errorf("scan affected symbol failed: %w", err)
+		}
+		res = append(res, sym)
+	}
 	return res, nil
 }
 

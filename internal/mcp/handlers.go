@@ -92,6 +92,10 @@ type EvolveParams struct {
 	Force    bool   `json:"force,omitempty"`
 }
 
+type PredictParams struct {
+	Diff string `json:"diff,omitempty"`
+}
+
 // Handlers adapted to mcp.AddTool signature
 
 func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args IndexParams) (*mcp.CallToolResult, any, error) {
@@ -166,6 +170,11 @@ func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to save index: %w", err)
 	}
+
+	// DIVINE REDEMPTION: Post-indexing resolution (Interfaces & Centrality)
+	// This ensures the Global Call Graph is immediately updated after an explicit index call.
+	_ = s.store.ResolveInterfaces(ctx)
+	_ = s.store.ResolveCentrality(ctx)
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -953,6 +962,32 @@ func (s *Server) handleEvolve(ctx context.Context, req *mcp.CallToolRequest, arg
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: "✅ Evolution Successful. Applied mutations to " + fmt.Sprint(len(mutations)) + " files."},
+		},
+	}, nil, nil
+}
+
+func (s *Server) handlePredict(ctx context.Context, req *mcp.CallToolRequest, args PredictParams) (*mcp.CallToolResult, any, error) {
+	diff := args.Diff
+	if diff == "" {
+		out, err := exec.CommandContext(ctx, "git", "diff", "HEAD", "--unified=0").Output()
+		if err == nil {
+			diff = string(out)
+		}
+	}
+
+	results, err := engine.PredictTests(ctx, s.store, diff)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	out, err := json.Marshal(results)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(out)},
 		},
 	}, nil, nil
 }
