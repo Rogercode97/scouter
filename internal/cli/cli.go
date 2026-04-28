@@ -64,6 +64,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 		logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 		server := mcp.NewServer(db, logger)
+		defer server.Close()
 		
 		transport := &sdk.StdioTransport{}
 		if err := server.Start(ctx, transport); err != nil {

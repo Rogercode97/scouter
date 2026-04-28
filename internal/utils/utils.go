@@ -104,3 +104,45 @@ func OkConfirmation(action, detail string) string {
 	}
 	return fmt.Sprintf("ok %s %s", action, detail)
 }
+
+var ratingRegex = regexp.MustCompile(`(\d+(?:\.\d+)?)\s*/\s*10`)
+
+// ParseRating extracts a rating like "8.5 / 10" from text.
+func ParseRating(s string) (float64, error) {
+	match := ratingRegex.FindStringSubmatch(s)
+	if len(match) < 2 {
+		return 0, fmt.Errorf("rating not found")
+	}
+	var r float64
+	_, err := fmt.Sscanf(match[1], "%f", &r)
+	return r, err
+}
+
+// ExtractList extracts a bulleted list following a specific header.
+func ExtractList(text, header string) []string {
+	lines := strings.Split(text, "\n")
+	var result []string
+	found := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(strings.ToLower(trimmed), strings.ToLower(header)) {
+			found = true
+			continue
+		}
+		if found {
+			if trimmed == "" {
+				continue
+			}
+			if strings.HasPrefix(trimmed, "-") || strings.HasPrefix(trimmed, "*") {
+				item := strings.TrimSpace(trimmed[1:])
+				if item != "" {
+					result = append(result, item)
+				}
+			} else if len(result) > 0 {
+				// Stop if we encounter a non-list line after finding items
+				break
+			}
+		}
+	}
+	return result
+}

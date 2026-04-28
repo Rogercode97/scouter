@@ -18,6 +18,7 @@ import (
 type LSPClient interface {
 	Definition(ctx context.Context, params DefinitionParams) ([]Location, error)
 	Implementation(ctx context.Context, params ImplementationParams) ([]Location, error)
+	References(ctx context.Context, params ReferenceParams) ([]Location, error)
 	Hover(ctx context.Context, params HoverParams) (*Hover, error)
 	Close() error
 }
@@ -236,6 +237,24 @@ func (c *jsonrpcClient) Implementation(ctx context.Context, params Implementatio
 	}
 
 	return nil, fmt.Errorf("unexpected implementation response: %s", string(raw))
+}
+
+func (c *jsonrpcClient) References(ctx context.Context, params ReferenceParams) ([]Location, error) {
+	var locs []Location
+	var raw json.RawMessage
+	if err := c.call(ctx, "textDocument/references", params, &raw); err != nil {
+		return nil, err
+	}
+
+	if string(raw) == "null" {
+		return nil, nil
+	}
+
+	if err := json.Unmarshal(raw, &locs); err == nil {
+		return locs, nil
+	}
+
+	return nil, fmt.Errorf("unexpected references response: %s", string(raw))
 }
 
 func (c *jsonrpcClient) Hover(ctx context.Context, params HoverParams) (*Hover, error) {

@@ -17,6 +17,7 @@ type clientEntry struct {
 type Manager struct {
 	clients map[string]*clientEntry
 	mu      sync.RWMutex
+	closed  bool
 
 	// clientCreator allows mocking for tests
 	clientCreator func(ctx context.Context, binary string, args ...string) (LSPClient, error)
@@ -29,6 +30,7 @@ func NewManager() *Manager {
 		clientCreator: NewClient,
 	}
 	// Go 1.25 native cleanup for the manager singleton
+	// We use the clients map as the anchor to avoid the "ptr is equal to arg" panic
 	runtime.AddCleanup(m, func(c map[string]*clientEntry) {
 		for _, entry := range c {
 			if entry.client != nil {
@@ -55,11 +57,19 @@ func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, er
 	}
 
 	m.mu.RLock()
+	if m.closed {
+		m.mu.RUnlock()
+		return nil, fmt.Errorf("lsp manager is closed")
+	}
 	entry, ok := m.clients[ext]
 	m.mu.RUnlock()
 
 	if !ok {
 		m.mu.Lock()
+		if m.closed {
+			m.mu.Unlock()
+			return nil, fmt.Errorf("lsp manager is closed")
+		}
 		entry, ok = m.clients[ext]
 		if !ok {
 			entry = &clientEntry{}
@@ -97,11 +107,19 @@ func (m *Manager) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.closed {
+		return nil
+	}
+	m.closed = true
+
+	var lastErr error
 	for _, entry := range m.clients {
 		if entry.client != nil {
-			entry.client.Close()
+			if err := entry.client.Close(); err != nil {
+				lastErr = err
+			}
 		}
 	}
 	m.clients = make(map[string]*clientEntry)
-	return nil
+	return lastErr
 }

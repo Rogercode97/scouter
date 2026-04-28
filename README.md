@@ -1,8 +1,8 @@
-# Scouter 🕶️ (V7.1 — The Context OS Edition)
+# Scouter 🕶️ (V8.0 — Wave 11 Ascension)
 **Status**: Sovereign. Divine Architecture (Go 1.25). Rating 10.0.
 
-**The World's First Context-Aware Operating System for Codebase Intelligence.**  
-*Self-Healing. Mass Refactoring. Self-Evolution. Historical Risk. Semantic Purification.*
+**The World's First Autonomous Engineering OS for High-Fidelity Intelligence.**  
+*Self-Healing. Mass Refactoring. Dynamic Linking. Adversarial Audit. Semantic Purification.*
 
 Scouter is an **Architectural Oracle** that sits between your codebase and your AI agent. It transforms the development loop into a high-fidelity, sovereign experience by merging AST intelligence with persistent memory and autonomous execution.
 
