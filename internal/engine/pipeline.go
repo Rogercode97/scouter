@@ -225,6 +225,16 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 		fmt.Fprintf(os.Stderr, "scouter: shadow-indexed %d modified files\n", indexedCount)
 	}
 
+	// DIVINE REDEMPTION: Post-indexing resolution (Interfaces & Centrality)
+	if indexedCount > 0 {
+		if err := db.ResolveInterfaces(ctx); err != nil && p.Verbose > 0 {
+			fmt.Fprintf(os.Stderr, "scouter: interface resolution failed: %v\n", err)
+		}
+		if err := db.ResolveCentrality(ctx); err != nil && p.Verbose > 0 {
+			fmt.Fprintf(os.Stderr, "scouter: centrality resolution failed: %v\n", err)
+		}
+	}
+
 	if p.Enrich && indexedCount > 0 {
 		if p.Verbose > 0 {
 			fmt.Fprintf(os.Stderr, "scouter: performing semantic enrichment (Omniscience)...\n")

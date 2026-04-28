@@ -303,8 +303,10 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 func resolveCallee(fun ast.Expr, currentPath string) (string, string) {
 	switch f := fun.(type) {
 	case *ast.Ident:
-		// Local call in the same file
-		return f.Name, currentPath
+		// Package-level call or local variable.
+		// We return an empty path to allow the store to resolve it globally within the package/project.
+		// Returning currentPath is incorrect for multi-file packages (Divine Fix).
+		return f.Name, ""
 	case *ast.SelectorExpr:
 		// Potential call to another package or a method on a struct
 		if x, ok := f.X.(*ast.Ident); ok {
