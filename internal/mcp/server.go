@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -14,6 +15,7 @@ type Server struct {
 	mcpServer *mcp.Server
 	store     store.Repository
 	resolver  *PointerResolver
+	lspMgr    *lsp.Manager
 	logger    *slog.Logger
 	mu        sync.Mutex
 }
@@ -22,7 +24,7 @@ type Server struct {
 func NewServer(st store.Repository, logger *slog.Logger) *Server {
 	implementation := &mcp.Implementation{
 		Name:    "scouter",
-		Version: "2.6.2-sovereign",
+		Version: "8.0.0-wave11",
 	}
 	
 	s := &Server{
@@ -31,6 +33,7 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 		}),
 		store:    st,
 		resolver: NewPointerResolver(st),
+		lspMgr:   lsp.NewManager(),
 		logger:   logger,
 	}
 
@@ -41,6 +44,12 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 // Start launches the server using the provided transport.
 func (s *Server) Start(ctx context.Context, transport mcp.Transport) error {
 	return s.mcpServer.Run(ctx, transport)
+}
+
+// Close gracefully shuts down the server and its resources.
+func (s *Server) Close() error {
+	s.logger.Info("shutting down MCP server")
+	return s.lspMgr.Close()
 }
 
 func (s *Server) registerTools() {
@@ -63,6 +72,16 @@ func (s *Server) registerTools() {
 		Name:        "callers",
 		Description: "Find all callers of a given function or method",
 	}, s.handleCallers)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "goto_definition",
+		Description: "Find the definition of the symbol at the given position using LSP",
+	}, s.handleGotoDefinition)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "type_info",
+		Description: "Get type information and hover documentation for the symbol at the given position",
+	}, s.handleTypeInfo)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "impact",
@@ -128,4 +147,9 @@ func (s *Server) registerTools() {
 		Name:        "compact_context",
 		Description: "Trigger a self-summarization loop to reduce context window noise",
 	}, s.handleCompactContext)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_judge",
+		Description: "Execute an adversarial review of a code change or proposal using parallel sampling",
+	}, s.handleJudge)
 }

@@ -15,6 +15,9 @@ func (c *mockClient) Definition(ctx context.Context, params DefinitionParams) ([
 func (c *mockClient) Implementation(ctx context.Context, params ImplementationParams) ([]Location, error) {
 	return nil, nil
 }
+func (c *mockClient) References(ctx context.Context, params ReferenceParams) ([]Location, error) {
+	return nil, nil
+}
 func (c *mockClient) Hover(ctx context.Context, params HoverParams) (*Hover, error) {
 	return nil, nil
 }

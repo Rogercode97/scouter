@@ -75,7 +75,9 @@ type Repository interface {
 	SearchSymbolsWeighted(ctx context.Context, query string, symType string) iter.Seq2[Symbol, error]
 	GetSymbolsByRange(ctx context.Context, path string, startLine, endLine int) ([]Symbol, error)
 	GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error)
+	GetInterfaces(ctx context.Context) ([]Symbol, error)
 	GetCriticalSymbols(ctx context.Context, limit int) ([]CriticalSymbol, error)
+	// Deprecated: use engine.LinkInterfaces
 	ResolveInterfaces(ctx context.Context) error
 	ResolveCentrality(ctx context.Context) error
 	ExportDelta(ctx context.Context, syncDir string) error
@@ -165,6 +167,23 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, q); err != nil {
 			return fmt.Errorf("failed to execute migration query: %w", err)
 		}
+	}
+
+	// [Divine Fix] Wave 11 Data Integrity: Remove duplicates before creating unique index
+	cleanupQuery := `
+		DELETE FROM calls 
+		WHERE id NOT IN (
+			SELECT MIN(id) 
+			FROM calls 
+			GROUP BY caller_name, callee_name, path, line, link_type
+		);`
+	if _, err := tx.ExecContext(ctx, cleanupQuery); err != nil {
+		return fmt.Errorf("failed to cleanup duplicate calls: %w", err)
+	}
+
+	// [Divine Fix] Wave 11 Data Integrity: Apply unique index after cleanup
+	if _, err := tx.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS idx_calls_unique ON calls(caller_name, callee_name, path, line, link_type);"); err != nil {
+		return fmt.Errorf("failed to create unique index on calls: %w", err)
 	}
 
 	// Dynamic column check for 'doc'
@@ -459,6 +478,10 @@ func (s *Store) GetSymbolsByType(ctx context.Context, symType string) ([]Symbol,
 	return res, nil
 }
 
+func (s *Store) GetInterfaces(ctx context.Context) ([]Symbol, error) {
+	return s.GetSymbolsByType(ctx, "interface")
+}
+
 func (s *Store) GetCriticalSymbols(ctx context.Context, limit int) ([]CriticalSymbol, error) {
 	if limit <= 0 {
 		limit = 20
@@ -668,7 +691,7 @@ func (s *Store) SaveCall(ctx context.Context, c Call) error {
 	if c.LinkType == "" {
 		c.LinkType = "call"
 	}
-	_, err := s.exec(ctx, "INSERT INTO calls (caller_name, callee_name, path, line, callee_path, link_type) VALUES (?, ?, ?, ?, ?, ?)", c.CallerName, c.CalleeName, c.Path, c.Line, c.CalleePath, c.LinkType)
+	_, err := s.exec(ctx, "INSERT OR IGNORE INTO calls (caller_name, callee_name, path, line, callee_path, link_type) VALUES (?, ?, ?, ?, ?, ?)", c.CallerName, c.CalleeName, c.Path, c.Line, c.CalleePath, c.LinkType)
 	if err != nil {
 		return fmt.Errorf("failed to save call: %w", err)
 	}

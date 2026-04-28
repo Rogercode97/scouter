@@ -4,14 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Rogercode97/scouter/internal/engine"
+	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
@@ -41,6 +44,18 @@ type ReadParams struct {
 
 type CallersParams struct {
 	CalleeName string `json:"calleeName"`
+}
+
+type DefinitionParams struct {
+	FilePath  string `json:"filePath"`
+	Line      int    `json:"line"`      // 1-based (standard for humans/agents)
+	Character int    `json:"character"` // 1-based
+}
+
+type TypeInfoParams struct {
+	FilePath  string `json:"filePath"`
+	Line      int    `json:"line"`
+	Character int    `json:"character"`
 }
 
 type ImpactParams struct {
@@ -96,6 +111,19 @@ type PredictParams struct {
 	Diff string `json:"diff,omitempty"`
 }
 
+type JudgeParams struct {
+	Diff     string `json:"diff,omitempty"`
+	Proposal string `json:"proposal,omitempty"`
+}
+
+type JudgeResult struct {
+	Rating      float64  `json:"rating"`
+	Verdict     string   `json:"verdict"` // SOVEREIGN, REDEMPTION, HAKAI
+	Findings    []string `json:"findings"`
+	RiskVectors []string `json:"risk_vectors"`
+	Convergence bool     `json:"convergence"`
+}
+
 // Handlers adapted to mcp.AddTool signature
 
 func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args IndexParams) (*mcp.CallToolResult, any, error) {
@@ -108,7 +136,7 @@ func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args
 		return nil, nil, err
 	}
 
-	pointers, calls, err := engine.ParseFile(ctx, path, nil)
+	pointers, calls, err := engine.ParseFile(ctx, path, s.lspMgr)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -173,7 +201,7 @@ func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args
 
 	// DIVINE REDEMPTION: Post-indexing resolution (Interfaces & Centrality)
 	// This ensures the Global Call Graph is immediately updated after an explicit index call.
-	_ = s.store.ResolveInterfaces(ctx)
+	_ = engine.LinkInterfaces(ctx, s.store, s.lspMgr)
 	_ = s.store.ResolveCentrality(ctx)
 
 	return &mcp.CallToolResult{
@@ -246,6 +274,70 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 	if err != nil {
 		return nil, nil, err
 	}
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
+}
+
+func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequest, args DefinitionParams) (*mcp.CallToolResult, any, error) {
+	if args.FilePath == "" {
+		return nil, nil, fmt.Errorf("missing filePath")
+	}
+
+	path, err := utils.ValidatePath(args.FilePath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	client, err := s.lspMgr.GetClient(ctx, path)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	locs, err := client.Definition(ctx, lsp.DefinitionParams{
+		TextDocumentPositionParams: lsp.TextDocumentPositionParams{
+			TextDocument: lsp.TextDocumentIdentifier{URI: "file://" + path},
+			Position: lsp.Position{
+				Line:      args.Line - 1,
+				Character: args.Character - 1,
+			},
+		},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	out, _ := json.Marshal(locs)
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
+}
+
+func (s *Server) handleTypeInfo(ctx context.Context, req *mcp.CallToolRequest, args TypeInfoParams) (*mcp.CallToolResult, any, error) {
+	if args.FilePath == "" {
+		return nil, nil, fmt.Errorf("missing filePath")
+	}
+
+	path, err := utils.ValidatePath(args.FilePath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	client, err := s.lspMgr.GetClient(ctx, path)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	res, err := client.Hover(ctx, lsp.HoverParams{
+		TextDocumentPositionParams: lsp.TextDocumentPositionParams{
+			TextDocument: lsp.TextDocumentIdentifier{URI: "file://" + path},
+			Position: lsp.Position{
+				Line:      args.Line - 1,
+				Character: args.Character - 1,
+			},
+		},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	out, _ := json.Marshal(res)
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
 }
 
@@ -988,6 +1080,97 @@ func (s *Server) handlePredict(ctx context.Context, req *mcp.CallToolRequest, ar
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: string(out)},
+		},
+	}, nil, nil
+}
+
+func (s *Server) handleJudge(ctx context.Context, req *mcp.CallToolRequest, args JudgeParams) (*mcp.CallToolResult, any, error) {
+	prompt := fmt.Sprintf("Architectural Proposal: %s\n\nGit Diff:\n%s", args.Proposal, args.Diff)
+
+	type judgeRes struct {
+		text   string
+		rating float64
+		err    error
+	}
+
+	results := make(chan judgeRes, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	judgeFunc := func() {
+		defer wg.Done()
+		samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
+			SystemPrompt: JudgeSystemPrompt,
+			Messages: []*mcp.SamplingMessage{
+				{Role: "user", Content: &mcp.TextContent{Text: prompt}},
+			},
+			MaxTokens: 2048,
+		})
+		if err != nil {
+			results <- judgeRes{err: err}
+			return
+		}
+		txt, ok := samplingRes.Content.(*mcp.TextContent)
+		if !ok {
+			results <- judgeRes{err: fmt.Errorf("unexpected sampling response type")}
+			return
+		}
+		rating, _ := utils.ParseRating(txt.Text)
+		results <- judgeRes{text: txt.Text, rating: rating}
+	}
+
+	go judgeFunc()
+	go judgeFunc()
+
+	wg.Wait()
+	close(results)
+
+	var texts []string
+	var ratings []float64
+	var allFindings []string
+
+	for r := range results {
+		if r.err != nil {
+			return nil, nil, fmt.Errorf("judge sampling failed: %w", r.err)
+		}
+		texts = append(texts, r.text)
+		ratings = append(ratings, r.rating)
+		allFindings = append(allFindings, utils.ExtractList(r.text, "Findings")...)
+	}
+
+	// Synthesis
+	avgRating := (ratings[0] + ratings[1]) / 2.0
+	divergence := math.Abs(ratings[0] - ratings[1])
+	convergence := divergence <= 2.0
+
+	verdict := "HAKAI"
+	if avgRating >= 9.0 {
+		verdict = "SOVEREIGN"
+	} else if avgRating >= 8.0 {
+		verdict = "REDEMPTION"
+	}
+
+	convergenceStatus := "CONVERGED"
+	if !convergence {
+		convergenceStatus = "CONTESTED"
+	}
+
+	report := fmt.Sprintf("# ⚖️ DIVINE VERDICT: %s\n\n", verdict)
+	report += fmt.Sprintf("**Average Rating**: %.1f / 10.0\n", avgRating)
+	report += fmt.Sprintf("**Convergence**: %s (Divergence: %.1f)\n\n", convergenceStatus, divergence)
+	report += "## Consolidated Findings\n"
+	for _, f := range allFindings {
+		report += fmt.Sprintf("- %s\n", f)
+	}
+
+	report += "\n---\n"
+	report += "### Judge A Raw\n" + texts[0] + "\n"
+	report += "\n---\n"
+	report += "### Judge B Raw\n" + texts[1] + "\n"
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: report},
 		},
 	}, nil, nil
 }

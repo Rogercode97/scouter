@@ -46,6 +46,17 @@ type HoverParams struct {
 	TextDocumentPositionParams
 }
 
+// ReferenceContext represents context for the textDocument/references request.
+type ReferenceContext struct {
+	IncludeDeclaration bool `json:"includeDeclaration"`
+}
+
+// ReferenceParams represents parameters for the textDocument/references request.
+type ReferenceParams struct {
+	TextDocumentPositionParams
+	Context ReferenceContext `json:"context"`
+}
+
 // Hover represents the result of a hover request.
 type Hover struct {
 	Contents MarkupContent `json:"contents"`
@@ -71,6 +82,9 @@ type ClientCapabilities struct {
 		Definition struct {
 			DynamicRegistration bool `json:"dynamicRegistration,omitempty"`
 		} `json:"definition,omitempty"`
+		References struct {
+			DynamicRegistration bool `json:"dynamicRegistration,omitempty"`
+		} `json:"references,omitempty"`
 		Hover struct {
 			ContentFormat []string `json:"contentFormat,omitempty"`
 		} `json:"hover,omitempty"`
