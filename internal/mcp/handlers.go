@@ -585,9 +585,26 @@ func (s *Server) handleHybridSearch(ctx context.Context, req *mcp.CallToolReques
 }
 
 func (s *Server) handleCompactContext(ctx context.Context, req *mcp.CallToolRequest, args CompactContextParams) (*mcp.CallToolResult, any, error) {
+	// [Strike 5] Predictive Context: Identify critical hotspots for high-fidelity summary
+	diffOut, _ := exec.CommandContext(ctx, "git", "diff", "HEAD", "--unified=0").Output()
+	diff := string(diffOut)
+
+	systemPrompt := CompactContextSystemPrompt
+	critical, _ := s.compact.IdentifyCriticalContext(ctx, diff)
+	if len(critical) > 0 {
+		var sb strings.Builder
+		sb.WriteString(systemPrompt)
+		sb.WriteString("\n\nCRITICAL SYMBOLS INVOLVED:\n")
+		for _, c := range critical {
+			sb.WriteString(fmt.Sprintf("- %s (File: %s, Risk: %.2f)\n", c.Symbol, c.File, c.RiskScore))
+		}
+		sb.WriteString("\nPlease ensure these are documented with high fidelity.")
+		systemPrompt = sb.String()
+	}
+
 	// 1. Sampling Request (Self-Summarization Loop)
 	samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
-		SystemPrompt: CompactContextSystemPrompt,
+		SystemPrompt: systemPrompt,
 		Messages: []*mcp.SamplingMessage{
 			{
 				Role:    "user",
