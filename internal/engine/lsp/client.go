@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // LSPClient defines the interface for an LSP client.
@@ -36,8 +37,9 @@ type jsonrpcClient struct {
 	done chan struct{}
 }
 
-func NewClient(ctx context.Context, binary string, args ...string) (LSPClient, error) {
+func NewClient(ctx context.Context, dir string, binary string, args ...string) (LSPClient, error) {
 	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd.Dir = dir
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -67,6 +69,9 @@ func NewClient(ctx context.Context, binary string, args ...string) (LSPClient, e
 		c.Close()
 		return nil, err
 	}
+
+	// Wait for server to scan workspace
+	time.Sleep(1 * time.Second)
 
 	return c, nil
 }
@@ -177,14 +182,36 @@ func (c *jsonrpcClient) call(ctx context.Context, method string, params interfac
 }
 
 func (c *jsonrpcClient) initialize(ctx context.Context) error {
+	cwd, _ := os.Getwd()
 	params := InitializeParams{
 		ProcessID:    os.Getpid(),
+		RootURI:      "file://" + cwd,
 		Capabilities: ClientCapabilities{},
+		WorkspaceFolders: []WorkspaceFolder{
+			{
+				Name: "scouter",
+				URI:  "file://" + cwd,
+			},
+		},
 	}
 	params.Capabilities.TextDocument.Hover.ContentFormat = []string{"markdown", "plaintext"}
 
 	var result interface{}
-	return c.call(ctx, "initialize", params, &result)
+	if err := c.call(ctx, "initialize", params, &result); err != nil {
+		return err
+	}
+
+	// Send initialized notification
+	initializedReq := JSONRPCRequest{
+		JSONRPC: "2.0",
+		Method:  "initialized",
+		Params:  json.RawMessage(`{}`),
+	}
+	data, _ := json.Marshal(initializedReq)
+	payload := fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(data), data)
+	fmt.Fprint(c.writer, payload)
+
+	return nil
 }
 
 func (c *jsonrpcClient) Definition(ctx context.Context, params DefinitionParams) ([]Location, error) {

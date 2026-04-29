@@ -10,6 +10,7 @@ import (
 
 	"github.com/Rogercode97/scouter/internal/config"
 	"github.com/Rogercode97/scouter/internal/engine"
+	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/initcmd"
 	"github.com/Rogercode97/scouter/internal/mcp"
 	"github.com/Rogercode97/scouter/internal/store"
@@ -124,6 +125,13 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 
 		fmt.Printf("✅ Indexed %s: %d symbols\n", path, len(pointers))
+
+		// DIVINE REDEMPTION: Semantic Linking
+		lspMgr := lsp.NewManager()
+		defer lspMgr.Close()
+		_ = engine.LinkInterfaces(ctx, db, lspMgr)
+		_ = db.ResolveCentrality(ctx)
+
 		return 0
 
 	case "gain":

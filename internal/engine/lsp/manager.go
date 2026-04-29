@@ -3,6 +3,8 @@ package lsp
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -20,7 +22,7 @@ type Manager struct {
 	closed  bool
 
 	// clientCreator allows mocking for tests
-	clientCreator func(ctx context.Context, binary string, args ...string) (LSPClient, error)
+	clientCreator func(ctx context.Context, dir string, binary string, args ...string) (LSPClient, error)
 }
 
 func NewManager() *Manager {
@@ -49,6 +51,11 @@ func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, er
 	switch ext {
 	case ".go":
 		binary = "gopls"
+		if _, err := exec.LookPath(binary); err != nil {
+			// Fallback to ~/go/bin
+			home, _ := os.UserHomeDir()
+			binary = filepath.Join(home, "go", "bin", "gopls")
+		}
 	case ".ts", ".tsx", ".js", ".jsx":
 		binary = "typescript-language-server"
 		args = []string{"--stdio"}
@@ -83,7 +90,8 @@ func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, er
 		// to a request context that might time out. We use a background context
 		// for the process lifecycle.
 		bgCtx := context.Background()
-		entry.client, entry.err = m.clientCreator(bgCtx, binary, args...)
+		cwd, _ := os.Getwd()
+		entry.client, entry.err = m.clientCreator(bgCtx, cwd, binary, args...)
 	})
 
 	if entry.err != nil {
