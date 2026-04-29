@@ -16,7 +16,6 @@ import (
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/store"
-	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -573,63 +572,11 @@ func (s *Server) handleHybridSearch(ctx context.Context, req *mcp.CallToolReques
 		return nil, nil, fmt.Errorf("missing query")
 	}
 
-	// Execute AST and Engram searches in parallel
-	type symRes struct {
-		symbols []store.Symbol
-		err     error
-	}
-	type insRes struct {
-		insights []types.MemoryInsight
-		err      error
-	}
-
-	symChan := make(chan symRes, 1)
-	insChan := make(chan insRes, 1)
-
-	go func() {
-		res, err := s.store.SearchSymbols(ctx, args.Query, "")
-		symChan <- symRes{res, err}
-	}()
-
-	go func() {
-		res, err := s.store.GetMemoryInsights(ctx, args.Query)
-		insChan <- insRes{res, err}
-	}()
-
-	sRes := <-symChan
-	if sRes.err != nil {
-		return nil, nil, fmt.Errorf("AST search failed: %w", sRes.err)
-	}
-
-	iRes := <-insChan
-	if iRes.err != nil {
-		return nil, nil, fmt.Errorf("Engram search failed: %w", iRes.err)
-	}
-
-	// Map store.Symbol to types.Symbol
-	var symbols []types.Symbol
-	for _, s := range sRes.symbols {
-		symbols = append(symbols, types.Symbol{
-			Name:      s.Name,
-			Type:      s.Type,
-			Signature: s.Signature,
-			Doc:       s.Doc,
-			Path:      s.Path,
-			StartLine: s.StartLine,
-			EndLine:   s.EndLine,
-		})
-	}
-
-	result := types.HybridSearchResult{
-		Symbols:  symbols,
-		Insights: iRes.insights,
-	}
-
-	out, err := json.Marshal(result)
+	res, err := s.search.HybridSearch(ctx, args.Query)
 	if err != nil {
-		return nil, nil, fmt.Errorf("marshal hybrid results: %w", err)
+		return nil, nil, err
 	}
-
+	out, _ := json.Marshal(res)
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: string(out)},
