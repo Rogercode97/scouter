@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -16,6 +17,8 @@ type Server struct {
 	store     store.Repository
 	resolver  *PointerResolver
 	lspMgr    *lsp.Manager
+	ripple    *engine.RippleEngine
+	healer    *engine.HealerEngine
 	logger    *slog.Logger
 	mu        sync.Mutex
 }
@@ -36,6 +39,10 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 		lspMgr:   lsp.NewManager(),
 		logger:   logger,
 	}
+
+	// [Sovereignty Upgrade] Initialize Engines
+	s.ripple = engine.NewRippleEngine(st, nil) // Transformer will be set per request
+	s.healer = engine.NewHealerEngine(st, s.lspMgr)
 
 	s.registerTools()
 	return s

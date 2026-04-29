@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -726,132 +725,44 @@ func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, a
 		return nil, nil, fmt.Errorf("missing errorLog")
 	}
 
-	// 0. MANDATE: Serial execution via Mutex
+	// [Sovereignty Mandate] Serial execution via Mutex
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 1. RCA: Extract File and Line from log
-	matches := filter.GoTestFailureRegex.FindStringSubmatch(args.ErrorLog)
-	if len(matches) != 3 {
-		return nil, nil, fmt.Errorf("could not identify failing file:line in log")
-	}
-	failingFileRaw := matches[1]
-	lineNum, _ := strconv.Atoi(matches[2])
-
-	// MANDATE: FS Armor
-	failingFile, err := utils.ValidatePath(failingFileRaw)
-	if err != nil {
-		return nil, nil, fmt.Errorf("invalid path: %w", err)
-	}
-
-	// 2. JIT Resolve Symbol and Context (Strike Stale Offsets)
-	// Instead of using the store, we parse the file now to get exact byte ranges.
-	itPointers, _, err := engine.StreamSymbols(ctx, failingFile)
-	if err != nil {
-		return nil, nil, fmt.Errorf("jit parse failed: %w", err)
-	}
-
-	var target *types.ASTPointer
-	for p := range itPointers {
-		if lineNum >= p.StartLine && lineNum <= p.EndLine {
-			target = &p
-			break
-		}
-	}
-
-	if target == nil {
-		return nil, nil, fmt.Errorf("could not resolve symbol for %s:%d", failingFile, lineNum)
-	}
-
-	code, err := engine.ReadFragment(ctx, failingFile, target.Range)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read source context: %w", err)
-	}
-
-	// 3. Sampling: Request Fix
-	prompt := fmt.Sprintf("Failing File: %s\nTarget Symbol: %s\nError Log:\n%s\n\nCurrent Code:\n%s", failingFile, target.Name, args.ErrorLog, code)
-	samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
-		SystemPrompt: SelfHealSystemPrompt,
-		Messages: []*mcp.SamplingMessage{
-			{
-				Role: "user",
-				Content: &mcp.TextContent{Text: prompt},
+	// Configure healer bridge to use MCP Sampling
+	s.healer.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
+		samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
+			SystemPrompt: SelfHealSystemPrompt,
+			Messages: []*mcp.SamplingMessage{
+				{
+					Role:    "user",
+					Content: &mcp.TextContent{Text: prompt},
+				},
 			},
-		},
-		MaxTokens: 2048,
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("sampling fix failed: %w", err)
-	}
-	fixTxt, ok := samplingRes.Content.(*mcp.TextContent)
-	if !ok {
-		return nil, nil, fmt.Errorf("unexpected fix response type")
-	}
-
-	// MANDATE: Sanitize Fix
-	newCode := utils.ExtractCodeBlock(fixTxt.Text)
-
-	// MANDATE: Atomic Backup
-	backupFile := failingFile + ".bak"
-	input, err := os.ReadFile(failingFile)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read file for backup: %w", err)
-	}
-	if err := os.WriteFile(backupFile, input, 0644); err != nil {
-		return nil, nil, fmt.Errorf("failed to create backup: %w", err)
-	}
-	defer os.Remove(backupFile)
-
-	// 4. Apply & Verify (Strike Loop)
-	updatedContent := string(input[:target.Range.Start]) + newCode + string(input[target.Range.End:])
-	if err := os.WriteFile(failingFile, []byte(updatedContent), 0644); err != nil {
-		return nil, nil, fmt.Errorf("failed to apply fix: %w", err)
-	}
-
-	// Run tests on the package
-	pkgDir := filepath.Dir(failingFile)
-	root, _ := utils.GetRepoRoot()
-	relPkgDir, _ := filepath.Rel(root, pkgDir)
-	if relPkgDir == "" || relPkgDir == "." {
-		relPkgDir = "./"
-	} else {
-		relPkgDir = "./" + relPkgDir
-	}
-
-	cmd := exec.CommandContext(ctx, "go", "test", "-v", relPkgDir)
-	testOut, testErr := cmd.CombinedOutput()
-	
-	status := "SUCCESS"
-	if testErr != nil {
-		status = "FAILED"
-		// MANDATE: Atomic Restore (Do not use git restore)
-		if err := os.WriteFile(failingFile, input, 0644); err != nil {
-			s.logger.Error("failed to restore file from backup", "file", failingFile, "error", err)
+			MaxTokens: 2048,
+		})
+		if err != nil {
+			return "", err
 		}
-	} else {
-		// [Strike 4] Async Passive Learning Hook
-		// Anchor technical wisdom in Engram asynchronously to not block the response.
-		go func(file, code, log string) {
-			project := utils.GetRepoName(context.Background())
-			if project == "" { return }
-			
-			title := fmt.Sprintf("[FIX] Autonomous Redención: %s", filepath.Base(file))
-			learned := fmt.Sprintf("**What**: Fixed failing test in %s\n**Why**: Automated Strike\n**Learned**: %s", file, code)
-			
-			// Use -- to prevent argument injection
-			cmd := exec.Command("engram", "save", "--type", "bugfix", "--project", project, "--title", title, "--", learned)
-			_ = cmd.Run()
-		}(failingFile, newCode, args.ErrorLog)
+		txt, ok := samplingRes.Content.(*mcp.TextContent)
+		if !ok {
+			return "", fmt.Errorf("unexpected fix response type")
+		}
+		return txt.Text, nil
 	}
 
-	res := map[string]string{
-		"status":      status,
-		"fixedCode":   newCode,
-		"testOutput":  string(testOut),
-		"failingFile": failingFile,
+	// Delegate to Healer Engine
+	res, err := s.healer.Fix(ctx, args.ErrorLog)
+	if err != nil {
+		return nil, nil, fmt.Errorf("self-heal engine failed: %w", err)
 	}
+
 	out, _ := json.Marshal(res)
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(out)},
+		},
+	}, nil, nil
 }
 
 func (s *Server) handleRippleRefactor(ctx context.Context, req *mcp.CallToolRequest, args RippleRefactorParams) (*mcp.CallToolResult, any, error) {
@@ -862,85 +773,60 @@ func (s *Server) handleRippleRefactor(ctx context.Context, req *mcp.CallToolRequ
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 1. Trace: Find all unique files that call this symbol
-	callers, err := s.store.GetCallers(ctx, args.SymbolName)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to trace callers: %w", err)
-	}
-
-	affectedFiles := make(map[string]bool)
-	for _, c := range callers {
-		affectedFiles[c.Path] = true
-	}
-
-	// Also include the file where the symbol is defined (heuristic search)
-	results, _ := s.store.SearchSymbols(ctx, args.SymbolName, "")
-	for _, sym := range results {
-		if sym.Name == args.SymbolName {
-			affectedFiles[sym.Path] = true
-		}
-	}
-
-	var plan []string
-	backups := make(map[string][]byte)
-
-	// 2. [Strike Loop] Prepare Plan & Backup
-	for file := range affectedFiles {
-		cleanFile, err := utils.ValidatePath(file)
-		if err != nil {
-			continue
-		}
-
-		// Backup
-		content, err := os.ReadFile(cleanFile)
-		if err != nil {
-			continue
-		}
-		backups[cleanFile] = content
-		plan = append(plan, cleanFile)
-	}
-
-	// 3. [Strike Loop] Apply Transformation
-	for _, file := range plan {
-		currentContent := string(backups[file])
-		
-		prompt := fmt.Sprintf("File: %s\nTarget Symbol: %s\nTransformation: %s\n\nSource Code:\n%s", file, args.SymbolName, args.Transformation, currentContent)
-		samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
-			SystemPrompt: "You are Scouter's Ripple Engine. Apply the requested transformation to the provided source code. Return ONLY the complete modified source code. NO MARKDOWN. NO COMMENTS.",
-			Messages: []*mcp.SamplingMessage{
-				{Role: "user", Content: &mcp.TextContent{Text: prompt}},
-			},
-			MaxTokens: 4096,
-		})
-		
-		if err == nil {
-			if txt, ok := samplingRes.Content.(*mcp.TextContent); ok {
-				newCode := utils.ExtractCodeBlock(txt.Text)
-				os.WriteFile(file, []byte(newCode), 0644)
+	// [Sovereignty Upgrade] Bridge MCP Sampling to Ripple Engine
+	s.ripple.Transformer = &engine.MCPTransformer{
+		DoTransform: func(ctx context.Context, file, symbol, transformation string) (string, error) {
+			// Get current file content for context
+			content, err := os.ReadFile(file)
+			if err != nil {
+				return "", fmt.Errorf("failed to read file %s: %w", file, err)
 			}
-		}
+
+			prompt := fmt.Sprintf("File: %s\nTarget Symbol: %s\nTransformation: %s\n\nSource Code:\n%s", file, symbol, transformation, string(content))
+			samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
+				SystemPrompt: "You are Scouter's Ripple Engine. Apply the requested transformation to the provided source code. Return ONLY the complete modified source code. NO MARKDOWN. NO COMMENTS.",
+				Messages: []*mcp.SamplingMessage{
+					{Role: "user", Content: &mcp.TextContent{Text: prompt}},
+				},
+				MaxTokens: 4096,
+			})
+			if err != nil {
+				return "", err
+			}
+			txt, ok := samplingRes.Content.(*mcp.TextContent)
+			if !ok {
+				return "", fmt.Errorf("unexpected sampling response type")
+			}
+			return utils.ExtractCodeBlock(txt.Text), nil
+		},
 	}
 
-	// 4. Verify
-	cmd := exec.CommandContext(ctx, "go", "test", "./...")
-	testOut, testErr := cmd.CombinedOutput()
+	// Propagate changes via Ripple Engine
+	ledger, err := s.ripple.Propagate(ctx, args.SymbolName, args.Transformation, 5)
+	if err != nil {
+		return nil, nil, fmt.Errorf("propagation failed: %w", err)
+	}
 
-	status := "SUCCESS"
-	if testErr != nil {
-		status = "FAILED"
-		// [Sovereignty Rollback] Restore all files
-		for file, original := range backups {
-			os.WriteFile(file, original, 0644)
-		}
+	// Transactional Commit
+	if err := ledger.Prepare(ctx); err != nil {
+		return nil, nil, fmt.Errorf("failed to prepare ledger: %w", err)
+	}
+
+	if err := ledger.Commit(ctx); err != nil {
+		ledger.Rollback(ctx)
+		return nil, nil, fmt.Errorf("failed to commit changes: %w", err)
 	}
 
 	res := map[string]any{
-		"status":        status,
-		"affectedFiles": plan,
-		"testOutput":    string(testOut),
+		"status":        "SUCCESS",
+		"affectedFiles": ledger.AffectedFiles(),
 	}
 	out, _ := json.Marshal(res)
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(out)},
+		},
+	}, nil, nil
 }
 
 func (s *Server) handleEvolve(ctx context.Context, req *mcp.CallToolRequest, args EvolveParams) (*mcp.CallToolResult, any, error) {
