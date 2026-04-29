@@ -20,6 +20,7 @@ type Server struct {
 	ripple    *engine.RippleEngine
 	healer    *engine.HealerEngine
 	search    *engine.SearchEngine
+	compact   *engine.CompactionEngine
 	logger    *slog.Logger
 	mu        sync.Mutex
 }
@@ -45,6 +46,7 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 	s.ripple = engine.NewRippleEngine(st, nil) // Transformer will be set per request
 	s.healer = engine.NewHealerEngine(st, s.lspMgr)
 	s.search = engine.NewSearchEngine(st)
+	s.compact = engine.NewCompactionEngine(st)
 
 	s.registerTools()
 	return s

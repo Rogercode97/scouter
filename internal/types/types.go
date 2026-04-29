@@ -103,3 +103,9 @@ type Symbol struct {
 	StartLine int    `json:"start_line"`
 	EndLine   int    `json:"end_line"`
 }
+
+type CompactionResult struct {
+	AnchorPath string `json:"anchor_path"`
+	Timestamp  string `json:"timestamp"`
+	Message    string `json:"message"`
+}
