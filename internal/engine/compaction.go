@@ -51,3 +51,49 @@ func (e *CompactionEngine) CompactSession(ctx context.Context, summary string) (
 		Message:    "Context compacted successfully. You can now start a fresh session and read .scouter/anchor.md to resume.",
 	}, nil
 }
+
+// IdentifyCriticalContext finds high-risk symbols affected by the current diff.
+func (e *CompactionEngine) IdentifyCriticalContext(ctx context.Context, diff string) ([]types.ImpactEntity, error) {
+	if diff == "" {
+		return nil, nil
+	}
+
+	ranges, err := parseDiff(diff)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse diff: %w", err)
+	}
+
+	var critical []types.ImpactEntity
+	seen := make(map[string]bool)
+
+	for _, r := range ranges {
+		absPath, err := filepath.Abs(r.Path)
+		if err != nil {
+			absPath = r.Path
+		}
+
+		symbols, err := e.store.GetSymbolsByRange(ctx, absPath, r.StartLine, r.EndLine)
+		if err != nil {
+			continue
+		}
+
+		for _, sym := range symbols {
+			key := sym.Name + ":" + sym.Path
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+
+			impact, err := e.store.GetImpact(ctx, sym.Name, sym.Path, 3)
+			if err != nil {
+				continue
+			}
+
+			if impact.Target.RiskScore > 0.6 {
+				critical = append(critical, impact.Target)
+			}
+		}
+	}
+
+	return critical, nil
+}
