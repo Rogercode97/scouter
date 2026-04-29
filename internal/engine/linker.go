@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
@@ -25,21 +24,14 @@ func LinkInterfaces(ctx context.Context, repo store.Repository, lspMgr *lsp.Mana
 			continue
 		}
 
-		character := 0
-		content, err := os.ReadFile(iface.Path)
-		if err == nil {
-			lines := strings.Split(string(content), "\n")
-			if iface.StartLine-1 < len(lines) {
-				line := lines[iface.StartLine-1]
-				idx := strings.Index(line, iface.Name)
-				if idx >= 0 {
-					character = idx
-				}
-			}
+		// Prepare implementation params. LSP uses 0-based lines and columns.
+		// We use 1-based lines and columns in our store (from tree-sitter).
+		
+		charPos := 0
+		if iface.StartCol > 0 {
+			charPos = iface.StartCol - 1
 		}
 
-		// Prepare implementation params. LSP uses 0-based lines.
-		// We use 1-based lines in our store (from tree-sitter).
 		params := lsp.ImplementationParams{
 			TextDocumentPositionParams: lsp.TextDocumentPositionParams{
 				TextDocument: lsp.TextDocumentIdentifier{
@@ -47,7 +39,7 @@ func LinkInterfaces(ctx context.Context, repo store.Repository, lspMgr *lsp.Mana
 				},
 				Position: lsp.Position{
 					Line:      iface.StartLine - 1,
-					Character: character,
+					Character: charPos,
 				},
 			},
 		}

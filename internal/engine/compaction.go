@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Rogercode97/scouter/internal/store"
@@ -66,10 +68,20 @@ func (e *CompactionEngine) IdentifyCriticalContext(ctx context.Context, diff str
 	var critical []types.ImpactEntity
 	seen := make(map[string]bool)
 
+	// Fetch git root for proper path resolution
+	gitRoot := ""
+	if rootOut, err := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel").Output(); err == nil {
+		gitRoot = strings.TrimSpace(string(rootOut))
+	}
+
+	impactChecks := 0
+
 	for _, r := range ranges {
-		absPath, err := filepath.Abs(r.Path)
-		if err != nil {
-			absPath = r.Path
+		absPath := r.Path
+		if gitRoot != "" && !filepath.IsAbs(r.Path) {
+			absPath = filepath.Join(gitRoot, r.Path)
+		} else if !filepath.IsAbs(absPath) {
+			absPath, _ = filepath.Abs(r.Path)
 		}
 
 		symbols, err := e.store.GetSymbolsByRange(ctx, absPath, r.StartLine, r.EndLine)
@@ -83,6 +95,12 @@ func (e *CompactionEngine) IdentifyCriticalContext(ctx context.Context, diff str
 				continue
 			}
 			seen[key] = true
+
+			// Prevent N+1 IO Thrashing: Cap the deep impact analysis to 5 symbols per diff
+			if impactChecks >= 5 {
+				break
+			}
+			impactChecks++
 
 			impact, err := e.store.GetImpact(ctx, sym.Name, sym.Path, 3)
 			if err != nil {
