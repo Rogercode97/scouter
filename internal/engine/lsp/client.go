@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 // LSPClient defines the interface for an LSP client.
@@ -69,9 +68,6 @@ func NewClient(ctx context.Context, dir string, binary string, args ...string) (
 		c.Close()
 		return nil, err
 	}
-
-	// Wait for server to scan workspace
-	time.Sleep(1 * time.Second)
 
 	return c, nil
 }
