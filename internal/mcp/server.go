@@ -19,6 +19,7 @@ type Server struct {
 	lspMgr    *lsp.Manager
 	ripple    *engine.RippleEngine
 	healer    *engine.HealerEngine
+	search    *engine.SearchEngine
 	logger    *slog.Logger
 	mu        sync.Mutex
 }
@@ -43,6 +44,7 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 	// [Sovereignty Upgrade] Initialize Engines
 	s.ripple = engine.NewRippleEngine(st, nil) // Transformer will be set per request
 	s.healer = engine.NewHealerEngine(st, s.lspMgr)
+	s.search = engine.NewSearchEngine(st)
 
 	s.registerTools()
 	return s
