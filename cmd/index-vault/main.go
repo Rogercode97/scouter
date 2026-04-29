@@ -303,8 +303,11 @@ func main() {
 
 	// TASK 2.4: Sovereign Interface Resolution (Lazo Soberano)
 	fmt.Println("Resolving interfaces and contract fulfillments...")
-	if err := s.ResolveInterfaces(mainCtx); err != nil {
+	if err := engine.LinkInterfaces(mainCtx, s, lspMgr); err != nil {
 		log.Printf("Warning: interface resolution failed: %v", err)
+	}
+	if err := s.ResolveCentrality(mainCtx); err != nil {
+		log.Printf("Warning: centrality resolution failed: %v", err)
 	}
 
 	if *enrichFlag {
