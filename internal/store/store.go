@@ -77,8 +77,6 @@ type Repository interface {
 	GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error)
 	GetInterfaces(ctx context.Context) ([]Symbol, error)
 	GetCriticalSymbols(ctx context.Context, limit int) ([]CriticalSymbol, error)
-	// Deprecated: use engine.LinkInterfaces
-	ResolveInterfaces(ctx context.Context) error
 	ResolveCentrality(ctx context.Context) error
 	ExportDelta(ctx context.Context, syncDir string) error
 	ImportDelta(ctx context.Context, syncDir string) error
@@ -513,75 +511,6 @@ func (s *Store) GetCriticalSymbols(ctx context.Context, limit int) ([]CriticalSy
 		results = append(results, cs)
 	}
 	return results, nil
-}
-
-func (s *Store) ResolveInterfaces(ctx context.Context) error {
-	type methodInfo struct {
-		name string
-		sig  string
-	}
-
-	interfaces := make(map[string][]methodInfo)
-	rows, err := s.query(ctx, "SELECT name, signature FROM symbols WHERE type = 'method_spec'")
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		var fullName, sig string
-		rows.Scan(&fullName, &sig)
-		parts := strings.Split(fullName, ":")
-		if len(parts) == 2 {
-			interfaces[parts[0]] = append(interfaces[parts[0]], methodInfo{name: parts[1], sig: sig})
-		}
-	}
-	rows.Close()
-
-	structs := make(map[string][]methodInfo)
-	structPaths := make(map[string]string)
-	rows, err = s.query(ctx, "SELECT name, signature, path FROM symbols WHERE type = 'method'")
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		var fullName, sig, path string
-		rows.Scan(&fullName, &sig, &path)
-		parts := strings.Split(fullName, ".")
-		if len(parts) == 2 {
-			structs[parts[0]] = append(structs[parts[0]], methodInfo{name: parts[1], sig: sig})
-			structPaths[parts[0]] = path
-		}
-	}
-	rows.Close()
-
-	return s.WithTransaction(ctx, func(txCtx context.Context, tx Repository) error {
-		for iface, requiredMethods := range interfaces {
-			for strct, actualMethods := range structs {
-				if strct == iface {
-					continue
-				}
-
-				matches := 0
-				for _, req := range requiredMethods {
-					for _, act := range actualMethods {
-						if req.name == act.name && req.sig == act.sig {
-							matches++
-							break
-						}
-					}
-				}
-
-				if matches == len(requiredMethods) && len(requiredMethods) > 0 {
-					tx.SaveCall(txCtx, Call{
-						CallerName: strct,
-						CalleeName: iface,
-						Path:       structPaths[strct],
-						LinkType:   "implements",
-					})
-				}
-			}
-		}
-		return nil
-	})
 }
 
 func (s *Store) ExportDelta(ctx context.Context, syncDir string) error {

@@ -227,7 +227,7 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 
 	// DIVINE REDEMPTION: Post-indexing resolution (Interfaces & Centrality)
 	if indexedCount > 0 {
-		if err := db.ResolveInterfaces(ctx); err != nil && p.Verbose > 0 {
+		if err := LinkInterfaces(ctx, db, p.LSPManager); err != nil && p.Verbose > 0 {
 			fmt.Fprintf(os.Stderr, "scouter: interface resolution failed: %v\n", err)
 		}
 		if err := db.ResolveCentrality(ctx); err != nil && p.Verbose > 0 {
