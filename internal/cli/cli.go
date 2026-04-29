@@ -115,6 +115,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 					Path:      path,
 					StartLine: p.StartLine,
 					EndLine:   p.EndLine,
+					StartCol:  p.StartCol,
 				})
 			}
 			return nil
