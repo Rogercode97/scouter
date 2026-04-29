@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
@@ -24,6 +25,19 @@ func LinkInterfaces(ctx context.Context, repo store.Repository, lspMgr *lsp.Mana
 			continue
 		}
 
+		character := 0
+		content, err := os.ReadFile(iface.Path)
+		if err == nil {
+			lines := strings.Split(string(content), "\n")
+			if iface.StartLine-1 < len(lines) {
+				line := lines[iface.StartLine-1]
+				idx := strings.Index(line, iface.Name)
+				if idx >= 0 {
+					character = idx
+				}
+			}
+		}
+
 		// Prepare implementation params. LSP uses 0-based lines.
 		// We use 1-based lines in our store (from tree-sitter).
 		params := lsp.ImplementationParams{
@@ -33,16 +47,18 @@ func LinkInterfaces(ctx context.Context, repo store.Repository, lspMgr *lsp.Mana
 				},
 				Position: lsp.Position{
 					Line:      iface.StartLine - 1,
-					Character: 0, // Most LSP servers find the symbol at the start of the line
+					Character: character,
 				},
 			},
 		}
 
 		locations, err := client.Implementation(ctx, params)
 		if err != nil {
-			// Log and continue if implementation request fails
+			fmt.Printf("  [Linker] LSP error for %s: %v\n", iface.Name, err)
 			continue
 		}
+
+		fmt.Printf("  [Linker] Found %d implementations for %s\n", len(locations), iface.Name)
 
 		for _, loc := range locations {
 			destPath := strings.TrimPrefix(loc.URI, "file://")
@@ -65,7 +81,8 @@ func LinkInterfaces(ctx context.Context, repo store.Repository, lspMgr *lsp.Mana
 			}
 
 			if err := repo.SaveCall(ctx, call); err != nil {
-				return fmt.Errorf("failed to save implementation link: %w", err)
+				fmt.Printf("  [Linker] SaveCall error for %s: %v\n", iface.Name, err)
+				continue
 			}
 		}
 	}

@@ -145,7 +145,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 				}
 
 				// Capture Structs and Interfaces from GenDecl
-				if gd, ok := n.(*ast.GenDecl); ok && (gd.Tok == token.STRUCT || gd.Tok == token.INTERFACE || gd.Tok == token.TYPE) {
+				if gd, ok := n.(*ast.GenDecl); ok && gd.Tok == token.TYPE {
 					for _, spec := range gd.Specs {
 						if ts, ok := spec.(*ast.TypeSpec); ok {
 							identPos := fset.Position(ts.Name.Pos())

@@ -69,11 +69,18 @@ type MarkupContent struct {
 	Value string `json:"value"`
 }
 
+// WorkspaceFolder represents a workspace folder in LSP.
+type WorkspaceFolder struct {
+	URI  string `json:"uri"`
+	Name string `json:"name"`
+}
+
 // InitializeParams represents parameters for the initialize request.
 type InitializeParams struct {
-	ProcessID    int                `json:"processId"`
-	RootURI      string             `json:"rootUri,omitempty"`
-	Capabilities ClientCapabilities `json:"capabilities"`
+	ProcessID        int                `json:"processId"`
+	RootURI          string             `json:"rootUri,omitempty"`
+	Capabilities     ClientCapabilities `json:"capabilities"`
+	WorkspaceFolders []WorkspaceFolder  `json:"workspaceFolders,omitempty"`
 }
 
 // ClientCapabilities represents the capabilities of the LSP client.
