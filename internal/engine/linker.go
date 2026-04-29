@@ -32,6 +32,19 @@ func LinkInterfaces(ctx context.Context, repo store.Repository, lspMgr *lsp.Mana
 			charPos = iface.StartCol - 1
 		}
 
+		// [Strike 6] Sincronización Determinista (LSP Black Box Sync)
+		// gopls blocks Hover/Definition until the file is fully type-checked.
+		// We send a dummy request to line 0 to wait for readiness instead of sleeping.
+		syncParams := lsp.HoverParams{
+			TextDocumentPositionParams: lsp.TextDocumentPositionParams{
+				TextDocument: lsp.TextDocumentIdentifier{
+					URI: "file://" + iface.Path,
+				},
+				Position: lsp.Position{Line: 0, Character: 0},
+			},
+		}
+		_, _ = client.Hover(ctx, syncParams)
+
 		params := lsp.ImplementationParams{
 			TextDocumentPositionParams: lsp.TextDocumentPositionParams{
 				TextDocument: lsp.TextDocumentIdentifier{

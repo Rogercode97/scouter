@@ -259,6 +259,7 @@ func main() {
 					EndByte:   sym.Range.End,
 					StartLine: sym.StartLine,
 					EndLine:   sym.EndLine,
+					StartCol:  sym.StartCol,
 				}); err != nil {
 					return err
 				}
