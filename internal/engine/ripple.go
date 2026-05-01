@@ -3,9 +3,34 @@ package engine
 import (
 	"context"
 	"fmt"
+	"iter"
 
 	"github.com/Rogercode97/scouter/internal/store"
 )
+
+// PropagationTask represents a single unit of work in the ripple propagation.
+type PropagationTask struct {
+	SymbolName string
+	FilePath   string
+	Action     string
+}
+
+// ValidationResult carries the outcome of a validation stage.
+type ValidationResult struct {
+	Valid   bool
+	Message string
+	Details map[string]any
+}
+
+// PropagationStrategy defines the traversal logic for symbol discovery.
+type PropagationStrategy interface {
+	Discover(ctx context.Context, startSymbol string, depth int) iter.Seq2[PropagationTask, error]
+}
+
+// Validator defines the interface for verifying the integrity of staged changes.
+type Validator interface {
+	Validate(ctx context.Context, ledger *Ledger) (ValidationResult, error)
+}
 
 // Transformer defines how to modify a file based on a symbolic change.
 type Transformer interface {
@@ -14,14 +39,16 @@ type Transformer interface {
 
 // RippleEngine orchestrates multi-file symbolic refactoring.
 type RippleEngine struct {
-	store       store.Repository
-	Transformer Transformer
+	store        store.Repository
+	Transformer  Transformer
+	ImpactEngine *ImpactEngine
 }
 
-func NewRippleEngine(s store.Repository, t Transformer) *RippleEngine {
+func NewRippleEngine(s store.Repository, t Transformer, ie *ImpactEngine) *RippleEngine {
 	return &RippleEngine{
-		store:       s,
-		Transformer: t,
+		store:        s,
+		Transformer:  t,
+		ImpactEngine: ie,
 	}
 }
 
@@ -30,7 +57,7 @@ func (e *RippleEngine) Propagate(ctx context.Context, symbolName string, transfo
 	ledger := NewLedger()
 	visited := make(map[string]bool)
 	queue := []string{symbolName}
-	
+
 	depth := 0
 	for len(queue) > 0 && depth < maxDepth {
 		nextQueue := []string{}
@@ -40,10 +67,17 @@ func (e *RippleEngine) Propagate(ctx context.Context, symbolName string, transfo
 			}
 			visited[currentSym] = true
 
-			// 1. Trace callers via Global Call Graph
-			callers, err := e.store.GetCallers(ctx, currentSym)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get callers for %s: %w", currentSym, err)
+			// 1. Trace callers via Hybrid Determinism (LSP + Global Call Graph)
+			var callers []store.Call
+			deterministic, err := e.ImpactEngine.GetDeterministicCallers(ctx, currentSym)
+			if err == nil && len(deterministic) > 0 {
+				callers = deterministic
+			} else {
+				// Fallback to Global Call Graph (heuristic)
+				callers, err = e.store.GetCallers(ctx, currentSym)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get callers for %s: %w", currentSym, err)
+				}
 			}
 
 			for _, caller := range callers {
@@ -58,7 +92,7 @@ func (e *RippleEngine) Propagate(ctx context.Context, symbolName string, transfo
 						NewContent: newContent,
 					})
 				}
-				
+
 				// Add the caller to the queue for next depth ripple
 				nextQueue = append(nextQueue, caller.CallerName)
 			}
