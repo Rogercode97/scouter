@@ -19,12 +19,14 @@ type Patch struct {
 type Ledger struct {
 	mu      sync.Mutex
 	patches map[string]Patch
+	staged  map[string]Patch
 	backups map[string][]byte
 }
 
 func NewLedger() *Ledger {
 	return &Ledger{
 		patches: make(map[string]Patch),
+		staged:  make(map[string]Patch),
 		backups: make(map[string][]byte),
 	}
 }
@@ -34,6 +36,46 @@ func (l *Ledger) Record(filePath string, p Patch) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.patches[filePath] = p
+}
+
+// Stage adds a patch to the staging area.
+func (l *Ledger) Stage(path string, p Patch) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.staged[path] = p
+}
+
+// Unstage removes a patch from the staging area.
+func (l *Ledger) Unstage(path string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	delete(l.staged, path)
+}
+
+// CommitStaged applies all staged patches to disk and clears the staging area.
+func (l *Ledger) CommitStaged(ctx context.Context) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	for path, patch := range l.staged {
+		// Ensure backup exists for rollback if needed
+		if _, exists := l.backups[path]; !exists {
+			content, err := os.ReadFile(path)
+			if err == nil {
+				l.backups[path] = content
+			}
+		}
+
+		if err := os.WriteFile(path, []byte(patch.NewContent), 0644); err != nil {
+			return fmt.Errorf("failed to write staged patch to %s: %w", path, err)
+		}
+		// Move to committed patches
+		l.patches[path] = patch
+	}
+
+	// Clear staged
+	l.staged = make(map[string]Patch)
+	return nil
 }
 
 // Prepare backups all affected files.
