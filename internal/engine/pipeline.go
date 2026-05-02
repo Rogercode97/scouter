@@ -181,40 +181,9 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 		}
 		p.mu.Unlock()
 
-		itPointers, itCalls, parseErr := StreamSymbols(ctx, absPath)
-		if parseErr != nil {
-			continue
-		}
-
-		err = db.WithTransaction(ctx, func(txCtx context.Context, tx store.Repository) error {
-			stats, _ := os.Stat(absPath)
-			
-			// We still save the FileIndex with an empty ASTJSON or lazy-collected one
-			// TASK: In next iteration, migrate FileIndex.ASTJSON to be optional
-			if err := tx.SaveFileIndex(txCtx, &store.FileIndex{
-				Path: absPath, Mtime: stats.ModTime().UnixNano(), Hash: hash,
-			}); err != nil {
-				return err
-			}
-
-			tx.ClearSymbols(txCtx, absPath)
-			tx.ClearCalls(txCtx, absPath)
-			
-			for ptr := range itPointers {
-				tx.SaveSymbol(txCtx, &store.Symbol{
-					Name: ptr.Name, Type: ptr.Type, Doc: ptr.Doc, Path: absPath,
-					StartByte: ptr.Range.Start, EndByte: ptr.Range.End,
-					StartLine: ptr.StartLine, StartCol: ptr.StartCol, EndLine: ptr.EndLine,
-				})
-			}
-			for c := range itCalls {
-				tx.SaveCall(txCtx, store.Call{
-					CallerName: c.CallerName, CalleeName: c.CalleeName, Path: absPath, Line: c.Line,
-					CalleePath: c.CalleePath, LinkType: c.LinkType,
-				})
-			}
-			return nil
-		})
+		analyzer := NewAnalysisEngine(db)
+		truthEng := NewTruthEngine(db, analyzer, p.LSPManager, nil, nil, nil, nil, nil, nil)
+		err = truthEng.Index(ctx, absPath)
 
 		if err == nil {
 			indexedCount++
@@ -223,16 +192,6 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 
 	if indexedCount > 0 && p.Verbose > 0 {
 		fmt.Fprintf(os.Stderr, "scouter: shadow-indexed %d modified files\n", indexedCount)
-	}
-
-	// DIVINE REDEMPTION: Post-indexing resolution (Interfaces & Centrality)
-	if indexedCount > 0 {
-		if err := LinkInterfaces(ctx, db, p.LSPManager); err != nil && p.Verbose > 0 {
-			fmt.Fprintf(os.Stderr, "scouter: interface resolution failed: %v\n", err)
-		}
-		if err := db.ResolveCentrality(ctx); err != nil && p.Verbose > 0 {
-			fmt.Fprintf(os.Stderr, "scouter: centrality resolution failed: %v\n", err)
-		}
 	}
 
 	if p.Enrich && indexedCount > 0 {

@@ -15,7 +15,6 @@ import (
 	"github.com/Rogercode97/scouter/internal/mcp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/telemetry"
-	"github.com/Rogercode97/scouter/internal/utils"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -91,48 +90,21 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 
-		// Use the same logic as the MCP handler
-		path, err := utils.ValidatePath(cmdArgs[0])
-		if err != nil {
-			fmt.Fprintf(stderr, "invalid path: %v\n", err)
-			return 1
-		}
-
-		pointers, _, err := engine.ParseFile(ctx, path, nil)
-		if err != nil {
-			fmt.Fprintf(stderr, "parse error: %v\n", err)
-			return 1
-		}
-
-		err = db.WithTransaction(ctx, func(ctx context.Context, tx store.Repository) error {
-			tx.ClearSymbols(ctx, path)
-			tx.ClearCalls(ctx, path)
-			for _, p := range pointers {
-				_ = tx.SaveSymbol(ctx, &store.Symbol{
-					Name:      p.Name,
-					Type:      p.Type,
-					Signature: p.Signature,
-					Path:      path,
-					StartLine: p.StartLine,
-					EndLine:   p.EndLine,
-					StartCol:  p.StartCol,
-				})
-			}
-			return nil
-		})
-		if err != nil {
-			fmt.Fprintf(stderr, "store error: %v\n", err)
-			return 1
-		}
-
-		fmt.Printf("✅ Indexed %s: %d symbols\n", path, len(pointers))
-
-		// DIVINE REDEMPTION: Semantic Linking
+		// Use TruthEngine for unified indexing (Deepening)
+		path := cmdArgs[0]
+		
 		lspMgr := lsp.NewManager()
 		defer lspMgr.Close()
-		_ = engine.LinkInterfaces(ctx, db, lspMgr)
-		_ = db.ResolveCentrality(ctx)
+		
+		analyzer := engine.NewAnalysisEngine(db)
+		te := engine.NewTruthEngine(db, analyzer, lspMgr, nil, nil, nil, nil, nil, nil)
+		
+		if err := te.Index(ctx, path); err != nil {
+			fmt.Fprintf(stderr, "index error: %v\n", err)
+			return 1
+		}
 
+		fmt.Printf("✅ Indexed %s\n", path)
 		return 0
 
 	case "gain":
@@ -183,7 +155,8 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			diff = string(out)
 		}
 
-		results, err := engine.PredictTests(ctx, db, diff)
+		ie := engine.NewImpactEngine(db, nil)
+		results, err := ie.PredictTests(ctx, diff)
 		if err != nil {
 			fmt.Fprintf(stderr, "prediction error: %v\n", err)
 			return 1

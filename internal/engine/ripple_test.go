@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"iter"
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/store"
@@ -23,8 +24,34 @@ func (v *mockValidator) Validate(ctx context.Context, ledger *Ledger) (Validatio
 	return v.validateFunc(ledger)
 }
 
+type rippleEngineMockStore struct {
+	store.Repository
+	callers map[string][]store.Call
+	symbols map[string][]store.Symbol
+}
+
+func (m *rippleEngineMockStore) GetCallers(ctx context.Context, name string) ([]store.Call, error) {
+	return m.callers[name], nil
+}
+
+func (m *rippleEngineMockStore) SearchSymbols(ctx context.Context, query, symType string) ([]store.Symbol, error) {
+	return m.symbols[query], nil
+}
+
+func (m *rippleEngineMockStore) GetAllSymbols(ctx context.Context) iter.Seq2[store.Symbol, error] {
+	return func(yield func(store.Symbol, error) bool) {
+		for _, syms := range m.symbols {
+			for _, s := range syms {
+				if !yield(s, nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
 func TestRippleEngine_Propagate(t *testing.T) {
-	ms := &rippleMockStore{
+	ms := &rippleEngineMockStore{
 		callers: map[string][]store.Call{
 			"SymA": {{CallerName: "SymB", Path: "fileB.go"}},
 		},
@@ -86,7 +113,7 @@ func TestRippleEngine_Propagate(t *testing.T) {
 }
 
 func TestBFSPropagationStrategy_Depth(t *testing.T) {
-	ms := &rippleMockStore{
+	ms := &rippleEngineMockStore{
 		callers: map[string][]store.Call{
 			"SymA": {{CallerName: "SymB", Path: "fileB.go"}},
 			"SymB": {{CallerName: "SymC", Path: "fileC.go"}},

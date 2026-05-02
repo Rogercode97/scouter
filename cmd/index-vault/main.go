@@ -307,7 +307,8 @@ func main() {
 	if err := engine.LinkInterfaces(mainCtx, s, lspMgr); err != nil {
 		log.Printf("Warning: interface resolution failed: %v", err)
 	}
-	if err := s.ResolveCentrality(mainCtx); err != nil {
+	analyzer := engine.NewAnalysisEngine(s)
+	if err := analyzer.ResolveCentrality(mainCtx); err != nil {
 		log.Printf("Warning: centrality resolution failed: %v", err)
 	}
 

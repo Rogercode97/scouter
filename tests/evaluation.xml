@@ -1,0 +1,42 @@
+<evaluation>
+  <qa_pair>
+    <question>Search for the Go interface that defines the database operations in Scouter's store package (internal/store). What is its name?</question>
+    <answer>Repository</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the structural_search or search tool to find the default limit value used in the handleSearch function when the limit is 0. What is the default limit?</question>
+    <answer>50</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Search for the constructor of the TruthEngine. What is the name of the function that initializes it?</question>
+    <answer>NewTruthEngine</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Find the registered resources in internal/mcp/resources.go. What is the exact URI for the Workspace Information resource?</question>
+    <answer>file:///scouter/workspace</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Find the registered resource templates. What is the exact URITemplate used to read a specific ADR?</question>
+    <answer>file:///scouter/adrs/{id}</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Look at the handleHybridSearch function in internal/mcp/handlers.go. Does it inject a &lt;thought&gt; block in the response? (Answer 'Yes' or 'No')</question>
+    <answer>Yes</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Search the TruthEngine methods in internal/engine/truth.go. What is the exact name of the method that handles self-healing of test failures?</question>
+    <answer>Fix</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Search the store.go file for the database migration queries. What is the exact SQL table name created to store file indexes?</question>
+    <answer>file_index</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Search the tool registrations in internal/mcp/server.go. What is the exact name of the tool that has the description "Trigger a self-summarization loop to reduce context window noise"?</question>
+    <answer>compact_context</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Look at the struct definition for SovereignDelta in internal/store/store.go. Does it include a field named Calls? (Answer 'Yes' or 'No')</question>
+    <answer>Yes</answer>
+  </qa_pair>
+</evaluation>

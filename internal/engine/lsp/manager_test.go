@@ -21,6 +21,15 @@ func (c *mockClient) References(ctx context.Context, params ReferenceParams) ([]
 func (c *mockClient) Hover(ctx context.Context, params HoverParams) (*Hover, error) {
 	return nil, nil
 }
+func (c *mockClient) PrepareCallHierarchy(ctx context.Context, params CallHierarchyPrepareParams) ([]CallHierarchyItem, error) {
+	return nil, nil
+}
+func (c *mockClient) IncomingCalls(ctx context.Context, params CallHierarchyIncomingCallsParams) ([]CallHierarchyIncomingCall, error) {
+	return nil, nil
+}
+func (c *mockClient) OutgoingCalls(ctx context.Context, params CallHierarchyOutgoingCallsParams) ([]CallHierarchyOutgoingCall, error) {
+	return nil, nil
+}
 func (c *mockClient) Close() error {
 	return nil
 }
@@ -30,7 +39,7 @@ func TestLSPManager(t *testing.T) {
 	ctx := context.Background()
 
 	// Mock client creation
-	m.clientCreator = func(ctx context.Context, binary string, args ...string) (LSPClient, error) {
+	m.clientCreator = func(ctx context.Context, dir string, binary string, args ...string) (LSPClient, error) {
 		return &mockClient{binary: binary}, nil
 	}
 

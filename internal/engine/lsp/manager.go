@@ -43,6 +43,12 @@ func NewManager() *Manager {
 	return m
 }
 
+func (m *Manager) SetClientCreatorForTest(fn func(ctx context.Context, dir string, binary string, args ...string) (LSPClient, error)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.clientCreator = fn
+}
+
 func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, error) {
 	ext := filepath.Ext(filePath)
 	binary := ""

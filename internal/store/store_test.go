@@ -131,81 +131,8 @@ func TestStoreCalls(t *testing.T) {
 	}
 }
 
-func TestGetImpact(t *testing.T) {
-	ctx := t.Context()
-	dbPath := "test_scouter_impact.db"
-	defer os.Remove(dbPath)
-
-	s, err := New(ctx, dbPath)
-	if err != nil {
-		t.Fatalf("Failed to create store: %v", err)
-	}
-	defer s.Close()
-
-	// 0. Satisfy FKs
-	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "a.go", Project: "p"})
-	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "b.go", Project: "p"})
-	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "c.go", Project: "p"})
-	_ = s.SaveFileIndex(ctx, &FileIndex{Path: "d.go", Project: "p"})
-
-	s.SaveSymbol(ctx, &Symbol{Name: "A", Type: "func", Path: "a.go", StartByte: 0, EndByte: 10})
-	s.SaveSymbol(ctx, &Symbol{Name: "B", Type: "func", Path: "b.go", StartByte: 0, EndByte: 10})
-	s.SaveSymbol(ctx, &Symbol{Name: "C", Type: "func", Path: "c.go", StartByte: 0, EndByte: 10})
-	s.SaveSymbol(ctx, &Symbol{Name: "D", Type: "func", Path: "d.go", StartByte: 0, EndByte: 10})
-
-	// 1. Build Graph: A -> B, B -> C, C -> A (cycle), D -> B
-	calls := []Call{
-		{CallerName: "A", CalleeName: "B", Path: "a.go", CalleePath: "b.go"},
-		{CallerName: "B", CalleeName: "C", Path: "b.go", CalleePath: "c.go"},
-		{CallerName: "C", CalleeName: "A", Path: "c.go", CalleePath: "a.go"},
-		{CallerName: "D", CalleeName: "B", Path: "d.go", CalleePath: "b.go"},
-	}
-	for _, c := range calls {
-		if err := s.SaveCall(ctx, c); err != nil {
-			t.Fatalf("Failed to save call in test graph: %v", err)
-		}
-	}
-	s.ResolveCentrality(ctx)
-
-	// 2. Impact of B
-	impact, err := s.GetImpact(ctx, "B", "b.go", 3)
-	if err != nil {
-		t.Fatalf("GetImpact failed: %v", err)
-	}
-
-	foundA, foundD, foundC, foundB := false, false, false, false
-	for _, r := range impact.Callers {
-		switch r.Symbol {
-		case "A": foundA = true
-		case "D": foundD = true
-		case "C": foundC = true
-		case "B": foundB = true
-		}
-	}
-
-	if !foundA || !foundD || !foundC || !foundB {
-		t.Errorf("Incomplete impact results: %+v", impact.Callers)
-	}
-
-	if !impact.Target.Metrics.PublicExport {
-		t.Errorf("Expected B to be public export")
-	}
-	if impact.RiskLevel != "Medium" {
-		t.Errorf("Expected RiskLevel 'Medium', got %s", impact.RiskLevel)
-	}
-	if impact.Target.RiskScore < 0.2 || impact.Target.RiskScore >= 0.5 {
-		t.Errorf("Risk score %v outside of expected bounds", impact.Target.RiskScore)
-	}
-	if impact.Mermaid == "" || impact.Mermaid[:8] != "graph TD" {
-		t.Errorf("Expected valid Mermaid graph, got: %s", impact.Mermaid)
-	}
-
-	impact2, _ := s.GetImpact(ctx, "B", "b.go", 1)
-	if len(impact2.Callers) != 2 {
-		t.Errorf("Depth capping failed, expected 2 results, got %d: %+v", len(impact2.Callers), impact2)
-	}
-}
 func TestGetUnusedSymbols(t *testing.T) {
+
 	ctx := t.Context()
 	dbPath := "test_scouter_deadcode.db"
 	defer os.Remove(dbPath)

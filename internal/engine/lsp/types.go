@@ -63,6 +63,45 @@ type Hover struct {
 	Range    *Range        `json:"range,omitempty"`
 }
 
+// CallHierarchyPrepareParams represents parameters for textDocument/prepareCallHierarchy.
+type CallHierarchyPrepareParams struct {
+	TextDocumentPositionParams
+}
+
+// CallHierarchyItem represents an item in a call hierarchy.
+type CallHierarchyItem struct {
+	Name           string      `json:"name"`
+	Kind           int         `json:"kind"`
+	Tags           []int       `json:"tags,omitempty"`
+	Detail         string      `json:"detail,omitempty"`
+	URI            string      `json:"uri"`
+	Range          Range       `json:"range"`
+	SelectionRange Range       `json:"selectionRange"`
+	Data           interface{} `json:"data,omitempty"`
+}
+
+// CallHierarchyIncomingCallsParams represents parameters for callHierarchy/incomingCalls.
+type CallHierarchyIncomingCallsParams struct {
+	Item CallHierarchyItem `json:"item"`
+}
+
+// CallHierarchyIncomingCall represents an incoming call.
+type CallHierarchyIncomingCall struct {
+	From       CallHierarchyItem `json:"from"`
+	FromRanges []Range           `json:"fromRanges"`
+}
+
+// CallHierarchyOutgoingCallsParams represents parameters for callHierarchy/outgoingCalls.
+type CallHierarchyOutgoingCallsParams struct {
+	Item CallHierarchyItem `json:"item"`
+}
+
+// CallHierarchyOutgoingCall represents an outgoing call.
+type CallHierarchyOutgoingCall struct {
+	To         CallHierarchyItem `json:"to"`
+	FromRanges []Range           `json:"fromRanges"`
+}
+
 // MarkupContent represents a markup content.
 type MarkupContent struct {
 	Kind  string `json:"kind"`

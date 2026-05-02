@@ -84,7 +84,8 @@ func TestIntegration_PredictiveTesting(t *testing.T) {
 +func Sum(a, b, c int) int {`
 
 	// 4. Call engine.PredictTests
-	tests, err := engine.PredictTests(ctx, s, diff)
+	impactEngine := engine.NewImpactEngine(s, nil)
+	tests, err := impactEngine.PredictTests(ctx, diff)
 	if err != nil {
 		t.Fatalf("PredictTests failed: %v", err)
 	}
