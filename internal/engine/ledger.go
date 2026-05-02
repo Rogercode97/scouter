@@ -145,3 +145,13 @@ func (l *Ledger) AffectedFiles() []string {
 	}
 	return files
 }
+
+func (l *Ledger) StagedFiles() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	files := make([]string, 0, len(l.staged))
+	for f := range l.staged {
+		files = append(files, f)
+	}
+	return files
+}

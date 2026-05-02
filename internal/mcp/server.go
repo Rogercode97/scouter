@@ -3,8 +3,12 @@ package mcp
 import (
 	"context"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"sync"
 
+	"github.com/Rogercode97/scouter/internal/adapters/engram"
+	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
@@ -13,16 +17,14 @@ import (
 
 // Server wraps the official MCP SDK server to provide Scouter-specific domain logic.
 type Server struct {
-	mcpServer *mcp.Server
-	store     store.Repository
-	resolver  *PointerResolver
-	lspMgr    *lsp.Manager
-	ripple    *engine.RippleEngine
-	healer    *engine.HealerEngine
-	search    *engine.SearchEngine
-	compact   *engine.CompactionEngine
-	logger    *slog.Logger
-	mu        sync.Mutex
+	mcpServer  *mcp.Server
+	store      store.Repository
+	resolver   *PointerResolver
+	lspMgr     *lsp.Manager
+	engine     *engine.TruthEngine
+	appService *memory.AppService
+	logger     *slog.Logger
+	mu         sync.Mutex
 }
 
 // NewServer initializes a sovereign, SDK-based MCP server.
@@ -42,13 +44,35 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 		logger:   logger,
 	}
 
-	// [Sovereignty Upgrade] Initialize Engines
-	s.ripple = engine.NewRippleEngine(st, nil) // Transformer will be set per request
-	s.healer = engine.NewHealerEngine(st, s.lspMgr)
-	s.search = engine.NewSearchEngine(st)
-	s.compact = engine.NewCompactionEngine(st)
+		// [Sovereignty Upgrade] Initialize Engines
+	impact := engine.NewImpactEngine(st, s.lspMgr)
+	analyzer := engine.NewAnalysisEngine(st)
+	ripple := engine.NewRippleEngine(st, nil, impact)
+	healer := engine.NewHealerEngine(st, s.lspMgr, analyzer, impact)
+	search := engine.NewSearchEngine(st)
+	compact := engine.NewCompactionEngine(st)
+
+	s.engine = engine.NewTruthEngine(
+		st,
+		analyzer,
+		s.lspMgr,
+		impact,
+		search,
+		compact,
+		healer,
+		ripple,
+		nil, // Messenger will be injected per-request if needed
+	)
+
+	// [Dream Ascension] Initialize Memory Service
+	home, _ := os.UserHomeDir()
+	dbPath := filepath.Join(home, ".config", "scouter", "scouter.db")
+	memoryProvider := engram.NewSQLiteMemoryProvider(dbPath)
+	repo := engram.NewEngramRepository(false)
+	s.appService = memory.NewAppService(memoryProvider, nil, repo)
 
 	s.registerTools()
+	s.registerResources()
 	return s
 }
 
@@ -64,6 +88,8 @@ func (s *Server) Close() error {
 }
 
 func (s *Server) registerTools() {
+	trueVal := true
+
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "index",
 		Description: "Index a file or directory for AST symbols",
@@ -137,16 +163,19 @@ func (s *Server) registerTools() {
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "self_heal",
 		Description: "Execute an autonomous RCA -> Fix -> Verify loop for Go test failures",
+		Annotations: &mcp.ToolAnnotations{DestructiveHint: &trueVal},
 	}, s.handleSelfHeal)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "ripple_refactor",
 		Description: "Propagate architectural changes (rename, signature change) across the entire codebase",
+		Annotations: &mcp.ToolAnnotations{DestructiveHint: &trueVal},
 	}, s.handleRippleRefactor)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "evolve",
 		Description: "Apply a multi-file architectural evolution proposal with atomic rollback and safe evaluation",
+		Annotations: &mcp.ToolAnnotations{DestructiveHint: &trueVal},
 	}, s.handleEvolve)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
@@ -163,4 +192,14 @@ func (s *Server) registerTools() {
 		Name:        "scouter_judge",
 		Description: "Execute an adversarial review of a code change or proposal using parallel sampling",
 	}, s.handleJudge)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "dream",
+		Description: "Runs the memory distillation loop for a project to generate ADRs and Pattern summaries",
+	}, s.handleDream)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "knowledge_graph",
+		Description: "Queries Engram for ADRs that specifically mention or affect the given AST symbol",
+	}, s.handleKnowledgeGraph)
 }

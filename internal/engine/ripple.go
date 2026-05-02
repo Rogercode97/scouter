@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"os/exec"
 
 	"github.com/Rogercode97/scouter/internal/store"
 )
@@ -42,6 +43,8 @@ type RippleEngine struct {
 	store        store.Repository
 	Transformer  Transformer
 	ImpactEngine *ImpactEngine
+	Strategy     PropagationStrategy
+	Validators   []Validator
 }
 
 func NewRippleEngine(s store.Repository, t Transformer, ie *ImpactEngine) *RippleEngine {
@@ -49,73 +52,207 @@ func NewRippleEngine(s store.Repository, t Transformer, ie *ImpactEngine) *Rippl
 		store:        s,
 		Transformer:  t,
 		ImpactEngine: ie,
+		Strategy:     NewBFSPropagationStrategy(s, ie),
+		Validators:   []Validator{},
 	}
+}
+
+// BFSPropagationStrategy implements PropagationStrategy using BFS traversal.
+type BFSPropagationStrategy struct {
+	store        store.Repository
+	impactEngine *ImpactEngine
+}
+
+func NewBFSPropagationStrategy(s store.Repository, ie *ImpactEngine) *BFSPropagationStrategy {
+	return &BFSPropagationStrategy{
+		store:        s,
+		impactEngine: ie,
+	}
+}
+
+func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol string, maxDepth int) iter.Seq2[PropagationTask, error] {
+	return func(yield func(PropagationTask, error) bool) {
+		visited := make(map[string]bool)
+		queue := []string{startSymbol}
+
+		depth := 0
+		for len(queue) > 0 && depth <= maxDepth {
+			nextQueue := []string{}
+			for _, currentSym := range queue {
+				if visited[currentSym] {
+					continue
+				}
+				visited[currentSym] = true
+
+				// 1. Trace callers via Hybrid Determinism
+				var callers []store.Call
+				deterministic, err := s.impactEngine.GetDeterministicCallers(ctx, currentSym)
+				if err == nil && len(deterministic) > 0 {
+					callers = deterministic
+				} else {
+					// Fallback to Global Call Graph (heuristic)
+					callers, err = s.store.GetCallers(ctx, currentSym, 0, 0)
+					if err != nil {
+						if !yield(PropagationTask{}, fmt.Errorf("failed to get callers for %s: %w", currentSym, err)) {
+							return
+						}
+						continue
+					}
+				}
+
+				for _, caller := range callers {
+					if !yield(PropagationTask{
+						SymbolName: caller.CallerName,
+						FilePath:   caller.Path,
+						Action:     "transform",
+					}, nil) {
+						return
+					}
+					nextQueue = append(nextQueue, caller.CallerName)
+				}
+
+				// 2. Also include the symbol definition file itself (Depth 0)
+				results, _ := s.store.SearchSymbols(ctx, currentSym, "", 0, 0)
+				for _, sym := range results {
+					if sym.Name == currentSym {
+						if !yield(PropagationTask{
+							SymbolName: sym.Name,
+							FilePath:   sym.Path,
+							Action:     "transform",
+						}, nil) {
+							return
+						}
+					}
+				}
+			}
+			queue = nextQueue
+			depth++
+		}
+	}
+}
+
+// BuildValidator ensures the project still builds after changes.
+type BuildValidator struct{}
+
+func (v *BuildValidator) Validate(ctx context.Context, ledger *Ledger) (ValidationResult, error) {
+	cmd := exec.CommandContext(ctx, "go", "build", "./...")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return ValidationResult{
+			Valid:   false,
+			Message: fmt.Sprintf("Build failed: %v\n%s", err, string(out)),
+		}, nil
+	}
+	return ValidationResult{Valid: true, Message: "Build successful"}, nil
+}
+
+// TestValidator ensures relevant tests still pass.
+type TestValidator struct {
+	SpecificTests []string
+}
+
+func (v *TestValidator) Validate(ctx context.Context, ledger *Ledger) (ValidationResult, error) {
+	args := []string{"test"}
+	if len(v.SpecificTests) > 0 {
+		args = append(args, v.SpecificTests...)
+	} else {
+		args = append(args, "./...")
+	}
+
+	cmd := exec.CommandContext(ctx, "go", args...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return ValidationResult{
+			Valid:   false,
+			Message: fmt.Sprintf("Tests failed: %v\n%s", err, string(out)),
+		}, nil
+	}
+	return ValidationResult{Valid: true, Message: "Tests passed"}, nil
+}
+
+// CentralityValidator detects architectural regressions via centrality spikes.
+type CentralityValidator struct {
+	analyzer *AnalysisEngine
+}
+
+func NewCentralityValidator(a *AnalysisEngine) *CentralityValidator {
+	return &CentralityValidator{analyzer: a}
+}
+
+func (v *CentralityValidator) Validate(ctx context.Context, ledger *Ledger) (ValidationResult, error) {
+	// 1. Get baseline centrality
+	baseline := make(map[string]float64)
+	for sym, err := range v.analyzer.store.GetAllSymbols(ctx) {
+		if err != nil {
+			return ValidationResult{}, err
+		}
+		baseline[sym.Name+":"+sym.Path] = sym.Relevance
+	}
+
+	// 2. Re-resolve centrality
+	if err := v.analyzer.ResolveCentrality(ctx); err != nil {
+		return ValidationResult{}, err
+	}
+
+	// 3. Compare
+	var violations []string
+	for sym, err := range v.analyzer.store.GetAllSymbols(ctx) {
+		if err != nil {
+			return ValidationResult{}, err
+		}
+		key := sym.Name + ":" + sym.Path
+		oldVal := baseline[key]
+		newVal := sym.Relevance
+
+		if oldVal > 0 && (newVal-oldVal)/oldVal > 0.20 {
+			violations = append(violations, fmt.Sprintf("centrality spike for %s: %.1f -> %.1f (+%.1f%%)", sym.Name, oldVal, newVal, (newVal-oldVal)/oldVal*100))
+		}
+	}
+
+	if len(violations) > 0 {
+		return ValidationResult{
+			Valid:   false,
+			Message: "Centrality threshold exceeded",
+			Details: map[string]any{"violations": violations},
+		}, nil
+	}
+
+	return ValidationResult{Valid: true, Message: "Centrality check passed"}, nil
 }
 
 // Propagate traces the blast radius of a symbol and applies the transformation to all affected files.
 func (e *RippleEngine) Propagate(ctx context.Context, symbolName string, transformation string, maxDepth int) (*Ledger, error) {
 	ledger := NewLedger()
-	visited := make(map[string]bool)
-	queue := []string{symbolName}
+	strategy := e.Strategy
+	if strategy == nil {
+		strategy = NewBFSPropagationStrategy(e.store, e.ImpactEngine)
+	}
 
-	depth := 0
-	for len(queue) > 0 && depth < maxDepth {
-		nextQueue := []string{}
-		for _, currentSym := range queue {
-			if visited[currentSym] {
-				continue
-			}
-			visited[currentSym] = true
-
-			// 1. Trace callers via Hybrid Determinism (LSP + Global Call Graph)
-			var callers []store.Call
-			deterministic, err := e.ImpactEngine.GetDeterministicCallers(ctx, currentSym)
-			if err == nil && len(deterministic) > 0 {
-				callers = deterministic
-			} else {
-				// Fallback to Global Call Graph (heuristic)
-				callers, err = e.store.GetCallers(ctx, currentSym)
-				if err != nil {
-					return nil, fmt.Errorf("failed to get callers for %s: %w", currentSym, err)
-				}
-			}
-
-			for _, caller := range callers {
-				// Record files that need transformation
-				if _, exists := ledger.patches[caller.Path]; !exists {
-					newContent, err := e.Transformer.Transform(ctx, caller.Path, currentSym, transformation)
-					if err != nil {
-						return nil, fmt.Errorf("transformation failed for %s: %w", caller.Path, err)
-					}
-					ledger.Record(caller.Path, Patch{
-						FilePath:   caller.Path,
-						NewContent: newContent,
-					})
-				}
-
-				// Add the caller to the queue for next depth ripple
-				nextQueue = append(nextQueue, caller.CallerName)
-			}
-
-			// 2. Also include the symbol definition file itself (Depth 0)
-			results, _ := e.store.SearchSymbols(ctx, currentSym, "")
-			for _, sym := range results {
-				if sym.Name == currentSym {
-					if _, exists := ledger.patches[sym.Path]; !exists {
-						newContent, err := e.Transformer.Transform(ctx, sym.Path, currentSym, transformation)
-						if err != nil {
-							return nil, fmt.Errorf("transformation failed for definition in %s: %w", sym.Path, err)
-						}
-						ledger.Record(sym.Path, Patch{
-							FilePath:   sym.Path,
-							NewContent: newContent,
-						})
-					}
-				}
-			}
+	// 1. Stage changes
+	for task, err := range strategy.Discover(ctx, symbolName, maxDepth) {
+		if err != nil {
+			return nil, err
 		}
-		queue = nextQueue
-		depth++
+
+		if _, exists := ledger.staged[task.FilePath]; !exists {
+			newContent, err := e.Transformer.Transform(ctx, task.FilePath, task.SymbolName, transformation)
+			if err != nil {
+				return nil, fmt.Errorf("transformation failed for %s: %w", task.FilePath, err)
+			}
+			ledger.Stage(task.FilePath, Patch{
+				FilePath:   task.FilePath,
+				NewContent: newContent,
+			})
+		}
+	}
+
+	// 2. Validate pipeline
+	for _, v := range e.Validators {
+		res, err := v.Validate(ctx, ledger)
+		if err != nil {
+			return nil, fmt.Errorf("validator error: %w", err)
+		}
+		if !res.Valid {
+			return ledger, fmt.Errorf("validation failed: %s", res.Message)
+		}
 	}
 
 	return ledger, nil

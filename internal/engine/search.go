@@ -19,7 +19,7 @@ func NewSearchEngine(s store.Repository) *SearchEngine {
 }
 
 // HybridSearch executes parallel lookups in the AST and Engram databases.
-func (e *SearchEngine) HybridSearch(ctx context.Context, query string) (*types.HybridSearchResult, error) {
+func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, offset int) (*types.HybridSearchResult, error) {
 	if query == "" {
 		return nil, fmt.Errorf("missing query")
 	}
@@ -41,7 +41,7 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string) (*types.H
 
 	go func() {
 		defer wg.Done()
-		res, err := e.store.SearchSymbols(ctx, query, "")
+		res, err := e.store.SearchSymbols(ctx, query, "", limit, offset)
 		symChan <- symRes{res, err}
 	}()
 

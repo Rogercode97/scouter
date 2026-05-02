@@ -85,7 +85,8 @@ func TestIntegration_InterfaceTracing(t *testing.T) {
 
 	// 5. Verify: Get Impact of Circle.Area
 	// It should find Shape.Area (distance 1)
-	impact, err := s.GetImpact(ctx, "Area", absPath, 3)
+	impactEngine := engine.NewImpactEngine(s, nil)
+	impact, err := impactEngine.Analyze(ctx, "Area", absPath, 3)
 	if err != nil {
 		t.Fatalf("GetImpact failed: %v", err)
 	}

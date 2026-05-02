@@ -91,9 +91,15 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 			default:
 			}
 
+			stopped := false
 			ast.PreorderStack(file, nil, func(n ast.Node, stack []ast.Node) bool {
+				if stopped {
+					return false
+				}
+
 				select {
 				case <-ctx.Done():
+					stopped = true
 					return false
 				default:
 				}
@@ -140,6 +146,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 						Hash:      hex.EncodeToString(h[:]),
 					}
 					if !yield(p) {
+						stopped = true
 						return false
 					}
 				}
@@ -180,6 +187,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 												Hash:      utils.HashString(fmt.Sprintf("spec:%s:%s", fullMethodName, sig)),
 											}
 											if !yield(p) {
+												stopped = true
 												return false
 											}
 										}
@@ -209,6 +217,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 								Hash:      hex.EncodeToString(h[:]),
 							}
 							if !yield(p) {
+								stopped = true
 								return false
 							}
 						}
@@ -226,10 +235,16 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 			names := make(map[ast.Node]string)
 			anonCounts := make(map[ast.Node]int)
 			globalAnonCount := 0
+			stopped := false
 
 			ast.PreorderStack(file, nil, func(n ast.Node, stack []ast.Node) bool {
+				if stopped {
+					return false
+				}
+
 				select {
 				case <-ctx.Done():
+					stopped = true
 					return false
 				default:
 				}
@@ -290,6 +305,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 								Line:       fset.Position(call.Lparen).Line,
 							}
 							if !yield(c) {
+								stopped = true
 								return false
 							}
 						}

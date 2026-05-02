@@ -20,6 +20,12 @@ type LSPClient interface {
 	Implementation(ctx context.Context, params ImplementationParams) ([]Location, error)
 	References(ctx context.Context, params ReferenceParams) ([]Location, error)
 	Hover(ctx context.Context, params HoverParams) (*Hover, error)
+
+	// Call Hierarchy (Omniscience V2)
+	PrepareCallHierarchy(ctx context.Context, params CallHierarchyPrepareParams) ([]CallHierarchyItem, error)
+	IncomingCalls(ctx context.Context, params CallHierarchyIncomingCallsParams) ([]CallHierarchyIncomingCall, error)
+	OutgoingCalls(ctx context.Context, params CallHierarchyOutgoingCallsParams) ([]CallHierarchyOutgoingCall, error)
+
 	Close() error
 }
 
@@ -286,6 +292,30 @@ func (c *jsonrpcClient) Hover(ctx context.Context, params HoverParams) (*Hover, 
 		return nil, err
 	}
 	return &hover, nil
+}
+
+func (c *jsonrpcClient) PrepareCallHierarchy(ctx context.Context, params CallHierarchyPrepareParams) ([]CallHierarchyItem, error) {
+	var items []CallHierarchyItem
+	if err := c.call(ctx, "textDocument/prepareCallHierarchy", params, &items); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (c *jsonrpcClient) IncomingCalls(ctx context.Context, params CallHierarchyIncomingCallsParams) ([]CallHierarchyIncomingCall, error) {
+	var calls []CallHierarchyIncomingCall
+	if err := c.call(ctx, "callHierarchy/incomingCalls", params, &calls); err != nil {
+		return nil, err
+	}
+	return calls, nil
+}
+
+func (c *jsonrpcClient) OutgoingCalls(ctx context.Context, params CallHierarchyOutgoingCallsParams) ([]CallHierarchyOutgoingCall, error) {
+	var calls []CallHierarchyOutgoingCall
+	if err := c.call(ctx, "callHierarchy/outgoingCalls", params, &calls); err != nil {
+		return nil, err
+	}
+	return calls, nil
 }
 
 func (c *jsonrpcClient) Close() error {

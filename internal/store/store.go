@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"iter"
-	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -70,21 +69,23 @@ type Repository interface {
 	SaveFileIndex(ctx context.Context, idx *FileIndex) error
 	ClearSymbols(ctx context.Context, path string) error
 	SaveSymbol(ctx context.Context, sym *Symbol) error
-	SearchSymbols(ctx context.Context, query string, symType string) ([]Symbol, error)
+	SearchSymbols(ctx context.Context, query string, symType string, limit, offset int) ([]Symbol, error)
 	GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]Symbol, error)
 	SearchSymbolsWeighted(ctx context.Context, query string, symType string) iter.Seq2[Symbol, error]
 	GetSymbolsByRange(ctx context.Context, path string, startLine, endLine int) ([]Symbol, error)
 	GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error)
 	GetInterfaces(ctx context.Context) ([]Symbol, error)
-	GetCriticalSymbols(ctx context.Context, limit int) ([]CriticalSymbol, error)
-	ResolveCentrality(ctx context.Context) error
+	GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error]
+	GetAllCalls(ctx context.Context) iter.Seq2[Call, error]
+	GetAllFailedTests(ctx context.Context) iter.Seq2[types.TestResult, error]
+	UpdateSymbolCentrality(ctx context.Context, name, path string, centrality int) error
 	ExportDelta(ctx context.Context, syncDir string) error
 	ImportDelta(ctx context.Context, syncDir string) error
 	SaveCall(ctx context.Context, call Call) error
-	GetCallers(ctx context.Context, calleeName string) ([]Call, error)
+	GetCallers(ctx context.Context, calleeName string, limit, offset int) ([]Call, error)
 	GetCallees(ctx context.Context, callerName string) ([]Call, error)
-	GetImpact(ctx context.Context, symbolName string, filePath string, maxDepth int) (*types.ImpactResult, error)
-	GetAffectedTests(ctx context.Context, symbol, path string) ([]Symbol, error)
+	GetCallersRecursive(ctx context.Context, name, path string, maxDepth int) ([]Call, error)
+	GetAffectedTestsRecursive(ctx context.Context, name, path string) ([]Symbol, error)
 	ClearCalls(ctx context.Context, path string) error
 	GetStats(ctx context.Context) (int, int, error)
 	GetAllFilePaths(ctx context.Context) ([]string, error)
@@ -350,20 +351,24 @@ func (s *Store) SaveSymbol(ctx context.Context, sym *Symbol) error {
 	return nil
 }
 
-func (s *Store) SearchSymbols(ctx context.Context, q, t string) ([]Symbol, error) {
+func (s *Store) SearchSymbols(ctx context.Context, q, t string, limit, offset int) ([]Symbol, error) {
 	safe := utils.SanitizeFTS(q)
 	if safe == "" {
 		return nil, nil
 	}
-	sql := `SELECT symbols.name, symbols.type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.start_col, symbols.end_line 
-            FROM symbols JOIN symbols_fts ON symbols.id = symbols_fts.rowid 
+	sql := `SELECT symbols.name, symbols.type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.start_col, symbols.end_line, symbols.indegree
+            FROM symbols JOIN symbols_fts ON symbols.id = symbols_fts.rowid
             WHERE symbols_fts MATCH ?`
 	args := []any{safe}
 	if t != "" {
 		sql += " AND symbols.type = ?"
 		args = append(args, t)
 	}
-	sql += " LIMIT 500"
+	if limit == 0 {
+		limit = 500
+	}
+	sql += " LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
 	rows, err := s.query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("search symbols failed: %w", err)
@@ -372,7 +377,7 @@ func (s *Store) SearchSymbols(ctx context.Context, q, t string) ([]Symbol, error
 	var res []Symbol
 	for rows.Next() {
 		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.Relevance); err != nil {
 			return nil, fmt.Errorf("scan symbol failed: %w", err)
 		}
 		res = append(res, sym)
@@ -381,8 +386,8 @@ func (s *Store) SearchSymbols(ctx context.Context, q, t string) ([]Symbol, error
 }
 
 func (s *Store) GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]Symbol, error) {
-	sql := `SELECT name, type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line 
-            FROM symbols 
+	sql := `SELECT name, type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, indegree
+            FROM symbols
             WHERE name = ? AND path = ?`
 	rows, err := s.query(ctx, sql, name, path)
 	if err != nil {
@@ -392,14 +397,13 @@ func (s *Store) GetSymbolsByNameInFile(ctx context.Context, name, path string) (
 	var res []Symbol
 	for rows.Next() {
 		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.Relevance); err != nil {
 			return nil, fmt.Errorf("scan symbol failed: %w", err)
 		}
 		res = append(res, sym)
 	}
 	return res, nil
 }
-
 func (s *Store) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq2[Symbol, error] {
 	return func(yield func(Symbol, error) bool) {
 		safe := utils.SanitizeFTS(q)
@@ -480,37 +484,81 @@ func (s *Store) GetInterfaces(ctx context.Context) ([]Symbol, error) {
 	return s.GetSymbolsByType(ctx, "interface")
 }
 
-func (s *Store) GetCriticalSymbols(ctx context.Context, limit int) ([]CriticalSymbol, error) {
-	if limit <= 0 {
-		limit = 20
-	}
-	sql := `
-		SELECT 
-			s.name, s.type, s.signature, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.start_col, s.end_line,
-			COUNT(DISTINCT c.id) as centrality,
-			COUNT(DISTINCT tr.id) as fragility
-		FROM symbols s
-		LEFT JOIN calls c ON c.callee_name = s.name AND (c.callee_path = s.path OR c.callee_path = '')
-		LEFT JOIN test_results tr ON tr.target_symbol = s.name AND tr.status = 'fail'
-		GROUP BY s.id
-		ORDER BY centrality DESC, fragility DESC
-		LIMIT ?;`
-	
-	rows, err := s.query(ctx, sql, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get critical symbols: %w", err)
-	}
-	defer rows.Close()
-
-	var results []CriticalSymbol
-	for rows.Next() {
-		var cs CriticalSymbol
-		if err := rows.Scan(&cs.Name, &cs.Type, &cs.Signature, &cs.Doc, &cs.Path, &cs.StartByte, &cs.EndByte, &cs.StartLine, &cs.StartCol, &cs.EndLine, &cs.Centrality, &cs.Fragility); err != nil {
-			return nil, err
+func (s *Store) GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error] {
+	return func(yield func(Symbol, error) bool) {
+		rows, err := s.query(ctx, "SELECT name, type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line FROM symbols")
+		if err != nil {
+			yield(Symbol{}, err)
+			return
 		}
-		results = append(results, cs)
+		defer rows.Close()
+		for rows.Next() {
+			var sym Symbol
+			if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine); err != nil {
+				if !yield(Symbol{}, err) {
+					return
+				}
+				continue
+			}
+			if !yield(sym, nil) {
+				return
+			}
+		}
 	}
-	return results, nil
+}
+
+func (s *Store) GetAllCalls(ctx context.Context) iter.Seq2[Call, error] {
+	return func(yield func(Call, error) bool) {
+		rows, err := s.query(ctx, "SELECT caller_name, callee_name, path, line, callee_path, link_type FROM calls")
+		if err != nil {
+			yield(Call{}, err)
+			return
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var c Call
+			if err := rows.Scan(&c.CallerName, &c.CalleeName, &c.Path, &c.Line, &c.CalleePath, &c.LinkType); err != nil {
+				if !yield(Call{}, err) {
+					return
+				}
+				continue
+			}
+			if !yield(c, nil) {
+				return
+			}
+		}
+	}
+}
+
+func (s *Store) GetAllFailedTests(ctx context.Context) iter.Seq2[types.TestResult, error] {
+	return func(yield func(types.TestResult, error) bool) {
+		rows, err := s.query(ctx, "SELECT test_name, status, error_message, stack_trace, target_symbol, duration_ms, project FROM test_results WHERE status = 'fail'")
+		if err != nil {
+			yield(types.TestResult{}, err)
+			return
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var r types.TestResult
+			if err := rows.Scan(&r.TestName, &r.Status, &r.ErrorMessage, &r.StackTrace, &r.TargetSymbol, &r.DurationMS, &r.Project); err != nil {
+				if !yield(types.TestResult{}, err) {
+					return
+				}
+				continue
+			}
+			if !yield(r, nil) {
+				return
+			}
+		}
+	}
+}
+
+func (s *Store) UpdateSymbolCentrality(ctx context.Context, name, path string, centrality int) error {
+	_, err := s.exec(ctx, "UPDATE symbols SET indegree = ? WHERE name = ? AND (path = ? OR ? = '')", centrality, name, path, path)
+	if err != nil {
+		return fmt.Errorf("failed to update centrality: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) ExportDelta(ctx context.Context, syncDir string) error {
@@ -635,24 +683,12 @@ func (s *Store) SaveCall(ctx context.Context, c Call) error {
 	return nil
 }
 
-// ResolveCentrality performs a batch update of all indegree counts based on the current call graph.
-func (s *Store) ResolveCentrality(ctx context.Context) error {
-	query := `
-		UPDATE symbols 
-		SET indegree = (
-			SELECT COUNT(DISTINCT caller_name || path) 
-			FROM calls 
-			WHERE callee_name = symbols.name AND (callee_path = symbols.path OR callee_path = '')
-		);`
-	_, err := s.exec(ctx, query)
-	if err != nil {
-		return fmt.Errorf("failed to resolve centrality: %w", err)
-	}
-	return nil
-}
 
-func (s *Store) GetCallers(ctx context.Context, callee string) ([]Call, error) {
-	rows, err := s.query(ctx, "SELECT caller_name, callee_name, path, line, callee_path, link_type FROM calls WHERE callee_name = ? LIMIT 500", callee)
+func (s *Store) GetCallers(ctx context.Context, callee string, limit, offset int) ([]Call, error) {
+	if limit == 0 {
+		limit = 500
+	}
+	rows, err := s.query(ctx, "SELECT caller_name, callee_name, path, line, callee_path, link_type FROM calls WHERE callee_name = ? LIMIT ? OFFSET ?", callee, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get callers: %w", err)
 	}
@@ -685,15 +721,10 @@ func (s *Store) GetCallees(ctx context.Context, caller string) ([]Call, error) {
 	return res, nil
 }
 
-func (s *Store) GetImpact(ctx context.Context, symbol string, path string, maxDepth int) (*types.ImpactResult, error) {
+func (s *Store) GetCallersRecursive(ctx context.Context, symbol string, path string, maxDepth int) ([]Call, error) {
 	if maxDepth <= 0 {
 		maxDepth = 3
 	}
-	if maxDepth > 10 {
-		maxDepth = 10
-	}
-
-	// 1. Recursive CTE Traversal with Cycle Detection
 	query := `
 	WITH RECURSIVE blast_radius(caller_name, caller_path, distance, link_type, path_trace) AS (
 		SELECT caller_name, path, 1, link_type, ',' || caller_name || ':' || path || ','
@@ -713,115 +744,34 @@ func (s *Store) GetImpact(ctx context.Context, symbol string, path string, maxDe
 
 	rows, err := s.query(ctx, query, symbol, path, maxDepth)
 	if err != nil {
-		return nil, fmt.Errorf("impact analysis failed: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 
-	// 2. Fetch Target Metadata (Public Export, Initial Centrality)
-	var isExported bool
-	var centrality int
-	var signature string
-	err = s.queryRow(ctx, "SELECT (name GLOB '[A-Z]*'), indegree, signature FROM symbols WHERE name = ? AND (path = ? OR ? = '') LIMIT 1", symbol, path, path).Scan(&isExported, &centrality, &signature)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, fmt.Errorf("failed to fetch target metadata: %w", err)
-	}
-
-	// [Strike 3] Identity Sovereignty: Create unique hash based on name + path + signature
-	symbolID := utils.SymbolSignatureHash(symbol, path, signature)
-
-	res := &types.ImpactResult{
-		Target: types.ImpactEntity{
-			Symbol: symbol,
-			File:   path,
-			Metrics: types.RiskMetrics{
-				Centrality:         float64(centrality),
-				PublicExport:       isExported,
-				HistoricalBugfixes: getHistoricalRisk(ctx, symbol, path, symbolID),
-			},
-		},
-		Callers: []types.ImpactEntity{},
-	}
-
-	// 3. Build Graph and Calculate Blast Radius
-	mermaid := "graph TD\n"
-	blastRadius := 0
-	
-	// Track nodes for Mermaid to avoid duplicates
-	edges := make(map[string]bool)
-
+	var res []Call
 	for rows.Next() {
-		var r types.ImpactEntity
-		if err := rows.Scan(&r.Symbol, &r.File, &r.Distance, &r.LinkType); err != nil {
+		var c Call
+		var dist int
+		if err := rows.Scan(&c.CallerName, &c.Path, &dist, &c.LinkType); err != nil {
 			return nil, err
 		}
-		
-		// Add to callers
-		res.Callers = append(res.Callers, r)
-		blastRadius++
-
-		// Build Mermaid Edge
-		// Determine edge parent (if distance 1, parent is Target)
-		parent := symbol
-		if r.Distance > 1 {
-			// Find a caller at distance-1 that calls this one (heuristic)
-			for _, prev := range res.Callers {
-				if prev.Distance == r.Distance-1 {
-					parent = prev.Symbol
-					break
-				}
-			}
-		}
-		edge := fmt.Sprintf("    %s[\"%s\"] --> %s[\"%s\"]", r.Symbol, r.Symbol, parent, parent)
-		if !edges[edge] {
-			mermaid += edge + "\n"
-			edges[edge] = true
-		}
+		// We use Line field to store distance for now to avoid breaking Call struct or creating new one
+		// In a real refactor, we might want a separate struct.
+		c.Line = dist 
+		res = append(res, c)
 	}
-	res.Mermaid = mermaid
-
-	// 4. Calculate Risk Score (Wave 9 Logarithmic formula + Historical Synergy)
-	// Logarithmic normalization prevents premature saturation in large codebases
-	cScore := math.Min(1.0, math.Log1p(float64(centrality))/math.Log1p(100.0))
-	bScore := math.Min(1.0, math.Log1p(float64(blastRadius))/math.Log1p(500.0))
-	
-	// Historical Risk: Each bugfix in Engram adds 0.05 to the score (max 0.2)
-	hScore := math.Min(0.2, float64(res.Target.Metrics.HistoricalBugfixes)*0.05)
-	
-	eScore := 0.0
-	if isExported {
-		eScore = 0.2
-	}
-
-	res.Target.RiskScore = (cScore * 0.4) + (bScore * 0.4) + hScore + eScore
-	res.Target.RiskScore = math.Min(1.0, res.Target.RiskScore)
-
-	// Determine Risk Level
-	switch {
-	case res.Target.RiskScore >= 0.8:
-		res.RiskLevel = "Critical"
-	case res.Target.RiskScore >= 0.5:
-		res.RiskLevel = "High"
-	case res.Target.RiskScore >= 0.2:
-		res.RiskLevel = "Medium"
-	default:
-		res.RiskLevel = "Low"
-	}
-
 	return res, nil
 }
 
-func (s *Store) GetAffectedTests(ctx context.Context, symbol, path string) ([]Symbol, error) {
+func (s *Store) GetAffectedTestsRecursive(ctx context.Context, symbol, path string) ([]Symbol, error) {
 	query := `
 	WITH RECURSIVE affected(name, path, distance) AS (
-		-- Base case: the initial symbol
 		SELECT name, path, 0
 		FROM symbols
 		WHERE name = ? AND path = ?
 		
 		UNION
 		
-		-- Recursive step: find callers of symbols in the 'affected' set
-		-- We include 'implements' and 'dynamic' links by not filtering on link_type
 		SELECT c.caller_name, c.path, a.distance + 1
 		FROM calls c
 		JOIN affected a ON c.callee_name = a.name AND (c.callee_path = a.path OR c.callee_path = '')
@@ -836,7 +786,7 @@ func (s *Store) GetAffectedTests(ctx context.Context, symbol, path string) ([]Sy
 
 	rows, err := s.query(ctx, query, symbol, path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get affected tests: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -844,7 +794,7 @@ func (s *Store) GetAffectedTests(ctx context.Context, symbol, path string) ([]Sy
 	for rows.Next() {
 		var sym Symbol
 		if err := rows.Scan(&sym.Name, &sym.Type, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine); err != nil {
-			return nil, fmt.Errorf("scan affected symbol failed: %w", err)
+			return nil, err
 		}
 		res = append(res, sym)
 	}
@@ -1025,53 +975,6 @@ func (s *Store) WithTransaction(ctx context.Context, fn func(context.Context, Re
 }
 
 func (s *Store) Close() error { return s.db.Close() }
-
-var engramIDRegex = regexp.MustCompile(`\[\d+\] #\d+`)
-
-func getHistoricalRisk(ctx context.Context, symbol string, path string, symbolID string) int {
-	project := utils.GetRepoName(ctx)
-	if project == "" {
-		return 0
-	}
-
-	// [Strike 3] Stable Topic Key based on unique symbol ID
-	topicKey := "scouter/risk/" + symbolID
-
-	// Heuristic: relative path is better for Engram search
-	relPath := path
-	if cwd, err := os.Getwd(); err == nil {
-		if rel, err := filepath.Rel(cwd, path); err == nil {
-			relPath = rel
-		}
-	}
-
-	// [Strike 2] Defensive Argument Layering: Use -- to prevent injection
-	queries := []string{symbol, relPath}
-	uniqueIDs := make(map[string]bool)
-
-	for _, q := range queries {
-		// Search by query OR topicKey to aggregate history
-		cmd := exec.CommandContext(ctx, "engram", "search", "--type", "bugfix", "--project", project, "--limit", "10", "--", q)
-		out, err := cmd.Output()
-		if err == nil {
-			matches := engramIDRegex.FindAllString(string(out), -1)
-			for _, m := range matches {
-				uniqueIDs[m] = true
-			}
-		}
-	}
-
-	// Also search by specific topicKey to find evolved records
-	cmd := exec.CommandContext(ctx, "engram", "search", "--type", "bugfix", "--project", project, "--", topicKey)
-	if out, err := cmd.Output(); err == nil {
-		matches := engramIDRegex.FindAllString(string(out), -1)
-		for _, m := range matches {
-			uniqueIDs[m] = true
-		}
-	}
-
-	return len(uniqueIDs)
-}
 
 func (s *Store) GetMemoryInsights(ctx context.Context, query string) ([]types.MemoryInsight, error) {
 	project := utils.GetRepoName(ctx)

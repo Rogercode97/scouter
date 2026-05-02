@@ -15,7 +15,6 @@ import (
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/filter"
-	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -27,12 +26,16 @@ type IndexParams struct {
 }
 
 type SearchParams struct {
-	Query string `json:"query"`
-	Type  string `json:"type,omitempty"`
+	Query  string `json:"query"`
+	Type   string `json:"type,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
+	Offset int    `json:"offset,omitempty"`
 }
 
 type HybridSearchParams struct {
-	Query string `json:"query"`
+	Query  string `json:"query"`
+	Limit  int    `json:"limit,omitempty"`
+	Offset int    `json:"offset,omitempty"`
 }
 
 type ReadParams struct {
@@ -42,6 +45,8 @@ type ReadParams struct {
 
 type CallersParams struct {
 	CalleeName string `json:"calleeName"`
+	Limit      int    `json:"limit,omitempty"`
+	Offset     int    `json:"offset,omitempty"`
 }
 
 type DefinitionParams struct {
@@ -129,150 +134,135 @@ func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args
 		return nil, nil, fmt.Errorf("missing filePath")
 	}
 
-	path, err := utils.ValidatePath(args.FilePath)
-	if err != nil {
+	if err := s.engine.Index(ctx, args.FilePath); err != nil {
 		return nil, nil, err
 	}
-
-	pointers, calls, err := engine.ParseFile(ctx, path, s.lspMgr)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Calculate hash for file index integrity
-	hash, _ := utils.CalculateHash(path)
-	fi, _ := os.Stat(path)
-	mtime := int64(0)
-	if fi != nil {
-		mtime = fi.ModTime().Unix()
-	}
-
-	// Persist to store (Sovereignty Mandate: Done is validated)
-	err = s.store.WithTransaction(ctx, func(ctx context.Context, tx store.Repository) error {
-		tx.SaveFileIndex(ctx, &store.FileIndex{
-			Path:    path,
-			Mtime:   mtime,
-			Hash:    hash,
-			ASTJSON: "{}", // Compact context optimization
-			Project: utils.GetRepoName(ctx),
-		})
-		tx.ClearSymbols(ctx, path)
-		tx.ClearCalls(ctx, path)
-
-		for _, p := range pointers {
-			err := tx.SaveSymbol(ctx, &store.Symbol{
-				Name:      p.Name,
-				Type:      p.Type,
-				Signature: p.Signature,
-				Doc:       p.Doc,
-				Path:      path,
-				StartByte: p.Range.Start,
-				EndByte:   p.Range.End,
-				StartLine: p.StartLine,
-				StartCol:  p.StartCol,
-				EndLine:   p.EndLine,
-			})
-			if err != nil {
-				return err
-			}
-		}
-
-		for _, c := range calls {
-			err := tx.SaveCall(ctx, store.Call{
-				CallerName: c.CallerName,
-				CalleeName: c.CalleeName,
-				CalleePath: c.CalleePath,
-				LinkType:   c.LinkType,
-				Path:       path,
-				Line:       c.Line,
-			})
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to save index: %w", err)
-	}
-
-	// DIVINE REDEMPTION: Post-indexing resolution (Interfaces & Centrality)
-	// This ensures the Global Call Graph is immediately updated after an explicit index call.
-	_ = engine.LinkInterfaces(ctx, s.store, s.lspMgr)
-	_ = s.store.ResolveCentrality(ctx)
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("✅ Indexed %s: %d symbols, %d calls", args.FilePath, len(pointers), len(calls))},
+			&mcp.TextContent{Text: fmt.Sprintf("✅ Indexed %s and updated global call graph", args.FilePath)},
 		},
 	}, nil, nil
 }
 
 func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, args SearchParams) (*mcp.CallToolResult, any, error) {
-	results, err := s.store.SearchSymbols(ctx, args.Query, args.Type)
-	if err != nil {
-		return nil, nil, err
+	limit := args.Limit
+	if limit == 0 {
+		limit = 50
 	}
-
-	if len(results) > 500 {
-		results = results[:500]
+	results, err := s.store.SearchSymbols(ctx, args.Query, args.Type, limit, args.Offset)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Search execution failed: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	out, err := json.Marshal(results)
 	if err != nil {
-		return nil, nil, fmt.Errorf("marshal search results: %w", err)
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal search results: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
+
+	thought := fmt.Sprintf("<thought>\nExecuted search for query '%s' (type: '%s'). Retrieved %d results (limit: %d, offset: %d).\n</thought>\n", args.Query, args.Type, len(results), limit, args.Offset)
+
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(out)},
+			&mcp.TextContent{Text: thought + string(out)},
 		},
 	}, nil, nil
 }
 
 func (s *Server) handleRead(ctx context.Context, req *mcp.CallToolRequest, args ReadParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" || args.Pointer == "" {
-		return nil, nil, fmt.Errorf("missing filePath or pointer")
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath or pointer"}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	path, err := utils.ValidatePath(args.FilePath)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	// [RTK Muscle] Delegation check
+	if _, err := exec.LookPath("rtk"); err == nil {
+		cmd := exec.CommandContext(ctx, "rtk", "read", path, "--pointer", args.Pointer, "--ultra-compact")
+		if out, err := cmd.CombinedOutput(); err == nil {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: fmt.Sprintf("<thought>\nDelegated read to RTK for Pure Signal extraction (pointer: %s).\n</thought>\n%s", args.Pointer, string(out))},
+				},
+			}, nil, nil
+		}
+		// If RTK fails, fallback to manual read
+		if s.logger != nil {
+			s.logger.Warn("RTK delegation failed, falling back to manual read", "error", err)
+		}
 	}
 
 	rng, err := s.resolver.Resolve(ctx, path, args.Pointer)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	content, err := engine.ReadFragment(ctx, path, rng)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: content},
+			&mcp.TextContent{Text: fmt.Sprintf("<thought>\nManual read for pointer '%s'.\n</thought>\n%s", args.Pointer, content)},
 		},
 	}, nil, nil
 }
 
 func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, args CallersParams) (*mcp.CallToolResult, any, error) {
 	if args.CalleeName == "" {
-		return nil, nil, fmt.Errorf("missing calleeName")
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "missing calleeName"}},
+			IsError: true,
+		}, nil, nil
 	}
-	results, err := s.store.GetCallers(ctx, args.CalleeName)
+	limit := args.Limit
+	if limit == 0 {
+		limit = 50
+	}
+	results, err := s.store.GetCallers(ctx, args.CalleeName, limit, args.Offset)
 	if err != nil {
-		return nil, nil, err
-	}
-	if len(results) > 500 {
-		results = results[:500]
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get callers: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
 	out, err := json.Marshal(results)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal caller results: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
+
+	thought := fmt.Sprintf("<thought>\nRetrieved callers for '%s'. Found %d callers (limit: %d, offset: %d).\n</thought>\n", args.CalleeName, len(results), limit, args.Offset)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: thought + string(out)},
+		},
+	}, nil, nil
 }
 
 func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequest, args DefinitionParams) (*mcp.CallToolResult, any, error) {
@@ -340,68 +330,30 @@ func (s *Server) handleTypeInfo(ctx context.Context, req *mcp.CallToolRequest, a
 }
 
 func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, args ImpactParams) (*mcp.CallToolResult, any, error) {
-	maxDepth := args.MaxDepth
-	if maxDepth == 0 {
-		maxDepth = 5
-	}
-	res, err := s.store.GetImpact(ctx, args.SymbolName, args.FilePath, maxDepth)
+	// [Sovereignty Upgrade] Route through TruthEngine
+	res, err := s.engine.AnalyzeImpact(ctx, args.SymbolName, args.FilePath, args.Verbose, &mcpMessenger{req: req})
 	if err != nil {
-		return nil, nil, err
-	}
-	
-	// Limit callers if they exceed 500
-	if len(res.Callers) > 500 {
-		res.Callers = res.Callers[:500]
-	}
-
-	// 4. [Divine Synergy] Progressive Disclosure (Context OS)
-	if !args.Verbose {
-		summary := map[string]any{
-			"symbol":      res.Target.Symbol,
-			"file":        res.Target.File,
-			"risk_score":  res.Target.RiskScore,
-			"risk_level":  res.RiskLevel,
-			"callers":     len(res.Callers),
-			"instruction": "For full Mermaid graph and callers list, use 'verbose: true'.",
-		}
-		summaryJSON, _ := json.Marshal(summary)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(summaryJSON)}}}, nil, nil
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to analyze impact: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	out, err := json.Marshal(res)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal impact result: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
 
-	// 5. [Divine Synergy] Sampling Oracle
-	// If Risk is Critical (>0.8), request a refactoring proposal from the Model via MCP Sampling.
-	if res.Target.RiskScore >= 0.8 {
-		samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
-			Messages: []*mcp.SamplingMessage{
-				{
-					Role: "user",
-					Content: &mcp.TextContent{
-						Text: fmt.Sprintf("The function '%s' in '%s' has a CRITICAL Risk Score of %.4f. Based on its centrality and blast radius, please provide a brief architectural refactoring proposal to reduce its impact.", args.SymbolName, args.FilePath, res.Target.RiskScore),
-					},
-				},
-			},
-			MaxTokens: 1024,
-		})
-		if err == nil {
-			if txt, ok := samplingRes.Content.(*mcp.TextContent); ok {
-				return &mcp.CallToolResult{
-					Content: []mcp.Content{
-						&mcp.TextContent{Text: string(out)},
-						&mcp.TextContent{Text: "\n\n--- 🔮 ORACLE REFACTORING PROPOSAL ---\n" + txt.Text},
-					},
-				}, nil, nil
-			}
-		} else {
-			s.logger.Warn("Sampling Oracle failed", "error", err)
-		}
-	}
+	thought := fmt.Sprintf("<thought>\nCalculated blast radius for '%s'. Target risk score: %.4f (Level: %s). Found %d affected callers.\n</thought>\n", args.SymbolName, res.Target.RiskScore, res.RiskLevel, len(res.Callers))
 
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: thought + string(out)},
+		},
+	}, nil, nil
 }
 
 func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, args CriticalParams) (*mcp.CallToolResult, any, error) {
@@ -409,18 +361,28 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 	if limit == 0 {
 		limit = 10
 	}
-	if limit > 500 {
-		limit = 500
-	}
-	results, err := s.store.GetCriticalSymbols(ctx, limit)
+	results, err := s.engine.GetCriticalSymbols(ctx, limit)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get critical symbols: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
 	out, err := json.Marshal(results)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal critical symbols: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
+
+	thought := fmt.Sprintf("<thought>\nRetrieved critical symbols. Found %d high-risk targets (limit: %d).\n</thought>\n", len(results), limit)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: thought + string(out)},
+		},
+	}, nil, nil
 }
 
 func (s *Server) handleDependencies(ctx context.Context, req *mcp.CallToolRequest, args DependenciesParams) (*mcp.CallToolResult, any, error) {
@@ -515,7 +477,7 @@ func (s *Server) handleObsidianExport(ctx context.Context, req *mcp.CallToolRequ
 		return nil, nil, fmt.Errorf("security violation: export path '%s' is outside the workspace", exportPath)
 	}
 
-	res, err := s.store.GetImpact(ctx, args.SymbolName, args.FilePath, 5)
+	res, err := s.engine.AnalyzeImpact(ctx, args.SymbolName, args.FilePath, true, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -569,17 +531,37 @@ date: %s
 
 func (s *Server) handleHybridSearch(ctx context.Context, req *mcp.CallToolRequest, args HybridSearchParams) (*mcp.CallToolResult, any, error) {
 	if args.Query == "" {
-		return nil, nil, fmt.Errorf("missing query")
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "missing query"}},
+			IsError: true,
+		}, nil, nil
 	}
 
-	res, err := s.search.HybridSearch(ctx, args.Query)
-	if err != nil {
-		return nil, nil, err
+	limit := args.Limit
+	if limit == 0 {
+		limit = 20
 	}
-	out, _ := json.Marshal(res)
+
+	res, err := s.engine.HybridSearch(ctx, args.Query, limit, args.Offset)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Hybrid search failed: %v", err)}},
+			IsError: true,
+		}, nil, nil
+	}
+	out, err := json.Marshal(res)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal hybrid search results: %v", err)}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	thought := fmt.Sprintf("<thought>\nExecuted hybrid search for '%s'. Found %d AST symbols and %d Engram insights (limit: %d, offset: %d).\n</thought>\n", args.Query, len(res.Symbols), len(res.Insights), limit, args.Offset)
+
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(out)},
+			&mcp.TextContent{Text: thought + string(out)},
 		},
 	}, nil, nil
 }
@@ -590,7 +572,7 @@ func (s *Server) handleCompactContext(ctx context.Context, req *mcp.CallToolRequ
 	diffOut, err := exec.CommandContext(ctx, "git", "diff", "HEAD", "--unified=0").Output()
 	if err == nil && len(diffOut) > 0 {
 		diff := string(diffOut)
-		critical, _ := s.compact.IdentifyCriticalContext(ctx, diff)
+		critical, _ := s.engine.IdentifyCriticalContext(ctx, diff)
 		if len(critical) > 0 {
 			var sb strings.Builder
 			sb.WriteString(systemPrompt)
@@ -623,10 +605,10 @@ func (s *Server) handleCompactContext(ctx context.Context, req *mcp.CallToolRequ
 		return nil, nil, fmt.Errorf("unexpected sampling response type: %T", samplingRes.Content)
 	}
 
-	// 2. Delegate to Compaction Engine for persistence
-	res, err := s.compact.CompactSession(ctx, txt.Text)
+	// 2. Delegate to TruthEngine for compaction
+	res, err := s.engine.CompactSession(ctx, txt.Text)
 	if err != nil {
-		return nil, nil, fmt.Errorf("compaction engine failed: %w", err)
+		return nil, nil, fmt.Errorf("compaction failed: %w", err)
 	}
 
 	return &mcp.CallToolResult{
@@ -688,38 +670,15 @@ func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, a
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Configure healer bridge to use MCP Sampling
-	s.healer.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
-		samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
-			SystemPrompt: SelfHealSystemPrompt,
-			Messages: []*mcp.SamplingMessage{
-				{
-					Role:    "user",
-					Content: &mcp.TextContent{Text: prompt},
-				},
-			},
-			MaxTokens: 2048,
-		})
-		if err != nil {
-			return "", err
-		}
-		txt, ok := samplingRes.Content.(*mcp.TextContent)
-		if !ok {
-			return "", fmt.Errorf("unexpected fix response type")
-		}
-		return txt.Text, nil
-	}
-
-	// Delegate to Healer Engine
-	res, err := s.healer.Fix(ctx, args.ErrorLog)
+	// Delegate to TruthEngine
+	res, err := s.engine.Fix(ctx, args.ErrorLog, &mcpMessenger{req: req})
 	if err != nil {
-		return nil, nil, fmt.Errorf("self-heal engine failed: %w", err)
+		return nil, nil, fmt.Errorf("self-heal failed: %w", err)
 	}
 
-	out, _ := json.Marshal(res)
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(out)},
+			&mcp.TextContent{Text: res},
 		},
 	}, nil, nil
 }
@@ -732,58 +691,15 @@ func (s *Server) handleRippleRefactor(ctx context.Context, req *mcp.CallToolRequ
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// [Sovereignty Upgrade] Bridge MCP Sampling to Ripple Engine
-	s.ripple.Transformer = &engine.MCPTransformer{
-		DoTransform: func(ctx context.Context, file, symbol, transformation string) (string, error) {
-			// Get current file content for context
-			content, err := os.ReadFile(file)
-			if err != nil {
-				return "", fmt.Errorf("failed to read file %s: %w", file, err)
-			}
-
-			prompt := fmt.Sprintf("File: %s\nTarget Symbol: %s\nTransformation: %s\n\nSource Code:\n%s", file, symbol, transformation, string(content))
-			samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
-				SystemPrompt: "You are Scouter's Ripple Engine. Apply the requested transformation to the provided source code. Return ONLY the complete modified source code. NO MARKDOWN. NO COMMENTS.",
-				Messages: []*mcp.SamplingMessage{
-					{Role: "user", Content: &mcp.TextContent{Text: prompt}},
-				},
-				MaxTokens: 4096,
-			})
-			if err != nil {
-				return "", err
-			}
-			txt, ok := samplingRes.Content.(*mcp.TextContent)
-			if !ok {
-				return "", fmt.Errorf("unexpected sampling response type")
-			}
-			return utils.ExtractCodeBlock(txt.Text), nil
-		},
-	}
-
-	// Propagate changes via Ripple Engine
-	ledger, err := s.ripple.Propagate(ctx, args.SymbolName, args.Transformation, 5)
+	// Delegate to TruthEngine
+	res, err := s.engine.Propagate(ctx, args.SymbolName, args.Transformation, &mcpMessenger{req: req})
 	if err != nil {
 		return nil, nil, fmt.Errorf("propagation failed: %w", err)
 	}
 
-	// Transactional Commit
-	if err := ledger.Prepare(ctx); err != nil {
-		return nil, nil, fmt.Errorf("failed to prepare ledger: %w", err)
-	}
-
-	if err := ledger.Commit(ctx); err != nil {
-		ledger.Rollback(ctx)
-		return nil, nil, fmt.Errorf("failed to commit changes: %w", err)
-	}
-
-	res := map[string]any{
-		"status":        "SUCCESS",
-		"affectedFiles": ledger.AffectedFiles(),
-	}
-	out, _ := json.Marshal(res)
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(out)},
+			&mcp.TextContent{Text: res},
 		},
 	}, nil, nil
 }
@@ -912,7 +828,7 @@ func (s *Server) handlePredict(ctx context.Context, req *mcp.CallToolRequest, ar
 		}
 	}
 
-	results, err := engine.PredictTests(ctx, s.store, diff)
+	results, err := s.engine.PredictTests(ctx, diff)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1018,4 +934,27 @@ func (s *Server) handleJudge(ctx context.Context, req *mcp.CallToolRequest, args
 			&mcp.TextContent{Text: report},
 		},
 	}, nil, nil
+}
+
+// mcpMessenger adapts MCP Sampling to TruthEngine's Messenger interface.
+type mcpMessenger struct {
+	req *mcp.CallToolRequest
+}
+
+func (m *mcpMessenger) Ask(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	res, err := m.req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
+		SystemPrompt: systemPrompt,
+		Messages: []*mcp.SamplingMessage{
+			{Role: "user", Content: &mcp.TextContent{Text: userPrompt}},
+		},
+		MaxTokens: 2048,
+	})
+	if err != nil {
+		return "", err
+	}
+	txt, ok := res.Content.(*mcp.TextContent)
+	if !ok {
+		return "", fmt.Errorf("unexpected sampling response type")
+	}
+	return txt.Text, nil
 }
