@@ -24,11 +24,11 @@ type mockRippleStore struct {
 	symbols []store.Symbol
 }
 
-func (m *mockRippleStore) GetCallers(ctx context.Context, name string) ([]store.Call, error) {
+func (m *mockRippleStore) GetCallers(ctx context.Context, name string, limit, offset int) ([]store.Call, error) {
 	return m.callers, nil
 }
 
-func (m *mockRippleStore) SearchSymbols(ctx context.Context, query, symType string) ([]store.Symbol, error) {
+func (m *mockRippleStore) SearchSymbols(ctx context.Context, query, symType string, limit, offset int) ([]store.Symbol, error) {
 	return m.symbols, nil
 }
 

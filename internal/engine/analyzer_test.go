@@ -43,7 +43,7 @@ func TestResolveInterfaces(t *testing.T) {
 	}
 
 	// 3. Verify
-	callers, err := s.GetCallers(ctx, "Shape")
+	callers, err := s.GetCallers(ctx, "Shape", 0, 0)
 	if err != nil {
 		t.Fatalf("GetCallers failed: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestResolveCentrality(t *testing.T) {
 		t.Fatalf("ResolveCentrality failed: %v", err)
 	}
 
-	syms, _ := s.SearchSymbols(ctx, "B", "")
+	syms, _ := s.SearchSymbols(ctx, "B", "", 0, 0)
 	if len(syms) == 0 {
 		t.Fatalf("Symbol B not found")
 	}

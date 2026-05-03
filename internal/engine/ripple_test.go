@@ -30,11 +30,11 @@ type rippleEngineMockStore struct {
 	symbols map[string][]store.Symbol
 }
 
-func (m *rippleEngineMockStore) GetCallers(ctx context.Context, name string) ([]store.Call, error) {
+func (m *rippleEngineMockStore) GetCallers(ctx context.Context, name string, limit, offset int) ([]store.Call, error) {
 	return m.callers[name], nil
 }
 
-func (m *rippleEngineMockStore) SearchSymbols(ctx context.Context, query, symType string) ([]store.Symbol, error) {
+func (m *rippleEngineMockStore) SearchSymbols(ctx context.Context, query, symType string, limit, offset int) ([]store.Symbol, error) {
 	return m.symbols[query], nil
 }
 

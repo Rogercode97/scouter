@@ -31,7 +31,7 @@ type Server struct {
 func NewServer(st store.Repository, logger *slog.Logger) *Server {
 	implementation := &mcp.Implementation{
 		Name:    "scouter",
-		Version: "8.0.0-wave11",
+		Version: "12.0.0-ascension",
 	}
 	
 	s := &Server{
