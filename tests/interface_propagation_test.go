@@ -33,7 +33,8 @@ func (g *EnglishGreeter) Greet(name string) string {
 	return "Hello, " + name
 }
 `
-	filePath := "repro_interface.go"
+	cwd, _ := os.Getwd()
+	filePath := filepath.Join(cwd, "repro_interface.go")
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 		t.Fatalf("failed to write repro file: %v", err)
 	}
@@ -52,7 +53,7 @@ func (g *EnglishGreeter) Greet(name string) string {
 	}
 
 	// 3. Verify 'implements' link exists
-	calls, err := st.GetCallers(ctx, "Greeter")
+	calls, err := st.GetCallers(ctx, "Greeter", 0, 0)
 	if err != nil {
 		t.Fatalf("failed to get callers: %v", err)
 	}

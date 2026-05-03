@@ -1,4 +1,4 @@
-schema: spec-driven
+schema: hybrid
 
 context: |
   Tech stack: Go 1.25.0, SQLite (modernc.org/sqlite), Tree-sitter (bindings/go)

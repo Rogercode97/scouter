@@ -131,16 +131,24 @@ type JudgeResult struct {
 
 func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args IndexParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
-		return nil, nil, fmt.Errorf("missing filePath")
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
+			IsError: true,
+		}, nil, nil
 	}
 
+	thought := fmt.Sprintf("<thought>\nIndexing AST symbols for path: %s. This will update the global call graph and enable precise impact analysis.\n</thought>\n", args.FilePath)
+
 	if err := s.engine.Index(ctx, args.FilePath); err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Indexing failed: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("✅ Indexed %s and updated global call graph", args.FilePath)},
+			&mcp.TextContent{Text: thought + fmt.Sprintf("✅ Indexed %s and updated global call graph", args.FilePath)},
 		},
 	}, nil, nil
 }
@@ -267,17 +275,26 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 
 func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequest, args DefinitionParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
-		return nil, nil, fmt.Errorf("missing filePath")
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	path, err := utils.ValidatePath(args.FilePath)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	client, err := s.lspMgr.GetClient(ctx, path)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("LSP client error: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	locs, err := client.Definition(ctx, lsp.DefinitionParams{
@@ -290,26 +307,44 @@ func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequ
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Definition lookup failed: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
 
+	thought := fmt.Sprintf("<thought>\nResolved definition for symbol at %s:%d:%d via LSP.\n</thought>\n", args.FilePath, args.Line, args.Character)
 	out, _ := json.Marshal(locs)
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: thought + string(out)},
+		},
+	}, nil, nil
 }
 
 func (s *Server) handleTypeInfo(ctx context.Context, req *mcp.CallToolRequest, args TypeInfoParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
-		return nil, nil, fmt.Errorf("missing filePath")
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	path, err := utils.ValidatePath(args.FilePath)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	client, err := s.lspMgr.GetClient(ctx, path)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("LSP client error: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	res, err := client.Hover(ctx, lsp.HoverParams{
@@ -322,11 +357,20 @@ func (s *Server) handleTypeInfo(ctx context.Context, req *mcp.CallToolRequest, a
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Hover lookup failed: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
 
+	thought := fmt.Sprintf("<thought>\nRetrieved type info/hover documentation for symbol at %s:%d:%d.\n</thought>\n", args.FilePath, args.Line, args.Character)
 	out, _ := json.Marshal(res)
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: thought + string(out)},
+		},
+	}, nil, nil
 }
 
 func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, args ImpactParams) (*mcp.CallToolResult, any, error) {
@@ -388,21 +432,40 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 func (s *Server) handleDependencies(ctx context.Context, req *mcp.CallToolRequest, args DependenciesParams) (*mcp.CallToolResult, any, error) {
 	res, err := s.store.GetDependencies(ctx)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get dependencies: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
-	if len(res) > 500 {
+	
+	count := len(res)
+	if count > 500 {
 		res = res[:500]
 	}
+	
 	out, err := json.Marshal(res)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal dependencies: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
+	
+	thought := fmt.Sprintf("<thought>\nRetrieved %d project dependencies (truncated to 500).\n</thought>\n", count)
+	
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: thought + string(out)},
+		},
+	}, nil, nil
 }
 
 func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRequest, args StructuralSearchParams) (*mcp.CallToolResult, any, error) {
 	if args.Pattern == "" || args.Ext == "" {
-		return nil, nil, fmt.Errorf("missing pattern or ext")
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "missing pattern or ext"}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	searchPath := args.Path
@@ -412,23 +475,40 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 
 	path, err := utils.ValidatePath(searchPath)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+			IsError: true,
+		}, nil, nil
 	}
 
 	results, err := engine.StructuralSearch(ctx, path, args.Pattern, args.Ext)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Structural search failed: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
 
-	if len(results) > 500 {
+	count := len(results)
+	if count > 500 {
 		results = results[:500]
 	}
 
 	out, err := json.Marshal(results)
 	if err != nil {
-		return nil, nil, err
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal structural search results: %v", err)}},
+			IsError: true,
+		}, nil, nil
 	}
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil, nil
+	
+	thought := fmt.Sprintf("<thought>\nExecuted structural search for pattern '%s' in '%s'. Found %d matches (truncated to 500).\n</thought>\n", args.Pattern, path, count)
+	
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: thought + string(out)},
+		},
+	}, nil, nil
 }
 
 func (s *Server) handlePureSignal(ctx context.Context, req *mcp.CallToolRequest, args PureSignalParams) (*mcp.CallToolResult, any, error) {

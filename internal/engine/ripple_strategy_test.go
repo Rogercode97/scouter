@@ -14,11 +14,11 @@ type rippleMockStore struct {
 	symbols map[string][]store.Symbol
 }
 
-func (m *rippleMockStore) GetCallers(ctx context.Context, callee string) ([]store.Call, error) {
+func (m *rippleMockStore) GetCallers(ctx context.Context, callee string, limit, offset int) ([]store.Call, error) {
 	return m.callers[callee], nil
 }
 
-func (m *rippleMockStore) SearchSymbols(ctx context.Context, q, t string) ([]store.Symbol, error) {
+func (m *rippleMockStore) SearchSymbols(ctx context.Context, q, t string, limit, offset int) ([]store.Symbol, error) {
 	return m.symbols[q], nil
 }
 
