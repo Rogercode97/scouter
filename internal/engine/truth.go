@@ -30,6 +30,7 @@ type TruthEngine struct {
 	compact   *CompactionEngine
 	healer    *HealerEngine
 	ripple    *RippleEngine
+	ledger    *Ledger
 	messenger Messenger
 	logger    *slog.Logger
 }
@@ -44,6 +45,7 @@ func NewTruthEngine(
 	compact *CompactionEngine,
 	healer *HealerEngine,
 	ripple *RippleEngine,
+	ledger *Ledger,
 	messenger Messenger,
 ) *TruthEngine {
 	return &TruthEngine{
@@ -55,6 +57,7 @@ func NewTruthEngine(
 		compact:   compact,
 		healer:    healer,
 		ripple:    ripple,
+		ledger:    ledger,
 		messenger: messenger,
 		logger:    slog.Default(),
 	}
