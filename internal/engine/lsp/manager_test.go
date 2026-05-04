@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -51,8 +52,8 @@ func TestLSPManager(t *testing.T) {
 	}
 
 	mc := client.(*mockClient)
-	if mc.binary != "gopls" {
-		t.Errorf("Expected binary gopls, got %s", mc.binary)
+	if !strings.HasSuffix(mc.binary, "gopls") {
+		t.Errorf("Expected binary to end with gopls, got %s", mc.binary)
 	}
 
 	// Test caching

@@ -3,9 +3,11 @@ package tests
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/engine"
+	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
 )
 
@@ -74,7 +76,10 @@ func (g *EnglishGreeter) Greet(name string) string {
 	// Current RippleEngine uses BFSPropagationStrategy which only follows callers.
 	// It DOES NOT follow implementations.
 	
-	strategy := engine.NewBFSPropagationStrategy(st, nil) // No ImpactEngine for now
+	lspMgr := lsp.NewManager()
+	defer lspMgr.Close()
+	impact := engine.NewImpactEngine(st, lspMgr)
+	strategy := engine.NewBFSPropagationStrategy(st, impact)
 	
 	// We want to see if renaming Greeter:Greet (the method) finds EnglishGreeter.Greet
 	tasks := strategy.Discover(ctx, "Greeter:Greet", 2)
