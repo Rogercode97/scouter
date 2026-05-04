@@ -36,6 +36,13 @@ Tras una investigación profunda del ecosistema (Abril 2026), Scouter se posicio
 4. **🧬 Traceado de Interfaces**: Resolución dinámica de llamadas a través de interfaces mediante análisis de tipos.
 5. **📡 CI/CD Oracle**: Generación de planes de ejecución de tests optimizados para pipelines.
 
+## 🗺️ Hoja de Ruta: Scouter Wave 12.0 (Sovereign & Lean) [BACKLOG]
+
+1. **Paso 1: Staging Ledger (Transparencia)**: Crear `internal/mcp/ledger.go` y el recurso `scouter://staging/ledger`. Evita "blind commits" y ahorra 30% de Ki.
+2. **Paso 2: Sovereign Resources (Eficiencia)**: Mover grafos de dependencias a recursos estáticos en `internal/mcp/resources.go` para reducir el "Impuesto MCP" en un 80%.
+3. **Paso 3: Protocolo Shinigami (Inteligencia)**: Evolucionar `healer.go` a un modelo de muestreo paralelo (Solver-Verifier) con tests de reproducción automáticos.
+4. **Paso 4: Interface Omniscience (Ripple V2)**: Resolver la deuda técnica de propagación a través de interfaces detectada en la sesión del 2026-05-03.
+
 ## 📜 Registro de Batalla (Lecciones Aprendidas)
 - **SQLITE_BUSY**: Resuelto mediante `signal.NotifyContext` y WAL mode.
 - **Foreign Key Sovereignty**: No se puede indexar una llamada sin un archivo previo.
