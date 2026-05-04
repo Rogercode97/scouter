@@ -109,3 +109,10 @@ type CompactionResult struct {
 	Timestamp  string `json:"timestamp"`
 	Message    string `json:"message"`
 }
+
+type HealResult struct {
+	Status     string            `json:"status"`
+	FixedCode  string            `json:"fixed_code"`
+	TestOutput string            `json:"test_output"`
+	Metadata   map[string]string `json:"metadata"`
+}

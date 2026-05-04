@@ -70,6 +70,20 @@ func (a *AnalysisEngine) ResolveInterfaces(ctx context.Context) error {
 						Path:       structPaths[strct],
 						LinkType:   "implements",
 					})
+
+					// Link individual methods for Omniscience (Ripple V2)
+					for _, req := range requiredMethods {
+						for _, act := range actualMethods {
+							if req.name == act.name && req.sig == act.sig {
+								_ = tx.SaveCall(txCtx, store.Call{
+									CallerName: strct + "." + act.name,
+									CalleeName: iface + ":" + req.name,
+									Path:       structPaths[strct],
+									LinkType:   "satisfies",
+								})
+							}
+						}
+					}
 				}
 			}
 		}

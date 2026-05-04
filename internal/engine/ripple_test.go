@@ -27,11 +27,16 @@ func (v *mockValidator) Validate(ctx context.Context, ledger *Ledger) (Validatio
 type rippleEngineMockStore struct {
 	store.Repository
 	callers map[string][]store.Call
+	callees map[string][]store.Call
 	symbols map[string][]store.Symbol
 }
 
 func (m *rippleEngineMockStore) GetCallers(ctx context.Context, name string, limit, offset int) ([]store.Call, error) {
 	return m.callers[name], nil
+}
+
+func (m *rippleEngineMockStore) GetCallees(ctx context.Context, name string) ([]store.Call, error) {
+	return m.callees[name], nil
 }
 
 func (m *rippleEngineMockStore) SearchSymbols(ctx context.Context, query, symType string, limit, offset int) ([]store.Symbol, error) {
@@ -84,8 +89,8 @@ func TestRippleEngine_Propagate(t *testing.T) {
 			t.Fatalf("Propagate failed: %v", err)
 		}
 
-		if len(ledger.staged) != 2 {
-			t.Errorf("Expected 2 staged files, got %d", len(ledger.staged))
+		if len(ledger.Staged) != 2 {
+			t.Errorf("Expected 2 staged files, got %d", len(ledger.Staged))
 		}
 	})
 

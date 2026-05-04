@@ -96,6 +96,60 @@ func TestHealerEngine_Fix_DeepRCA(t *testing.T) {
 	}
 }
 
+func TestHealerEngine_Shinigami(t *testing.T) {
+	ctx := context.Background()
+	s, _ := store.New(ctx, ":memory:")
+	defer s.Close()
+
+	mgr := lsp.NewManager()
+	analyzer := NewAnalysisEngine(s)
+	impact := NewImpactEngine(s, nil)
+	h := NewHealerEngine(s, mgr, analyzer, impact)
+
+	// Mock parallel solvers with different responses
+	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
+		if strings.Contains(prompt, "variant #0") {
+			// Solution 1: Valid but very long (should be penalized)
+			return "```go\nfunc longFix() {\n" + strings.Repeat("// very long\n", 50) + "}\n```", nil
+		}
+		if strings.Contains(prompt, "variant #1") {
+			// Solution 2: Perfect KISS solution
+			return "```go\nfunc kissFix() {}\n```", nil
+		}
+		// Solution 3: Another variant
+		return "```go\nfunc otherFix() {}\n```", nil
+	}
+
+	// Mock error log (using an existing file for StreamSymbols)
+	errorLog := `
+--- FAIL: TestShinigami (0.00s)
+    internal/engine/healer.go:32: some error
+`
+
+	// Run Fix
+	res, err := h.Fix(ctx, errorLog)
+	if err != nil {
+		t.Fatalf("Shinigami Fix failed: %v", err)
+	}
+
+	if res.Status != "STAGED" {
+		t.Errorf("Expected status STAGED, got %s", res.Status)
+	}
+
+	// Verify the KISS solution (variant #1) was chosen over the long one
+	if !strings.Contains(res.FixedCode, "kissFix") {
+		t.Errorf("Verifier failed to select the KISS candidate. Got: %s", res.FixedCode)
+	}
+
+	// Verify it was actually staged in the ledger
+	if h.Ledger.Stats.FilesCount != 1 {
+		t.Errorf("Expected 1 staged patch in ledger, got %d", h.Ledger.Stats.FilesCount)
+	}
+
+	t.Logf("Selected solution:\n%s", res.FixedCode)
+	t.Logf("Ledger Summary: %s", res.Metadata["ledger_summary"])
+}
+
 func TestHealerEngine_Fix_IntegrityWarning(t *testing.T) {
 	ctx := context.Background()
 	s, _ := store.New(ctx, ":memory:")

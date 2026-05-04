@@ -2,156 +2,208 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
-// Patch represents a localized structural modification.
+// Patch represents a pending file modification.
 type Patch struct {
-	FilePath   string
-	OldContent string
-	NewContent string
+	FilePath   string `json:"file_path"`
+	Original   string `json:"original,omitempty"`
+	NewContent string `json:"new_content"`
+	Diff       string `json:"diff,omitempty"`
 }
 
-// Ledger manages a set of patches across multiple files with atomic commit/rollback.
+// MissionStats tracks the resource consumption of the current operation.
+type MissionStats struct {
+	StartTime  time.Time `json:"start_time"`
+	TotalKi    int64     `json:"total_ki"`     // Token usage (approximated)
+	TurnCount  int       `json:"turn_count"`   // Number of iterations
+	FilesCount int       `json:"files_count"`
+}
+
+// Ledger holds staged changes and mission metrics.
 type Ledger struct {
-	mu      sync.Mutex
-	patches map[string]Patch
-	staged  map[string]Patch
-	backups map[string][]byte
+	mu         sync.RWMutex
+	Staged     map[string]Patch `json:"staged"`
+	Stats      MissionStats     `json:"stats"`
+	KiLimit    int64            `json:"ki_limit"`
+	TurnLimit  int              `json:"turn_limit"`
+	Project    string           `json:"project"`
+	ledgerPath string
 }
 
 func NewLedger() *Ledger {
-	return &Ledger{
-		patches: make(map[string]Patch),
-		staged:  make(map[string]Patch),
-		backups: make(map[string][]byte),
+	l := &Ledger{
+		Staged: make(map[string]Patch),
+		Stats: MissionStats{
+			StartTime: time.Now(),
+		},
+		KiLimit:    100000, // Default 100k Ki
+		TurnLimit:  10,     // Default 10 turns
+		ledgerPath: ".scouter/ledger.json",
+	}
+	
+	return l
+}
+
+// SetLedgerPath updates the persistence path and attempts to load it.
+func (l *Ledger) SetLedgerPath(path string) {
+	l.mu.Lock()
+	l.ledgerPath = path
+	l.mu.Unlock()
+	
+	if _, err := os.Stat(path); err == nil {
+		_ = l.Load()
 	}
 }
 
-// Record adds a patch to the ledger.
-func (l *Ledger) Record(filePath string, p Patch) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.patches[filePath] = p
+// Save persists the current ledger state to disk.
+func (l *Ledger) Save() error {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	dir := filepath.Dir(l.ledgerPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(l, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(l.ledgerPath, data, 0644)
 }
 
-// Stage adds a patch to the staging area.
-func (l *Ledger) Stage(path string, p Patch) {
+// Load restores the ledger state from disk.
+func (l *Ledger) Load() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.staged[path] = p
+
+	data, err := os.ReadFile(l.ledgerPath)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(data, l)
 }
 
-// Unstage removes a patch from the staging area.
+// SetBudget sets the limits for the current mission.
+func (l *Ledger) SetBudget(kiLimit int64, turnLimit int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.KiLimit = kiLimit
+	l.TurnLimit = turnLimit
+}
+
+// Stage adds a patch to the ledger and saves to disk.
+func (l *Ledger) Stage(path string, patch Patch) error {
+	l.mu.Lock()
+	
+	if l.Stats.TurnCount > l.TurnLimit && l.TurnLimit > 0 {
+		l.mu.Unlock()
+		return fmt.Errorf("mission budget exceeded: max turns reached (%d)", l.TurnLimit)
+	}
+
+	kiIncurred := int64(len(patch.NewContent) / 4)
+	if l.Stats.TotalKi+kiIncurred > l.KiLimit && l.KiLimit > 0 {
+		l.mu.Unlock()
+		return fmt.Errorf("mission budget exceeded: Ki limit reached (%d/%d)", l.Stats.TotalKi+kiIncurred, l.KiLimit)
+	}
+
+	l.Staged[path] = patch
+	l.Stats.TotalKi += kiIncurred
+	l.Stats.FilesCount = len(l.Staged)
+	l.mu.Unlock()
+
+	return l.Save()
+}
+
+// IncrementTurn advances the mission turn counter.
+func (l *Ledger) IncrementTurn() {
+	l.mu.Lock()
+	l.Stats.TurnCount++
+	l.mu.Unlock()
+	_ = l.Save()
+}
+
+// Unstage removes a patch from the ledger.
 func (l *Ledger) Unstage(path string) {
 	l.mu.Lock()
-	defer l.mu.Unlock()
-	delete(l.staged, path)
+	delete(l.Staged, path)
+	l.Stats.FilesCount = len(l.Staged)
+	l.mu.Unlock()
+	_ = l.Save()
 }
 
-// CommitStaged applies all staged patches to disk and clears the staging area.
+// GetStaged returns all pending patches.
+func (l *Ledger) GetStaged() []Patch {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	
+	patches := make([]Patch, 0, len(l.Staged))
+	for _, p := range l.Staged {
+		patches = append(patches, p)
+	}
+	return patches
+}
+
+// StagedFiles returns the list of paths in the ledger.
+func (l *Ledger) StagedFiles() []string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	
+	files := make([]string, 0, len(l.Staged))
+	for path := range l.Staged {
+		files = append(files, path)
+	}
+	return files
+}
+
+// CommitStaged applies all staged changes to the filesystem.
 func (l *Ledger) CommitStaged(ctx context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	for path, patch := range l.staged {
-		// Ensure backup exists for rollback if needed
-		if _, exists := l.backups[path]; !exists {
-			content, err := os.ReadFile(path)
-			if err == nil {
-				l.backups[path] = content
-			}
-		}
-
+	for path, patch := range l.Staged {
 		if err := os.WriteFile(path, []byte(patch.NewContent), 0644); err != nil {
-			return fmt.Errorf("failed to write staged patch to %s: %w", path, err)
+			return fmt.Errorf("failed to commit %s: %w", path, err)
 		}
-		// Move to committed patches
-		l.patches[path] = patch
 	}
 
-	// Clear staged
-	l.staged = make(map[string]Patch)
+	// Clear ledger and remove file after successful commit
+	l.Staged = make(map[string]Patch)
+	l.Stats.FilesCount = 0
+	_ = os.Remove(l.ledgerPath)
 	return nil
 }
 
-// Prepare backups all affected files.
-func (l *Ledger) Prepare(ctx context.Context) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	for path := range l.patches {
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("failed to backup %s: %w", path, err)
-		}
-		l.backups[path] = content
-		
-		// Create .bak file on disk for extra safety
-		bakPath := path + ".bak"
-		if err := os.WriteFile(bakPath, content, 0644); err != nil {
-			return fmt.Errorf("failed to create disk backup for %s: %w", path, err)
-		}
-	}
-	return nil
-}
-
-// Commit applies all patches to disk.
-func (l *Ledger) Commit(ctx context.Context) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	for path, patch := range l.patches {
-		if err := os.WriteFile(path, []byte(patch.NewContent), 0644); err != nil {
-			return fmt.Errorf("failed to write patch to %s: %w", path, err)
-		}
-	}
-
-	// Purge .bak files
-	for path := range l.patches {
-		os.Remove(path + ".bak")
-	}
-	return nil
-}
-
-// Rollback restores all files from backups.
+// Rollback clears all staged changes and removes the ledger file.
 func (l *Ledger) Rollback(ctx context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
-	var errs []string
-	for path, content := range l.backups {
-		if err := os.WriteFile(path, content, 0644); err != nil {
-			errs = append(errs, fmt.Sprintf("failed to restore %s: %v", path, err))
-		}
-		os.Remove(path + ".bak")
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("rollback errors: %s", filepath.Join(errs...))
-	}
+	l.Staged = make(map[string]Patch)
+	l.Stats.FilesCount = 0
+	_ = os.Remove(l.ledgerPath)
 	return nil
 }
 
+// AffectedFiles is an alias for StagedFiles.
 func (l *Ledger) AffectedFiles() []string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	files := make([]string, 0, len(l.patches))
-	for f := range l.patches {
-		files = append(files, f)
-	}
-	return files
+	return l.StagedFiles()
 }
 
-func (l *Ledger) StagedFiles() []string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	files := make([]string, 0, len(l.staged))
-	for f := range l.staged {
-		files = append(files, f)
-	}
-	return files
+// Summary returns a human-readable mission report.
+func (l *Ledger) Summary() string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	duration := time.Since(l.Stats.StartTime)
+	return fmt.Sprintf("🚀 Mission Summary:\n- Status: Staged\n- Files: %d\n- Budget: %d/%d Ki\n- Turns: %d/%d\n- Duration: %v",
+		l.Stats.FilesCount, l.Stats.TotalKi, l.KiLimit, l.Stats.TurnCount, l.TurnLimit, duration)
 }
