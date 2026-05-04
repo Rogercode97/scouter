@@ -45,12 +45,13 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 	}
 
 		// [Sovereignty Upgrade] Initialize Engines
+	ledger := engine.NewLedger() // Staging Ledger with persistence
 	impact := engine.NewImpactEngine(st, s.lspMgr)
 	analyzer := engine.NewAnalysisEngine(st)
 	ripple := engine.NewRippleEngine(st, nil, impact)
 	healer := engine.NewHealerEngine(st, s.lspMgr, analyzer, impact)
 	search := engine.NewSearchEngine(st)
-	compact := engine.NewCompactionEngine(st)
+	compact := engine.NewCompactionEngine(st, ledger)
 
 	s.engine = engine.NewTruthEngine(
 		st,
@@ -61,6 +62,7 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 		compact,
 		healer,
 		ripple,
+		ledger,
 		nil, // Messenger will be injected per-request if needed
 	)
 

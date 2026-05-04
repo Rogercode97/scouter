@@ -692,6 +692,33 @@ func (s *Server) handleSaveAnchor(ctx context.Context, req *mcp.CallToolRequest,
 	}, nil, nil
 }
 
+type healerMessenger struct {
+	req       *mcp.CallToolRequest
+	engramCtx string
+}
+
+func (m *healerMessenger) Ask(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	sysPrompt := SelfHealSystemPrompt
+	if m.engramCtx != "" {
+		sysPrompt += "\n\nHISTORICAL FIXES:\n" + m.engramCtx
+	}
+	res, err := m.req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
+		SystemPrompt: sysPrompt,
+		Messages: []*mcp.SamplingMessage{
+			{Role: "user", Content: &mcp.TextContent{Text: userPrompt}},
+		},
+		MaxTokens: 2048,
+	})
+	if err != nil {
+		return "", err
+	}
+	txt, ok := res.Content.(*mcp.TextContent)
+	if !ok {
+		return "", fmt.Errorf("unexpected sampling response type")
+	}
+	return txt.Text, nil
+}
+
 func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, args SelfHealParams) (*mcp.CallToolResult, any, error) {
 	if args.ErrorLog == "" {
 		return nil, nil, fmt.Errorf("missing errorLog")
@@ -701,8 +728,14 @@ func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, a
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	searchQuery := args.ErrorLog
+	if len(searchQuery) > 100 {
+		searchQuery = searchQuery[:100]
+	}
+	engramCtx := fetchEngramContext("bugfix " + searchQuery)
+
 	// Delegate to TruthEngine
-	res, err := s.engine.Fix(ctx, args.ErrorLog, &mcpMessenger{req: req})
+	res, err := s.engine.Fix(ctx, args.ErrorLog, &healerMessenger{req: req, engramCtx: engramCtx})
 	if err != nil {
 		return nil, nil, fmt.Errorf("self-heal failed: %w", err)
 	}
@@ -876,8 +909,24 @@ func (s *Server) handlePredict(ctx context.Context, req *mcp.CallToolRequest, ar
 	}, nil, nil
 }
 
+var execCommand = exec.Command
+
+func fetchEngramContext(query string) string {
+	cmd := execCommand("engram", "search", query, "--limit", "3")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	res := string(out)
+	if len(res) > 1000 {
+		return res[:1000] + "\n...[truncated]"
+	}
+	return res
+}
+
 func (s *Server) handleJudge(ctx context.Context, req *mcp.CallToolRequest, args JudgeParams) (*mcp.CallToolResult, any, error) {
-	prompt := fmt.Sprintf("Architectural Proposal: %s\n\nGit Diff:\n%s", args.Proposal, args.Diff)
+	engramCtx := fetchEngramContext("architecture decisions ADR " + args.Proposal)
+	prompt := fmt.Sprintf("Architectural Proposal: %s\n\nGit Diff:\n%s\n\nHistorical Context:\n%s", args.Proposal, args.Diff, engramCtx)
 
 	type judgeRes struct {
 		text   string

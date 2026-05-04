@@ -40,8 +40,8 @@ func TestServer_Lifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(tools.Tools) != 22 {
-		t.Errorf("expected 22 tools, got %d", len(tools.Tools))
+	if len(tools.Tools) != 21 {
+		t.Errorf("expected 21 tools, got %d", len(tools.Tools))
 	}
 }
 
@@ -66,11 +66,6 @@ func TestServer_Handlers(t *testing.T) {
 			name:      "pure_signal",
 			arguments: map[string]any{"text": "line1\nline2", "level": "light"},
 			wantSub:   "line1",
-		},
-		{
-			name:      "dependencies",
-			arguments: map[string]any{},
-			wantSub:   "{}",
 		},
 		{
 			name:      "critical_code",
