@@ -29,11 +29,12 @@ func TestCompactSession(t *testing.T) {
 	}
 	defer os.Chdir(oldCwd)
 
-	engine := NewCompactionEngine(nil)
+	ledger := NewLedger()
+	engine := NewCompactionEngine(nil, ledger)
 	ctx := context.Background()
-	summary := "Test summary for compaction"
+	truthKernel := "Test truth kernel for compaction"
 
-	result, err := engine.CompactSession(ctx, summary)
+	result, err := engine.CompactSession(ctx, truthKernel)
 	if err != nil {
 		t.Fatalf("CompactSession failed: %v", err)
 	}
@@ -44,42 +45,40 @@ func TestCompactSession(t *testing.T) {
 		t.Errorf(".scouter directory was not created")
 	}
 
-	// Verify anchor.md exists
-	anchorPath := filepath.Join(scouterDir, "anchor.md")
-	if _, err := os.Stat(anchorPath); os.IsNotExist(err) {
-		t.Errorf("anchor.md was not created")
+	// Verify boundary.json exists
+	boundaryPath := filepath.Join(scouterDir, "boundary.json")
+	if _, err := os.Stat(boundaryPath); os.IsNotExist(err) {
+		t.Errorf("boundary.json was not created")
 	}
 
-	if result.AnchorPath != anchorPath {
-		t.Errorf("expected AnchorPath %s, got %s", anchorPath, result.AnchorPath)
+	if result.AnchorPath != boundaryPath {
+		t.Errorf("expected AnchorPath %s, got %s", boundaryPath, result.AnchorPath)
 	}
 
-	// Verify content of anchor.md
-	content, err := os.ReadFile(anchorPath)
+	// Verify content of boundary.json
+	content, err := os.ReadFile(boundaryPath)
 	if err != nil {
-		t.Fatalf("failed to read anchor.md: %v", err)
+		t.Fatalf("failed to read boundary.json: %v", err)
 	}
 
 	strContent := string(content)
-	if !strings.Contains(strContent, "# Scouter Session Anchor") {
-		t.Errorf("anchor.md missing header")
+	if !strings.Contains(strContent, "boundary_id") {
+		t.Errorf("boundary.json missing boundary_id")
 	}
-	if !strings.Contains(strContent, "**Timestamp**:") {
-		t.Errorf("anchor.md missing timestamp")
-	}
-	if !strings.Contains(strContent, summary) {
-		t.Errorf("anchor.md missing summary content")
+	if !strings.Contains(strContent, truthKernel) {
+		t.Errorf("boundary.json missing truth_kernel content")
 	}
 }
 
 func TestCompactSessionEmptySummary(t *testing.T) {
-	engine := NewCompactionEngine(nil)
+	ledger := NewLedger()
+	engine := NewCompactionEngine(nil, ledger)
 	ctx := context.Background()
 
 	_, err := engine.CompactSession(ctx, "")
 	if err == nil {
 		t.Errorf("expected error for empty summary, got nil")
-	} else if err.Error() != "summary cannot be empty" {
+	} else if err.Error() != "truth kernel cannot be empty" {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }

@@ -1,42 +1,42 @@
 <evaluation>
   <qa_pair>
-    <question>Search for the Go interface that defines the database operations in Scouter's store package (internal/store). What is its name?</question>
-    <answer>Repository</answer>
+    <question>Find the registered resources in internal/mcp/resources.go. What is the exact URI for the Staging Ledger resource?</question>
+    <answer>scouter://ledger/staging</answer>
   </qa_pair>
   <qa_pair>
-    <question>Use the structural_search or search tool to find the default limit value used in the handleSearch function when the limit is 0. What is the default limit?</question>
+    <question>Search the handleSearch function in internal/mcp/handlers.go. What is the default limit value used when the input limit is 0 or invalid?</question>
     <answer>50</answer>
   </qa_pair>
   <qa_pair>
-    <question>Search for the constructor of the TruthEngine. What is the name of the function that initializes it?</question>
-    <answer>NewTruthEngine</answer>
+    <question>Look at the SovereignBoundary struct in internal/engine/compaction.go. What is the name of the field that stores the dense summary of technical discoveries?</question>
+    <answer>TruthKernel</answer>
   </qa_pair>
   <qa_pair>
-    <question>Find the registered resources in internal/mcp/resources.go. What is the exact URI for the Workspace Information resource?</question>
-    <answer>file:///scouter/workspace</answer>
+    <question>In internal/engine/healer.go, how many parallel solver goroutines are spawned by the Shinigami Protocol?</question>
+    <answer>3</answer>
   </qa_pair>
   <qa_pair>
-    <question>Find the registered resource templates. What is the exact URITemplate used to read a specific ADR?</question>
-    <answer>file:///scouter/adrs/{id}</answer>
+    <question>What is the name of the method in the RippleEngine (internal/engine/ripple.go) that implements bidirectional hierarchy traversal (Omniscience)?</question>
+    <answer>Propagate</answer>
   </qa_pair>
   <qa_pair>
-    <question>Look at the handleHybridSearch function in internal/mcp/handlers.go. Does it inject a &lt;thought&gt; block in the response? (Answer 'Yes' or 'No')</question>
-    <answer>Yes</answer>
+    <question>Find the registered resource templates in internal/mcp/resources.go. What is the exact URITemplate used to read a specific ADR?</question>
+    <answer>scouter://adrs/{id}</answer>
   </qa_pair>
   <qa_pair>
-    <question>Search the TruthEngine methods in internal/engine/truth.go. What is the exact name of the method that handles self-healing of test failures?</question>
-    <answer>Fix</answer>
+    <question>Check the Ledger struct in internal/engine/ledger.go. What is the default KiLimit (token budget) for a mission?</question>
+    <answer>100000</answer>
   </qa_pair>
   <qa_pair>
-    <question>Search the store.go file for the database migration queries. What is the exact SQL table name created to store file indexes?</question>
-    <answer>file_index</answer>
+    <question>Look at the CompactionEngine.PruneHistory method. What is the character length threshold above which a tool result is truncated?</question>
+    <answer>500</answer>
   </qa_pair>
   <qa_pair>
-    <question>Search the tool registrations in internal/mcp/server.go. What is the exact name of the tool that has the description "Trigger a self-summarization loop to reduce context window noise"?</question>
-    <answer>compact_context</answer>
+    <question>Search for the resource scouter://graph/dependencies. What MIMEType does it use?</question>
+    <answer>application/json</answer>
   </qa_pair>
   <qa_pair>
-    <question>Look at the struct definition for SovereignDelta in internal/store/store.go. Does it include a field named Calls? (Answer 'Yes' or 'No')</question>
-    <answer>Yes</answer>
+    <question>In internal/engine/analyzer.go, which method was updated to bridge interfaces and structs (Satisfies links)?</question>
+    <answer>ResolveInterfaces</answer>
   </qa_pair>
 </evaluation>

@@ -153,9 +153,10 @@ func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args
 
 func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, args SearchParams) (*mcp.CallToolResult, any, error) {
 	limit := args.Limit
-	if limit == 0 {
-		limit = 50
+	if limit <= 0 || limit > 100 {
+		limit = 50 // Sovereign Limit
 	}
+	
 	results, err := s.store.SearchSymbols(ctx, args.Query, args.Type, limit, args.Offset)
 	if err != nil {
 		return &mcp.CallToolResult{
@@ -164,15 +165,9 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 		}, nil, nil
 	}
 
-	out, err := json.Marshal(results)
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal search results: %v", err)}},
-			IsError: true,
-		}, nil, nil
-	}
-
-	thought := fmt.Sprintf("<thought>\nExecuted search for query '%s' (type: '%s'). Retrieved %d results (limit: %d, offset: %d).\n</thought>\n", args.Query, args.Type, len(results), limit, args.Offset)
+	out, _ := json.Marshal(results)
+	thought := fmt.Sprintf("<thought>\nSovereign Search: Querying AST for '%s' (%s). Pagination: [Limit:%d Offset:%d]. Found %d matches.\n</thought>\n", 
+		args.Query, args.Type, limit, args.Offset, len(results))
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -244,7 +239,7 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 		}, nil, nil
 	}
 	limit := args.Limit
-	if limit == 0 {
+	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
 	results, err := s.store.GetCallers(ctx, args.CalleeName, limit, args.Offset)
@@ -254,15 +249,10 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 			IsError: true,
 		}, nil, nil
 	}
-	out, err := json.Marshal(results)
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal caller results: %v", err)}},
-			IsError: true,
-		}, nil, nil
-	}
+	out, _ := json.Marshal(results)
 
-	thought := fmt.Sprintf("<thought>\nRetrieved callers for '%s'. Found %d callers (limit: %d, offset: %d).\n</thought>\n", args.CalleeName, len(results), limit, args.Offset)
+	thought := fmt.Sprintf("<thought>\nCall Hierarchy: Mapping callers for '%s'. Pagination: [Limit:%d Offset:%d]. Found %d inbound links.\n</thought>\n", 
+		args.CalleeName, limit, args.Offset, len(results))
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -400,7 +390,7 @@ func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, arg
 
 func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, args CriticalParams) (*mcp.CallToolResult, any, error) {
 	limit := args.Limit
-	if limit == 0 {
+	if limit <= 0 || limit > 50 {
 		limit = 10
 	}
 	results, err := s.engine.GetCriticalSymbols(ctx, limit)
@@ -410,15 +400,9 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 			IsError: true,
 		}, nil, nil
 	}
-	out, err := json.Marshal(results)
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal critical symbols: %v", err)}},
-			IsError: true,
-		}, nil, nil
-	}
+	out, _ := json.Marshal(results)
 
-	thought := fmt.Sprintf("<thought>\nRetrieved critical symbols. Found %d high-risk targets (limit: %d).\n</thought>\n", len(results), limit)
+	thought := fmt.Sprintf("<thought>\nRisk Analysis: Identifying high-risk symbols (high centrality and fragility). Found %d targets (limit: %d).\n</thought>\n", len(results), limit)
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
