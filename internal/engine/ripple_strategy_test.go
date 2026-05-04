@@ -11,11 +11,16 @@ import (
 type rippleMockStore struct {
 	store.Repository
 	callers map[string][]store.Call
+	callees map[string][]store.Call
 	symbols map[string][]store.Symbol
 }
 
 func (m *rippleMockStore) GetCallers(ctx context.Context, callee string, limit, offset int) ([]store.Call, error) {
 	return m.callers[callee], nil
+}
+
+func (m *rippleMockStore) GetCallees(ctx context.Context, caller string) ([]store.Call, error) {
+	return m.callees[caller], nil
 }
 
 func (m *rippleMockStore) SearchSymbols(ctx context.Context, q, t string, limit, offset int) ([]store.Symbol, error) {

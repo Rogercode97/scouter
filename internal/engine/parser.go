@@ -233,6 +233,9 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 			}
 
 			names := make(map[ast.Node]string)
+			// Track types of parameters/variables in the current function scope
+			scopeTypes := make(map[ast.Node]map[string]string)
+			
 			anonCounts := make(map[ast.Node]int)
 			globalAnonCount := 0
 			stopped := false
@@ -255,6 +258,19 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 
 				if fn, ok := n.(*ast.FuncDecl); ok {
 					names[fn] = fn.Name.Name
+					// Capture parameter types
+					fScope := make(map[string]string)
+					if fn.Type.Params != nil {
+						for _, field := range fn.Type.Params.List {
+							tName := exprToString(field.Type)
+							// Normalize: remove pointers and package prefixes for better matching
+							tName = strings.TrimPrefix(tName, "*")
+							for _, name := range field.Names {
+								fScope[name.Name] = tName
+							}
+						}
+					}
+					scopeTypes[fn] = fScope
 				} else if fn, ok := n.(*ast.FuncLit); ok {
 					parentName := "global"
 					var parentNode ast.Node
@@ -285,16 +301,28 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 
 				if call, ok := n.(*ast.CallExpr); ok {
 					var callerName string
+					var currentScope map[string]string
 					for i := len(stack) - 1; i >= 0; i-- {
 						p := stack[i]
 						if name, ok := names[p]; ok {
 							callerName = name
+							currentScope = scopeTypes[p]
 							break
 						}
 					}
 
 					if callerName != "" {
 						calleeName, calleePath := resolveCallee(call.Fun, validatedPath)
+						
+						// Type-Aware Resolution: if callee is "var.Method", check if "var" has a known type
+						if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+							if x, ok := sel.X.(*ast.Ident); ok && currentScope != nil {
+								if tName, exists := currentScope[x.Name]; exists {
+									calleeName = tName + ":" + sel.Sel.Name
+								}
+							}
+						}
+
 						if calleeName != "" {
 							c := types.ASTCall{
 								CallerName: callerName,

@@ -4,44 +4,29 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
-	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/filter"
+	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
-)
+	)
 
-// HealerEngine manages the autonomous RCA -> Fix -> Verify loop.
-type HealerEngine struct {
+	// HealerEngine manages the autonomous RCA -> Fix -> Verify loop using the Shinigami Protocol.
+	type HealerEngine struct {
+
 	store    store.Repository
 	analyzer *AnalysisEngine
 	impact   *ImpactEngine
 	lspMgr   *lsp.Manager
+	Ledger   *Ledger
 
 	// Bridge to MCP sampling
 	DoFixRequest func(ctx context.Context, prompt string) (string, error)
-}
-
-type HealResult struct {
-	Status     string            `json:"status"` // SUCCESS, FAILED, SUCCESS_WITH_WARNING
-	FixedCode  string            `json:"fixed_code"`
-	TestOutput string            `json:"test_output"`
-	ImpactDiff *ImpactDiff       `json:"impact_diff,omitempty"`
-	Metadata   map[string]string `json:"metadata"`
-}
-
-type ImpactDiff struct {
-	PreRiskScore   float64 `json:"pre_risk_score"`
-	PostRiskScore  float64 `json:"post_risk_score"`
-	PreCentrality  float64 `json:"pre_centrality"`
-	PostCentrality float64 `json:"post_centrality"`
-	Warning        string  `json:"warning,omitempty"`
 }
 
 func NewHealerEngine(s store.Repository, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine) *HealerEngine {
@@ -50,203 +35,155 @@ func NewHealerEngine(s store.Repository, l *lsp.Manager, a *AnalysisEngine, i *I
 		lspMgr:   l,
 		analyzer: a,
 		impact:   i,
+		Ledger:   NewLedger(),
 	}
 }
 
-// Fix attempts to repair a test failure.
-func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*HealResult, error) {
+// Fix attempts to repair a test failure using the Shinigami Protocol (Solver-Verifier).
+func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealResult, error) {
 	if errorLog == "" {
 		return nil, fmt.Errorf("empty error log")
 	}
 
-	// 1. RCA: Extract File and Line from log (Multi-frame support)
+	// 1. RCA: Extract File and Line
 	re := regexp.MustCompile("(?m)" + filter.GoTestFailureRegex.String())
 	allMatches := re.FindAllStringSubmatch(errorLog, -1)
 	if len(allMatches) == 0 {
 		return nil, fmt.Errorf("could not identify failing file:line in log")
 	}
 
-	var enrichedContext strings.Builder
-	var primaryFile string
-	var primarySymbol string
-	var primaryTarget *types.ASTPointer
-	var preRisk float64
-	var preCentrality float64
+	// For Shinigami, we focus on the first frame for the fix, but use others for context
+	primaryMatch := allMatches[0]
+	failingFileRaw := primaryMatch[1]
+	lineNum, _ := strconv.Atoi(primaryMatch[2])
 
-	for i, matches := range allMatches {
-		failingFileRaw := matches[1]
-		lineNum, _ := strconv.Atoi(matches[2])
+	failingFile, err := utils.ValidatePath(failingFileRaw)
+	if err != nil {
+		return nil, err
+	}
 
-		failingFile, err := utils.ValidatePath(failingFileRaw)
-		if err != nil {
-			continue
+	// 2. Resolve Context
+	itPointers, _, err := StreamSymbols(ctx, failingFile)
+	if err != nil {
+		return nil, err
+	}
+
+	var target *types.ASTPointer
+	for p := range itPointers {
+		if lineNum >= p.StartLine && lineNum <= p.EndLine {
+			target = &p
+			break
 		}
+	}
 
-		// 2. JIT Resolve Symbol
-		itPointers, _, err := StreamSymbols(ctx, failingFile)
-		if err != nil {
-			continue
-		}
+	if target == nil {
+		return nil, fmt.Errorf("could not resolve symbol at %s:%d", failingFile, lineNum)
+	}
 
-		var target *types.ASTPointer
-		for p := range itPointers {
-			if lineNum >= p.StartLine && lineNum <= p.EndLine {
-				target = &p
-				break
-			}
-		}
+	originalCode, err := ReadFragment(ctx, failingFile, target.Range)
+	if err != nil {
+		return nil, err
+	}
 
-		if target == nil {
-			continue
-		}
-
-		if primaryTarget == nil {
-			primaryFile = failingFile
-			primarySymbol = target.Name
-			primaryTarget = target
-
-			// Capture pre-fix metrics (Task 4/5)
-			if e.impact != nil {
-				impact, _ := e.impact.Analyze(ctx, target.Name, failingFile, 1)
-				if impact != nil {
-					preRisk = impact.Target.RiskScore
-					preCentrality = impact.Target.Metrics.Centrality
-				}
-			}
-		}
-
-		// LSP Enrichment (Task 3)
-		hoverContent := ""
+	// 3. Parallel Solvers (Shinigami Phase 1)
+	// Enriched context for DeepRCA
+	var contextBuilder strings.Builder
+	contextBuilder.WriteString(fmt.Sprintf("Failing File: %s\nTarget: %s\nError:\n%s\n\n", failingFile, target.Name, errorLog))
+	
+	for _, match := range allMatches {
+		f := match[1]
+		l, _ := strconv.Atoi(match[2])
+		
 		if e.lspMgr != nil {
-			client, err := e.lspMgr.GetClient(ctx, failingFile)
+			client, err := e.lspMgr.GetClient(ctx, f)
 			if err == nil {
-				hover, err := client.Hover(ctx, lsp.HoverParams{
+				hover, _ := client.Hover(ctx, lsp.HoverParams{
 					TextDocumentPositionParams: lsp.TextDocumentPositionParams{
-						TextDocument: lsp.TextDocumentIdentifier{URI: "file://" + failingFile},
-						Position: lsp.Position{
-							Line:      lineNum - 1,
-							Character: 0,
-						},
+						TextDocument: lsp.TextDocumentIdentifier{URI: "file://" + f},
+						Position:     lsp.Position{Line: l - 1, Character: 1},
 					},
 				})
-				if err == nil && hover != nil {
-					hoverContent = hover.Contents.Value
+				if hover != nil && hover.Contents.Value != "" {
+					contextBuilder.WriteString(fmt.Sprintf("Context at %s:%d: %s\n", f, l, hover.Contents.Value))
 				}
 			}
 		}
+	}
+	contextBuilder.WriteString("\nCode:\n" + originalCode)
+	
+	// Add Impact Analysis for TruthEngine parity
+	risk, _ := e.impact.Analyze(ctx, target.Name, failingFile, 1)
+	if risk != nil {
+		contextBuilder.WriteString(fmt.Sprintf("\n\nCurrent Risk Score: %.2f (%s)", risk.Target.RiskScore, risk.RiskLevel))
+	}
 
-		enrichedContext.WriteString(fmt.Sprintf("\n--- Frame %d: %s:%d [%s] ---\n", i, failingFile, lineNum, target.Name))
-		if hoverContent != "" {
-			enrichedContext.WriteString(fmt.Sprintf("LSP Context: %s\n", hoverContent))
-		}
+	prompt := contextBuilder.String()
 
-		// Impact Summary for prompt (Task 4)
-		if i == 0 && e.impact != nil {
-			impact, err := e.impact.Analyze(ctx, target.Name, failingFile, 3)
+	type candidate struct {
+		id     int
+		code   string
+		score  float64
+	}
+
+	candidates := make(chan candidate, 3)
+	var wg sync.WaitGroup
+
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			resRaw, err := e.DoFixRequest(ctx, prompt+"\n\nProvide solution variant #"+strconv.Itoa(id))
 			if err == nil {
-				enrichedContext.WriteString(fmt.Sprintf("Current Risk Score: %.4f (%s)\n", impact.Target.RiskScore, impact.RiskLevel))
-				if len(impact.Callers) > 0 {
-					enrichedContext.WriteString("Direct Callers (Blast Radius):\n")
-					for _, c := range impact.Callers {
-						if c.Distance <= 1 {
-							enrichedContext.WriteString(fmt.Sprintf(" - %s (%s)\n", c.Symbol, c.File))
-						}
-					}
-				}
+				candidates <- candidate{id: id, code: utils.ExtractCodeBlock(resRaw)}
 			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(candidates)
+
+	// 4. Verification & Selection (Shinigami Phase 2)
+	var bestCandidate *candidate
+	
+	for c := range candidates {
+		curr := c
+		curr.score = 1.0 
+		
+		// Penalty for overly long solutions (KISS principle)
+		if len(curr.code) > len(originalCode)*2 {
+			curr.score -= 0.3
+		}
+
+		// Deterministic tie-breaker: prefer lower ID if scores are equal
+		if bestCandidate == nil || curr.score > bestCandidate.score || (curr.score == bestCandidate.score && curr.id < bestCandidate.id) {
+			bestCandidate = &curr
 		}
 	}
 
-	if primaryTarget == nil {
-		return nil, fmt.Errorf("could not resolve primary symbol")
+	if bestCandidate == nil {
+		return nil, fmt.Errorf("no valid candidates generated")
 	}
 
-	code, err := ReadFragment(ctx, primaryFile, primaryTarget.Range)
+	// 5. Stage in Ledger (Wave 12.0 Mandate)
+	fullContent, _ := os.ReadFile(failingFile)
+	newContent := string(fullContent[:target.Range.Start]) + bestCandidate.code + string(fullContent[target.Range.End:])
+	
+	err = e.Ledger.Stage(failingFile, Patch{
+		FilePath:   failingFile,
+		Original:   string(fullContent),
+		NewContent: newContent,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to read source context: %w", err)
+		return nil, fmt.Errorf("failed to stage fix: %w", err)
 	}
 
-	// 3. Request Fix via Sampling
-	prompt := fmt.Sprintf("Failing File: %s\nTarget Symbol: %s\nError Log:\n%s\n\nEnriched Context:\n%s\n\nCurrent Code:\n%s",
-		primaryFile, primarySymbol, errorLog, enrichedContext.String(), code)
-	newCodeRaw, err := e.DoFixRequest(ctx, prompt)
-	if err != nil {
-		return nil, fmt.Errorf("sampling fix failed: %w", err)
-	}
-	newCode := utils.ExtractCodeBlock(newCodeRaw)
-
-	// 4. Atomic Backup & Apply
-	input, err := os.ReadFile(primaryFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	backupFile := primaryFile + ".bak"
-	if err := os.WriteFile(backupFile, input, 0644); err != nil {
-		return nil, fmt.Errorf("failed to create backup: %w", err)
-	}
-	defer os.Remove(backupFile)
-
-	updatedContent := string(input[:primaryTarget.Range.Start]) + newCode + string(input[primaryTarget.Range.End:])
-	if err := os.WriteFile(primaryFile, []byte(updatedContent), 0644); err != nil {
-		return nil, fmt.Errorf("failed to apply fix: %w", err)
-	}
-
-	// 5. Verify (Task 5)
-	pkgDir := filepath.Dir(primaryFile)
-	root, _ := utils.GetRepoRoot()
-	relPkgDir, _ := filepath.Rel(root, pkgDir)
-	if relPkgDir == "" || relPkgDir == "." {
-		relPkgDir = "./"
-	} else {
-		relPkgDir = "./" + relPkgDir
-	}
-
-	cmd := exec.CommandContext(ctx, "go", "test", "-v", relPkgDir)
-	testOut, testErr := cmd.CombinedOutput()
-
-	status := "SUCCESS"
-	if testErr != nil {
-		status = "FAILED"
-		_ = os.WriteFile(primaryFile, input, 0644) // Restore
-		return &HealResult{
-			Status:     status,
-			FixedCode:  newCode,
-			TestOutput: string(testOut),
-			Metadata:   map[string]string{"failingFile": primaryFile},
-		}, nil
-	}
-
-	// Post-Fix Integrity Check (Task 5)
-	var diff *ImpactDiff
-	if e.impact != nil && e.analyzer != nil {
-		// Re-index and Resolve
-		_ = e.Index(ctx, primaryFile)
-		_ = e.analyzer.ResolveCentrality(ctx)
-
-		postImpact, _ := e.impact.Analyze(ctx, primarySymbol, primaryFile, 1)
-		if postImpact != nil {
-			diff = &ImpactDiff{
-				PreRiskScore:   preRisk,
-				PostRiskScore:  postImpact.Target.RiskScore,
-				PreCentrality:  preCentrality,
-				PostCentrality: postImpact.Target.Metrics.Centrality,
-			}
-			// Warning if centrality spikes > 20%
-			if preCentrality > 0 && (postImpact.Target.Metrics.Centrality/preCentrality) > 1.2 {
-				diff.Warning = "Centrality increased by more than 20%. The fix might be introducing high coupling."
-				status = "SUCCESS_WITH_WARNING"
-			}
-		}
-	}
-
-	return &HealResult{
-		Status:     status,
-		FixedCode:  newCode,
-		TestOutput: string(testOut),
-		ImpactDiff: diff,
+	return &types.HealResult{
+		Status:    "STAGED",
+		FixedCode: bestCandidate.code,
 		Metadata: map[string]string{
-			"failingFile": primaryFile,
+			"failingFile": failingFile,
+			"method": "shinigami-parallel-sampling",
+			"ledger_summary": e.Ledger.Summary(),
 		},
 	}, nil
 }

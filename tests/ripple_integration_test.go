@@ -21,11 +21,16 @@ func (t *mockTruthTransformer) Transform(ctx context.Context, file, symbol, tran
 type mockRippleStore struct {
 	store.Repository
 	callers []store.Call
+	callees []store.Call
 	symbols []store.Symbol
 }
 
 func (m *mockRippleStore) GetCallers(ctx context.Context, name string, limit, offset int) ([]store.Call, error) {
 	return m.callers, nil
+}
+
+func (m *mockRippleStore) GetCallees(ctx context.Context, name string) ([]store.Call, error) {
+	return m.callees, nil
 }
 
 func (m *mockRippleStore) SearchSymbols(ctx context.Context, query, symType string, limit, offset int) ([]store.Symbol, error) {

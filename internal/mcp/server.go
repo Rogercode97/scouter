@@ -131,11 +131,6 @@ func (s *Server) registerTools() {
 	}, s.handleCritical)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "dependencies",
-		Description: "Get a map of all project dependencies",
-	}, s.handleDependencies)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "structural_search",
 		Description: "Search for code using structural patterns (ast-grep style)",
 	}, s.handleStructuralSearch)

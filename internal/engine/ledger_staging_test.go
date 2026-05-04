@@ -8,6 +8,9 @@ import (
 
 func TestLedgerStaging(t *testing.T) {
 	l := NewLedger()
+	l.SetLedgerPath("test_ledger.json")
+	defer os.Remove("test_ledger.json")
+	
 	ctx := context.Background()
 
 	path := "test_staged.txt"
@@ -16,14 +19,14 @@ func TestLedgerStaging(t *testing.T) {
 
 	// Test Stage
 	l.Stage(path, patch)
-	if len(l.staged) != 1 {
-		t.Errorf("expected 1 staged patch, got %d", len(l.staged))
+	if len(l.Staged) != 1 {
+		t.Errorf("expected 1 staged patch, got %d", len(l.Staged))
 	}
 
 	// Test Unstage
 	l.Unstage(path)
-	if len(l.staged) != 0 {
-		t.Errorf("expected 0 staged patches after unstage, got %d", len(l.staged))
+	if len(l.Staged) != 0 {
+		t.Errorf("expected 0 staged patches after unstage, got %d", len(l.Staged))
 	}
 
 	// Test CommitStaged
@@ -42,7 +45,7 @@ func TestLedgerStaging(t *testing.T) {
 		t.Errorf("expected content %q, got %q", content, string(got))
 	}
 
-	if len(l.staged) != 0 {
-		t.Errorf("expected staged patches to be cleared after commit, got %d", len(l.staged))
+	if len(l.Staged) != 0 {
+		t.Errorf("expected staged patches to be cleared after commit, got %d", len(l.Staged))
 	}
 }

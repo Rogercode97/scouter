@@ -72,8 +72,6 @@ type CriticalParams struct {
 	Limit int `json:"limit,omitempty"`
 }
 
-type DependenciesParams struct{}
-
 type StructuralSearchParams struct {
 	Pattern string `json:"pattern"`
 	Ext     string `json:"ext"`
@@ -422,37 +420,6 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 
 	thought := fmt.Sprintf("<thought>\nRetrieved critical symbols. Found %d high-risk targets (limit: %d).\n</thought>\n", len(results), limit)
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + string(out)},
-		},
-	}, nil, nil
-}
-
-func (s *Server) handleDependencies(ctx context.Context, req *mcp.CallToolRequest, args DependenciesParams) (*mcp.CallToolResult, any, error) {
-	res, err := s.store.GetDependencies(ctx)
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get dependencies: %v", err)}},
-			IsError: true,
-		}, nil, nil
-	}
-	
-	count := len(res)
-	if count > 500 {
-		res = res[:500]
-	}
-	
-	out, err := json.Marshal(res)
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal dependencies: %v", err)}},
-			IsError: true,
-		}, nil, nil
-	}
-	
-	thought := fmt.Sprintf("<thought>\nRetrieved %d project dependencies (truncated to 500).\n</thought>\n", count)
-	
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: thought + string(out)},

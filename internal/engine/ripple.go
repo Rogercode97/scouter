@@ -84,13 +84,12 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 				}
 				visited[currentSym] = true
 
-				// 1. Trace callers via Hybrid Determinism
+				// 1. Trace callers (Upward / Standard Calls)
 				var callers []store.Call
 				deterministic, err := s.impactEngine.GetDeterministicCallers(ctx, currentSym)
 				if err == nil && len(deterministic) > 0 {
 					callers = deterministic
 				} else {
-					// Fallback to Global Call Graph (heuristic)
 					callers, err = s.store.GetCallers(ctx, currentSym, 0, 0)
 					if err != nil {
 						if !yield(PropagationTask{}, fmt.Errorf("failed to get callers for %s: %w", currentSym, err)) {
@@ -111,7 +110,26 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 					nextQueue = append(nextQueue, caller.CallerName)
 				}
 
-				// 2. Also include the symbol definition file itself (Depth 0)
+				// 2. Trace callees (Downward / Hierarchy Ascent)
+				// For Omniscience (Ripple V2): If this is an implementation, we want to find the interface.
+				callees, err := s.store.GetCallees(ctx, currentSym)
+				if err == nil {
+					for _, callee := range callees {
+						// Only follow hierarchy-related links upward to avoid infinite loops or unrelated noise
+						if callee.LinkType == "satisfies" || callee.LinkType == "implements" {
+							if !yield(PropagationTask{
+								SymbolName: callee.CalleeName,
+								FilePath:   callee.CalleePath,
+								Action:     "transform",
+							}, nil) {
+								return
+							}
+							nextQueue = append(nextQueue, callee.CalleeName)
+						}
+					}
+				}
+
+				// 3. Also include the symbol definition file itself (Depth 0)
 				results, _ := s.store.SearchSymbols(ctx, currentSym, "", 0, 0)
 				for _, sym := range results {
 					if sym.Name == currentSym {
@@ -221,6 +239,9 @@ func (v *CentralityValidator) Validate(ctx context.Context, ledger *Ledger) (Val
 // Propagate traces the blast radius of a symbol and applies the transformation to all affected files.
 func (e *RippleEngine) Propagate(ctx context.Context, symbolName string, transformation string, maxDepth int) (*Ledger, error) {
 	ledger := NewLedger()
+	// Initialize budget from config or defaults
+	ledger.SetBudget(100000, 15) // Example: 100k Ki, 15 turns
+
 	strategy := e.Strategy
 	if strategy == nil {
 		strategy = NewBFSPropagationStrategy(e.store, e.ImpactEngine)
@@ -232,15 +253,20 @@ func (e *RippleEngine) Propagate(ctx context.Context, symbolName string, transfo
 			return nil, err
 		}
 
-		if _, exists := ledger.staged[task.FilePath]; !exists {
+		if _, exists := ledger.Staged[task.FilePath]; !exists {
+			ledger.IncrementTurn() // Each transformation is a turn
+			
 			newContent, err := e.Transformer.Transform(ctx, task.FilePath, task.SymbolName, transformation)
 			if err != nil {
 				return nil, fmt.Errorf("transformation failed for %s: %w", task.FilePath, err)
 			}
-			ledger.Stage(task.FilePath, Patch{
+			
+			if err := ledger.Stage(task.FilePath, Patch{
 				FilePath:   task.FilePath,
 				NewContent: newContent,
-			})
+			}); err != nil {
+				return ledger, err // Return ledger even on budget error so user can see partial progress
+			}
 		}
 	}
 
