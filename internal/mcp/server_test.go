@@ -22,6 +22,11 @@ func setupTestServer(ctx context.Context) (*Server, *mcp.ClientSession, func()) 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
 	session, _ := client.Connect(ctx, clientTransport, nil)
 
+	// Unlock heavy arsenal for tests
+	_, _ = session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "unlock_heavy_arsenal",
+	})
+
 	return server, session, func() {
 		session.Close()
 		st.Close()
@@ -40,8 +45,8 @@ func TestServer_Lifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(tools.Tools) != 21 {
-		t.Errorf("expected 21 tools, got %d", len(tools.Tools))
+	if len(tools.Tools) != 27 {
+		t.Errorf("expected 27 tools, got %d", len(tools.Tools))
 	}
 }
 
