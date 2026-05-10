@@ -156,7 +156,6 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 		`CREATE TRIGGER IF NOT EXISTS symbols_au AFTER UPDATE ON symbols BEGIN INSERT INTO symbols_fts(symbols_fts, rowid, name, type, signature, doc, path) VALUES('delete', old.id, old.name, old.type, old.signature, old.doc, old.path); INSERT INTO symbols_fts(rowid, name, type, signature, doc, path) VALUES (new.id, new.name, new.type, new.signature, new.doc, new.path); END;`,
 		`CREATE INDEX IF NOT EXISTS idx_symbols_path ON symbols(path);`,
 		`CREATE INDEX IF NOT EXISTS idx_symbols_resolution ON symbols(name, path);`,
-		`CREATE INDEX IF NOT EXISTS idx_symbols_structural_hash ON symbols(structural_hash);`,
 		`CREATE TABLE IF NOT EXISTS calls (id INTEGER PRIMARY KEY AUTOINCREMENT, caller_name TEXT NOT NULL, callee_name TEXT NOT NULL, path TEXT NOT NULL, line INTEGER NOT NULL, callee_path TEXT DEFAULT '', link_type TEXT DEFAULT 'call', indegree INTEGER DEFAULT 0, FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);`,
 		`CREATE INDEX IF NOT EXISTS idx_calls_callee ON calls(callee_name);`,
 		`CREATE INDEX IF NOT EXISTS idx_calls_impact ON calls(callee_name, callee_path);`,
