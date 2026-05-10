@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
@@ -22,17 +24,19 @@ type Messenger interface {
 // It decouples the MCP handlers from the core logic and manages the coordination
 // between different specialized engines.
 type TruthEngine struct {
-	store     store.Repository
-	analyzer  *AnalysisEngine
-	lspMgr    *lsp.Manager
-	impact    *ImpactEngine
-	search    *SearchEngine
-	compact   *CompactionEngine
-	healer    *HealerEngine
-	ripple    *RippleEngine
-	ledger    *Ledger
-	messenger Messenger
-	logger    *slog.Logger
+	store      store.Repository
+	analyzer   *AnalysisEngine
+	lspMgr     *lsp.Manager
+	impact     *ImpactEngine
+	search     *SearchEngine
+	compact    *CompactionEngine
+	healer     *HealerEngine
+	diagnostic *DiagnosticEngine
+	ripple     *RippleEngine
+	sdd        *SDDEngine
+	ledger     *Ledger
+	messenger  Messenger
+	logger     *slog.Logger
 }
 
 // NewTruthEngine initializes a new TruthEngine with its dependencies.
@@ -44,36 +48,99 @@ func NewTruthEngine(
 	search *SearchEngine,
 	compact *CompactionEngine,
 	healer *HealerEngine,
+	diagnostic *DiagnosticEngine,
 	ripple *RippleEngine,
+	sdd *SDDEngine,
 	ledger *Ledger,
 	messenger Messenger,
 ) *TruthEngine {
 	return &TruthEngine{
-		store:     store,
-		analyzer:  analyzer,
-		lspMgr:    lspMgr,
-		impact:    impact,
-		search:    search,
-		compact:   compact,
-		healer:    healer,
-		ripple:    ripple,
-		ledger:    ledger,
-		messenger: messenger,
-		logger:    slog.Default(),
+		store:      store,
+		analyzer:   analyzer,
+		lspMgr:     lspMgr,
+		impact:     impact,
+		search:     search,
+		compact:    compact,
+		healer:     healer,
+		diagnostic: diagnostic,
+		ripple:     ripple,
+		sdd:        sdd,
+		ledger:     ledger,
+		messenger:  messenger,
+		logger:     slog.Default(),
 	}
 }
 
-// Index parses, hashes and persists a file to the store.
+// Index parses, hashes and persists a file or directory to the store.
 func (e *TruthEngine) Index(ctx context.Context, path string) error {
 	if e.store == nil {
 		return fmt.Errorf("store not initialized")
 	}
 
-	path, err := utils.ValidatePath(path)
+	validatedPath, err := utils.ValidatePath(path)
 	if err != nil {
 		return err
 	}
 
+	fi, err := os.Stat(validatedPath)
+	if err != nil {
+		return fmt.Errorf("error stating path: %w", err)
+	}
+
+	if fi.IsDir() {
+		return e.indexDirectory(ctx, validatedPath)
+	}
+
+	return e.indexFile(ctx, validatedPath)
+}
+
+func (e *TruthEngine) indexDirectory(ctx context.Context, dir string) error {
+	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if info.IsDir() {
+			// Skip blacklisted directories (security check)
+			for _, blocked := range []string{".git", ".scouter", "node_modules", "vendor"} {
+				if info.Name() == blocked {
+					return filepath.SkipDir
+				}
+			}
+			return nil
+		}
+
+		// Only index supported extensions
+		ext := filepath.Ext(path)
+		supported := []string{".go", ".ts", ".tsx", ".js", ".jsx", ".py"}
+		isSupported := false
+		for _, s := range supported {
+			if ext == s {
+				isSupported = true
+				break
+			}
+		}
+
+		if !isSupported {
+			return nil
+		}
+
+		if err := e.indexFile(ctx, path); err != nil {
+			// Log error and continue with other files
+			e.logger.Error("failed to index file", "path", path, "error", err)
+		}
+
+		return nil
+	})
+}
+
+func (e *TruthEngine) indexFile(ctx context.Context, path string) error {
 	itPointers, itCalls, err := StreamSymbols(ctx, path)
 	if err != nil {
 		return err
@@ -130,10 +197,10 @@ func (e *TruthEngine) Index(ctx context.Context, path string) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to save index: %w", err)
+		return fmt.Errorf("failed to save index for %s: %w", path, err)
 	}
 
-	// Post-indexing resolution
+	// Post-indexing resolution (only if analyzer is present)
 	if e.analyzer != nil {
 		_ = e.analyzer.ResolveInterfaces(ctx)
 		_ = e.analyzer.ResolveCentrality(ctx)
@@ -152,26 +219,23 @@ func (e *TruthEngine) GetCriticalSymbols(ctx context.Context, limit int) ([]stor
 
 // AnalyzeImpact calculates the blast radius of a symbol and potentially invokes the Oracle.
 func (e *TruthEngine) AnalyzeImpact(ctx context.Context, symbol, path string, verbose bool, messenger Messenger) (*types.ImpactResult, error) {
-	if e.impact == nil {
-		return nil, fmt.Errorf("impact engine not initialized")
+	if e.diagnostic == nil {
+		return nil, fmt.Errorf("diagnostic engine not initialized")
 	}
 
-	res, err := e.impact.Analyze(ctx, symbol, path, 5)
+	risk, err := e.diagnostic.AssessRisk(ctx, symbol, path)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(res.Callers) > 500 {
-		res.Callers = res.Callers[:500]
-	}
-
 	// Oracle Logic
-	if res.Target.RiskScore >= 0.8 && messenger != nil {
-		prompt := fmt.Sprintf("The function '%s' in '%s' has a CRITICAL Risk Score of %.4f. Based on its centrality and blast radius, please provide a brief architectural refactoring proposal to reduce its impact.", symbol, path, res.Target.RiskScore)
+	if risk.RiskScore >= 0.8 && messenger != nil {
+		prompt := fmt.Sprintf("The function '%s' in '%s' has a CRITICAL Risk Score of %.4f. Based on its centrality and blast radius, please provide a brief architectural refactoring proposal to reduce its impact.", symbol, path, risk.RiskScore)
 		_, _ = messenger.Ask(ctx, "You are an expert software architect.", prompt)
 	}
 
-	return res, nil
+	// Maintain backward compatibility with the return type for now
+	return e.impact.Analyze(ctx, symbol, path, 5)
 }
 
 // PredictTests identifies tests affected by changes described in the diff string.
@@ -200,14 +264,73 @@ func (e *TruthEngine) IdentifyCriticalContext(ctx context.Context, diff string) 
 	return e.impact.IdentifyCriticalContext(ctx, diff)
 }
 
-// Fix attempts to autonomously fix a test failure.
-func (e *TruthEngine) Fix(ctx context.Context, errorLog string, messenger Messenger) (string, error) {
-	if messenger != nil {
-		e.healer.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
-			return messenger.Ask(ctx, "You are an autonomous Go fixing agent.", prompt)
+// FindLogicalTwins finds symbols with the same structural hash as the target.
+func (e *TruthEngine) FindLogicalTwins(ctx context.Context, symbolName, path string) ([]types.Symbol, error) {
+	if e.store == nil {
+		return nil, fmt.Errorf("store not initialized")
+	}
+
+	cleanPath, err := utils.ValidatePath(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// 1. Find the target symbol to get its hash
+	symbols, err := e.store.GetSymbolsByNameInFile(ctx, symbolName, cleanPath)
+	if err != nil || len(symbols) == 0 {
+		// Try indexing if not found
+		if err := e.Index(ctx, cleanPath); err == nil {
+			symbols, _ = e.store.GetSymbolsByNameInFile(ctx, symbolName, cleanPath)
 		}
 	}
-	res, err := e.healer.Fix(ctx, errorLog)
+
+	if len(symbols) == 0 {
+		return nil, fmt.Errorf("symbol '%s' not found in %s", symbolName, path)
+	}
+
+	target := symbols[0]
+	if target.StructuralHash == "" {
+		return nil, fmt.Errorf("symbol '%s' has no structural hash", symbolName)
+	}
+
+	// 2. Search for twins
+	twins, err := e.store.GetSymbolsByStructuralHash(ctx, target.StructuralHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find twins: %w", err)
+	}
+
+	// 3. Filter and Map
+	var results []types.Symbol
+	for _, twin := range twins {
+		if twin.Name == target.Name && twin.Path == target.Path {
+			continue
+		}
+		results = append(results, types.Symbol{
+			Name:      twin.Name,
+			Type:      twin.Type,
+			Signature: twin.Signature,
+			Doc:       twin.Doc,
+			Path:      twin.Path,
+			StartLine: twin.StartLine,
+			EndLine:   twin.EndLine,
+		})
+	}
+
+	return results, nil
+}
+
+// Fix attempts to autonomously fix a test failure via the DiagnosticEngine.
+func (e *TruthEngine) Fix(ctx context.Context, errorLog string, messenger Messenger) (string, error) {
+	if e.diagnostic == nil {
+		return "", fmt.Errorf("diagnostic engine not initialized")
+	}
+
+	report, err := e.diagnostic.Diagnose(ctx, errorLog)
+	if err != nil {
+		return "", err
+	}
+
+	res, err := e.diagnostic.Heal(ctx, report, messenger)
 	if err != nil {
 		return "", err
 	}
@@ -218,31 +341,129 @@ func (e *TruthEngine) Fix(ctx context.Context, errorLog string, messenger Messen
 // Propagate applies an architectural refactor across the codebase.
 func (e *TruthEngine) Propagate(ctx context.Context, symbol, transformation string, messenger Messenger) (string, error) {
 	if messenger != nil {
-		e.ripple.Transformer = &TruthTransformer{Messenger: messenger}
+		e.ripple.Transformer = NewMCPTransformer(e.store, func(ctx context.Context, file, sym, prompt string) (string, error) {
+			return messenger.Ask(ctx, "You are a surgical refactoring agent.", prompt)
+		})
 	}
 	ledger, err := e.ripple.Propagate(ctx, symbol, transformation, 5)
 	if err != nil {
 		if ledger != nil && len(ledger.StagedFiles()) > 0 {
-			// Validation failed but changes were staged (not yet committed)
+			// Validation failed but changes were staged
 			return fmt.Sprintf("❌ Validation failed: %v. Staged files: %v", err, ledger.StagedFiles()), err
 		}
 		return "", err
 	}
 
-	if err := ledger.CommitStaged(ctx); err != nil {
-		return "", fmt.Errorf("failed to commit staged changes: %w", err)
+	return fmt.Sprintf("✅ Transformation staged in Ledger for %d files: %v. Use 'scouter_commit' to apply or 'scouter_diff' to review.", len(ledger.AffectedFiles()), ledger.AffectedFiles()), nil
+}
+
+// CommitLedger applies all staged changes to disk.
+func (e *TruthEngine) CommitLedger(ctx context.Context) (string, error) {
+	if e.ledger == nil {
+		return "", fmt.Errorf("ledger not initialized")
+	}
+	
+	files := e.ledger.StagedFiles()
+	if len(files) == 0 {
+		return "No changes staged in Ledger.", nil
 	}
 
-	return fmt.Sprintf("✅ Applied transformation to %d files: %v", len(ledger.AffectedFiles()), ledger.AffectedFiles()), nil
+	if err := e.ledger.CommitStaged(ctx); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("✅ Committed changes to %d files: %v", len(files), files), nil
 }
 
-// TruthTransformer adapts Messenger to RippleEngine's Transformer interface.
-type TruthTransformer struct {
-	Messenger Messenger
+// RollbackLedger clears all staged changes.
+func (e *TruthEngine) RollbackLedger(ctx context.Context) (string, error) {
+	if e.ledger == nil {
+		return "", fmt.Errorf("ledger not initialized")
+	}
+
+	if err := e.ledger.Rollback(ctx); err != nil {
+		return "", err
+	}
+
+	return "✅ Ledger rolled back. All staged changes cleared.", nil
 }
 
-func (t *TruthTransformer) Transform(ctx context.Context, file, symbol, transformation string) (string, error) {
-	content, _ := os.ReadFile(file)
-	prompt := fmt.Sprintf("File: %s\nTarget Symbol: %s\nTransformation: %s\n\nSource Code:\n%s", file, symbol, transformation, string(content))
-	return t.Messenger.Ask(ctx, "You are a surgical refactoring agent.", prompt)
+// GetLedgerSummary returns a summary of the current staged changes.
+func (e *TruthEngine) GetLedgerSummary(ctx context.Context) string {
+	if e.ledger == nil {
+		return "Ledger not initialized."
+	}
+	return e.ledger.Summary()
 }
+
+// GetLedgerDiff returns the diff of all staged changes.
+func (e *TruthEngine) GetLedgerDiff(ctx context.Context) (string, error) {
+	if e.ledger == nil {
+		return "", fmt.Errorf("ledger not initialized")
+	}
+
+	patches := e.ledger.GetStaged()
+	if len(patches) == 0 {
+		return "No changes staged in Ledger.", nil
+	}
+
+	var sb strings.Builder
+	for _, p := range patches {
+		sb.WriteString(fmt.Sprintf("--- %s (Original)\n+++ %s (Staged)\n", p.FilePath, p.FilePath))
+		if p.Diff != "" {
+			sb.WriteString(p.Diff)
+		} else {
+			sb.WriteString(" (Diff not available, full content staged)\n")
+		}
+		sb.WriteString("\n")
+	}
+
+	return sb.String(), nil
+}
+
+// StageMutation stages a single file change in the Ledger.
+func (e *TruthEngine) StageMutation(ctx context.Context, filePath, newContent string) error {
+	if e.ledger == nil {
+		return fmt.Errorf("ledger not initialized")
+	}
+
+	cleanPath, err := utils.ValidatePath(filePath)
+	if err != nil {
+		return err
+	}
+
+	original, _ := os.ReadFile(cleanPath)
+	
+	patch := Patch{
+		FilePath:   cleanPath,
+		Original:   string(original),
+		NewContent: newContent,
+	}
+
+	return e.ledger.Stage(cleanPath, patch)
+}
+
+// GetSDDRoadmap retrieves the project roadmap from the SDD engine.
+func (e *TruthEngine) GetSDDRoadmap(ctx context.Context) (*SDDRoadmap, error) {
+	if e.sdd == nil {
+		return nil, fmt.Errorf("SDD engine not initialized")
+	}
+	return e.sdd.ParseRoadmap(ctx)
+}
+
+// GetSDDTasks retrieves the current tasks from the SDD engine.
+func (e *TruthEngine) GetSDDTasks(ctx context.Context) ([]SDDTask, error) {
+	if e.sdd == nil {
+		return nil, fmt.Errorf("SDD engine not initialized")
+	}
+	return e.sdd.ParseTasks(ctx)
+}
+
+// SearchSDDSpecs searches for specifications using the SDD engine.
+func (e *TruthEngine) SearchSDDSpecs(ctx context.Context, query string, limit, offset int) ([]SpecResult, error) {
+	if e.sdd == nil {
+		return nil, fmt.Errorf("SDD engine not initialized")
+	}
+	return e.sdd.SearchSpecs(ctx, query, limit, offset)
+}
+

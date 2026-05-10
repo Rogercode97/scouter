@@ -18,6 +18,8 @@ import (
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
 )
 
 // MaxFragmentSize is the limit for a surgical read (100KB)
@@ -83,8 +85,20 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 		return nil, nil, err
 	}
 
+	// For structural hashing consistency, we also parse with Tree-sitter for Go files
+	var tsTree *tree_sitter.Tree
+	var tsContent []byte
+	tsContent, _ = os.ReadFile(validatedPath)
+	tsParser := tree_sitter.NewParser()
+	tsParser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_go.Language()))
+	tsTree = tsParser.Parse(tsContent, nil)
+
 	// We return closures that perform the AST inspection lazily
 	return func(yield func(types.ASTPointer) bool) {
+			defer tsParser.Close()
+			if tsTree != nil {
+				defer tsTree.Close()
+			}
 			select {
 			case <-ctx.Done():
 				return
@@ -134,16 +148,25 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 					signature := extractSignature(fn.Type)
 					content := fmt.Sprintf("%s:%s:%s:%d:%d", symType, fullName, signature, startPos.Offset, endPos.Offset)
 					h := sha256.Sum256([]byte(content))
+
+					var structuralHash string
+					if tsTree != nil {
+						root := tsTree.RootNode()
+						tsNode := root.NamedDescendantForByteRange(uint(startPos.Offset), uint(endPos.Offset))
+						structuralHash = GetStructuralHash(tsNode, tsContent)
+					}
+
 					p := types.ASTPointer{
-						Type:      symType,
-						Name:      fullName,
-						Signature: signature,
-						Doc:       doc,
-						Range:     types.Range{Start: startPos.Offset, End: endPos.Offset},
-						StartLine: identPos.Line,
-						StartCol:  identPos.Column,
-						EndLine:   endPos.Line,
-						Hash:      hex.EncodeToString(h[:]),
+						Type:           symType,
+						Name:           fullName,
+						Signature:      signature,
+						Doc:            doc,
+						Range:          types.Range{Start: startPos.Offset, End: endPos.Offset},
+						StartLine:      identPos.Line,
+						StartCol:       identPos.Column,
+						EndLine:        endPos.Line,
+						Hash:           hex.EncodeToString(h[:]),
+						StructuralHash: structuralHash,
 					}
 					if !yield(p) {
 						stopped = true
@@ -176,15 +199,22 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 												sig = extractSignature(ft)
 											}
 
+											var structuralHash string
+											if tsTree != nil {
+												tsNode := tsTree.RootNode().NamedDescendantForByteRange(uint(mStart.Offset), uint(mEnd.Offset))
+												structuralHash = GetStructuralHash(tsNode, tsContent)
+											}
+
 											p := types.ASTPointer{
-												Type:      "method_spec",
-												Name:      fullMethodName,
-												Signature: sig,
-												Range:     types.Range{Start: mStart.Offset, End: mEnd.Offset},
-												StartLine: mIdent.Line,
-												StartCol:  mIdent.Column,
-												EndLine:   mEnd.Line,
-												Hash:      utils.HashString(fmt.Sprintf("spec:%s:%s", fullMethodName, sig)),
+												Type:           "method_spec",
+												Name:           fullMethodName,
+												Signature:      sig,
+												Range:          types.Range{Start: mStart.Offset, End: mEnd.Offset},
+												StartLine:      mIdent.Line,
+												StartCol:       mIdent.Column,
+												EndLine:        mEnd.Line,
+												Hash:           utils.HashString(fmt.Sprintf("spec:%s:%s", fullMethodName, sig)),
+												StructuralHash: structuralHash,
 											}
 											if !yield(p) {
 												stopped = true
@@ -206,15 +236,23 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 
 							content := fmt.Sprintf("%s:%s:%d:%d", symType, ts.Name.Name, startPos.Offset, endPos.Offset)
 							h := sha256.Sum256([]byte(content))
+
+							var structuralHash string
+							if tsTree != nil {
+								tsNode := tsTree.RootNode().NamedDescendantForByteRange(uint(startPos.Offset), uint(endPos.Offset))
+								structuralHash = GetStructuralHash(tsNode, tsContent)
+							}
+
 							p := types.ASTPointer{
-								Type:      symType,
-								Name:      ts.Name.Name,
-								Doc:       doc,
-								Range:     types.Range{Start: startPos.Offset, End: endPos.Offset},
-								StartLine: identPos.Line,
-								StartCol:  identPos.Column,
-								EndLine:   endPos.Line,
-								Hash:      hex.EncodeToString(h[:]),
+								Type:           symType,
+								Name:           ts.Name.Name,
+								Doc:            doc,
+								Range:          types.Range{Start: startPos.Offset, End: endPos.Offset},
+								StartLine:      identPos.Line,
+								StartCol:       identPos.Column,
+								EndLine:        endPos.Line,
+								Hash:           hex.EncodeToString(h[:]),
+								StructuralHash: structuralHash,
 							}
 							if !yield(p) {
 								stopped = true

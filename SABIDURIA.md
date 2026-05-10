@@ -20,6 +20,12 @@ Tras una investigación profunda del ecosistema (Abril 2026), Scouter se posicio
 
 **El Diferencial Soberano (V2.0)**: Mientras otros "recortan" texto, Scouter **entiende la estructura**. Gracias al *Global Call Graph* y el *Blast Radius Analysis*, Scouter no solo ahorra tokens, sino que inyecta el contexto crítico que otros filtros eliminan por error.
 
+## 📜 SDD: Spec-Driven Development (Sovereign Tracking)
+Scouter utiliza un flujo de trabajo basado en especificaciones (SDD) para garantizar que los cambios arquitectónicos sean intencionales y trazables:
+- **Exploración Nativa**: Mediante `explore_sdd`, los agentes pueden navegar por el historial de propuestas, especificaciones técnicas y tareas pendientes sin salir del contexto de ejecución.
+- **Recursos Soberanos**: Las rutas `scouter://sdd/roadmap` y `scouter://sdd/tasks` proporcionan una visión unificada del estado del proyecto, eliminando la fragmentación entre archivos de texto planos.
+- **Sincronización con Engram**: El estado de SDD se ancla a la memoria persistente, permitiendo la recuperación de contexto a través de sesiones.
+
 ## 🕸️ El Motor de Impacto (Blast Radius)
 - **Recursive CTE**: Uso de recursión nativa en SQLite para trazar el impacto en grafos cíclicos.
 - **Fuzzy Joining**: Capacidad de unir nodos por nombre o por path completo para máxima precisión.

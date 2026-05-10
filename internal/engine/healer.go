@@ -215,16 +215,17 @@ func (e *HealerEngine) Index(ctx context.Context, path string) error {
 
 		for ptr := range itPointers {
 			_ = tx.SaveSymbol(ctx, &store.Symbol{
-				Name:      ptr.Name,
-				Type:      ptr.Type,
-				Signature: ptr.Signature,
-				Doc:       ptr.Doc,
-				Path:      path,
-				StartByte: ptr.Range.Start,
-				EndByte:   ptr.Range.End,
-				StartLine: ptr.StartLine,
-				StartCol:  ptr.StartCol,
-				EndLine:   ptr.EndLine,
+				Name:           ptr.Name,
+				Type:           ptr.Type,
+				Signature:      ptr.Signature,
+				Doc:            ptr.Doc,
+				Path:           path,
+				StartByte:      ptr.Range.Start,
+				EndByte:        ptr.Range.End,
+				StartLine:      ptr.StartLine,
+				StartCol:       ptr.StartCol,
+				EndLine:        ptr.EndLine,
+				StructuralHash: ptr.StructuralHash,
 			})
 		}
 		for c := range itCalls {

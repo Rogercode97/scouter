@@ -58,7 +58,7 @@ func (e *CompactionEngine) PruneHistory(toolResults []string) []string {
 	for i, res := range toolResults {
 		// Rule: If result is > 500 chars (approx 125 tokens), we summarize/truncate
 		if len(res) > 500 {
-			// Extract Pure Signal (e.g., just the first 100 and last 100 chars + [SNIP])
+			// Extract Pure Signal (e.g., just the first 100 and last 100 chars + pruning marker)
 			pruned[i] = fmt.Sprintf("%s\n... [Sovereign Pruning: 60%% Ki Savings] ...\n%s", 
 				res[:100], res[len(res)-100:])
 		} else {

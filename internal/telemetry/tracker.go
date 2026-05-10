@@ -68,14 +68,9 @@ func (t *Tracker) ensureOpen(ctx context.Context) error {
 		}
 
 		if _, err := db.ExecContext(ctx, createTableSQL); err != nil {
-			// Check if we need to migrate column name snip_cmd -> scouter_cmd
-			if _, renameErr := db.ExecContext(ctx, "ALTER TABLE commands RENAME COLUMN snip_cmd TO scouter_cmd"); renameErr == nil {
-				// Successfully renamed
-			} else {
-				_ = db.Close()
-				t.initErr = fmt.Errorf("create table: %w", err)
-				return
-			}
+			_ = db.Close()
+			t.initErr = fmt.Errorf("create table: %w", err)
+			return
 		}
 
 		t.db = db
