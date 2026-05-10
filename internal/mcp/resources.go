@@ -166,4 +166,50 @@ func (s *Server) registerResources() {
 			},
 		}, nil
 	})
+
+	// Resource: SDD Roadmap
+	s.mcpServer.AddResource(&mcp.Resource{
+		URI:         "scouter://sdd/roadmap",
+		Name:        "SDD Roadmap",
+		Description: "Returns the project trajectory and current phase.",
+		MIMEType:    "application/json",
+	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+		res, err := s.engine.GetSDDRoadmap(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out, _ := json.MarshalIndent(res, "", "  ")
+		return &mcp.ReadResourceResult{
+			Contents: []*mcp.ResourceContents{
+				{
+					URI:      "scouter://sdd/roadmap",
+					MIMEType: "application/json",
+					Text:     string(out),
+				},
+			},
+		}, nil
+	})
+
+	// Resource: SDD Tasks
+	s.mcpServer.AddResource(&mcp.Resource{
+		URI:         "scouter://sdd/tasks",
+		Name:        "SDD Tasks",
+		Description: "Returns the current SDD task list.",
+		MIMEType:    "application/json",
+	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+		res, err := s.engine.GetSDDTasks(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out, _ := json.MarshalIndent(res, "", "  ")
+		return &mcp.ReadResourceResult{
+			Contents: []*mcp.ResourceContents{
+				{
+					URI:      "scouter://sdd/tasks",
+					MIMEType: "application/json",
+					Text:     string(out),
+				},
+			},
+		}, nil
+	})
 }
