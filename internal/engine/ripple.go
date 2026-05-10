@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"iter"
 	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/Rogercode97/scouter/internal/store"
 )
@@ -292,4 +294,15 @@ type MCPTransformer struct {
 
 func (t *MCPTransformer) Transform(ctx context.Context, file, symbol, transformation string) (string, error) {
 	return t.DoTransform(ctx, file, symbol, transformation)
+}
+
+// StructuralTransformer implements Transformer using structural search and replace.
+type StructuralTransformer struct {
+	Pattern string
+}
+
+func (t *StructuralTransformer) Transform(ctx context.Context, file, symbol, transformation string) (string, error) {
+	ext := filepath.Ext(file)
+	pattern := strings.ReplaceAll(t.Pattern, "$SYMBOL", symbol)
+	return StructuralRefactor(ctx, file, pattern, transformation, ext)
 }
