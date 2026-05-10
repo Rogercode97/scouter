@@ -1,0 +1,11 @@
+phase: "Completed"
+trajectory:
+  - "Foundation: internal/engine/sdd.go implemented"
+  - "Integration: MCP tools and resources registered"
+  - "Verification: Unit and Integration tests passing"
+  - "Archived: sdd-explorer successfully moved to archive"
+  - "Archived: absorb-structural-intelligence successfully moved to archive"
+active_changes: []
+archived_changes:
+  - "sdd-explorer"
+  - "absorb-structural-intelligence"
