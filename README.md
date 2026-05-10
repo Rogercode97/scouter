@@ -4,6 +4,32 @@
 **The World's First Autonomous Engineering OS with Deep Memory Orchestration.**  
 *Sovereign Boundaries. Shinigami Protocol. Ripple Omniscience. Engram Link.*
 
+---
+
+## 📚 Documentation
+
+For deep technical insights and architectural maps, visit the [docs/](./docs) directory:
+
+- [📐 Architecture](./docs/ARCHITECTURE.md) — How Scouter works under the hood.
+- [🗺️ Codebase Guide](./docs/CODEBASE-GUIDE.md) — A map for navigators.
+- [🚀 Installation](./docs/INSTALLATION.md) — Manual setup and MCP registration.
+- [🏛️ ADRs](./docs/adr) — Historical architectural decisions.
+
+---
+
+## 🚀 Installation
+
+### Using Go (Recommended)
+Install the latest sovereign binary directly into your `$GOPATH/bin`:
+```bash
+go install github.com/Rogercode97/scouter/cmd/scouter@latest
+```
+
+### Manual Release (Binary)
+Download the pre-compiled binary for your architecture (Linux, macOS, Windows, Android/Termux) from the [Releases](https://github.com/Rogercode97/scouter/releases) page.
+
+---
+
 Scouter is a **Sovereign Engineering Engine** that bridges your codebase with the AI agent's long-term memory. It transforms development into a high-density, context-aware experience by merging AST intelligence with the **Engram** persistence layer.
 
 ---
@@ -47,6 +73,7 @@ Protect your Ki (tokens) with elite context hygiene. Scouter generates **Technic
 | `scouter://` | **Resource** | Direct URIs for Ledger, ADRs, and Dependency Graphs. |
 | `critical_code` | **Risk** | Identify hotspots based on centrality and fragility. |
 | `structural_search` | **Search** | Pattern-based discovery with Sovereign Pagination. |
+| `explore_sdd` | **Tracking** | Navigate and search SDD artifacts (Specs, Tasks, Proposals). |
 | `read` | **RTK Muscle** | Delegated ultra-compact reading for Pure Signal extraction. |
 
 ---
