@@ -14,7 +14,8 @@ type ASTPointer struct {
 	StartLine int    `json:"start_line" validate:"required,gte=1"`
 	StartCol  int    `json:"start_col" validate:"required,gte=1"`
 	EndLine   int    `json:"end_line" validate:"required,gtfield=StartLine"`
-	Hash      string `json:"hash" validate:"required,len=64"`
+	Hash           string `json:"hash" validate:"required,len=64"`
+	StructuralHash string `json:"structural_hash,omitempty" validate:"omitempty,len=64"`
 }
 
 type ASTCall struct {
