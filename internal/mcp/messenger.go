@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -27,15 +28,17 @@ func (m *MCPMessenger) Ask(ctx context.Context, systemPrompt string, userPrompt 
 			},
 		},
 		SystemPrompt: systemPrompt,
-		MaxTokens:    1024,
+		MaxTokens:    4096, // High budget for code transformations
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("sampling request failed: %w", err)
 	}
 
+	// Handle standard text response
 	if txt, ok := res.Content.(*mcp.TextContent); ok {
 		return txt.Text, nil
 	}
 
-	return "", nil
+	// Fallback for complex content or empty response
+	return "", fmt.Errorf("unexpected content type in sampling response: %T", res.Content)
 }

@@ -39,9 +39,7 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 
 	opts := &mcp.ServerOptions{
 		Logger: logger,
-		Instructions: `Scouter provides elite structural analysis and code evolution tools.
-Validation is finality. Always run 'impact' before 'ripple_refactor' or 'evolve'.
-Call 'unlock_heavy_arsenal' to expose specialized analysis and refactoring tools.`,
+		Instructions: ScouterServerInstructions,
 	}
 	
 	s := &Server{
