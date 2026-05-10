@@ -50,60 +50,47 @@ func ValidatePath(path string) (string, error) {
 		return "", err
 	}
 
-	// MANDATE: Reject absolute paths unless they belong to a verified safe root or temp dir.
-	// We pin the allowed temp dir to the system default to prevent TMPDIR injection attacks.
 	systemTmp := os.TempDir()
-
-	if filepath.IsAbs(path) {
-		if !isWithinSovereignty(path, root, systemTmp) {
-			return "", fmt.Errorf("security violation: absolute paths outside project root or /tmp are prohibited (%s)", path)
-		}
-	}
-
-	// Construct candidate absolute path
-	fullPath := path
+	
+	// 1. Normalize to absolute path
+	absPath := path
 	if !filepath.IsAbs(path) {
-		fullPath = filepath.Join(root, path)
+		absPath = filepath.Join(root, path)
 	}
 
-	// 🔱 SECURE SYMLINK RESOLUTION (Recursive Fallback)
-	// We resolve symlinks of the existing part of the path to prevent TOCTOU/Escape tricks.
-	realPath, err := filepath.EvalSymlinks(fullPath)
-	if err != nil {
-		// File doesn't exist, we must validate its existing parent recursively.
-		parent := filepath.Dir(fullPath)
-		for {
-			if rp, err := filepath.EvalSymlinks(parent); err == nil {
-				// Parent exists and is resolved. Check if it's within bounds.
-				if !isWithinSovereignty(rp, root, systemTmp) {
-					return "", fmt.Errorf("security violation: path parent escapes sovereignty (%s)", rp)
-				}
-				break
+	// 2. 🔱 SECURE SYMLINK RESOLUTION
+	// We must resolve symlinks even for non-existent paths to prevent jailbreaks.
+	// We find the deepest existing parent and resolve its symlinks.
+	realPath := absPath
+	current := absPath
+	for {
+		if _, err := os.Lstat(current); err == nil {
+			resolved, err := filepath.EvalSymlinks(current)
+			if err == nil {
+				suffix, _ := filepath.Rel(current, absPath)
+				realPath = filepath.Join(resolved, suffix)
 			}
-			nextParent := filepath.Dir(parent)
-			if nextParent == parent {
-				break // Root reached
-			}
-			parent = nextParent
+			break
 		}
-		realPath = filepath.Clean(fullPath)
+		parent := filepath.Dir(current)
+		if parent == current {
+			break
+		}
+		current = parent
 	}
+	realPath = filepath.Clean(realPath)
 
-	// 🏛️ SOVEREIGNTY BOUNDARY CHECK
+	// 3. 🏛️ SOVEREIGNTY BOUNDARY CHECK
 	if !isWithinSovereignty(realPath, root, systemTmp) {
-		return "", fmt.Errorf("security violation: access denied to path outside sovereignty (%s)", realPath)
+		// Specific error for absolute paths to satisfy existing tests
+		if filepath.IsAbs(path) {
+			return "", fmt.Errorf("security violation: absolute paths outside project root or /tmp are prohibited")
+		}
+		return "", fmt.Errorf("security violation: path escapes sovereignty (%s)", realPath)
 	}
 
-	// 💎 RELATIVE BLACKLIST CHECK (Case-Insensitive)
-	// We only check the parts relative to the root to avoid "Parent Pollution".
-	var relPath string
-	if strings.HasPrefix(realPath, root) {
-		relPath, _ = filepath.Rel(root, realPath)
-	} else {
-		relPath, _ = filepath.Rel(systemTmp, realPath)
-	}
-
-	parts := strings.Split(relPath, string(os.PathSeparator))
+	// 4. 💎 BLACKLIST CHECK (Case-Insensitive)
+	parts := strings.Split(realPath, string(os.PathSeparator))
 	for _, part := range parts {
 		for _, blocked := range purityBlacklist {
 			if strings.EqualFold(part, blocked) {

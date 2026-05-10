@@ -3,10 +3,60 @@ package engine
 import (
 	"context"
 	"iter"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/store"
 )
+
+func TestMCPTransformer_Transform(t *testing.T) {
+	// Create a temporary file for testing
+	tmpFile, err := os.CreateTemp("", "scouter_test_*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	content := "package main\n\nfunc Test() {}"
+	if _, err := tmpFile.WriteString(content); err != nil {
+		t.Fatal(err)
+	}
+	tmpFile.Close()
+
+	ms := &rippleEngineMockStore{}
+
+	bridgeCalled := false
+	var capturedPrompt string
+	bridge := func(ctx context.Context, file, symbol, prompt string) (string, error) {
+		bridgeCalled = true
+		capturedPrompt = prompt
+		return "transformed code", nil
+	}
+
+	transformer := NewMCPTransformer(ms, bridge)
+
+	res, err := transformer.Transform(context.Background(), tmpFile.Name(), "Test", "rename to NewTest")
+	if err != nil {
+		t.Fatalf("Transform failed: %v", err)
+	}
+
+	if res != "transformed code" {
+		t.Errorf("Expected 'transformed code', got %s", res)
+	}
+
+	if !bridgeCalled {
+		t.Error("Bridge function was not called")
+	}
+
+	if !strings.Contains(capturedPrompt, "SYMBOL TO MODIFY: Test") {
+		t.Error("Prompt does not contain symbol name")
+	}
+
+	if !strings.Contains(capturedPrompt, "CODE:\npackage main") {
+		t.Error("Prompt does not contain file content")
+	}
+}
 
 type mockTransformer struct {
 	transformFunc func(file, symbol, transformation string) (string, error)

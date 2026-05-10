@@ -35,15 +35,30 @@ func init() {
          (method_declaration name: (field_identifier) @name) @method`,
 		`(call_expression function: (identifier) @callee) (call_expression function: (selector_expression field: (field_identifier) @callee))`)
 
-	// TS Configuration: Enriched to capture interface methods
+	// TS Configuration: Enriched to capture interface methods and MCP patterns
 	tsLang := tree_sitter.NewLanguage(tree_sitter_typescript.LanguageTypescript())
-	registerLanguage(".ts", tsLang,
-		`(class_declaration name: (type_identifier) @name) @class 
+	tsQuery := `(class_declaration name: (type_identifier) @name) @class 
          (function_declaration name: (identifier) @name) @function 
+         (generator_function_declaration name: (identifier) @name) @function
+         (variable_declarator name: (identifier) @name value: (arrow_function)) @function
          (method_definition name: (property_identifier) @name) @method 
          (interface_declaration name: (type_identifier) @name) @interface
-         (interface_declaration name: (type_identifier) @iname body: (interface_body (method_signature (property_identifier) @mname))) @interface_spec`,
-		`(call_expression function: (identifier) @callee) (call_expression function: (member_expression property: (property_identifier) @callee))`)
+         (interface_declaration name: (type_identifier) @iname body: (interface_body (method_signature (property_identifier) @mname))) @interface_spec
+         (call_expression 
+           function: (member_expression property: (property_identifier) @pname (#match? @pname "^(registerTool|registerResource|registerPrompt|tool|resource|prompt)$"))
+           arguments: (arguments (string (string_fragment) @name))) @mcp_entry`
+	tsCallQuery := `(call_expression function: (identifier) @callee) 
+                    (call_expression function: (member_expression property: (property_identifier) @callee))
+                    (call_expression function: (member_expression object: (identifier) @obj property: (property_identifier) @callee))`
+
+
+	registerLanguage(".ts", tsLang, tsQuery, tsCallQuery)
+
+	// TSX/JSX Configuration: uses LanguageTSX
+	tsxLang := tree_sitter.NewLanguage(tree_sitter_typescript.LanguageTSX())
+	registerLanguage(".tsx", tsxLang, tsQuery, tsCallQuery)
+	registerLanguage(".jsx", tsxLang, tsQuery, tsCallQuery)
+	registerLanguage(".js", tsLang, tsQuery, tsCallQuery)
 
 	// Python Configuration: Class methods are the "interfaces" by convention
 	pyLang := tree_sitter.NewLanguage(tree_sitter_python.Language())
@@ -125,13 +140,14 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 			doc := extractDoc(symNode, content, ext)
 			h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s", symType, fullName)))
 			pointers = append(pointers, types.ASTPointer{
-				Type:      symType,
-				Name:      fullName,
-				Doc:       doc,
-				Range:     types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
-				StartLine: int(symNode.StartPosition().Row) + 1,
-				EndLine:   int(symNode.EndPosition().Row) + 1,
-				Hash:      hex.EncodeToString(h[:]),
+				Type:           symType,
+				Name:           fullName,
+				Doc:            doc,
+				Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
+				StartLine:      int(symNode.StartPosition().Row) + 1,
+				EndLine:        int(symNode.EndPosition().Row) + 1,
+				Hash:           hex.EncodeToString(h[:]),
+				StructuralHash: GetStructuralHash(&symNode, content),
 			})
 		}
 
@@ -143,12 +159,13 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 			}
 			fullMethodName := parentInterface + ":" + mname
 			pointers = append(pointers, types.ASTPointer{
-				Type:      "method_spec",
-				Name:      fullMethodName,
-				Range:     types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
-				StartLine: int(symNode.StartPosition().Row) + 1,
-				EndLine:   int(symNode.EndPosition().Row) + 1,
-				Hash:      utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
+				Type:           "method_spec",
+				Name:           fullMethodName,
+				Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
+				StartLine:      int(symNode.StartPosition().Row) + 1,
+				EndLine:        int(symNode.EndPosition().Row) + 1,
+				Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
+				StructuralHash: GetStructuralHash(&symNode, content),
 			})
 		}
 	}

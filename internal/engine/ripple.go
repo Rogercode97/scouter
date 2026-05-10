@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -288,12 +289,35 @@ func (e *RippleEngine) Propagate(ctx context.Context, symbolName string, transfo
 
 // MCPTransformer implements Transformer using MCP Sampling.
 type MCPTransformer struct {
+	store store.Repository
 	// This will be bridged from the MCP handler
 	DoTransform func(ctx context.Context, file, symbol, transformation string) (string, error)
 }
 
+func NewMCPTransformer(s store.Repository, bridge func(context.Context, string, string, string) (string, error)) *MCPTransformer {
+	return &MCPTransformer{
+		store:       s,
+		DoTransform: bridge,
+	}
+}
+
 func (t *MCPTransformer) Transform(ctx context.Context, file, symbol, transformation string) (string, error) {
-	return t.DoTransform(ctx, file, symbol, transformation)
+	content, err := os.ReadFile(file)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file for transformation context: %w", err)
+	}
+
+	// Build a rich contextual prompt for the LLM
+	contextualPrompt := fmt.Sprintf(`Act as a senior software architect. Transform the following code based on the instruction.
+
+FILE: %s
+SYMBOL TO MODIFY: %s
+INSTRUCTION: %s
+
+CODE:
+%s`, file, symbol, transformation, string(content))
+
+	return t.DoTransform(ctx, file, symbol, contextualPrompt)
 }
 
 // StructuralTransformer implements Transformer using structural search and replace.
