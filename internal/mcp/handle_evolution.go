@@ -1,0 +1,196 @@
+package mcp
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/Rogercode97/scouter/internal/utils"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+// Evolution Param structs
+
+type SelfHealParams struct {
+	ErrorLog string `json:"errorLog"`
+}
+
+type RippleRefactorParams struct {
+	SymbolName     string `json:"symbolName"`
+	Transformation string `json:"transformation"`
+}
+
+type EvolveParams struct {
+	Proposal string `json:"proposal"`
+	Force    bool   `json:"force,omitempty"`
+}
+
+type CommitParams struct{}
+
+type RollbackParams struct{}
+
+type DiffParams struct{}
+
+// Handlers
+
+func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, args SelfHealParams) (*mcp.CallToolResult, any, error) {
+	if args.ErrorLog == "" {
+		return nil, nil, fmt.Errorf("missing errorLog")
+	}
+
+	// [Sovereignty Mandate] Serial execution via Mutex
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	searchQuery := args.ErrorLog
+	if len(searchQuery) > 100 {
+		searchQuery = searchQuery[:100]
+	}
+	engramCtx := fetchEngramContext("bugfix " + searchQuery)
+
+	// Delegate to TruthEngine
+	res, err := s.engine.Fix(ctx, args.ErrorLog, &healerMessenger{req: req, engramCtx: engramCtx})
+	if err != nil {
+		return nil, nil, fmt.Errorf("self-heal failed: %w", err)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: res},
+		},
+	}, nil, nil
+}
+
+func (s *Server) handleRippleRefactor(ctx context.Context, req *mcp.CallToolRequest, args RippleRefactorParams) (*mcp.CallToolResult, any, error) {
+	if args.SymbolName == "" || args.Transformation == "" {
+		return nil, nil, fmt.Errorf("missing symbolName or transformation")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Delegate to TruthEngine
+	res, err := s.engine.Propagate(ctx, args.SymbolName, args.Transformation, &mcpMessenger{req: req})
+	if err != nil {
+		return nil, nil, fmt.Errorf("propagation failed: %w", err)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: res},
+		},
+	}, nil, nil
+}
+
+func (s *Server) handleCommit(ctx context.Context, req *mcp.CallToolRequest, args CommitParams) (*mcp.CallToolResult, any, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	res, err := s.engine.CommitLedger(ctx)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Commit failed: %v", err)}},
+			IsError: true,
+		},
+		nil, nil
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: res}},
+	}, nil, nil
+}
+
+func (s *Server) handleRollback(ctx context.Context, req *mcp.CallToolRequest, args RollbackParams) (*mcp.CallToolResult, any, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	res, err := s.engine.RollbackLedger(ctx)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Rollback failed: %v", err)}},
+			IsError: true,
+		},
+		nil, nil
+	}
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: res}},
+	}, nil, nil
+}
+
+func (s *Server) handleDiff(ctx context.Context, req *mcp.CallToolRequest, args DiffParams) (*mcp.CallToolResult, any, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	res, err := s.engine.GetLedgerDiff(ctx)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Diff failed: %v", err)}},
+			IsError: true,
+		},
+		nil, nil
+	}
+
+	summary := s.engine.GetLedgerSummary(ctx)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: summary + "\n\n" + res},
+		},
+	}, nil, nil
+}
+
+func (s *Server) handleEvolve(ctx context.Context, req *mcp.CallToolRequest, args EvolveParams) (*mcp.CallToolResult, any, error) {
+	if args.Proposal == "" {
+		return nil, nil, fmt.Errorf("missing proposal")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// 1. Sampling: Request Genome Mutation
+	samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
+		SystemPrompt: GEPSystemPrompt,
+		Messages: []*mcp.SamplingMessage{
+			{Role: "user", Content: &mcp.TextContent{Text: args.Proposal}},
+		},
+		MaxTokens: 4096,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("sampling evolution failed: %w", err)
+	}
+
+	txt, ok := samplingRes.Content.(*mcp.TextContent)
+	if !ok {
+		return nil, nil, fmt.Errorf("unexpected sampling response type")
+	}
+
+	// 2. Parse JSON Mutations
+	var mutations []struct {
+		File    string `json:"file"`
+		Content string `json:"content"`
+	}
+	rawJSON := utils.ExtractJSON(txt.Text)
+	if err := json.Unmarshal([]byte(rawJSON), &mutations); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse mutation JSON: %w\nRaw: %s", err, txt.Text)
+	}
+
+	// 3. Stage in Ledger
+	stagedCount := 0
+	for _, m := range mutations {
+		if !args.Force && strings.Contains(m.File, "internal/mcp/handlers.go") {
+			return nil, nil, fmt.Errorf("SOVEREIGNTY VIOLATION: Mutation attempts to modify GEP core logic in '%s'. Use 'force:true' if this is an intended self-lobotomy.", m.File)
+		}
+
+		if err := s.engine.StageMutation(ctx, m.File, m.Content); err != nil {
+			return nil, nil, fmt.Errorf("failed to stage mutation for %s: %w", m.File, err)
+		}
+		stagedCount++
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf("✅ Evolution staged in Ledger for %d files. Use 'scouter_diff' to review and 'scouter_commit' to apply changes.", stagedCount)},
+		},
+	}, nil, nil
+}
