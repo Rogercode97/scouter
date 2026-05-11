@@ -1,37 +1,48 @@
-# Propagate Specification (Deepened)
+# Delta for Symbol Persistence
 
-## Purpose
-Traces the blast radius of a symbol and applies transformations across the project.
+## ADDED Requirements
 
-## Requirements
-### Requirement: Streamed Execution
-The system MUST use streaming iterators (Go 1.25 `iter.Seq`) to propagate changes, ensuring constant memory usage regardless of the blast radius size.
-#### Scenario: Large Scale Ripple
-- GIVEN a symbol with 500+ callers across 100 files
-- WHEN the propagate command is executed
-- THEN the system MUST process the transformations in a streamed fashion
-- AND the peak memory usage SHOULD NOT exceed a defined threshold (e.g., 50MB for metadata).
+### Requirement: Fully Qualified Symbol Identity
 
-### Requirement: Deterministic Caller Resolution
-The system MUST resolve callers using the LSP-aware `ImpactEngine` to ensure all symbolic references are identified across all file boundaries.
-#### Scenario: Cross-Package Rename
-- GIVEN a public function `Sum` in package A used in package B
-- WHEN `Sum` is renamed to `Add` via RippleEngine
-- THEN the system MUST correctly identify and transform the calls in package B.
+The system MUST store the fully qualified package path (e.g., `github.com/user/repo/pkg`) for every symbol in the SQLite store to distinguish between identical names in different packages.
+
+#### Scenario: Cross-Package Indexing
+
+- GIVEN a project with packages `pkg/a` and `pkg/b`
+- WHEN the parser indexes symbols in `pkg/a`
+- THEN the `package_path` column in the database MUST contain `github.com/user/repo/pkg/a` for those symbols.
+
+### Requirement: Receiver Metadata
+
+The system MUST store the receiver type (Pointer vs Value) for method symbols to enable accurate method set comparison during interface satisfaction analysis.
+
+#### Scenario: Method Receiver Storage
+
+- GIVEN a method `func (t T) ValueMethod()` and `func (t *T) PointerMethod()`
+- WHEN the parser indexes these methods
+- THEN the database MUST record that `ValueMethod` has a value receiver and `PointerMethod` has a pointer receiver.
+
+# Delta for Ripple Engine (Type Resolution)
+
+## ADDED Requirements
 
 ### Requirement: Cross-Package Interface Resolution
+
 The system MUST resolve interface implementations across package boundaries using semantic analysis (`go/types.Implements`).
 
 #### Scenario: Interface Satisfaction Across Packages
+
 - GIVEN an interface `Logger` in package `pkg/log`
 - AND a struct `ConsoleLogger` in package `pkg/console` that implements `Logger`
 - WHEN Ripple analysis is run for `Logger`
 - THEN the system MUST identify `ConsoleLogger` as an implementation even though it is in a different package.
 
 ### Requirement: Method Set Compliance
+
 The system MUST correctly identify interface satisfaction based on Go method set rules.
 
 #### Scenario: Pointer Receiver Validation
+
 - GIVEN an interface `Writer` with method `Write()`
 - AND a struct `File` with method `func (f *File) Write()` (pointer receiver)
 - WHEN checking if `File` (value) implements `Writer`
@@ -40,9 +51,11 @@ The system MUST correctly identify interface satisfaction based on Go method set
 - THEN the system MUST report that it DOES satisfy the interface.
 
 ### Requirement: Structural Interface Satisfaction
+
 The system MUST support interface satisfaction via embedding and composition.
 
 #### Scenario: Embedded Interface Satisfaction
+
 - GIVEN an interface `ReadWriter` composed of `Reader` and `Writer`
 - AND a struct `Buffer` that embeds a struct implementing `Reader` and implements `Writer` directly
 - WHEN checking if `Buffer` implements `ReadWriter`
