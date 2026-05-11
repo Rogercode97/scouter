@@ -2,11 +2,13 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/utils"
+	_ "modernc.org/sqlite"
 )
 
 func TestStoreSearch(t *testing.T) {
@@ -533,5 +535,118 @@ func TestCallLinkTypePersistence(t *testing.T) {
 	callers, _ := s.GetCallers(ctx, "Impl.M", 0, 0)
 	if len(callers) != 1 || callers[0].LinkType != "dynamic" {
 		t.Errorf("Expected dynamic link type, got %v", callers)
+	}
+}
+
+func TestStore_SemanticFields(t *testing.T) {
+	ctx := t.Context()
+	dbPath := "test_scouter_semantic.db"
+	defer os.Remove(dbPath)
+
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	path := "semantic.go"
+	_ = s.SaveFileIndex(ctx, &FileIndex{Path: path, Project: "p"})
+
+	sym := &Symbol{
+		Name:         "MyMethod",
+		Type:         "method",
+		PackagePath:  "github.com/user/repo/pkg",
+		ReceiverType: "pointer",
+		Path:         path,
+		StartLine:    10,
+		EndLine:      20,
+	}
+
+	if err := s.SaveSymbol(ctx, sym); err != nil {
+		t.Fatalf("SaveSymbol failed: %v", err)
+	}
+
+	// 1. Verify via SearchSymbols
+	res, err := s.SearchSymbols(ctx, "MyMethod", "", 0, 0)
+	if err != nil {
+		t.Fatalf("SearchSymbols failed: %v", err)
+	}
+	if len(res) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(res))
+	}
+	if res[0].PackagePath != "github.com/user/repo/pkg" || res[0].ReceiverType != "pointer" {
+		t.Errorf("Semantic fields mismatch in SearchSymbols: pkg=%s, recv=%s", res[0].PackagePath, res[0].ReceiverType)
+	}
+
+	// 2. Verify via GetSymbolsByNameInFile
+	res, err = s.GetSymbolsByNameInFile(ctx, "MyMethod", path)
+	if err != nil {
+		t.Fatalf("GetSymbolsByNameInFile failed: %v", err)
+	}
+	if len(res) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(res))
+	}
+	if res[0].PackagePath != "github.com/user/repo/pkg" || res[0].ReceiverType != "pointer" {
+		t.Errorf("Semantic fields mismatch in GetSymbolsByNameInFile: pkg=%s, recv=%s", res[0].PackagePath, res[0].ReceiverType)
+	}
+
+	// 3. Verify via GetAllSymbols
+	found := false
+	for s, err := range s.GetAllSymbols(ctx) {
+		if err != nil {
+			t.Fatalf("GetAllSymbols error: %v", err)
+		}
+		if s.Name == "MyMethod" {
+			found = true
+			if s.PackagePath != "github.com/user/repo/pkg" || s.ReceiverType != "pointer" {
+				t.Errorf("Semantic fields mismatch in GetAllSymbols: pkg=%s, recv=%s", s.PackagePath, s.ReceiverType)
+			}
+		}
+	}
+	if !found {
+		t.Error("Symbol not found in GetAllSymbols")
+	}
+}
+
+func TestStore_Migration(t *testing.T) {
+	ctx := t.Context()
+	dbPath := "test_scouter_migration.db"
+	defer os.Remove(dbPath)
+
+	// 1. Create a database with old schema manually
+	dsn := fmt.Sprintf("%s?_pragma=foreign_keys(1)", dbPath)
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatalf("Failed to open db: %v", err)
+	}
+	_, err = db.Exec(`
+		CREATE TABLE file_index (path TEXT PRIMARY KEY, mtime INTEGER, hash TEXT, ast_json TEXT, project TEXT);
+		CREATE TABLE symbols (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, signature TEXT DEFAULT '', doc TEXT, path TEXT, start_byte INTEGER, end_byte INTEGER, start_line INTEGER, start_col INTEGER, end_line INTEGER, structural_hash TEXT DEFAULT '', indegree INTEGER DEFAULT 0, FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);
+	`)
+	if err != nil {
+		t.Fatalf("Failed to create old schema: %v", err)
+	}
+	db.Close()
+
+	// 2. Open it with New(), which should trigger migration
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("New() failed on old database: %v", err)
+	}
+	defer s.Close()
+
+	// 3. Verify columns exist
+	storeImpl := s.(*Store)
+	tx, _ := storeImpl.db.BeginTx(ctx, nil)
+	defer tx.Rollback()
+
+	hasPkg, _ := hasColumn(ctx, tx, "symbols", "package_path")
+	if !hasPkg {
+		t.Error("Column 'package_path' missing after migration")
+	}
+
+	hasRec, _ := hasColumn(ctx, tx, "symbols", "receiver_type")
+	if !hasRec {
+		t.Error("Column 'receiver_type' missing after migration")
 	}
 }

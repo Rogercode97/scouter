@@ -3,63 +3,123 @@ package engine
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/store"
 )
 
 func TestResolveInterfaces(t *testing.T) {
-	ctx := context.Background()
-	dbPath := "test_interfaces.db"
-	defer os.Remove(dbPath)
+	tmpDir, err := os.MkdirTemp("", "scouter-analyzer-*")
+	if err != nil {
+		t.Fatalf("failed to create tmp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
 
+	goMod := "module testanalyzer\n\ngo 1.25\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644); err != nil {
+		t.Fatalf("failed to write go.mod: %v", err)
+	}
+
+	content := `
+package testanalyzer
+
+type Shape interface {
+	Area() float64
+}
+
+type Circle struct{}
+func (c Circle) Area() float64 { return 0 }
+
+type Square struct{}
+func (s *Square) Area() float64 { return 0 }
+
+type NotAShape struct{}
+func (n NotAShape) Area(x int) float64 { return 0 }
+`
+	filePath := filepath.Join(tmpDir, "test.go")
+	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	ctx := context.Background()
+	dbPath := filepath.Join(tmpDir, "test.db")
 	s, err := store.New(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
 	defer s.Close()
 
+	// Parse and save symbols
+	pointers, _, err := ParseFile(ctx, filePath, nil)
+	if err != nil {
+		t.Fatalf("ParseFile failed: %v", err)
+	}
+
+	if err := s.SaveFileIndex(ctx, &store.FileIndex{Path: filePath, Project: "test"}); err != nil {
+		t.Fatalf("SaveFileIndex failed: %v", err)
+	}
+
+	for _, p := range pointers {
+		_ = s.SaveSymbol(ctx, &store.Symbol{
+			Name:         p.Name,
+			Type:         p.Type,
+			PackagePath:  p.PackagePath,
+			ReceiverType: p.ReceiverType,
+			Path:         filePath,
+			Signature:    p.Signature,
+		})
+	}
+
 	analyzer := NewAnalysisEngine(s)
+	analyzer.ProjectRoot = tmpDir
 
-	// 1. Setup Interface and Implementation
-	_ = s.SaveFileIndex(ctx, &store.FileIndex{Path: "iface.go", Project: "p"})
-	_ = s.SaveFileIndex(ctx, &store.FileIndex{Path: "impl.go", Project: "p"})
-
-	// Interface: Shape with method Area() float64
-	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "Shape", Type: "interface", Path: "iface.go"})
-	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "Shape:Area", Type: "method_spec", Signature: "() (float64)", Path: "iface.go"})
-
-	// Implementation: Circle with method Area() float64
-	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "Circle", Type: "class", Path: "impl.go"})
-	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "Circle.Area", Type: "method", Signature: "() (float64)", Path: "impl.go"})
-
-	// Another struct that DOES NOT match (different signature)
-	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "Square", Type: "class", Path: "impl.go"})
-	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "Square.Area", Type: "method", Signature: "(int) (float64)", Path: "impl.go"})
-
-	// 2. Resolve
 	if err := analyzer.ResolveInterfaces(ctx); err != nil {
 		t.Fatalf("ResolveInterfaces failed: %v", err)
 	}
 
-	// 3. Verify
-	callers, err := s.GetCallers(ctx, "Shape", 0, 0)
+	// Verify implements
+	callers, err := s.GetCallers(ctx, "testanalyzer.Shape", 0, 0)
 	if err != nil {
 		t.Fatalf("GetCallers failed: %v", err)
 	}
 
-	found := false
+	foundCircle := false
+	foundSquare := false
 	for _, c := range callers {
-		if c.CallerName == "Circle" && c.LinkType == "implements" {
-			found = true
+		if c.CallerName == "testanalyzer.Circle" && c.LinkType == "implements" {
+			foundCircle = true
 		}
-		if c.CallerName == "Square" {
-			t.Errorf("Square should NOT implement Shape (signature mismatch)")
+		if c.CallerName == "testanalyzer.Square" && c.LinkType == "implements" {
+			foundSquare = true
+		}
+		if strings.Contains(c.CallerName, "NotAShape") {
+			t.Errorf("NotAShape should NOT implement Shape")
 		}
 	}
 
-	if !found {
+	if !foundCircle {
 		t.Errorf("Circle should implement Shape")
+	}
+	if !foundSquare {
+		t.Errorf("Square should implement Shape")
+	}
+
+	// Verify satisfies (methods)
+	satisfiers, err := s.GetCallers(ctx, "testanalyzer.Shape.Area", 0, 0)
+	if err != nil {
+		t.Fatalf("GetCallers for methods failed: %v", err)
+	}
+
+	foundCircleArea := false
+	for _, c := range satisfiers {
+		if c.CallerName == "testanalyzer.Circle.Area" && c.LinkType == "satisfies" {
+			foundCircleArea = true
+		}
+	}
+	if !foundCircleArea {
+		t.Errorf("Circle.Area should satisfy Shape.Area")
 	}
 }
 

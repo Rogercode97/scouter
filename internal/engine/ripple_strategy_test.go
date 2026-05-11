@@ -78,8 +78,8 @@ func TestBFSPropagationStrategy_Discover(t *testing.T) {
 
 	expected := []string{
 		"SymA:fileA.go", // Depth 0 (self)
-		"SymB:fileB.go", // Depth 1
-		"SymC:fileC.go", // Depth 2
+		"SymA:fileB.go", // Depth 1 (SymB calls SymA)
+		"SymB:fileC.go", // Depth 2 (SymC calls SymB)
 	}
 
 	for _, exp := range expected {

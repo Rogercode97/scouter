@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"iter"
 	"os"
@@ -20,6 +19,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/utils"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
+	"golang.org/x/tools/go/packages"
 )
 
 // MaxFragmentSize is the limit for a surgical read (100KB)
@@ -78,11 +78,34 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 		return nil, nil, fmt.Errorf("file too large to index (%d bytes), limit is %d bytes", fi.Size(), MaxParseSize)
 	}
 
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, validatedPath, nil, parser.ParseComments)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Go native parser failed for %s: %v\n", validatedPath, err)
-		return nil, nil, err
+	var file *ast.File
+	var fset *token.FileSet
+	var pkgPath string
+
+	cfg := &packages.Config{
+		Mode:  packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+		Tests: true,
+		Dir:   filepath.Dir(validatedPath),
+	}
+	pkgs, err := packages.Load(cfg, "file="+validatedPath)
+	if err != nil || len(pkgs) == 0 {
+		fmt.Fprintf(os.Stderr, "Go packages load failed for %s: %v\n", validatedPath, err)
+		return nil, nil, fmt.Errorf("failed to load package: %v", err)
+	}
+
+	pkg := pkgs[0]
+	pkgPath = pkg.PkgPath
+	fset = pkg.Fset
+
+	for _, f := range pkg.Syntax {
+		if fset.Position(f.Pos()).Filename == validatedPath {
+			file = f
+			break
+		}
+	}
+
+	if file == nil {
+		return nil, nil, fmt.Errorf("file %s not found in loaded package %s", validatedPath, pkgPath)
 	}
 
 	// For structural hashing consistency, we also parse with Tree-sitter for Go files
@@ -129,16 +152,25 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 					doc := utils.CleanComment(fn.Doc.Text())
 					fullName := fn.Name.Name
 					symType := "function"
+					receiverType := ""
+
 					if fn.Recv != nil && len(fn.Recv.List) > 0 {
 						symType = "method"
 						recvType := ""
 						switch r := fn.Recv.List[0].Type.(type) {
 						case *ast.Ident:
 							recvType = r.Name
+							receiverType = "value"
 						case *ast.StarExpr:
+							receiverType = "pointer"
 							if id, ok := r.X.(*ast.Ident); ok {
 								recvType = id.Name
+							} else if sel, ok := r.X.(*ast.SelectorExpr); ok {
+								recvType = sel.Sel.Name
 							}
+						case *ast.SelectorExpr:
+							recvType = r.Sel.Name
+							receiverType = "value"
 						}
 						if recvType != "" {
 							fullName = recvType + "." + fn.Name.Name
@@ -159,6 +191,8 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 					p := types.ASTPointer{
 						Type:           symType,
 						Name:           fullName,
+						PackagePath:    pkgPath,
+						ReceiverType:   receiverType,
 						Signature:      signature,
 						Doc:            doc,
 						Range:          types.Range{Start: startPos.Offset, End: endPos.Offset},
@@ -208,6 +242,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 											p := types.ASTPointer{
 												Type:           "method_spec",
 												Name:           fullMethodName,
+												PackagePath:    pkgPath,
 												Signature:      sig,
 												Range:          types.Range{Start: mStart.Offset, End: mEnd.Offset},
 												StartLine:      mIdent.Line,
@@ -246,6 +281,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 							p := types.ASTPointer{
 								Type:           symType,
 								Name:           ts.Name.Name,
+								PackagePath:    pkgPath,
 								Doc:            doc,
 								Range:          types.Range{Start: startPos.Offset, End: endPos.Offset},
 								StartLine:      identPos.Line,

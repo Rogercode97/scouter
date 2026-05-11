@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -77,10 +78,13 @@ func preparePattern(parser *tree_sitter.Parser, pattern string, ext string) (*tr
 
 	if patternRoot.HasError() {
 		wrapped := processedPattern
+		prefix := ""
 		if ext == ".go" {
-			wrapped = "package main\nfunc _() {\n" + processedPattern + "\n}"
+			prefix = "package main\nfunc _() {\n"
+			wrapped = prefix + processedPattern + "\n}"
 		} else if ext == ".ts" || ext == ".js" {
-			wrapped = "function _() {\n" + processedPattern + "\n}"
+			prefix = "function _() {\n"
+			wrapped = prefix + processedPattern + "\n}"
 		}
 
 		wTree := parser.Parse([]byte(wrapped), nil)
@@ -113,6 +117,16 @@ func StructuralRefactor(ctx context.Context, filePath, pattern, template, ext st
 	if err != nil {
 		return "", err
 	}
+	
+	f, _ := os.OpenFile("DEBUG_MATCHES", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if f != nil {
+		fmt.Fprintf(f, "File: %s, Pattern: %s, Matches: %d\n", filePath, pattern, len(matches))
+		for _, m := range matches {
+			fmt.Fprintf(f, "  Match: %s, Captures: %v\n", m.Content, m.Captures)
+		}
+		f.Close()
+	}
+
 	if len(matches) == 0 {
 		content, err := os.ReadFile(filePath)
 		if err != nil {
@@ -150,24 +164,36 @@ func StructuralRefactor(ctx context.Context, filePath, pattern, template, ext st
 
 func findTargetNode(node *tree_sitter.Node, content []byte, pattern string) *tree_sitter.Node {
 	patternTrim := strings.TrimSpace(pattern)
-	for i := uint(0); i < uint(node.NamedChildCount()); i++ {
-		child := node.NamedChild(i)
-		childText := strings.TrimSpace(child.Utf8Text(content))
-		if childText == patternTrim {
-			// Try to see if there's a deeper named match
-			deeper := findTargetNode(child, content, pattern)
-			if deeper != nil {
-				return deeper
-			}
-			return child
-		}
-		if strings.Contains(childText, patternTrim) {
-			res := findTargetNode(child, content, pattern)
-			if res != nil {
-				return res
-			}
+	
+	// Recursively search in children first to find the most specific match
+	for i := uint(0); i < uint(node.ChildCount()); i++ {
+		child := node.Child(i)
+		res := findTargetNode(child, content, pattern)
+		if res != nil {
+			return res
 		}
 	}
+
+	// Then check if the current node itself is the target
+	nodeText := strings.TrimSpace(node.Utf8Text(content))
+	if nodeText == patternTrim {
+		kind := node.Kind()
+		// If it's a wrapper like expression_statement, drill down to the actual expression
+		if (kind == "expression_statement" || kind == "source_file" || kind == "program") && node.NamedChildCount() == 1 {
+			return node.NamedChild(0)
+		}
+		
+		// Priority nodes for structural matching
+		if kind == "call_expression" || kind == "function_declaration" || kind == "assignment_expression" {
+			return node
+		}
+
+		// Avoid returning root nodes or broad containers if possible
+		if kind != "source_file" && kind != "function_declaration" && kind != "block" && kind != "program" {
+			return node
+		}
+	}
+
 	return nil
 }
 
@@ -375,9 +401,9 @@ func isWildcard(text string) (string, bool) {
 }
 
 func matchNodes(node, pattern *tree_sitter.Node, patternContent, targetContent []byte, captures map[string]string) bool {
-	pText := pattern.Utf8Text(patternContent)
-	tText := node.Utf8Text(targetContent)
-	
+	pText := strings.TrimSpace(pattern.Utf8Text(patternContent))
+	tText := strings.TrimSpace(node.Utf8Text(targetContent))
+
 	if name, ok := isWildcard(pText); ok {
 		captures[name] = tText
 		return true

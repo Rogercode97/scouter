@@ -104,7 +104,7 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 
 				for _, caller := range callers {
 					if !yield(PropagationTask{
-						SymbolName: caller.CallerName,
+						SymbolName: currentSym,
 						FilePath:   caller.Path,
 						Action:     "transform",
 					}, nil) {

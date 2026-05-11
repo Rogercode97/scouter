@@ -15,43 +15,45 @@ import (
 
 
 type IndexParams struct {
-	FilePath string `json:"filePath"`
+	FilePath string `json:"filePath" jsonschema:"The absolute or relative path to the file or directory to index"`
 }
 
 type SearchParams struct {
-	Query  string `json:"query"`
-	Type   string `json:"type,omitempty"`
-	Limit  int    `json:"limit,omitempty"`
-	Offset int    `json:"offset,omitempty"`
+	Query  string `json:"query" jsonschema:"The search query (supports semantic or text search)"`
+	Type   string `json:"type,omitempty" jsonschema:"Optional: Filter by symbol type (e.g., function, method, struct)"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"Max results to return (default: 50, max: 100)"`
+	Offset int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
 }
 
 type ReadParams struct {
-	FilePath string `json:"filePath"`
-	Pointer  string `json:"pointer"`
+	FilePath string `json:"filePath" jsonschema:"Path to the file to read"`
+	Pointer  string `json:"pointer" jsonschema:"AST pointer or fragment identifier to read (e.g., 'symbol:MyFunc')"`
 }
 
 type CallersParams struct {
-	CalleeName string `json:"calleeName"`
-	Limit      int    `json:"limit,omitempty"`
-	Offset     int    `json:"offset,omitempty"`
+	CalleeName string `json:"calleeName" jsonschema:"The name of the function or method to find callers for"`
+	Limit      int    `json:"limit,omitempty" jsonschema:"Max results to return (default: 50, max: 100)"`
+	Offset     int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
 }
 
 type DefinitionParams struct {
-	FilePath  string `json:"filePath"`
-	Line      int    `json:"line"`      // 1-based (standard for humans/agents)
-	Character int    `json:"character"` // 1-based
+	FilePath  string `json:"filePath" jsonschema:"Path to the file containing the symbol"`
+	Line      int    `json:"line" jsonschema:"1-based line number"`
+	Character int    `json:"character" jsonschema:"1-based character position"`
 }
 
 type TypeInfoParams struct {
-	FilePath  string `json:"filePath"`
-	Line      int    `json:"line"`
-	Character int    `json:"character"`
+	FilePath  string `json:"filePath" jsonschema:"Path to the file containing the symbol"`
+	Line      int    `json:"line" jsonschema:"1-based line number"`
+	Character int    `json:"character" jsonschema:"1-based character position"`
 }
 
 type StructuralSearchParams struct {
-	Pattern string `json:"pattern"`
-	Ext     string `json:"ext"`
-	Path    string `json:"path,omitempty"`
+	Pattern string `json:"pattern" jsonschema:"The structural search pattern (supports $VAR and $$$ wildcards)"`
+	Ext     string `json:"ext" jsonschema:"The file extension to search in (e.g., '.go', '.ts')"`
+	Path    string `json:"path,omitempty" jsonschema:"Optional: Root path for the search (defaults to '.')"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"Max results to return (default: 50, max: 100)"`
+	Offset  int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
 }
 
 func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args IndexParams) (*mcp.CallToolResult, any, error) {
@@ -315,9 +317,25 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 		nil, nil
 	}
 
-	count := len(results)
-	if count > 500 {
-		results = results[:500]
+	total := len(results)
+	limit := args.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	offset := args.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	if offset >= total {
+		results = []engine.StructuralMatch{}
+	} else {
+		end := offset + limit
+		if end > total {
+			end = total
+		}
+		results = results[offset:end]
 	}
 
 	out, err := json.Marshal(results)
@@ -329,7 +347,8 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 		nil, nil
 	}
 
-	thought := fmt.Sprintf("<thought>\nExecuted structural search for pattern '%s' in '%s'. Found %d matches (truncated to 500).\n</thought>\n", args.Pattern, path, count)
+	thought := fmt.Sprintf("<thought>\nExecuted structural search for pattern '%s' in '%s'. Pagination: [Limit:%d Offset:%d]. Found %d matches (Total: %d).\n</thought>\n",
+		args.Pattern, path, limit, offset, len(results), total)
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{

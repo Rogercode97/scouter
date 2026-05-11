@@ -256,3 +256,83 @@ function callee() {}
 		}
 	}
 }
+
+func TestParseFileSemantic(t *testing.T) {
+	content := `
+package testpkg
+
+type MyStruct struct{}
+
+func (s MyStruct) ValueMethod() {}
+func (s *MyStruct) PointerMethod() {}
+func GlobalFunc() {}
+`
+	tmpDir, err := os.MkdirTemp("", "scouter-semantic-*")
+	if err != nil {
+		t.Fatalf("failed to create tmp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a dummy go.mod so packages.Load works
+	goMod := "module testpkg\n\ngo 1.25\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644); err != nil {
+		t.Fatalf("failed to write go.mod: %v", err)
+	}
+
+	filePath := filepath.Join(tmpDir, "test.go")
+	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	ctx := context.Background()
+	pointers, _, err := ParseFile(ctx, filePath, nil)
+	if err != nil {
+		t.Fatalf("ParseFile failed: %v", err)
+	}
+
+	foundValue := false
+	foundPointer := false
+	foundGlobal := false
+	foundStruct := false
+
+	for _, p := range pointers {
+		switch p.Name {
+		case "MyStruct.ValueMethod":
+			foundValue = true
+			if p.ReceiverType != "value" {
+				t.Errorf("ValueMethod: expected receiver_type value, got %s", p.ReceiverType)
+			}
+			if p.PackagePath == "" {
+				t.Errorf("ValueMethod: expected package_path, got empty")
+			}
+		case "MyStruct.PointerMethod":
+			foundPointer = true
+			if p.ReceiverType != "pointer" {
+				t.Errorf("PointerMethod: expected receiver_type pointer, got %s", p.ReceiverType)
+			}
+		case "GlobalFunc":
+			foundGlobal = true
+			if p.ReceiverType != "" {
+				t.Errorf("GlobalFunc: expected empty receiver_type, got %s", p.ReceiverType)
+			}
+		case "MyStruct":
+			foundStruct = true
+			if p.Type != "class" {
+				t.Errorf("MyStruct: expected type class, got %s", p.Type)
+			}
+		}
+	}
+
+	if !foundValue {
+		t.Errorf("ValueMethod not found")
+	}
+	if !foundPointer {
+		t.Errorf("PointerMethod not found")
+	}
+	if !foundGlobal {
+		t.Errorf("GlobalFunc not found")
+	}
+	if !foundStruct {
+		t.Errorf("MyStruct not found")
+	}
+}
