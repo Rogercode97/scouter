@@ -13,17 +13,17 @@ import (
 // Evolution Param structs
 
 type SelfHealParams struct {
-	ErrorLog string `json:"errorLog"`
+	ErrorLog string `json:"errorLog" jsonschema:"The raw error log or test failure output"`
 }
 
 type RippleRefactorParams struct {
-	SymbolName     string `json:"symbolName"`
-	Transformation string `json:"transformation"`
+	SymbolName     string `json:"symbolName" jsonschema:"The name of the symbol to refactor"`
+	Transformation string `json:"transformation" jsonschema:"The structural transformation to apply (e.g., 'rename:NewName')"`
 }
 
 type EvolveParams struct {
-	Proposal string `json:"proposal"`
-	Force    bool   `json:"force,omitempty"`
+	Proposal string `json:"proposal" jsonschema:"The multi-file evolution proposal in natural language"`
+	Force    bool   `json:"force,omitempty" jsonschema:"Optional: Bypass safety guardrails for core file modifications"`
 }
 
 type CommitParams struct{}

@@ -14,6 +14,7 @@ require (
 	github.com/tree-sitter/tree-sitter-typescript v0.23.2
 	golang.org/x/mod v0.35.0
 	golang.org/x/sync v0.20.0
+	golang.org/x/tools v0.43.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.48.1
 )

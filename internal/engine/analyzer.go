@@ -2,88 +2,142 @@ package engine
 
 import (
 	"context"
+	"fmt"
+	"go/types"
 	"sort"
 	"strings"
 
 	"github.com/Rogercode97/scouter/internal/store"
+	"golang.org/x/tools/go/packages"
 )
 
 type AnalysisEngine struct {
-	store store.Repository
+	store       store.Repository
+	ProjectRoot string
 }
 
 func NewAnalysisEngine(store store.Repository) *AnalysisEngine {
 	return &AnalysisEngine{
-		store: store,
+		store:       store,
+		ProjectRoot: ".",
+	}
+}
+
+func (a *AnalysisEngine) BuildTypeUniverse() (map[string]*types.Package, error) {
+	cfg := &packages.Config{
+		Mode: packages.NeedTypes | packages.NeedSyntax | packages.NeedDeps | packages.NeedImports | packages.NeedName,
+		Dir:  a.ProjectRoot,
+	}
+	pkgs, err := packages.Load(cfg, "./...")
+	if err != nil {
+		return nil, err
+	}
+
+	universe := make(map[string]*types.Package)
+	for _, pkg := range pkgs {
+		if pkg.Types != nil {
+			universe[pkg.PkgPath] = pkg.Types
+		}
+	}
+	return universe, nil
+}
+
+func (a *AnalysisEngine) saveImplementation(ctx context.Context, tx store.Repository, typeSym, ifaceSym store.Symbol, V types.Type, iface *types.Interface) {
+	// Task 4: Use fully qualified names for 'implements' and 'satisfies'
+	callerFQ := typeSym.PackagePath + "." + typeSym.Name
+	calleeFQ := ifaceSym.PackagePath + "." + ifaceSym.Name
+
+	_ = tx.SaveCall(ctx, store.Call{
+		CallerName: callerFQ,
+		CalleeName: calleeFQ,
+		Path:       typeSym.Path,
+		CalleePath: ifaceSym.Path,
+		LinkType:   "implements",
+	})
+
+	// Satisfies links for methods
+	mset := types.NewMethodSet(V)
+	for i := 0; i < iface.NumMethods(); i++ {
+		m := iface.Method(i)
+		sel := mset.Lookup(m.Pkg(), m.Name())
+		if sel != nil {
+			// Method FQ names: pkg.Type.Method
+			_ = tx.SaveCall(ctx, store.Call{
+				CallerName: callerFQ + "." + m.Name(),
+				CalleeName: calleeFQ + "." + m.Name(),
+				Path:       typeSym.Path,
+				CalleePath: ifaceSym.Path,
+				LinkType:   "satisfies",
+			})
+		}
 	}
 }
 
 func (a *AnalysisEngine) ResolveInterfaces(ctx context.Context) error {
-	type methodInfo struct {
-		name string
-		sig  string
+	universe, err := a.BuildTypeUniverse()
+	if err != nil {
+		return fmt.Errorf("failed to load type universe: %w", err)
 	}
 
-	interfaces := make(map[string][]methodInfo)
-	structs := make(map[string][]methodInfo)
-	structPaths := make(map[string]string)
+	var interfaces []store.Symbol
+	var types_ []store.Symbol
 
 	for sym, err := range a.store.GetAllSymbols(ctx) {
 		if err != nil {
 			return err
 		}
-		if sym.Type == "method_spec" {
-			parts := strings.Split(sym.Name, ":")
-			if len(parts) == 2 {
-				interfaces[parts[0]] = append(interfaces[parts[0]], methodInfo{name: parts[1], sig: sym.Signature})
-			}
-		} else if sym.Type == "method" {
-			parts := strings.Split(sym.Name, ".")
-			if len(parts) == 2 {
-				structs[parts[0]] = append(structs[parts[0]], methodInfo{name: parts[1], sig: sym.Signature})
-				structPaths[parts[0]] = sym.Path
-			}
+		if sym.Type == "interface" {
+			interfaces = append(interfaces, sym)
+		} else if sym.Type == "struct" || sym.Type == "type" || sym.Type == "class" {
+			types_ = append(types_, sym)
 		}
 	}
 
 	return a.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Repository) error {
-		for iface, requiredMethods := range interfaces {
-			for strct, actualMethods := range structs {
-				if strct == iface {
+		for _, ifaceSym := range interfaces {
+			pkg, ok := universe[ifaceSym.PackagePath]
+			if !ok {
+				continue
+			}
+
+			obj := pkg.Scope().Lookup(ifaceSym.Name)
+			if obj == nil {
+				continue
+			}
+
+			// We need the underlying interface type
+			var iface *types.Interface
+			if named, ok := obj.Type().(*types.Named); ok {
+				if i, ok := named.Underlying().(*types.Interface); ok {
+					iface = i
+				}
+			} else if i, ok := obj.Type().Underlying().(*types.Interface); ok {
+				iface = i
+			}
+
+			if iface == nil {
+				continue
+			}
+
+			for _, typeSym := range types_ {
+				tPkg, ok := universe[typeSym.PackagePath]
+				if !ok {
 					continue
 				}
 
-				matches := 0
-				for _, req := range requiredMethods {
-					for _, act := range actualMethods {
-						if req.name == act.name && req.sig == act.sig {
-							matches++
-							break
-						}
-					}
+				tObj := tPkg.Scope().Lookup(typeSym.Name)
+				if tObj == nil {
+					continue
 				}
 
-				if matches == len(requiredMethods) && len(requiredMethods) > 0 {
-					_ = tx.SaveCall(txCtx, store.Call{
-						CallerName: strct,
-						CalleeName: iface,
-						Path:       structPaths[strct],
-						LinkType:   "implements",
-					})
+				V := tObj.Type()
 
-					// Link individual methods for Omniscience (Ripple V2)
-					for _, req := range requiredMethods {
-						for _, act := range actualMethods {
-							if req.name == act.name && req.sig == act.sig {
-								_ = tx.SaveCall(txCtx, store.Call{
-									CallerName: strct + "." + act.name,
-									CalleeName: iface + ":" + req.name,
-									Path:       structPaths[strct],
-									LinkType:   "satisfies",
-								})
-							}
-						}
-					}
+				// Check if value implements
+				if types.Implements(V, iface) {
+					a.saveImplementation(txCtx, tx, typeSym, ifaceSym, V, iface)
+				} else if types.Implements(types.NewPointer(V), iface) {
+					// Check if pointer implements
+					a.saveImplementation(txCtx, tx, typeSym, ifaceSym, types.NewPointer(V), iface)
 				}
 			}
 		}

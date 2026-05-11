@@ -14,29 +14,29 @@ import (
 )
 
 type ImpactParams struct {
-	SymbolName string `json:"symbolName"`
-	FilePath   string `json:"filePath"`
-	MaxDepth   int    `json:"maxDepth,omitempty"`
-	Verbose    bool   `json:"verbose,omitempty"`
+	SymbolName string `json:"symbolName" jsonschema:"The name of the symbol to analyze"`
+	FilePath   string `json:"filePath" jsonschema:"Path to the file containing the symbol"`
+	MaxDepth   int    `json:"maxDepth,omitempty" jsonschema:"Optional: Maximum recursion depth for impact analysis"`
+	Verbose    bool   `json:"verbose,omitempty" jsonschema:"Optional: Include detailed metrics and Mermaid graph"`
 }
 
 type CriticalParams struct {
-	Limit int `json:"limit,omitempty"`
+	Limit int `json:"limit,omitempty" jsonschema:"Max critical symbols to return (default: 10, max: 50)"`
 }
 
 type ObsidianExportParams struct {
-	SymbolName string `json:"symbolName"`
-	FilePath   string `json:"filePath"`
-	VaultPath  string `json:"vaultPath,omitempty"`
+	SymbolName string `json:"symbolName" jsonschema:"The name of the symbol to export"`
+	FilePath   string `json:"filePath" jsonschema:"Path to the file containing the symbol"`
+	VaultPath  string `json:"vaultPath,omitempty" jsonschema:"Optional: Custom path for the Obsidian vault export"`
 }
 
 type PredictParams struct {
-        Diff string `json:"diff,omitempty"`
+        Diff string `json:"diff,omitempty" jsonschema:"Optional: Git diff to analyze (defaults to uncommitted changes)"`
 }
 
 type FindLogicalTwinParams struct {
-        SymbolName string `json:"symbolName"`
-        FilePath   string `json:"filePath"`
+        SymbolName string `json:"symbolName" jsonschema:"The name of the symbol to find twins for"`
+        FilePath   string `json:"filePath" jsonschema:"Path to the file containing the symbol"`
 }
 func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, args ImpactParams) (*mcp.CallToolResult, any, error) {
 	// [Sovereignty Upgrade] Route through TruthEngine

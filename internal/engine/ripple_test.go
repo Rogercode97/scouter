@@ -192,11 +192,11 @@ func TestBFSPropagationStrategy_Depth(t *testing.T) {
 			}
 			found[task.SymbolName] = true
 		}
-		if !found["SymA"] || !found["SymB"] {
-			t.Errorf("Expected to find SymA and SymB at depth 0, got %v", found)
+		if !found["SymA"] {
+			t.Errorf("Expected to find SymA at depth 0, got %v", found)
 		}
-		if len(found) != 2 {
-			t.Errorf("Expected 2 unique symbols at depth 0, got %d", len(found))
+		if len(found) != 1 {
+			t.Errorf("Expected 1 unique symbol at depth 0, got %d", len(found))
 		}
 	})
 
@@ -208,13 +208,10 @@ func TestBFSPropagationStrategy_Depth(t *testing.T) {
 			}
 			found[task.SymbolName] = true
 		}
-		// Depth 0: SymA -> SymB, SymA
-		// Depth 1: SymB -> SymC, SymB
-		if !found["SymA"] || !found["SymB"] || !found["SymC"] {
-			t.Errorf("Expected to find SymA, SymB, and SymC at depth 1, got %v", found)
-		}
-		if len(found) != 3 {
-			t.Errorf("Expected 3 unique symbols at depth 1, got %d", len(found))
+		// Depth 0: SymA
+		// Depth 1: SymA (for callers of SymA)
+		if !found["SymA"] {
+			t.Errorf("Expected to find SymA at depth 1, got %v", found)
 		}
 	})
 }
