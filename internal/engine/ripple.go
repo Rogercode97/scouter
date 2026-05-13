@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Rogercode97/scouter/internal/store"
+	"golang.org/x/tools/go/packages"
 )
 
 // PropagationTask represents a single unit of work in the ripple propagation.
@@ -104,7 +105,7 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 
 				for _, caller := range callers {
 					if !yield(PropagationTask{
-						SymbolName: currentSym,
+						SymbolName: caller.CallerName,
 						FilePath:   caller.Path,
 						Action:     "transform",
 					}, nil) {
@@ -119,7 +120,7 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 				if err == nil {
 					for _, callee := range callees {
 						// Only follow hierarchy-related links upward to avoid infinite loops or unrelated noise
-						if callee.LinkType == "satisfies" || callee.LinkType == "implements" {
+						if callee.LinkType == "satisfies" || callee.LinkType == "implements" || callee.LinkType == "embeds" {
 							if !yield(PropagationTask{
 								SymbolName: callee.CalleeName,
 								FilePath:   callee.CalleePath,
@@ -133,9 +134,16 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 				}
 
 				// 3. Also include the symbol definition file itself (Depth 0)
-				results, _ := s.store.SearchSymbols(ctx, currentSym, "", 0, 0)
+				// Use a broad search and filter manually to handle FQN vs local name mismatches
+				searchQuery := currentSym
+				if lastDot := strings.LastIndex(currentSym, "."); lastDot != -1 {
+					searchQuery = currentSym[lastDot+1:]
+				}
+
+				results, _ := s.store.SearchSymbols(ctx, searchQuery, "", 0, 0)
 				for _, sym := range results {
-					if sym.Name == currentSym {
+					symFQ := sym.PackagePath + "." + sym.Name
+					if symFQ == currentSym || sym.Name == currentSym {
 						if !yield(PropagationTask{
 							SymbolName: sym.Name,
 							FilePath:   sym.Path,
@@ -233,10 +241,73 @@ func (v *CentralityValidator) Validate(ctx context.Context, ledger *Ledger) (Val
 			Valid:   false,
 			Message: "Centrality threshold exceeded",
 			Details: map[string]any{"violations": violations},
-		}, nil
+		} , nil
 	}
 
 	return ValidationResult{Valid: true, Message: "Centrality check passed"}, nil
+}
+
+// LSPValidator uses go/packages with Overlays to perform zero-disk verification 
+// of interface implementations across the entire workspace.
+type LSPValidator struct {
+	ProjectRoot string
+}
+
+func NewLSPValidator(root string) *LSPValidator {
+	if root == "" {
+		root, _ = filepath.Abs(".")
+	}
+	return &LSPValidator{ProjectRoot: root}
+}
+
+func (v *LSPValidator) Validate(ctx context.Context, ledger *Ledger) (ValidationResult, error) {
+	overlay := make(map[string][]byte)
+	for path, patch := range ledger.Staged {
+		// Ensure absolute paths for overlay
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			absPath = path
+		}
+		overlay[absPath] = []byte(patch.NewContent)
+	}
+
+	cfg := &packages.Config{
+		Mode:    packages.NeedTypes | packages.NeedSyntax | packages.NeedDeps | packages.NeedImports | packages.NeedName,
+		Overlay: overlay,
+		Dir:     v.ProjectRoot,
+		Tests:   true,
+		Env:     os.Environ(),
+	}
+
+	pkgs, err := packages.Load(cfg, "./...")
+	if err != nil {
+		return ValidationResult{}, fmt.Errorf("failed to load packages for LSP validation: %w", err)
+	}
+
+	var violations []string
+	for _, pkg := range pkgs {
+		for _, pkgErr := range pkg.Errors {
+			// We only care about type errors that indicate broken contracts
+			// e.g., "does not implement", "missing method", "wrong signature"
+			msg := pkgErr.Msg
+			if strings.Contains(msg, "does not implement") || 
+			   strings.Contains(msg, "missing method") ||
+			   strings.Contains(msg, "have") || 
+			   strings.Contains(msg, "want") {
+				violations = append(violations, fmt.Sprintf("[%s] %s", pkg.PkgPath, msg))
+			}
+		}
+	}
+
+	if len(violations) > 0 {
+		return ValidationResult{
+			Valid:   false,
+			Message: "Liskov Substitution Principle (LSP) violations detected",
+			Details: map[string]any{"violations": violations},
+		}, nil
+	}
+
+	return ValidationResult{Valid: true, Message: "LSP verification successful"}, nil
 }
 
 // Propagate traces the blast radius of a symbol and applies the transformation to all affected files.

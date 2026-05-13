@@ -1,0 +1,14 @@
+id: context-propagation
+language: go
+rule:
+  pattern: func $NAME(ctx context.Context, $$$ARGS) { $$$BODY }
+  not:
+    inside:
+      pattern: $FUNC(ctx, $$$ANY)
+  # Ensure it's not a terminal function or a background starter
+  all:
+    - not: { pattern: context.Background() }
+    - not: { pattern: context.TODO() }
+message: "Context Leak: The context 'ctx' is received but not propagated in the function body of $NAME."
+severity: WARNING
+note: "In Go 1.25+, every received context MUST be passed to downstream calls to ensure cancellation and timeout propagation."

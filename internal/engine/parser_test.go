@@ -42,10 +42,10 @@ func Callee() {}
 		t.Errorf("expected 1 call, got %d", len(calls))
 	} else {
 		call := calls[0]
-		if call.CallerName != "Caller" {
+		if call.CallerName != "command-line-arguments.Caller" {
 			t.Errorf("expected caller Caller, got %s", call.CallerName)
 		}
-		if call.CalleeName != "Callee" {
+		if call.CalleeName != "command-line-arguments.Callee" {
 			t.Errorf("expected callee Callee, got %s", call.CalleeName)
 		}
 	}
@@ -81,23 +81,26 @@ func Nested() {}
 	}
 
 	if len(calls) != 2 {
+		for i, c := range calls {
+			t.Logf("Call %d: %s -> %s", i, c.CallerName, c.CalleeName)
+		}
 		t.Fatalf("expected 2 calls, got %d", len(calls))
 	}
 
 	call1 := calls[0]
-	if call1.CallerName != "Outer" {
+	if call1.CallerName != "command-line-arguments.Outer" {
 		t.Errorf("expected caller Outer, got %s", call1.CallerName)
 	}
-	if call1.CalleeName != "Inner" {
+	if call1.CalleeName != "command-line-arguments.Inner" {
 		t.Errorf("expected callee Inner, got %s", call1.CalleeName)
 	}
 
 	// The anonymous function is now correctly tracked as Outer.func1
 	call2 := calls[1]
-	if call2.CallerName != "Outer.func1" {
+	if call2.CallerName != "command-line-arguments.Outer.func1" {
 		t.Errorf("expected caller Outer.func1 for nested call, got %s", call2.CallerName)
 	}
-	if call2.CalleeName != "Nested" {
+	if call2.CalleeName != "command-line-arguments.Nested" {
 		t.Errorf("expected callee Nested, got %s", call2.CalleeName)
 	}
 }
@@ -141,28 +144,28 @@ func NestedCallee() {}
 
 	// Verify the first call (go func)
 	call1 := calls[0]
-	if call1.CallerName != "Caller.func1" {
+	if call1.CallerName != "command-line-arguments.Caller.func1" {
 		t.Errorf("expected caller Caller.func1, got %s", call1.CallerName)
 	}
-	if call1.CalleeName != "Callee" {
+	if call1.CalleeName != "command-line-arguments.Callee" {
 		t.Errorf("expected callee Callee, got %s", call1.CalleeName)
 	}
 
 	// Verify the second call (closure)
 	call2 := calls[1]
-	if call2.CallerName != "Caller.func2" {
+	if call2.CallerName != "command-line-arguments.Caller.func2" {
 		t.Errorf("expected caller Caller.func2, got %s", call2.CallerName)
 	}
-	if call2.CalleeName != "NestedCallee" {
+	if call2.CalleeName != "command-line-arguments.NestedCallee" {
 		t.Errorf("expected callee NestedCallee, got %s", call2.CalleeName)
 	}
 
 	// Verify the third call (f())
 	call3 := calls[2]
-	if call3.CallerName != "Caller" {
+	if call3.CallerName != "command-line-arguments.Caller" {
 		t.Errorf("expected caller Caller, got %s", call3.CallerName)
 	}
-	if call3.CalleeName != "f" {
+	if call3.CalleeName != "command-line-arguments.f" {
 		t.Errorf("expected callee f, got %s", call3.CalleeName)
 	}
 }

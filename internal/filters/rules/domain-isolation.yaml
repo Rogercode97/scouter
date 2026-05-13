@@ -1,0 +1,10 @@
+id: domain-isolation
+language: go
+rule:
+  all:
+    - pattern: import "database/sql"
+    - inside:
+        pattern: package domain
+message: "Hexagonal Violation: Domain layer should not import 'database/sql'. Use interfaces and repository patterns."
+severity: ERROR
+note: "The domain layer must remain agnostic of the persistence implementation. Inject repositories via interfaces instead."

@@ -19,11 +19,12 @@ import (
 )
 
 type FileIndex struct {
-	Path    string `json:"path"`
-	Mtime   int64  `json:"mtime"`
-	Hash    string `json:"hash"`
-	ASTJSON string `json:"ast_json"`
-	Project string `json:"project"`
+	Path      string `json:"path"`
+	Mtime     int64  `json:"mtime"`
+	Hash      string `json:"hash"`
+	ASTJSON   string `json:"ast_json"`
+	Project   string `json:"project"`
+	Freshness int    `json:"freshness"` // 0: fresh, 1: edited, 2: stale
 }
 
 type Symbol struct {
@@ -41,6 +42,9 @@ type Symbol struct {
 	EndLine        int     `json:"end_line"`
 	StructuralHash string  `json:"structural_hash,omitempty"`
 	Relevance      float64 `json:"relevance,omitempty"`
+	PageRank       float64 `json:"pagerank,omitempty"`
+	ChurnScore     float64 `json:"churn_score,omitempty"`
+	AISummary      string  `json:"ai_summary,omitempty"`
 }
 
 type CriticalSymbol struct {
@@ -66,6 +70,17 @@ type SovereignDelta struct {
 	Calls   []Call   `json:"calls"`
 }
 
+type Violation struct {
+	ID        int    `json:"id"`
+	RuleID    string `json:"rule_id"`
+	FilePath  string `json:"file_path"`
+	Message   string `json:"message"`
+	Severity  string `json:"severity"`
+	StartLine int    `json:"start_line"`
+	StartCol  int    `json:"start_col"`
+	Text      string `json:"text"`
+}
+
 // Repository defines the interface for the Scouter database operations.
 type Repository interface {
 	GetFileIndex(ctx context.Context, path string) (*FileIndex, error)
@@ -83,6 +98,8 @@ type Repository interface {
 	GetAllCalls(ctx context.Context) iter.Seq2[Call, error]
 	GetAllFailedTests(ctx context.Context) iter.Seq2[types.TestResult, error]
 	UpdateSymbolCentrality(ctx context.Context, name, path string, centrality int) error
+	UpdateSymbolChurn(ctx context.Context, path string, score float64) error
+	UpdateSymbolPageRank(ctx context.Context, name, path string, score float64) error
 	ExportDelta(ctx context.Context, syncDir string) error
 	ImportDelta(ctx context.Context, syncDir string) error
 	SaveCall(ctx context.Context, call Call) error
@@ -102,6 +119,8 @@ type Repository interface {
 	GetHealthReport(ctx context.Context, symbol string, failuresOnly bool) iter.Seq2[types.TestResult, error]
 	ClearTestResults(ctx context.Context) error
 	GetMemoryInsights(ctx context.Context, query string) ([]types.MemoryInsight, error)
+	SaveViolation(ctx context.Context, v *types.ASTRuleMatch) error
+	GetViolationsByFile(ctx context.Context, path string) ([]Violation, error)
 	WithTransaction(ctx context.Context, fn func(context.Context, Repository) error) error
 	Close() error
 }
@@ -164,6 +183,8 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 		`CREATE TABLE IF NOT EXISTS dependencies (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, version TEXT, type TEXT, project TEXT, direct INTEGER);`,
 		`CREATE TABLE IF NOT EXISTS test_results (id INTEGER PRIMARY KEY AUTOINCREMENT, test_name TEXT NOT NULL, status TEXT NOT NULL, error_message TEXT, stack_trace TEXT, target_symbol TEXT, duration_ms INTEGER, project TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`,
 		`CREATE INDEX IF NOT EXISTS idx_test_results_symbol ON test_results(target_symbol);`,
+		`CREATE TABLE IF NOT EXISTS violations (id INTEGER PRIMARY KEY AUTOINCREMENT, rule_id TEXT, file_path TEXT, message TEXT, severity TEXT, start_line INTEGER, start_col INTEGER, text TEXT, FOREIGN KEY(file_path) REFERENCES file_index(path) ON DELETE CASCADE);`,
+		`CREATE INDEX IF NOT EXISTS idx_violations_file ON violations(file_path);`,
 	}
 
 	for _, q := range queries {
@@ -314,6 +335,50 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 
+	// Dynamic column check for 'pagerank'
+	hasPagerank, err := hasColumn(ctx, tx, "symbols", "pagerank")
+	if err != nil {
+		return fmt.Errorf("failed to check column symbols.pagerank: %w", err)
+	}
+	if !hasPagerank {
+		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN pagerank REAL DEFAULT 0.0;"); err != nil {
+			return fmt.Errorf("failed to alter table symbols (pagerank): %w", err)
+		}
+	}
+
+	// Dynamic column check for 'churn_score'
+	hasChurn, err := hasColumn(ctx, tx, "symbols", "churn_score")
+	if err != nil {
+		return fmt.Errorf("failed to check column symbols.churn_score: %w", err)
+	}
+	if !hasChurn {
+		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN churn_score REAL DEFAULT 0.0;"); err != nil {
+			return fmt.Errorf("failed to alter table symbols (churn_score): %w", err)
+		}
+	}
+
+	// Dynamic column check for 'ai_summary'
+	hasSummary, err := hasColumn(ctx, tx, "symbols", "ai_summary")
+	if err != nil {
+		return fmt.Errorf("failed to check column symbols.ai_summary: %w", err)
+	}
+	if !hasSummary {
+		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN ai_summary TEXT DEFAULT '';"); err != nil {
+			return fmt.Errorf("failed to alter table symbols (ai_summary): %w", err)
+		}
+	}
+
+	// Dynamic column check for 'freshness' in 'file_index'
+	hasFresh, err := hasColumn(ctx, tx, "file_index", "freshness")
+	if err != nil {
+		return fmt.Errorf("failed to check column file_index.freshness: %w", err)
+	}
+	if !hasFresh {
+		if _, err := tx.ExecContext(ctx, "ALTER TABLE file_index ADD COLUMN freshness INTEGER DEFAULT 0;"); err != nil {
+			return fmt.Errorf("failed to alter table file_index (freshness): %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -353,7 +418,7 @@ func (s *Store) query(ctx context.Context, q string, a ...any) (*sql.Rows, error
 
 func (s *Store) GetFileIndex(ctx context.Context, p string) (*FileIndex, error) {
 	var idx FileIndex
-	err := s.queryRow(ctx, "SELECT path, mtime, hash, ast_json, project FROM file_index WHERE path = ?", p).Scan(&idx.Path, &idx.Mtime, &idx.Hash, &idx.ASTJSON, &idx.Project)
+	err := s.queryRow(ctx, "SELECT path, mtime, hash, ast_json, project, freshness FROM file_index WHERE path = ?", p).Scan(&idx.Path, &idx.Mtime, &idx.Hash, &idx.ASTJSON, &idx.Project, &idx.Freshness)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file index: %w", err)
 	}
@@ -361,14 +426,15 @@ func (s *Store) GetFileIndex(ctx context.Context, p string) (*FileIndex, error) 
 }
 
 func (s *Store) SaveFileIndex(ctx context.Context, idx *FileIndex) error {
-	query := `INSERT INTO file_index (path, mtime, hash, ast_json, project) 
-              VALUES (?, ?, ?, ?, ?) 
+	query := `INSERT INTO file_index (path, mtime, hash, ast_json, project, freshness) 
+              VALUES (?, ?, ?, ?, ?, ?) 
               ON CONFLICT(path) DO UPDATE SET 
                 mtime=excluded.mtime, 
                 hash=excluded.hash, 
                 ast_json=excluded.ast_json, 
-                project=excluded.project`
-	_, err := s.exec(ctx, query, idx.Path, idx.Mtime, idx.Hash, idx.ASTJSON, idx.Project)
+                project=excluded.project,
+                freshness=excluded.freshness`
+	_, err := s.exec(ctx, query, idx.Path, idx.Mtime, idx.Hash, idx.ASTJSON, idx.Project, idx.Freshness)
 	if err != nil {
 		return fmt.Errorf("failed to save file index: %w", err)
 	}
@@ -384,7 +450,7 @@ func (s *Store) ClearSymbols(ctx context.Context, p string) error {
 }
 
 func (s *Store) SaveSymbol(ctx context.Context, sym *Symbol) error {
-	_, err := s.exec(ctx, "INSERT INTO symbols (name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", sym.Name, sym.Type, sym.PackagePath, sym.ReceiverType, sym.Signature, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.StartCol, sym.EndLine, sym.StructuralHash)
+	_, err := s.exec(ctx, "INSERT INTO symbols (name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, pagerank, churn_score, ai_summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", sym.Name, sym.Type, sym.PackagePath, sym.ReceiverType, sym.Signature, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.StartCol, sym.EndLine, sym.StructuralHash, sym.PageRank, sym.ChurnScore, sym.AISummary)
 	if err != nil {
 		return fmt.Errorf("failed to save symbol: %w", err)
 	}
@@ -396,7 +462,7 @@ func (s *Store) SearchSymbols(ctx context.Context, q, t string, limit, offset in
 	if safe == "" {
 		return nil, nil
 	}
-	sql := `SELECT symbols.name, symbols.type, symbols.package_path, symbols.receiver_type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.start_col, symbols.end_line, symbols.structural_hash, symbols.indegree
+	sql := `SELECT symbols.name, symbols.type, symbols.package_path, symbols.receiver_type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.start_col, symbols.end_line, symbols.structural_hash, symbols.indegree, symbols.pagerank, symbols.churn_score, symbols.ai_summary
             FROM symbols JOIN symbols_fts ON symbols.id = symbols_fts.rowid
             WHERE symbols_fts MATCH ?`
 	args := []any{safe}
@@ -417,7 +483,7 @@ func (s *Store) SearchSymbols(ctx context.Context, q, t string, limit, offset in
 	var res []Symbol
 	for rows.Next() {
 		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.AISummary); err != nil {
 			return nil, fmt.Errorf("scan symbol failed: %w", err)
 		}
 		res = append(res, sym)
@@ -426,7 +492,7 @@ func (s *Store) SearchSymbols(ctx context.Context, q, t string, limit, offset in
 }
 
 func (s *Store) GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary
             FROM symbols
             WHERE name = ? AND path = ?`
 	rows, err := s.query(ctx, sql, name, path)
@@ -437,7 +503,7 @@ func (s *Store) GetSymbolsByNameInFile(ctx context.Context, name, path string) (
 	var res []Symbol
 	for rows.Next() {
 		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.AISummary); err != nil {
 			return nil, fmt.Errorf("scan symbol failed: %w", err)
 		}
 		res = append(res, sym)
@@ -446,7 +512,7 @@ func (s *Store) GetSymbolsByNameInFile(ctx context.Context, name, path string) (
 }
 
 func (s *Store) GetSymbolsByStructuralHash(ctx context.Context, hash string) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary
             FROM symbols
             WHERE structural_hash = ?`
 	rows, err := s.query(ctx, sql, hash)
@@ -457,7 +523,7 @@ func (s *Store) GetSymbolsByStructuralHash(ctx context.Context, hash string) ([]
 	var res []Symbol
 	for rows.Next() {
 		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.AISummary); err != nil {
 			return nil, fmt.Errorf("scan symbol failed: %w", err)
 		}
 		res = append(res, sym)
@@ -470,8 +536,8 @@ func (s *Store) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq
 		if safe == "" {
 			return
 		}
-		sql := `SELECT symbols.name, symbols.type, symbols.package_path, symbols.receiver_type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.start_col, symbols.end_line, symbols.structural_hash, bm25(symbols_fts, 10.0, 2.0, 5.0, 1.0, 0.5) as relevance 
-                FROM symbols JOIN symbols_fts ON symbols.id = symbols_fts.rowid 
+		sql := `SELECT symbols.name, symbols.type, symbols.package_path, symbols.receiver_type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.start_col, symbols.end_line, symbols.structural_hash, bm25(symbols_fts, 10.0, 2.0, 5.0, 1.0, 0.5) as relevance, symbols.pagerank, symbols.churn_score, symbols.ai_summary
+                FROM symbols JOIN symbols_fts ON symbols.id = symbols_fts.rowid
                 WHERE symbols_fts MATCH ?`
 		args := []any{safe}
 		if t != "" {
@@ -487,7 +553,7 @@ func (s *Store) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq
 		defer rows.Close()
 		for rows.Next() {
 			var sym Symbol
-			if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance); err != nil {
+			if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.AISummary); err != nil {
 				if !yield(Symbol{}, fmt.Errorf("scan weighted symbol failed: %w", err)) {
 					return
 				}
@@ -501,8 +567,8 @@ func (s *Store) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq
 }
 
 func (s *Store) GetSymbolsByRange(ctx context.Context, path string, start, end int) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash 
-            FROM symbols 
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary
+            FROM symbols
             WHERE path = ? AND NOT (start_line > ? OR end_line < ?)`
 	rows, err := s.query(ctx, sql, path, end, start)
 	if err != nil {
@@ -512,7 +578,7 @@ func (s *Store) GetSymbolsByRange(ctx context.Context, path string, start, end i
 	var res []Symbol
 	for rows.Next() {
 		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.AISummary); err != nil {
 			return nil, fmt.Errorf("scan symbol range failed: %w", err)
 		}
 		res = append(res, sym)
@@ -521,8 +587,8 @@ func (s *Store) GetSymbolsByRange(ctx context.Context, path string, start, end i
 }
 
 func (s *Store) GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash 
-            FROM symbols 
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary
+            FROM symbols
             WHERE type = ?`
 	rows, err := s.query(ctx, sql, symType)
 	if err != nil {
@@ -532,7 +598,7 @@ func (s *Store) GetSymbolsByType(ctx context.Context, symType string) ([]Symbol,
 	var res []Symbol
 	for rows.Next() {
 		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.AISummary); err != nil {
 			return nil, fmt.Errorf("scan symbol by type failed: %w", err)
 		}
 		res = append(res, sym)
@@ -546,7 +612,7 @@ func (s *Store) GetInterfaces(ctx context.Context) ([]Symbol, error) {
 
 func (s *Store) GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error] {
 	return func(yield func(Symbol, error) bool) {
-		rows, err := s.query(ctx, "SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash FROM symbols")
+		rows, err := s.query(ctx, "SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary FROM symbols")
 		if err != nil {
 			yield(Symbol{}, err)
 			return
@@ -554,7 +620,7 @@ func (s *Store) GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error] {
 		defer rows.Close()
 		for rows.Next() {
 			var sym Symbol
-			if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash); err != nil {
+			if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.AISummary); err != nil {
 				if !yield(Symbol{}, err) {
 					return
 				}
@@ -566,7 +632,6 @@ func (s *Store) GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error] {
 		}
 	}
 }
-
 func (s *Store) GetAllCalls(ctx context.Context) iter.Seq2[Call, error] {
 	return func(yield func(Call, error) bool) {
 		rows, err := s.query(ctx, "SELECT caller_name, callee_name, path, line, callee_path, link_type FROM calls")
@@ -617,6 +682,22 @@ func (s *Store) UpdateSymbolCentrality(ctx context.Context, name, path string, c
 	_, err := s.exec(ctx, "UPDATE symbols SET indegree = ? WHERE (name = ? OR (package_path || '.' || name) = ?) AND (path = ? OR ? = '')", centrality, name, name, path, path)
 	if err != nil {
 		return fmt.Errorf("failed to update centrality: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) UpdateSymbolChurn(ctx context.Context, path string, score float64) error {
+	_, err := s.exec(ctx, "UPDATE symbols SET churn_score = ? WHERE path = ?", score, path)
+	if err != nil {
+		return fmt.Errorf("failed to update churn score: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) UpdateSymbolPageRank(ctx context.Context, name, path string, score float64) error {
+	_, err := s.exec(ctx, "UPDATE symbols SET pagerank = ? WHERE (name = ? OR (package_path || '.' || name) = ?) AND (path = ? OR ? = '')", score, name, name, path, path)
+	if err != nil {
+		return fmt.Errorf("failed to update pagerank: %w", err)
 	}
 	return nil
 }
@@ -789,7 +870,8 @@ func (s *Store) GetCallersRecursive(ctx context.Context, symbol string, path str
 	WITH RECURSIVE blast_radius(caller_name, caller_path, distance, link_type, path_trace) AS (
 		SELECT caller_name, path, 1, link_type, ',' || caller_name || ':' || path || ','
 		FROM calls
-		WHERE callee_name = ? AND (callee_path = ? OR callee_path = '')
+		WHERE (callee_name = ? OR callee_name = (SELECT CASE WHEN package_path != '' THEN package_path || '.' || name ELSE name END FROM symbols WHERE name = ? AND path = ? LIMIT 1))
+		  AND (callee_path = ? OR callee_path = '')
 		
 		UNION
 		
@@ -802,7 +884,7 @@ func (s *Store) GetCallersRecursive(ctx context.Context, symbol string, path str
 	FROM blast_radius 
 	ORDER BY distance ASC LIMIT 500;`
 
-	rows, err := s.query(ctx, query, symbol, path, maxDepth)
+	rows, err := s.query(ctx, query, symbol, symbol, path, path, maxDepth)
 	if err != nil {
 		return nil, err
 	}
@@ -826,12 +908,12 @@ func (s *Store) GetCallersRecursive(ctx context.Context, symbol string, path str
 func (s *Store) GetAffectedTestsRecursive(ctx context.Context, symbol, path string) ([]Symbol, error) {
 	query := `
 	WITH RECURSIVE affected(name, path, distance) AS (
-		SELECT name, path, 0
+		SELECT CASE WHEN package_path != '' THEN package_path || '.' || name ELSE name END, path, 0
 		FROM symbols
-		WHERE name = ? AND path = ?
-		
+		WHERE (name = ? OR (CASE WHEN package_path != '' THEN package_path || '.' || name ELSE name END) = ?) AND path = ?
+
 		UNION
-		
+
 		SELECT c.caller_name, c.path, a.distance + 1
 		FROM calls c
 		JOIN affected a ON c.callee_name = a.name AND (c.callee_path = a.path OR c.callee_path = '')
@@ -839,12 +921,11 @@ func (s *Store) GetAffectedTestsRecursive(ctx context.Context, symbol, path stri
 	)
 	SELECT DISTINCT s.name, s.type, s.package_path, s.receiver_type, s.signature, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.start_col, s.end_line, s.structural_hash
 	FROM symbols s
-	JOIN affected a ON s.name = a.name AND s.path = a.path
+	JOIN affected a ON (CASE WHEN s.package_path != '' THEN s.package_path || '.' || s.name ELSE s.name END) = a.name AND s.path = a.path
 	WHERE (s.name LIKE 'Test%' AND (s.type = 'function' OR s.type = 'method'))
 	   OR s.path LIKE '%_test.go'
 	ORDER BY s.path, s.start_line;`
-
-	rows, err := s.query(ctx, query, symbol, path)
+	rows, err := s.query(ctx, query, symbol, symbol, path)
 	if err != nil {
 		return nil, err
 	}
@@ -1017,6 +1098,34 @@ func (s *Store) DeleteFileIndex(ctx context.Context, p string) error {
 		return fmt.Errorf("failed to delete file index: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) SaveViolation(ctx context.Context, v *types.ASTRuleMatch) error {
+	query := `INSERT INTO violations (rule_id, file_path, message, severity, start_line, start_col, text) 
+              VALUES (?, ?, ?, ?, ?, ?, ?)`
+	_, err := s.exec(ctx, query, v.RuleID, v.File, v.Message, v.Severity, v.Range.Start.Line, v.Range.Start.Column, v.Text)
+	if err != nil {
+		return fmt.Errorf("failed to save violation: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) GetViolationsByFile(ctx context.Context, path string) ([]Violation, error) {
+	rows, err := s.query(ctx, "SELECT id, rule_id, file_path, message, severity, start_line, start_col, text FROM violations WHERE file_path = ?", path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get violations: %w", err)
+	}
+	defer rows.Close()
+
+	var res []Violation
+	for rows.Next() {
+		var v Violation
+		if err := rows.Scan(&v.ID, &v.RuleID, &v.FilePath, &v.Message, &v.Severity, &v.StartLine, &v.StartCol, &v.Text); err != nil {
+			return nil, fmt.Errorf("scan violation failed: %w", err)
+		}
+		res = append(res, v)
+	}
+	return res, nil
 }
 
 func (s *Store) WithTransaction(ctx context.Context, fn func(context.Context, Repository) error) error {

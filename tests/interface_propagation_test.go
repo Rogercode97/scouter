@@ -23,7 +23,7 @@ func TestInterfacePropagation_Omniscience(t *testing.T) {
 	defer st.Close()
 
 	// 1. Create a sample file with an interface and two implementations
-	content := `package repro
+	content := `package tests
 
 type Greeter interface {
 	Greet(name string) string
@@ -54,9 +54,26 @@ func Welcome(g Greeter) {
 
 	// 2. Index and Resolve
 	analyzer := engine.NewAnalysisEngine(st)
-	te := engine.NewTruthEngine(st, analyzer, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	te := engine.NewTruthEngine(st, analyzer, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err := te.Index(ctx, filePath); err != nil {
 		t.Fatalf("failed to index: %v", err)
+	}
+	
+	// Get the package path assigned by the parser
+	var pkgPath string
+	for sym, err := range st.GetAllSymbols(ctx) {
+		if err == nil && sym.Name == "Greeter" {
+			pkgPath = sym.PackagePath
+			break
+		}
+	}
+	
+	if pkgPath == "" {
+		t.Fatal("could not find pkgPath for Greeter")
+	}
+
+	if err := analyzer.ResolveInterfaces(ctx); err != nil {
+		t.Fatalf("failed to resolve: %v", err)
 	}
 
 	lspMgr := lsp.NewManager()
@@ -64,8 +81,11 @@ func Welcome(g Greeter) {
 	impact := engine.NewImpactEngine(st, lspMgr)
 	strategy := engine.NewBFSPropagationStrategy(st, impact)
 
+	// FQN helpers
+	fq := func(name string) string { return pkgPath + "." + name }
+
 	t.Run("Downward: Interface to Implementations", func(t *testing.T) {
-		tasks := strategy.Discover(ctx, "Greeter:Greet", 2)
+		tasks := strategy.Discover(ctx, fq("Greeter") + ".Greet", 2)
 		discovered := make(map[string]bool)
 		for task, err := range tasks {
 			if err != nil {
@@ -74,20 +94,20 @@ func Welcome(g Greeter) {
 			discovered[task.SymbolName] = true
 		}
 
-		if !discovered["EnglishGreeter.Greet"] {
-			t.Errorf("expected EnglishGreeter.Greet to be discovered")
+		if !discovered[fq("EnglishGreeter") + ".Greet"] {
+			t.Errorf("expected %s to be discovered", fq("EnglishGreeter") + ".Greet")
 		}
-		if !discovered["SpanishGreeter.Greet"] {
-			t.Errorf("expected SpanishGreeter.Greet to be discovered")
+		if !discovered[fq("SpanishGreeter") + ".Greet"] {
+			t.Errorf("expected %s to be discovered", fq("SpanishGreeter") + ".Greet")
 		}
-		if !discovered["Welcome"] {
-			t.Errorf("expected Welcome (caller) to be discovered")
+		// Welcome calls the interface method
+		if !discovered[fq("Welcome")] {
+			t.Errorf("expected %s (caller) to be discovered", fq("Welcome"))
 		}
 	})
 
 	t.Run("Upward and Siblings: Implementation to Interface and Others", func(t *testing.T) {
-		// Starting from EnglishGreeter.Greet
-		tasks := strategy.Discover(ctx, "EnglishGreeter.Greet", 3)
+		tasks := strategy.Discover(ctx, fq("EnglishGreeter") + ".Greet", 3)
 		discovered := make(map[string]bool)
 		for task, err := range tasks {
 			if err != nil {
@@ -96,14 +116,14 @@ func Welcome(g Greeter) {
 			discovered[task.SymbolName] = true
 		}
 
-		if !discovered["Greeter:Greet"] {
-			t.Errorf("expected Greeter:Greet (interface) to be discovered upward")
+		if !discovered[fq("Greeter") + ".Greet"] {
+			t.Errorf("expected %s (interface) to be discovered upward", fq("Greeter") + ".Greet")
 		}
-		if !discovered["SpanishGreeter.Greet"] {
-			t.Errorf("expected SpanishGreeter.Greet (sibling) to be discovered via interface")
+		if !discovered[fq("SpanishGreeter") + ".Greet"] {
+			t.Errorf("expected %s (sibling) to be discovered via interface", fq("SpanishGreeter") + ".Greet")
 		}
-		if !discovered["Welcome"] {
-			t.Errorf("expected Welcome (caller of interface) to be discovered via interface")
+		if !discovered[fq("Welcome")] {
+			t.Errorf("expected %s (caller of interface) to be discovered via interface", fq("Welcome"))
 		}
 	})
 }

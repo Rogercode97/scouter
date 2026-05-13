@@ -159,3 +159,48 @@ func TestResolveCentrality(t *testing.T) {
 		t.Errorf("expected centrality 2, got %v", syms[0].Relevance)
 	}
 }
+
+func TestResolvePageRank(t *testing.T) {
+	ctx := context.Background()
+	dbPath := "test_pagerank.db"
+	defer os.Remove(dbPath)
+
+	s, err := store.New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	analyzer := NewAnalysisEngine(s)
+
+	// Setup a simple graph: A -> B, C -> B
+	// B should have higher PageRank than A or C
+	_ = s.SaveFileIndex(ctx, &store.FileIndex{Path: "a.go", Project: "p"})
+	_ = s.SaveFileIndex(ctx, &store.FileIndex{Path: "b.go", Project: "p"})
+	_ = s.SaveFileIndex(ctx, &store.FileIndex{Path: "c.go", Project: "p"})
+
+	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "A", Path: "a.go"})
+	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "B", Path: "b.go"})
+	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "C", Path: "c.go"})
+
+	_ = s.SaveCall(ctx, store.Call{CallerName: "A", Path: "a.go", CalleeName: "B", CalleePath: "b.go"})
+	_ = s.SaveCall(ctx, store.Call{CallerName: "C", Path: "c.go", CalleeName: "B", CalleePath: "b.go"})
+
+	if err := analyzer.ResolvePageRank(ctx); err != nil {
+		t.Fatalf("ResolvePageRank failed: %v", err)
+	}
+
+	symAs, _ := s.GetSymbolsByNameInFile(ctx, "A", "a.go")
+	symBs, _ := s.GetSymbolsByNameInFile(ctx, "B", "b.go")
+	symCs, _ := s.GetSymbolsByNameInFile(ctx, "C", "c.go")
+
+	if len(symAs) == 0 || len(symBs) == 0 || len(symCs) == 0 {
+		t.Fatalf("Symbols not found. A: %d, B: %d, C: %d", len(symAs), len(symBs), len(symCs))
+	}
+
+	symA, symB, symC := symAs[0], symBs[0], symCs[0]
+
+	if symB.PageRank <= symA.PageRank || symB.PageRank <= symC.PageRank {
+		t.Errorf("expected B to have higher PageRank than A/C. A: %f, B: %f, C: %f", symA.PageRank, symB.PageRank, symC.PageRank)
+	}
+}

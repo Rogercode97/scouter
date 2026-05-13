@@ -45,7 +45,7 @@ func NewLedger() *Ledger {
 		},
 		KiLimit:    100000, // Default 100k Ki
 		TurnLimit:  10,     // Default 10 turns
-		ledgerPath: ".scouter/ledger.json",
+		ledgerPath: ".scouter/staging/ledger.json",
 	}
 	
 	return l

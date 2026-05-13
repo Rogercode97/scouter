@@ -55,6 +55,7 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 	impact := engine.NewImpactEngine(st, s.lspMgr)
 	analyzer := engine.NewAnalysisEngine(st)
 	ripple := engine.NewRippleEngine(st, nil, impact)
+	ripple.Validators = append(ripple.Validators, engine.NewLSPValidator(analyzer.ProjectRoot))
 	healer := engine.NewHealerEngine(st, s.lspMgr, analyzer, impact)
 	search := engine.NewSearchEngine(st)
 	compact := engine.NewCompactionEngine(st, ledger)
@@ -73,6 +74,7 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 		ripple,
 		sdd,
 		ledger,
+		nil, // astRules
 		nil, // Messenger will be injected per-request if needed
 	)
 

@@ -1,2 +1,0 @@
-Running: go test -json tests/semantic_ripple_test.go
-Go test: 1 passed in 1 packages

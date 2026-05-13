@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pmezard/go-difflib/difflib"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
@@ -35,6 +36,7 @@ type TruthEngine struct {
 	ripple     *RippleEngine
 	sdd        *SDDEngine
 	ledger     *Ledger
+	astRules   *ASTRuleEngine
 	messenger  Messenger
 	logger     *slog.Logger
 }
@@ -52,6 +54,7 @@ func NewTruthEngine(
 	ripple *RippleEngine,
 	sdd *SDDEngine,
 	ledger *Ledger,
+	astRules *ASTRuleEngine,
 	messenger Messenger,
 ) *TruthEngine {
 	return &TruthEngine{
@@ -66,6 +69,7 @@ func NewTruthEngine(
 		ripple:     ripple,
 		sdd:        sdd,
 		ledger:     ledger,
+		astRules:   astRules,
 		messenger:  messenger,
 		logger:     slog.Default(),
 	}
@@ -200,6 +204,19 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string) error {
 
 	if err != nil {
 		return fmt.Errorf("failed to save index for %s: %w", path, err)
+	}
+
+	// Architectural Audit (Wave 13.5)
+	if e.astRules != nil {
+		violations, err := e.astRules.Audit(ctx, path)
+		if err == nil && len(violations) > 0 {
+			_ = e.store.WithTransaction(ctx, func(ctx context.Context, tx store.Repository) error {
+				for _, v := range violations {
+					_ = tx.SaveViolation(ctx, &v)
+				}
+				return nil
+			})
+		}
 	}
 
 	// Post-indexing resolution (only if analyzer is present)
@@ -411,13 +428,31 @@ func (e *TruthEngine) GetLedgerDiff(ctx context.Context) (string, error) {
 
 	var sb strings.Builder
 	for _, p := range patches {
-		sb.WriteString(fmt.Sprintf("--- %s (Original)\n+++ %s (Staged)\n", p.FilePath, p.FilePath))
-		if p.Diff != "" {
-			sb.WriteString(p.Diff)
-		} else {
-			sb.WriteString(" (Diff not available, full content staged)\n")
+		diff, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+			A:        difflib.SplitLines(p.Original),
+			B:        difflib.SplitLines(p.NewContent),
+			FromFile: p.FilePath + " (Original)",
+			ToFile:   p.FilePath + " (Staged)",
+			Context:  3,
+		})
+		if err != nil {
+			// Fallback if diff generation fails
+			sb.WriteString(fmt.Sprintf("--- %s (Original)\n+++ %s (Staged)\n", p.FilePath, p.FilePath))
+			if p.Diff != "" {
+				sb.WriteString(p.Diff)
+			} else {
+				sb.WriteString(" (Diff not available, full content staged)\n")
+			}
+			sb.WriteString("\n")
+			continue
 		}
-		sb.WriteString("\n")
+		
+		if diff == "" {
+			sb.WriteString(fmt.Sprintf("--- %s (Original)\n+++ %s (Staged)\n (No changes)\n\n", p.FilePath, p.FilePath))
+		} else {
+			sb.WriteString(diff)
+			sb.WriteString("\n")
+		}
 	}
 
 	return sb.String(), nil

@@ -4,12 +4,107 @@ import (
 	"context"
 	"fmt"
 	"go/types"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/Rogercode97/scouter/internal/store"
+	"github.com/dominikbraun/graph"
 	"golang.org/x/tools/go/packages"
 )
+
+func (a *AnalysisEngine) ResolvePageRank(ctx context.Context) error {
+	// 1. Create a weighted directed graph
+	g := graph.New(graph.StringHash, graph.Directed(), graph.Weighted())
+
+	// 2. Add all symbols as vertices
+	for sym, err := range a.store.GetAllSymbols(ctx) {
+		if err != nil {
+			return err
+		}
+		key := sym.Name + ":" + sym.Path
+		_ = g.AddVertex(key)
+	}
+
+	// 3. Add edges from calls
+	for call, err := range a.store.GetAllCalls(ctx) {
+		if err != nil {
+			return err
+		}
+		
+		callerKey := call.CallerName + ":" + call.Path
+		calleeKey := call.CalleeName + ":" + call.CalleePath
+		
+		// Weight based on link type
+		weight := 1
+		switch call.LinkType {
+		case "implements":
+			weight = 10
+		case "satisfies":
+			weight = 5
+		case "embeds":
+			weight = 3
+		case "dynamic":
+			weight = 2
+		}
+
+		_ = g.AddEdge(callerKey, calleeKey, graph.EdgeWeight(weight))
+	}
+
+	// 4. Calculate PageRank (Simplified Iterative Implementation)
+	// Note: dominikbraun/graph doesn't have native PageRank yet in v0.23,
+	// so we implement it using the graph structure.
+	
+	adjacency, _ := g.AdjacencyMap()
+	nodes := make([]string, 0, len(adjacency))
+	for node := range adjacency {
+		nodes = append(nodes, node)
+	}
+
+	ranks := make(map[string]float64)
+	initialRank := 1.0 / float64(len(nodes))
+	for _, node := range nodes {
+		ranks[node] = initialRank
+	}
+
+	damping := 0.85
+	iterations := 10
+	
+	// Inverse adjacency for easier rank propagation
+	incoming := make(map[string][]string)
+	outdegree := make(map[string]int)
+	for src, targets := range adjacency {
+		outdegree[src] = len(targets)
+		for dest := range targets {
+			incoming[dest] = append(incoming[dest], src)
+		}
+	}
+
+	for i := 0; i < iterations; i++ {
+		newRanks := make(map[string]float64)
+		for _, node := range nodes {
+			rankSum := 0.0
+			for _, neighbor := range incoming[node] {
+				rankSum += ranks[neighbor] / float64(outdegree[neighbor])
+			}
+			newRanks[node] = (1.0-damping)/float64(len(nodes)) + damping*rankSum
+		}
+		ranks = newRanks
+	}
+
+	// 5. Update store
+	return a.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Repository) error {
+		for node, score := range ranks {
+			parts := strings.SplitN(node, ":", 2)
+			if len(parts) == 2 {
+				if err := tx.UpdateSymbolPageRank(txCtx, parts[0], parts[1], score); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+}
 
 type AnalysisEngine struct {
 	store       store.Repository
@@ -17,9 +112,10 @@ type AnalysisEngine struct {
 }
 
 func NewAnalysisEngine(store store.Repository) *AnalysisEngine {
+	root, _ := filepath.Abs(".")
 	return &AnalysisEngine{
 		store:       store,
-		ProjectRoot: ".",
+		ProjectRoot: root,
 	}
 }
 
@@ -117,6 +213,40 @@ func (a *AnalysisEngine) ResolveInterfaces(ctx context.Context) error {
 
 			if iface == nil {
 				continue
+			}
+
+			// Phase 1: Hierarchical Link Enrichment (Embedding)
+			for i := 0; i < iface.NumEmbeddeds(); i++ {
+				emb := iface.EmbeddedType(i)
+				if named, ok := emb.(*types.Named); ok {
+					embObj := named.Obj()
+					embPkg := embObj.Pkg()
+					if embPkg != nil {
+						embFQ := embPkg.Path() + "." + embObj.Name()
+						ifaceFQ := ifaceSym.PackagePath + "." + ifaceSym.Name
+
+						// Link interfaces (embeds)
+						_ = tx.SaveCall(ctx, store.Call{
+							CallerName: ifaceFQ,
+							CalleeName: embFQ,
+							Path:       ifaceSym.Path,
+							LinkType:   "embeds",
+						})
+
+						// Link methods for deep propagation
+						if embIface, ok := named.Underlying().(*types.Interface); ok {
+							for j := 0; j < embIface.NumMethods(); j++ {
+								m := embIface.Method(j)
+								_ = tx.SaveCall(ctx, store.Call{
+									CallerName: ifaceFQ + "." + m.Name(),
+									CalleeName: embPkg.Path() + "." + embObj.Name() + "." + m.Name(),
+									Path:       ifaceSym.Path,
+									LinkType:   "embeds",
+								})
+							}
+						}
+					}
+				}
 			}
 
 			for _, typeSym := range types_ {

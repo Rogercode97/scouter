@@ -52,3 +52,49 @@ File: /data/data/com.termux/files/usr/tmp/ripple_structural_test958243272/fileB.
 File: /data/data/com.termux/files/usr/tmp/test_refactor4086056836.go, Pattern: println($X), Matches: 2
   Match: println("hello"), Captures: map[$X:"hello"]
   Match: println("world"), Captures: map[$X:"world"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test2422887507/fileA.go, Pattern: foo($ARG), Matches: 1
+  Match: foo("hello"), Captures: map[$ARG:"hello"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test2422887507/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/test_refactor1346032363.go, Pattern: println($X), Matches: 2
+  Match: println("hello"), Captures: map[$X:"hello"]
+  Match: println("world"), Captures: map[$X:"world"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test1363367038/fileA.go, Pattern: foo($ARG), Matches: 1
+  Match: foo("hello"), Captures: map[$ARG:"hello"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test1363367038/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/test_refactor1148601957.go, Pattern: println($X), Matches: 2
+  Match: println("hello"), Captures: map[$X:"hello"]
+  Match: println("world"), Captures: map[$X:"world"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test4291233028/fileA.go, Pattern: foo($ARG), Matches: 1
+  Match: foo("hello"), Captures: map[$ARG:"hello"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test4291233028/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/test_refactor1049994392.go, Pattern: println($X), Matches: 2
+  Match: println("hello"), Captures: map[$X:"hello"]
+  Match: println("world"), Captures: map[$X:"world"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test900541800/fileA.go, Pattern: foo($ARG), Matches: 1
+  Match: foo("hello"), Captures: map[$ARG:"hello"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test900541800/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/test_refactor2829248214.go, Pattern: println($X), Matches: 2
+  Match: println("hello"), Captures: map[$X:"hello"]
+  Match: println("world"), Captures: map[$X:"world"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test3842185494/fileA.go, Pattern: foo($ARG), Matches: 1
+  Match: foo("hello"), Captures: map[$ARG:"hello"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test3842185494/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/test_refactor448257496.go, Pattern: println($X), Matches: 2
+  Match: println("hello"), Captures: map[$X:"hello"]
+  Match: println("world"), Captures: map[$X:"world"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test3612489061/fileA.go, Pattern: foo($ARG), Matches: 1
+  Match: foo("hello"), Captures: map[$ARG:"hello"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test3612489061/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/test_refactor3791782431.go, Pattern: println($X), Matches: 2
+  Match: println("hello"), Captures: map[$X:"hello"]
+  Match: println("world"), Captures: map[$X:"world"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test622281735/fileA.go, Pattern: main($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test622281735/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/test_refactor3822571860.go, Pattern: println($X), Matches: 2
+  Match: println("hello"), Captures: map[$X:"hello"]
+  Match: println("world"), Captures: map[$X:"world"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test595105599/fileA.go, Pattern: main($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test595105599/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/test_refactor918053447.go, Pattern: println($X), Matches: 2
+  Match: println("hello"), Captures: map[$X:"hello"]
+  Match: println("world"), Captures: map[$X:"world"]
