@@ -19,3 +19,15 @@ The system MUST verify that the codebase compiles successfully after the transfo
 - WHEN the post-transformation build fails
 - THEN the system MUST automatically rollback all changes in the ledger
 - AND the status MUST be FAILED with the build error attached.
+
+### Requirement: LSP Contract Validator
+The Ripple engine SHALL include an `LSPValidator` that verifies interface satisfaction for all staged changes in the Ledger.
+- **Contract Verification**: Staged changes MUST NOT leave any interface implementation in a broken state.
+- **Error Reporting**: Failures MUST identify the specific struct and the missing/mismatched method.
+
+#### Scenario: LSP Violation Detection
+- GIVEN `interface Logger { Log(msg string) }`.
+- AND `struct ConsoleLogger` implements `Logger`.
+- WHEN a change to `Logger.Log` is staged, changing the signature to `Log(msg string, level int)`.
+- AND validation is triggered.
+- THEN the `LSPValidator` MUST fail with a detailed error message citing `ConsoleLogger`.

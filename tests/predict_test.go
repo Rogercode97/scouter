@@ -41,14 +41,15 @@ func TestIntegration_PredictiveTesting(t *testing.T) {
 			for _, p := range pointers {
 				t.Logf("Indexing symbol: %s (%s) at line %d in %s", p.Name, p.Type, p.StartLine, path)
 				err := tx.SaveSymbol(ctx, &store.Symbol{
-					Name:      p.Name,
-					Type:      p.Type,
-					Signature: p.Signature,
-					Path:      path,
-					StartByte: p.Range.Start,
-					EndByte:   p.Range.End,
-					StartLine: p.StartLine,
-					EndLine:   p.EndLine,
+					Name:        p.Name,
+					Type:        p.Type,
+					PackagePath: p.PackagePath,
+					Signature:   p.Signature,
+					Path:        path,
+					StartByte:   p.Range.Start,
+					EndByte:     p.Range.End,
+					StartLine:   p.StartLine,
+					EndLine:     p.EndLine,
 				})
 				if err != nil {
 					return err

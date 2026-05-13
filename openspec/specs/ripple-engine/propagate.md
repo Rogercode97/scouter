@@ -20,13 +20,25 @@ The system MUST resolve callers using the LSP-aware `ImpactEngine` to ensure all
 - THEN the system MUST correctly identify and transform the calls in package B.
 
 ### Requirement: Cross-Package Interface Resolution
-The system MUST resolve interface implementations across package boundaries using semantic analysis (`go/types.Implements`).
+The system SHALL resolve interface implementations across the entire workspace (`./...`) regardless of package boundaries using semantic analysis (`go/types.Implements`).
 
 #### Scenario: Interface Satisfaction Across Packages
 - GIVEN an interface `Logger` in package `pkg/log`
 - AND a struct `ConsoleLogger` in package `pkg/console` that implements `Logger`
 - WHEN Ripple analysis is run for `Logger`
 - THEN the system MUST identify `ConsoleLogger` as an implementation even though it is in a different package.
+
+### Requirement: Hierarchical Link Enrichment
+The `Linker` MUST detect interface-to-interface embedding and establish bi-directional links in the symbol graph.
+- **Bi-directional**: Links must exist for both "Embeds" and "EmbeddedBy".
+- **Propagation**: Method changes in an embedded interface MUST propagate to all implementations of any interface that embeds it.
+
+#### Scenario: Deep Inheritance Propagation
+- GIVEN Interface `A` with `M1()`.
+- AND Interface `B` embeds `A`.
+- AND Struct `C` implements `B`.
+- WHEN `M1()` in `A` is renamed to `M2()`.
+- THEN Impact Analysis MUST identify `Struct C` as a "Broken Implementation".
 
 ### Requirement: Method Set Compliance
 The system MUST correctly identify interface satisfaction based on Go method set rules.
