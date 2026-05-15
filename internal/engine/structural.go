@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -113,53 +114,30 @@ func preparePattern(parser *tree_sitter.Parser, pattern string, ext string) (*tr
 
 // StructuralRefactor performs a structural search and replaces matches with a template.
 func StructuralRefactor(ctx context.Context, filePath, pattern, template, ext string) (string, error) {
-	matches, err := StructuralSearch(ctx, filePath, pattern, ext)
-	if err != nil {
-		return "", err
-	}
-	
-	f, _ := os.OpenFile("DEBUG_MATCHES", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if f != nil {
-		fmt.Fprintf(f, "File: %s, Pattern: %s, Matches: %d\n", filePath, pattern, len(matches))
-		for _, m := range matches {
-			fmt.Fprintf(f, "  Match: %s, Captures: %v\n", m.Content, m.Captures)
+	cmd := exec.CommandContext(ctx, "sg", "run", "--pattern", pattern, "--rewrite", template, filePath)
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		// Check if sg is in path
+		if _, pathErr := exec.LookPath("sg"); pathErr != nil {
+			return "", fmt.Errorf("ast-grep (sg) not found in PATH: %w", pathErr)
 		}
-		f.Close()
-	}
 
-	if len(matches) == 0 {
-		content, err := os.ReadFile(filePath)
-		if err != nil {
-			return "", err
-		}
-		return string(content), nil
-	}
-
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return "", err
-	}
-
-	// Sort matches by start byte descending to avoid offset shift during replacement
-	for i := 0; i < len(matches); i++ {
-		for j := i + 1; j < len(matches); j++ {
-			if matches[i].Range.Start < matches[j].Range.Start {
-				matches[i], matches[j] = matches[j], matches[i]
+		// ast-grep returns 1 if no matches are found
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				return "", err
 			}
+			return string(content), nil
 		}
+
+		return "", fmt.Errorf("ast-grep failed: %w (stderr: %s)", err, stderr.String())
 	}
 
-	result := string(content)
-	for _, m := range matches {
-		replacement := template
-		for name, val := range m.Captures {
-			replacement = strings.ReplaceAll(replacement, name, val)
-		}
-		
-		result = result[:m.Range.Start] + replacement + result[m.Range.End:]
-	}
-
-	return result, nil
+	return stdout.String(), nil
 }
 
 func findTargetNode(node *tree_sitter.Node, content []byte, pattern string) *tree_sitter.Node {

@@ -91,7 +91,7 @@ func Welcome(g Greeter) {
 			if err != nil {
 				t.Fatalf("discovery failed: %v", err)
 			}
-			discovered[task.SymbolName] = true
+			discovered[task.ImpactedSymbol] = true
 		}
 
 		if !discovered[fq("EnglishGreeter") + ".Greet"] {
@@ -113,7 +113,7 @@ func Welcome(g Greeter) {
 			if err != nil {
 				t.Fatalf("discovery failed: %v", err)
 			}
-			discovered[task.SymbolName] = true
+			discovered[task.ImpactedSymbol] = true
 		}
 
 		if !discovered[fq("Greeter") + ".Greet"] {

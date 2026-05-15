@@ -8,6 +8,35 @@ Este documento contiene la visión técnica, lecciones aprendidas y el backlog d
 3. **Glasswall Validation**: Integridad de datos infranqueable mediante tags de validación.
 4. **Hexagonal Isolation**: Desacoplamiento total entre lógica de negocio y persistencia.
 
+## 🧬 Evolución: El ADN de Munch (Wave 14.0) 🧪
+Integración de capacidades de alta eficiencia y análisis dinámico inspiradas en el ecosistema *jCodeMunch*.
+
+### ⚡ Capacidades Core
+1. **High Density Format (MUNCH)**:
+   - **Objetivo**: Reducción drástica del "Impuesto de Tokens" (Ki).
+   - **Implementación**: `internal/display/density.go`.
+   - **Mecánica**: Serialización compacta (CSV-like) con *path interning* para respuestas MCP masivas.
+
+2. **PageRank (Inteligencia Central)**:
+   - **Objetivo**: Identificar los verdaderos "hubs" arquitectónicos del sistema.
+   - **Implementación**: Evolución de `internal/engine/analyzer.go`.
+   - **Mecánica**: Algoritmo iterativo sobre el grafo de llamadas para ponderar la importancia estructural.
+
+3. **Tectonic Mapping (Git Co-Churn)**:
+   - **Objetivo**: Comprender la fragilidad basada en el historial de cambios.
+   - **Implementación**: `internal/engine/churn.go`.
+   - **Mecánica**: Análisis de `git log` para detectar archivos que cambian simultáneamente (acoplamiento temporal).
+
+4. **AI Summaries (Semantic Indexing)**:
+   - **Objetivo**: Proporcionar contexto instantáneo sin leer la implementación completa.
+   - **Implementación**: `internal/engine/enricher.go`.
+   - **Mecánica**: Generación proactiva de micro-resúmenes de funciones críticas mediante LLM durante el proceso de *Enrich*.
+
+5. **Freshness Scoring (Index Health)**:
+   - **Objetivo**: Garantizar la soberanía de la información mostrada.
+   - **Implementación**: `internal/engine/truth.go`.
+   - **Mecánica**: Metadato de estado (`fresh`, `stale`, `edited`) basado en hashes y mtime comparados en tiempo real.
+
 ## 🏹 Análisis de Mercado y Posicionamiento (Omnisciencia)
 Tras una investigación profunda del ecosistema (Abril 2026), Scouter se posiciona como el sucesor inteligente de los proxies de reducción de ruido:
 
