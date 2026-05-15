@@ -7,31 +7,33 @@ import (
 	"github.com/Rogercode97/scouter/internal/store"
 )
 
-// MUNCHEncoder implements the Multi-Path Unit Compact Hierarchy format.
+// HAKAIEncoder implements the High-density Adaptive Knowledge Atlas Integration format.
 // It provides a high-density, token-efficient wire format for code symbols and relationships.
-type MUNCHEncoder struct {
+type HAKAIEncoder struct {
 	w      io.Writer
 	paths  map[string]int
 	nextID int
+	State  SovereignState
 }
 
-// NewMUNCHEncoder creates a new MUNCH encoder writing to w.
-func NewMUNCHEncoder(w io.Writer) *MUNCHEncoder {
-	return &MUNCHEncoder{
+// NewHAKAIEncoder creates a new HAKAI encoder writing to w.
+func NewHAKAIEncoder(w io.Writer) *HAKAIEncoder {
+	return &HAKAIEncoder{
 		w:      w,
 		paths:  make(map[string]int),
 		nextID: 1,
+		State:  HOT,
 	}
 }
 
-// WriteHeader writes the MUNCH protocol header.
-func (e *MUNCHEncoder) WriteHeader() error {
-	_, err := fmt.Fprintln(e.w, "#MUNCH/1")
+// WriteHeader writes the HAKAI protocol header.
+func (e *HAKAIEncoder) WriteHeader() error {
+	_, err := fmt.Fprintln(e.w, "#!HAKAI/1")
 	return err
 }
 
 // getPathID returns the interned ID for a path, emitting a legend entry if it's the first encounter.
-func (e *MUNCHEncoder) getPathID(path string) (int, error) {
+func (e *HAKAIEncoder) getPathID(path string) (int, error) {
 	if id, ok := e.paths[path]; ok {
 		return id, nil
 	}
@@ -43,19 +45,23 @@ func (e *MUNCHEncoder) getPathID(path string) (int, error) {
 }
 
 // EncodeSymbol encodes a symbol row.
-// Format: S|PathID|Name|Type|StartLine|StartCol
-func (e *MUNCHEncoder) EncodeSymbol(s store.Symbol) error {
+// Format: S|PathID|Name|Type|StartLine|StartCol|Signature|Doc
+func (e *HAKAIEncoder) EncodeSymbol(s store.Symbol) error {
 	id, err := e.getPathID(s.Path)
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(e.w, "S|%d|%s|%s|%d|%d\n", id, s.Name, s.Type, s.StartLine, s.StartCol)
+	if e.State == HOT {
+		_, err = fmt.Fprintf(e.w, "S|%d|%s|%s|%d|%d|%s|%s\n", id, s.Name, s.Type, s.StartLine, s.StartCol, s.Signature, s.Doc)
+	} else {
+		_, err = fmt.Fprintf(e.w, "S|%d|%s|%s|%d|%d\n", id, s.Name, s.Type, s.StartLine, s.StartCol)
+	}
 	return err
 }
 
 // EncodeCall encodes a caller relationship row.
 // Format: C|PathID|CallerName
-func (e *MUNCHEncoder) EncodeCall(c store.Call) error {
+func (e *HAKAIEncoder) EncodeCall(c store.Call) error {
 	id, err := e.getPathID(c.Path)
 	if err != nil {
 		return err
@@ -66,7 +72,7 @@ func (e *MUNCHEncoder) EncodeCall(c store.Call) error {
 
 // EncodeRank encodes a PageRank metric row.
 // Format: R|PathID|Rank
-func (e *MUNCHEncoder) EncodeRank(path string, rank float64) error {
+func (e *HAKAIEncoder) EncodeRank(path string, rank float64) error {
 	id, err := e.getPathID(path)
 	if err != nil {
 		return err
@@ -77,7 +83,7 @@ func (e *MUNCHEncoder) EncodeRank(path string, rank float64) error {
 
 // EncodeChurn encodes a churn metric row.
 // Format: K|PathID|Churn
-func (e *MUNCHEncoder) EncodeChurn(path string, churn float64) error {
+func (e *HAKAIEncoder) EncodeChurn(path string, churn float64) error {
 	id, err := e.getPathID(path)
 	if err != nil {
 		return err
@@ -88,7 +94,7 @@ func (e *MUNCHEncoder) EncodeChurn(path string, churn float64) error {
 
 // EncodeCritical encodes a critical symbol row.
 // Format: X|PathID|Name|Centrality|Fragility
-func (e *MUNCHEncoder) EncodeCritical(s store.CriticalSymbol) error {
+func (e *HAKAIEncoder) EncodeCritical(s store.CriticalSymbol) error {
 	id, err := e.getPathID(s.Path)
 	if err != nil {
 		return err

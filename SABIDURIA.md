@@ -8,11 +8,11 @@ Este documento contiene la visión técnica, lecciones aprendidas y el backlog d
 3. **Glasswall Validation**: Integridad de datos infranqueable mediante tags de validación.
 4. **Hexagonal Isolation**: Desacoplamiento total entre lógica de negocio y persistencia.
 
-## 🧬 Evolución: El ADN de Munch (Wave 14.0) 🧪
-Integración de capacidades de alta eficiencia y análisis dinámico inspiradas en el ecosistema *jCodeMunch*.
+## 🧬 Evolución: El ADN de HAKAI (Wave 14.0) 🧪
+Integración de capacidades de alta eficiencia y análisis dinámico inspiradas en el ecosistema *jCodeHakai*.
 
 ### ⚡ Capacidades Core
-1. **High Density Format (MUNCH)**:
+1. **High Density Format (HAKAI)**:
    - **Objetivo**: Reducción drástica del "Impuesto de Tokens" (Ki).
    - **Implementación**: `internal/display/density.go`.
    - **Mecánica**: Serialización compacta (CSV-like) con *path interning* para respuestas MCP masivas.

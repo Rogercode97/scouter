@@ -26,7 +26,7 @@ type SearchParams struct {
 	Type   string `json:"type,omitempty" jsonschema:"Optional: Filter by symbol type (e.g., function, method, struct)"`
 	Limit  int    `json:"limit,omitempty" jsonschema:"Max results to return (default: 50, max: 100)"`
 	Offset int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
-	Format string `json:"format,omitempty" jsonschema:"Optional: Response format ('text' or 'munch')"`
+	Format string `json:"format,omitempty" jsonschema:"Optional: Response format ('text' or 'hakai')"`
 }
 
 type ReadParams struct {
@@ -38,7 +38,7 @@ type CallersParams struct {
 	CalleeName string `json:"calleeName" jsonschema:"The name of the function or method to find callers for"`
 	Limit      int    `json:"limit,omitempty" jsonschema:"Max results to return (default: 50, max: 100)"`
 	Offset     int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
-	Format     string `json:"format,omitempty" jsonschema:"Optional: Response format ('text' or 'munch')"`
+	Format     string `json:"format,omitempty" jsonschema:"Optional: Response format ('text' or 'hakai')"`
 }
 
 type DefinitionParams struct {
@@ -102,21 +102,24 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 	}
 
 	var outStr string
-	useMunch := args.Format == "munch" || (args.Format == "" && len(results) > 20)
+	useHakai := args.Format == "hakai" || (args.Format == "" && len(results) > 20)
 
-	if useMunch {
+	if useHakai {
 		var buf bytes.Buffer
-		enc := display.NewMUNCHEncoder(&buf)
-		enc.WriteHeader()
+		sw := display.NewSovereignWrapper(&buf)
+		// Initialize ACCP with centralized thresholds
+		sw.SetACCP(display.NewACCP(display.DefaultThresholdWarm, display.DefaultThresholdCold))
+		sw.WriteHeader()
 		for _, sym := range results {
-			enc.EncodeSymbol(sym)
+			sw.EmitSymbol(sym)
 			if sym.PageRank > 0 {
-				enc.EncodeRank(sym.Path, sym.PageRank)
+				sw.EmitRank(sym.Path, sym.PageRank)
 			}
 			if sym.ChurnScore > 0 {
-				enc.EncodeChurn(sym.Path, sym.ChurnScore)
+				sw.EmitChurn(sym.Path, sym.ChurnScore)
 			}
 		}
+		sw.Flush()
 		outStr = buf.String()
 	} else {
 		out, _ := json.Marshal(results)
@@ -124,7 +127,7 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 	}
 
 	thought := fmt.Sprintf("<thought>\nSovereign Search: Querying AST for '%s' (%s). Pagination: [Limit:%d Offset:%d]. Found %d matches. Format: %s.\n</thought>\n",
-		args.Query, args.Type, limit, args.Offset, len(results), map[bool]string{true: "munch", false: "json"}[useMunch])
+		args.Query, args.Type, limit, args.Offset, len(results), map[bool]string{true: "hakai", false: "json"}[useHakai])
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -218,15 +221,18 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 	}
 
 	var outStr string
-	useMunch := args.Format == "munch" || (args.Format == "" && len(results) > 20)
+	useHakai := args.Format == "hakai" || (args.Format == "" && len(results) > 20)
 
-	if useMunch {
+	if useHakai {
 		var buf bytes.Buffer
-		enc := display.NewMUNCHEncoder(&buf)
-		enc.WriteHeader()
+		sw := display.NewSovereignWrapper(&buf)
+		// Initialize ACCP with centralized thresholds
+		sw.SetACCP(display.NewACCP(display.DefaultThresholdWarm, display.DefaultThresholdCold))
+		sw.WriteHeader()
 		for _, call := range results {
-			enc.EncodeCall(call)
+			sw.EmitCall(call)
 		}
+		sw.Flush()
 		outStr = buf.String()
 	} else {
 		out, _ := json.Marshal(results)
@@ -234,7 +240,7 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 	}
 
 	thought := fmt.Sprintf("<thought>\nCall Graph Analysis: Finding all callers of '%s'. Pagination: [Limit:%d Offset:%d]. Found %d callers. Format: %s.\n</thought>\n",
-		args.CalleeName, limit, args.Offset, len(results), map[bool]string{true: "munch", false: "json"}[useMunch])
+		args.CalleeName, limit, args.Offset, len(results), map[bool]string{true: "hakai", false: "json"}[useHakai])
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
