@@ -1,0 +1,6 @@
+id: domain-isolation
+language: go
+rule:
+  pattern: import "database/sql"
+message: "Violation detected"
+severity: error

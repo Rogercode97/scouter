@@ -110,7 +110,7 @@ func UseB(b B) {
 			if err != nil {
 				t.Fatalf("discovery failed: %v", err)
 			}
-			discovered[task.SymbolName] = true
+			discovered[task.ImpactedSymbol] = true
 		}
 
 		if !discovered[fq("UseA")] {

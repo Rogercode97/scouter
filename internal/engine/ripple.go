@@ -15,9 +15,10 @@ import (
 
 // PropagationTask represents a single unit of work in the ripple propagation.
 type PropagationTask struct {
-	SymbolName string
-	FilePath   string
-	Action     string
+	SymbolName     string // Local name for matching (e.g., "Greet")
+	ImpactedSymbol string // FQN of the impacted symbol (e.g., "tests.S1.Greet")
+	FilePath       string
+	Action         string
 }
 
 // ValidationResult carries the outcome of a validation stage.
@@ -79,6 +80,14 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 		visited := make(map[string]bool)
 		queue := []string{startSymbol}
 
+		// Helper to get local name from FQN
+		getLocalName := func(fqn string) string {
+			if lastDot := strings.LastIndex(fqn, "."); lastDot != -1 {
+				return fqn[lastDot+1:]
+			}
+			return fqn
+		}
+
 		depth := 0
 		for len(queue) > 0 && depth <= maxDepth {
 			nextQueue := []string{}
@@ -88,66 +97,73 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 				}
 				visited[currentSym] = true
 
+				localName := getLocalName(currentSym)
+
 				// 1. Trace callers (Upward / Standard Calls)
-				var callers []store.Call
-				deterministic, err := s.impactEngine.GetDeterministicCallers(ctx, currentSym)
-				if err == nil && len(deterministic) > 0 {
-					callers = deterministic
-				} else {
-					callers, err = s.store.GetCallers(ctx, currentSym, 0, 0)
-					if err != nil {
-						if !yield(PropagationTask{}, fmt.Errorf("failed to get callers for %s: %w", currentSym, err)) {
-							return
-						}
-						continue
-					}
-				}
-
-				for _, caller := range callers {
-					if !yield(PropagationTask{
-						SymbolName: caller.CallerName,
-						FilePath:   caller.Path,
-						Action:     "transform",
-					}, nil) {
-						return
-					}
-					nextQueue = append(nextQueue, caller.CallerName)
-				}
-
-				// 2. Trace callees (Downward / Hierarchy Ascent)
-				// For Omniscience (Ripple V2): If this is an implementation, we want to find the interface.
-				callees, err := s.store.GetCallees(ctx, currentSym)
-				if err == nil {
-					for _, callee := range callees {
-						// Only follow hierarchy-related links upward to avoid infinite loops or unrelated noise
-						if callee.LinkType == "satisfies" || callee.LinkType == "implements" || callee.LinkType == "embeds" {
-							if !yield(PropagationTask{
-								SymbolName: callee.CalleeName,
-								FilePath:   callee.CalleePath,
-								Action:     "transform",
-							}, nil) {
+				if depth < maxDepth {
+					var callers []store.Call
+					deterministic, err := s.impactEngine.GetDeterministicCallers(ctx, currentSym)
+					if err == nil && len(deterministic) > 0 {
+						callers = deterministic
+					} else {
+						callers, err = s.store.GetCallers(ctx, currentSym, 0, 0)
+						if err != nil {
+							if !yield(PropagationTask{}, fmt.Errorf("failed to get callers for %s: %w", currentSym, err)) {
 								return
 							}
-							nextQueue = append(nextQueue, callee.CalleeName)
+							continue
+						}
+					}
+
+					for _, caller := range callers {
+						// For hierarchy links (implements/satisfies), the "localName" to match remains the method name.
+						// For standard calls, it's also the method name.
+						task := PropagationTask{
+							SymbolName:     localName,
+							ImpactedSymbol: caller.CallerName,
+							FilePath:       caller.Path,
+							Action:         "transform",
+						}
+
+						if !yield(task, nil) {
+							return
+						}
+						nextQueue = append(nextQueue, caller.CallerName)
+					}
+
+					// 2. Trace callees (Downward / Hierarchy Ascent)
+					// If this is an implementation, we want to find the interface it satisfies.
+					callees, err := s.store.GetCallees(ctx, currentSym)
+					if err == nil {
+						for _, callee := range callees {
+							// Only follow hierarchy-related links upward (Impl -> Iface)
+							if callee.LinkType == "satisfies" || callee.LinkType == "implements" || callee.LinkType == "embeds" {
+								task := PropagationTask{
+									SymbolName:     localName,
+									ImpactedSymbol: callee.CalleeName,
+									FilePath:       callee.CalleePath,
+									Action:         "transform",
+								}
+								if !yield(task, nil) {
+									return
+								}
+								nextQueue = append(nextQueue, callee.CalleeName)
+							}
 						}
 					}
 				}
 
 				// 3. Also include the symbol definition file itself (Depth 0)
-				// Use a broad search and filter manually to handle FQN vs local name mismatches
-				searchQuery := currentSym
-				if lastDot := strings.LastIndex(currentSym, "."); lastDot != -1 {
-					searchQuery = currentSym[lastDot+1:]
-				}
-
+				searchQuery := localName
 				results, _ := s.store.SearchSymbols(ctx, searchQuery, "", 0, 0)
 				for _, sym := range results {
 					symFQ := sym.PackagePath + "." + sym.Name
 					if symFQ == currentSym || sym.Name == currentSym {
 						if !yield(PropagationTask{
-							SymbolName: sym.Name,
-							FilePath:   sym.Path,
-							Action:     "transform",
+							SymbolName:     sym.Name,
+							ImpactedSymbol: symFQ,
+							FilePath:       sym.Path,
+							Action:         "transform",
 						}, nil) {
 							return
 						}

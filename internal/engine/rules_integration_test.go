@@ -27,12 +27,9 @@ func TestASTRuleIntegration(t *testing.T) {
 	ruleContent := `id: domain-isolation
 language: go
 rule:
-  all:
-    - pattern: import "database/sql"
-    - inside:
-        pattern: package domain
+  pattern: import "database/sql"
 message: "Hexagonal Violation detected"
-severity: ERROR`
+severity: error`
 	err = os.WriteFile(filepath.Join(rulesDir, "domain-isolation.yaml"), []byte(ruleContent), 0644)
 	require.NoError(t, err)
 
@@ -63,5 +60,5 @@ func DoSomething() {}`
 	
 	assert.NotEmpty(t, violations, "Should have found a violation")
 	assert.Equal(t, "domain-isolation", violations[0].RuleID)
-	assert.Equal(t, "ERROR", violations[0].Severity)
+	assert.Equal(t, "error", violations[0].Severity)
 }

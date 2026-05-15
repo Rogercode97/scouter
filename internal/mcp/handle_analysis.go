@@ -8,6 +8,7 @@ import (
 
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
+	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	)
@@ -308,13 +309,66 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 		nil, nil
 	}
 
-	results, err := engine.StructuralSearch(ctx, path, args.Pattern, args.Ext)
+	action, ok := filter.GetAction("ast_grep")
+	if !ok {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "ast_grep action not found in registry"}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	// Prepare parameters for the ast_grep action
+	params := map[string]any{
+		"pattern": args.Pattern,
+		"path":    path,
+	}
+	
+	// Map extension to language if possible, or let ast-grep auto-detect based on extension
+	// ast-grep usually auto-detects if we pass a path, but we can enforce it if needed.
+	// We'll pass the extension as a hint if we want, but ast-grep handles directory scanning well.
+	// Actually, if we pass a directory, ast-grep will scan all supported files.
+	// If the user provided an extension, we might need to filter the results or pass it to ast-grep.
+	// ast-grep doesn't have a direct --ext flag, it uses --lang.
+	// Let's map common extensions to languages.
+	lang := ""
+	switch args.Ext {
+	case ".go", "go": lang = "go"
+	case ".ts", "ts": lang = "typescript"
+	case ".js", "js": lang = "javascript"
+	case ".rs", "rs": lang = "rust"
+	case ".py", "py": lang = "python"
+	}
+	if lang != "" {
+		params["lang"] = lang
+	}
+
+	// Execute the filter
+	input := filter.ActionResult{Metadata: map[string]any{"path": path}}
+	res, err := action(ctx, input, params)
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Structural search failed: %v", err)}},
 			IsError: true,
-		},
-		nil, nil
+		}, nil, nil
+	}
+
+	// The result lines are JSON strings from ast-grep's --json=stream
+	// We need to parse them back into StructuralMatch objects to maintain API compatibility
+	var results []engine.StructuralMatch
+	for _, line := range res.Lines {
+		var match filter.AstGrepMatch
+		if err := json.Unmarshal([]byte(line), &match); err == nil {
+			matchPath := match.File
+			if matchPath == "" {
+				matchPath = path
+			}
+			results = append(results, engine.StructuralMatch{
+				Path:      matchPath,
+				StartLine: match.Range.Start.Line,
+				EndLine:   match.Range.End.Line,
+				Content:   match.Text,
+			})
+		}
 	}
 
 	total := len(results)

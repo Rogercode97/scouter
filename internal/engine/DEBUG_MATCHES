@@ -98,3 +98,25 @@ File: /data/data/com.termux/files/usr/tmp/ripple_structural_test595105599/fileB.
 File: /data/data/com.termux/files/usr/tmp/test_refactor918053447.go, Pattern: println($X), Matches: 2
   Match: println("hello"), Captures: map[$X:"hello"]
   Match: println("world"), Captures: map[$X:"world"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test1348996999/fileA.go, Pattern: main($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test1348996999/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test655538148/fileA.go, Pattern: main($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test655538148/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/test_refactor849195617.go, Pattern: println($X), Matches: 2
+  Match: println("hello"), Captures: map[$X:"hello"]
+  Match: println("world"), Captures: map[$X:"world"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test257571027/fileA.go, Pattern: main($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test257571027/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/test_refactor2315584678.go, Pattern: println($X), Matches: 2
+  Match: println("hello"), Captures: map[$X:"hello"]
+  Match: println("world"), Captures: map[$X:"world"]
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test4082806162/fileA.go, Pattern: main($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test4082806162/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test2032023932/fileA.go, Pattern: main($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test2032023932/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test137028765/fileA.go, Pattern: main($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test137028765/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test41178492/fileA.go, Pattern: main($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test41178492/fileB.go, Pattern: foo($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test868955586/fileA.go, Pattern: main($ARG), Matches: 0
+File: /data/data/com.termux/files/usr/tmp/ripple_structural_test868955586/fileB.go, Pattern: foo($ARG), Matches: 0

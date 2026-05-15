@@ -32,31 +32,43 @@ func (e *ASTRuleEngine) Audit(ctx context.Context, targetPath string) ([]types.A
 		}
 	}
 
-	// ast-grep scan -r <rules_dir> <target> --json
-	cmd := exec.CommandContext(ctx, "sg", "scan", "-r", e.rulesDir, targetPath, "--json")
-	
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	// ast-grep returns exit code 1 if matches are found, which is not a "command error" for us
+	rules, err := e.GetRules()
 	if err != nil {
-		if _, ok := err.(*exec.ExitError); !ok {
-			return nil, fmt.Errorf("ast-grep execution failed: %w (stderr: %s)", err, stderr.String())
+		return nil, err
+	}
+
+	var allMatches []types.ASTRuleMatch
+	for _, ruleFile := range rules {
+		rulePath := filepath.Join(e.rulesDir, ruleFile)
+		
+		// ast-grep scan -r <rule_file> <target> --json
+		cmd := exec.CommandContext(ctx, "sg", "scan", "-r", rulePath, targetPath, "--json")
+		
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		err := cmd.Run()
+		// ast-grep returns exit code 1 if matches are found, which is not a "command error" for us
+		if err != nil {
+			if _, ok := err.(*exec.ExitError); !ok {
+				return nil, fmt.Errorf("ast-grep execution failed for rule %s: %w (stderr: %s)", ruleFile, err, stderr.String())
+			}
 		}
+
+		if stdout.Len() == 0 {
+			continue
+		}
+
+		var matches []types.ASTRuleMatch
+		if err := json.Unmarshal(stdout.Bytes(), &matches); err != nil {
+			// Some versions might output nothing or different format on no match
+			continue
+		}
+		allMatches = append(allMatches, matches...)
 	}
 
-	if stdout.Len() == 0 {
-		return nil, nil
-	}
-
-	var matches []types.ASTRuleMatch
-	if err := json.Unmarshal(stdout.Bytes(), &matches); err != nil {
-		return nil, fmt.Errorf("failed to parse ast-grep output: %w", err)
-	}
-
-	return matches, nil
+	return allMatches, nil
 }
 
 // GetRules returns a list of available rule files.

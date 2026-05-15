@@ -36,6 +36,7 @@ var actions = map[string]ActionFunc{
 	"head_tail":       headTail,
 	"pure_signal":     pureSignal,
 	"semantic_purify": semanticPurify,
+	"ast_grep":        astGrepAction,
 }
 
 // GetAction returns the ActionFunc for the given action name.
