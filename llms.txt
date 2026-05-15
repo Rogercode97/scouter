@@ -1,0 +1,23 @@
+# Scouter (v1.0.0 — HAKAI Evolution)
+
+> The World's First Autonomous Engineering OS with Deep Memory Orchestration.
+
+Scouter is a Sovereign Engineering Engine that bridges a codebase with an AI agent's long-term memory. It transforms development into a high-density, context-aware experience by merging AST intelligence with the Engram persistence layer.
+
+## Core Capabilities
+- **Sovereign Context Wrappers (ACCP/ULMEN)**: State-aware context management (`HOT`, `WARM`, `COLD`) for up to 98% token reduction.
+- **HAKAI Density Format**: Token-efficient wire format for MCP responses using path interning.
+- **Engram Link**: Deep memory orchestration for historical healing, ADR-aware refactoring, and session continuity.
+- **Ripple V2**: Interface omniscience for bidirectional hierarchy traversal.
+- **Shinigami Protocol**: Solver-Verifier model for autonomous RCA and parallel fixing.
+
+## Documentation Map
+- `docs/ARCHITECTURE.md`: System design and internal mechanics.
+- `docs/CODEBASE-GUIDE.md`: Navigation map for the source code.
+- `docs/INSTALLATION.md`: Setup and MCP registration instructions.
+- `SABIDURIA.md`: Technical vision, lessons learned, and the transcendence backlog.
+
+## Engineering Standards
+- **Absolute Signal**: Zero slop. High-density technical communication.
+- **Empirical Absolute**: All code must be verified via tests (`go test ./...`).
+- **Hexagonal Isolation**: Strict decoupling between business logic and persistence.

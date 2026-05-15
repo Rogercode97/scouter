@@ -79,6 +79,8 @@ Thumbs.db
 # === EXPERIMENTAL & ARENA ===
 skill-arena/
 arena/
+cmd/*-study/
+*.skill
 
 # Temporary backups
 *gemini.md

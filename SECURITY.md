@@ -4,8 +4,8 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| V2.x    | ✅ Sovereign Path |
-| < V2.0  | ❌ Hakai (EOL)     |
+| v1.x    | ✅ HAKAI Evolution |
+| < v1.0  | ❌ EOL             |
 
 ## Reporting a Vulnerability
 
