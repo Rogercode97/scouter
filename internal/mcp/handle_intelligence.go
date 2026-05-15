@@ -10,7 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"bytes"
 )
 
 type ImpactParams struct {
@@ -21,7 +23,8 @@ type ImpactParams struct {
 }
 
 type CriticalParams struct {
-	Limit int `json:"limit,omitempty" jsonschema:"Max critical symbols to return (default: 10, max: 50)"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"Max critical symbols to return (default: 10, max: 50)"`
+	Format string `json:"format,omitempty" jsonschema:"Optional: Response format ('text' or 'munch')"`
 }
 
 type ObsidianExportParams struct {
@@ -79,13 +82,35 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 		},
 		nil, nil
 	}
-	out, _ := json.Marshal(results)
 
-	thought := fmt.Sprintf("<thought>\nRisk Analysis: Identifying high-risk symbols (high centrality and fragility). Found %d targets (limit: %d).\n</thought>\n", len(results), limit)
+	var outStr string
+	useMunch := args.Format == "munch" || (args.Format == "" && len(results) > 20)
+
+	if useMunch {
+		var buf bytes.Buffer
+		enc := display.NewMUNCHEncoder(&buf)
+		enc.WriteHeader()
+		for _, sym := range results {
+			enc.EncodeCritical(sym)
+			if sym.PageRank > 0 {
+				enc.EncodeRank(sym.Path, sym.PageRank)
+			}
+			if sym.ChurnScore > 0 {
+				enc.EncodeChurn(sym.Path, sym.ChurnScore)
+			}
+		}
+		outStr = buf.String()
+	} else {
+		out, _ := json.Marshal(results)
+		outStr = string(out)
+	}
+
+	thought := fmt.Sprintf("<thought>\nRisk Analysis: Identifying high-risk symbols (high centrality and fragility). Found %d targets (limit: %d). Format: %s.\n</thought>\n",
+		len(results), limit, map[bool]string{true: "munch", false: "json"}[useMunch])
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + string(out)},
+			&mcp.TextContent{Text: thought + outStr},
 		},
 	}, nil, nil
 }

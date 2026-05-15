@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	)
+	"bytes"
+)
 
 
 
@@ -24,6 +26,7 @@ type SearchParams struct {
 	Type   string `json:"type,omitempty" jsonschema:"Optional: Filter by symbol type (e.g., function, method, struct)"`
 	Limit  int    `json:"limit,omitempty" jsonschema:"Max results to return (default: 50, max: 100)"`
 	Offset int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
+	Format string `json:"format,omitempty" jsonschema:"Optional: Response format ('text' or 'munch')"`
 }
 
 type ReadParams struct {
@@ -35,6 +38,7 @@ type CallersParams struct {
 	CalleeName string `json:"calleeName" jsonschema:"The name of the function or method to find callers for"`
 	Limit      int    `json:"limit,omitempty" jsonschema:"Max results to return (default: 50, max: 100)"`
 	Offset     int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
+	Format     string `json:"format,omitempty" jsonschema:"Optional: Response format ('text' or 'munch')"`
 }
 
 type DefinitionParams struct {
@@ -97,13 +101,34 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 		nil, nil
 	}
 
-	out, _ := json.Marshal(results)
-	thought := fmt.Sprintf("<thought>\nSovereign Search: Querying AST for '%s' (%s). Pagination: [Limit:%d Offset:%d]. Found %d matches.\n</thought>\n",
-		args.Query, args.Type, limit, args.Offset, len(results))
+	var outStr string
+	useMunch := args.Format == "munch" || (args.Format == "" && len(results) > 20)
+
+	if useMunch {
+		var buf bytes.Buffer
+		enc := display.NewMUNCHEncoder(&buf)
+		enc.WriteHeader()
+		for _, sym := range results {
+			enc.EncodeSymbol(sym)
+			if sym.PageRank > 0 {
+				enc.EncodeRank(sym.Path, sym.PageRank)
+			}
+			if sym.ChurnScore > 0 {
+				enc.EncodeChurn(sym.Path, sym.ChurnScore)
+			}
+		}
+		outStr = buf.String()
+	} else {
+		out, _ := json.Marshal(results)
+		outStr = string(out)
+	}
+
+	thought := fmt.Sprintf("<thought>\nSovereign Search: Querying AST for '%s' (%s). Pagination: [Limit:%d Offset:%d]. Found %d matches. Format: %s.\n</thought>\n",
+		args.Query, args.Type, limit, args.Offset, len(results), map[bool]string{true: "munch", false: "json"}[useMunch])
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + string(out)},
+			&mcp.TextContent{Text: thought + outStr},
 		},
 	}, nil, nil
 }
@@ -192,13 +217,28 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 		nil, nil
 	}
 
-	out, _ := json.Marshal(results)
-	thought := fmt.Sprintf("<thought>\nCall Graph Analysis: Finding all callers of '%s'. Pagination: [Limit:%d Offset:%d]. Found %d callers.\n</thought>\n",
-		args.CalleeName, limit, args.Offset, len(results))
+	var outStr string
+	useMunch := args.Format == "munch" || (args.Format == "" && len(results) > 20)
+
+	if useMunch {
+		var buf bytes.Buffer
+		enc := display.NewMUNCHEncoder(&buf)
+		enc.WriteHeader()
+		for _, call := range results {
+			enc.EncodeCall(call)
+		}
+		outStr = buf.String()
+	} else {
+		out, _ := json.Marshal(results)
+		outStr = string(out)
+	}
+
+	thought := fmt.Sprintf("<thought>\nCall Graph Analysis: Finding all callers of '%s'. Pagination: [Limit:%d Offset:%d]. Found %d callers. Format: %s.\n</thought>\n",
+		args.CalleeName, limit, args.Offset, len(results), map[bool]string{true: "munch", false: "json"}[useMunch])
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + string(out)},
+			&mcp.TextContent{Text: thought + outStr},
 		},
 	}, nil, nil
 }
