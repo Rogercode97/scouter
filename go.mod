@@ -7,7 +7,7 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/go-git/go-git/v6 v6.0.0-alpha.3
 	github.com/go-playground/validator/v10 v10.30.2
-	github.com/mattn/go-isatty v0.0.20
+	github.com/mattn/go-isatty v0.0.22
 	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pmezard/go-difflib v1.0.0
