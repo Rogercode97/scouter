@@ -58,7 +58,18 @@ func DoSomething() {}`
 	violations, err := db.GetViolationsByFile(ctx, violatingFile)
 	require.NoError(t, err)
 	
-	assert.NotEmpty(t, violations, "Should have found a violation")
+	if len(violations) == 0 {
+		t.Logf("DIAGNOSTIC: No violations found for %s", violatingFile)
+		// Check if rules directory is correctly perceived
+		t.Logf("DIAGNOSTIC: Rules directory: %s", rulesDir)
+		if files, err := os.ReadDir(rulesDir); err == nil {
+			for _, f := range files {
+				t.Logf("DIAGNOSTIC: Rule file: %s", f.Name())
+			}
+		}
+	}
+
+	require.NotEmpty(t, violations, "Should have found a violation")
 	assert.Equal(t, "domain-isolation", violations[0].RuleID)
 	assert.Equal(t, "error", violations[0].Severity)
 }

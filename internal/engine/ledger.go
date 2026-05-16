@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -58,7 +59,9 @@ func (l *Ledger) SetLedgerPath(path string) {
 	l.mu.Unlock()
 	
 	if _, err := os.Stat(path); err == nil {
-		_ = l.Load()
+		if err := l.Load(); err != nil {
+			slog.Error("failed to load ledger", "path", path, "error", err)
+		}
 	}
 }
 
@@ -129,7 +132,9 @@ func (l *Ledger) IncrementTurn() {
 	l.mu.Lock()
 	l.Stats.TurnCount++
 	l.mu.Unlock()
-	_ = l.Save()
+	if err := l.Save(); err != nil {
+		slog.Error("failed to save ledger after turn increment", "error", err)
+	}
 }
 
 // Unstage removes a patch from the ledger.
@@ -138,7 +143,9 @@ func (l *Ledger) Unstage(path string) {
 	delete(l.Staged, path)
 	l.Stats.FilesCount = len(l.Staged)
 	l.mu.Unlock()
-	_ = l.Save()
+	if err := l.Save(); err != nil {
+		slog.Error("failed to save ledger after unstage", "error", err)
+	}
 }
 
 // GetStaged returns all pending patches.
@@ -179,7 +186,9 @@ func (l *Ledger) CommitStaged(ctx context.Context) error {
 	// Clear ledger and remove file after successful commit
 	l.Staged = make(map[string]Patch)
 	l.Stats.FilesCount = 0
-	_ = os.Remove(l.ledgerPath)
+	if err := os.Remove(l.ledgerPath); err != nil && !os.IsNotExist(err) {
+		slog.Error("failed to remove ledger file after commit", "path", l.ledgerPath, "error", err)
+	}
 	return nil
 }
 
@@ -189,7 +198,9 @@ func (l *Ledger) Rollback(ctx context.Context) error {
 	defer l.mu.Unlock()
 	l.Staged = make(map[string]Patch)
 	l.Stats.FilesCount = 0
-	_ = os.Remove(l.ledgerPath)
+	if err := os.Remove(l.ledgerPath); err != nil && !os.IsNotExist(err) {
+		slog.Error("failed to remove ledger file after rollback", "path", l.ledgerPath, "error", err)
+	}
 	return nil
 }
 

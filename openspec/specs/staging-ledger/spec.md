@@ -3,6 +3,26 @@
 ## Description
 The Staging Ledger capability provides a mechanism for atomic staging, diff generation, and persistence of code mutations. It allows for "dry-run" operations where changes are proposed and reviewed before being applied to the filesystem.
 
+## Requirements
+
+### Requirement: Hardened Integer Operations
+The staging ledger MUST safely handle integer arithmetic for file offsets and lengths to prevent overflows during patch application or diff generation.
+
+#### Scenario: Safe Offset Calculation
+- GIVEN large file offsets in `ledger.go`
+- WHEN performing addition or multiplication for buffer sizing
+- THEN the system MUST use safe casting or overflow checks
+- AND it MUST return an error if overflow is detected.
+
+### Requirement: Explicit Error Handling
+The ledger MUST NOT ignore return values from security-sensitive or I/O operations (e.g., file writes, permission changes).
+
+#### Scenario: Unhandled Error Remediation
+- GIVEN an I/O operation in the ledger
+- WHEN the operation fails
+- THEN the error MUST be captured and propagated to the caller
+- AND Gosec MUST NOT flag unhandled errors in remediated sections.
+
 ## Scenarios
 
 ### Scenario: Stage a file change
