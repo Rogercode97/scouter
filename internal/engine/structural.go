@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/Rogercode97/scouter/internal/types"
+	"github.com/Rogercode97/scouter/internal/utils"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -114,6 +115,10 @@ func preparePattern(parser *tree_sitter.Parser, pattern string, ext string) (*tr
 
 // StructuralRefactor performs a structural search and replaces matches with a template.
 func StructuralRefactor(ctx context.Context, filePath, pattern, template, ext string) (string, error) {
+	filePath, err := utils.ValidatePath(filePath)
+	if err != nil {
+		return "", err
+	}
 	cmd := exec.CommandContext(ctx, "sg", "run", "--pattern", pattern, "--rewrite", template, filePath)
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
@@ -177,6 +182,10 @@ func findTargetNode(node *tree_sitter.Node, content []byte, pattern string) *tre
 
 // StructuralSearchWithRule searches for a pattern in a file or directory using a StructuralRule.
 func StructuralSearchWithRule(ctx context.Context, rootPath string, rule types.StructuralRule, ext string) ([]StructuralMatch, error) {
+	rootPath, err := utils.ValidatePath(rootPath)
+	if err != nil {
+		return nil, err
+	}
 	ensureStructuralInit()
 
 	lang, ok := languageConfigs[ext]
@@ -203,7 +212,7 @@ func StructuralSearchWithRule(ctx context.Context, rootPath string, rule types.S
 
 	// Collect files to process
 	var files []string
-	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -349,11 +358,16 @@ func findMatches(node, pattern *tree_sitter.Node, patternContent, targetContent 
 	captures := make(map[string]string)
 	if matchNodes(node, pattern, patternContent, targetContent, captures) {
 		if checkInside(node, rule.Inside) && checkHas(node, rule.Has, targetContent, ext, lang) {
+			start, _ := utils.SafeUintToInt(node.StartByte())
+			end, _ := utils.SafeUintToInt(node.EndByte())
+			sLine, _ := utils.SafeUintToInt(node.StartPosition().Row)
+			eLine, _ := utils.SafeUintToInt(node.EndPosition().Row)
+
 			*matches = append(*matches, StructuralMatch{
 				Path:      path,
-				Range:     types.Range{Start: int(node.StartByte()), End: int(node.EndByte())},
-				StartLine: int(node.StartPosition().Row) + 1,
-				EndLine:   int(node.EndPosition().Row) + 1,
+				Range:     types.Range{Start: start, End: end},
+				StartLine: sLine + 1,
+				EndLine:   eLine + 1,
 				Content:   node.Utf8Text(targetContent),
 				Captures:  captures,
 			})

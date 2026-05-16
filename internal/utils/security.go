@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -145,4 +146,12 @@ func SanitizeFTS(q string) string {
 	}
 	
 	return res
+}
+
+// SafeUintToInt safely converts a uint to an int, preventing overflow on 32-bit systems.
+func SafeUintToInt(u uint) (int, error) {
+	if uint64(u) > uint64(math.MaxInt) {
+		return 0, fmt.Errorf("integer overflow: %d exceeds maximum integer value", u)
+	}
+	return int(u), nil
 }
