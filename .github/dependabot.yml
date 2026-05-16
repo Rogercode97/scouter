@@ -4,13 +4,26 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
     labels:
-      - "security"
       - "dependencies"
+      - "go"
+    groups:
+      all-go-deps:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
     labels:
-      - "security"
       - "dependencies"
+      - "actions"
+    groups:
+      all-actions:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5
