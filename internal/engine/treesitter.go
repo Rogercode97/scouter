@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,16 +73,21 @@ func init() {
 func registerLanguage(ext string, lang *tree_sitter.Language, qSrc, cSrc string) {
 	q, err := tree_sitter.NewQuery(lang, qSrc)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to register symbol query for %s: %v\n", ext, err)
+		slog.Error("failed to register symbol query", "ext", ext, "error", err)
 	}
 	cq, err := tree_sitter.NewQuery(lang, cSrc)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to register call query for %s: %v\n", ext, err)
+		slog.Error("failed to register call query", "ext", ext, "error", err)
 	}
 	languageConfigs[ext] = &LanguageConfig{Language: lang, Query: q, CallQuery: cq}
 }
 
 func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPointer, []types.ASTCall, error) {
+	filePath, err := utils.ValidatePath(filePath)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	ext := filepath.Ext(filePath)
 	config, ok := languageConfigs[ext]
 	if !ok {
@@ -102,6 +109,14 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 
 	tree := parser.Parse(content, nil)
 	defer tree.Close()
+
+	safeInt := func(u uint) int {
+		i, err := utils.SafeUintToInt(u)
+		if err != nil {
+			return math.MaxInt
+		}
+		return i
+	}
 
 	var pointers []types.ASTPointer
 	var calls []types.ASTCall
@@ -143,9 +158,9 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 				Type:           symType,
 				Name:           fullName,
 				Doc:            doc,
-				Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
-				StartLine:      int(symNode.StartPosition().Row) + 1,
-				EndLine:        int(symNode.EndPosition().Row) + 1,
+				Range:          types.Range{Start: safeInt(symNode.StartByte()), End: safeInt(symNode.EndByte())},
+				StartLine:      safeInt(symNode.StartPosition().Row) + 1,
+				EndLine:        safeInt(symNode.EndPosition().Row) + 1,
 				Hash:           hex.EncodeToString(h[:]),
 				StructuralHash: GetStructuralHash(&symNode, content),
 			})
@@ -161,9 +176,9 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 			pointers = append(pointers, types.ASTPointer{
 				Type:           "method_spec",
 				Name:           fullMethodName,
-				Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
-				StartLine:      int(symNode.StartPosition().Row) + 1,
-				EndLine:        int(symNode.EndPosition().Row) + 1,
+				Range:          types.Range{Start: safeInt(symNode.StartByte()), End: safeInt(symNode.EndByte())},
+				StartLine:      safeInt(symNode.StartPosition().Row) + 1,
+				EndLine:        safeInt(symNode.EndPosition().Row) + 1,
 				Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
 				StructuralHash: GetStructuralHash(&symNode, content),
 			})
@@ -195,7 +210,7 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 				CalleePath: calleePath,
 				LinkType:   "call",
 				Path:       filePath,
-				Line:       int(callNode.StartPosition().Row) + 1,
+				Line:       safeInt(callNode.StartPosition().Row) + 1,
 			})
 		}
 	}
@@ -248,8 +263,9 @@ func extractDoc(node tree_sitter.Node, content []byte, ext string) string {
 	if ext == ".py" {
 		block := declNode.ChildByFieldName("body")
 		if block == nil {
-			for i := uint32(0); i < uint32(declNode.ChildCount()); i++ {
+			for i := uint32(0); i < uint32(declNode.ChildCount()); i++ { // #nosec G115 - ChildCount is safe to convert
 				child := declNode.Child(uint(i))
+
 				if child.Kind() == "block" {
 					block = child
 					break

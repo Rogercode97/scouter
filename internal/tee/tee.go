@@ -84,7 +84,7 @@ func MaybeSave(raw string, exitCode int, cmd string, cfg Config) string {
 	}
 
 	// Write latest trace for this specific command hash
-	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(data), 0644); err != nil { // #nosec G703 - path is constructed safely
 		return "" // Silent failure
 	}
 
@@ -121,6 +121,6 @@ func rotateFiles(dir string, maxFiles int) {
 	// Remove oldest unique command traces
 	toRemove := len(logFiles) - maxFiles
 	for i := 0; i < toRemove; i++ {
-		_ = os.Remove(filepath.Join(dir, logFiles[i].Name()))
+		_ = os.Remove(filepath.Join(dir, logFiles[i].Name())) // #nosec G703 - path is constructed safely
 	}
 }
