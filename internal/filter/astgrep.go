@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 // AstGrepFilter implements structural filtering using ast-grep (sg).
@@ -118,7 +120,10 @@ func (a *AstGrepFilter) Apply(ctx context.Context, input ActionResult, params ma
 		args = append(args, searchPath)
 	}
 
-	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd, err := utils.SafeCommand(ctx, binary, args...)
+	if err != nil {
+		return input, fmt.Errorf("ast_grep: safe command: %w", err)
+	}
 
 	if useStdin {
 		// Pipe stdin

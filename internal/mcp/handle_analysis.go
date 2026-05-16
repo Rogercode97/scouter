@@ -155,8 +155,8 @@ func (s *Server) handleRead(ctx context.Context, req *mcp.CallToolRequest, args 
 	}
 
 	// [RTK Muscle] Delegation check
-	if _, err := exec.LookPath("rtk"); err == nil {
-		cmd := exec.CommandContext(ctx, "rtk", "read", path, "--pointer", args.Pointer, "--ultra-compact")
+	cmd, err := utils.SafeCommand(ctx, "rtk", "read", path, "--pointer", args.Pointer, "--ultra-compact")
+	if err == nil {
 		if out, err := cmd.CombinedOutput(); err == nil {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
@@ -166,7 +166,7 @@ func (s *Server) handleRead(ctx context.Context, req *mcp.CallToolRequest, args 
 		}
 		// If RTK fails, fallback to manual read
 		if s.logger != nil {
-			s.logger.Warn("RTK delegation failed, falling back to manual read", "error", err)
+			s.logger.Warn("RTK delegation failed, falling back to manual read")
 		}
 	}
 

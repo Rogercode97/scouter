@@ -101,7 +101,10 @@ func (s *Server) handleKnowledgeGraph(ctx context.Context, req *mcp.CallToolRequ
 	}
 
 	// Invoke Engram CLI search
-	cmd := exec.CommandContext(ctx, "engram", "search", "--query", args.SymbolName)
+	cmd, err := utils.SafeCommand(ctx, "engram", "search", "--query", args.SymbolName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create safe engram command: %w", err)
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, nil, fmt.Errorf("engram search failed: %w\n%s", err, string(out))

@@ -21,7 +21,10 @@ var hunkRegex = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@`)
 // GetLocalChanges parses 'git diff HEAD' to find modified line ranges.
 // Using HEAD ensures we include both staged and unstaged changes (Divine Fix).
 func GetLocalChanges(ctx context.Context) ([]DiffRange, error) {
-	cmd := exec.CommandContext(ctx, "git", "diff", "HEAD", "--unified=0")
+	cmd, err := SafeCommand(ctx, "git", "diff", "HEAD", "--unified=0")
+	if err != nil {
+		return nil, err
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -67,7 +70,10 @@ func GetLocalChanges(ctx context.Context) ([]DiffRange, error) {
 
 // GetRepoName returns the name of the repository (e.g., "scouter") from origin remote.
 func GetRepoName(ctx context.Context) string {
-	cmd := exec.CommandContext(ctx, "git", "remote", "get-url", "origin")
+	cmd, err := SafeCommand(ctx, "git", "remote", "get-url", "origin")
+	if err != nil {
+		return ""
+	}
 	out, err := cmd.Output()
 	if err != nil {
 		return ""
@@ -85,5 +91,9 @@ func GetRepoName(ctx context.Context) string {
 
 // RestoreFile executes 'git restore <file>' to revert changes in a specific file.
 func RestoreFile(ctx context.Context, path string) error {
-	return exec.CommandContext(ctx, "git", "restore", path).Run()
+	cmd, err := SafeCommand(ctx, "git", "restore", path)
+	if err != nil {
+		return err
+	}
+	return cmd.Run()
 }

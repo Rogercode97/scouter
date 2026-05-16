@@ -15,6 +15,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/mcp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/telemetry"
+	"github.com/Rogercode97/scouter/internal/utils"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -147,7 +148,12 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		if len(cmdArgs) > 0 {
 			diff = cmdArgs[0]
 		} else {
-			out, err := exec.CommandContext(ctx, "git", "diff", "HEAD", "--unified=0").Output()
+			cmd, err := utils.SafeCommand(ctx, "git", "diff", "HEAD", "--unified=0")
+			if err != nil {
+				fmt.Fprintf(stderr, "error creating safe command: %v\n", err)
+				return 1
+			}
+			out, err := cmd.Output()
 			if err != nil {
 				fmt.Fprintf(stderr, "error getting git diff: %v\n", err)
 				return 1

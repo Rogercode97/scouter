@@ -221,7 +221,10 @@ func runHookScript(t *testing.T, cmd string) string {
 		"tool_input": map[string]any{"command": cmd},
 	})
 
-	proc := exec.Command("bash", hookPath)
+	proc, err := utils.SafeCommand(context.Background(), "bash", hookPath)
+	if err != nil {
+		t.Fatalf("failed to create safe command: %v", err)
+	}
 	proc.Env = append(os.Environ(), "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	proc.Stdin = strings.NewReader(string(payload))
 	output, runErr := proc.Output()

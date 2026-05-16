@@ -105,19 +105,22 @@ func (s *Server) handleHybridSearch(ctx context.Context, req *mcp.CallToolReques
 func (s *Server) handleCompactContext(ctx context.Context, req *mcp.CallToolRequest, args CompactContextParams) (*mcp.CallToolResult, any, error) {
 	// [Strike 5] Predictive Context: Identify critical hotspots for high-fidelity summary
 	systemPrompt := CompactContextSystemPrompt
-	diffOut, err := exec.CommandContext(ctx, "git", "diff", "HEAD", "--unified=0").Output()
-	if err == nil && len(diffOut) > 0 {
-		diff := string(diffOut)
-		critical, _ := s.engine.IdentifyCriticalContext(ctx, diff)
-		if len(critical) > 0 {
-			var sb strings.Builder
-			sb.WriteString(systemPrompt)
-			sb.WriteString("\n\nCRITICAL SYMBOLS INVOLVED:\n")
-			for _, c := range critical {
-				sb.WriteString(fmt.Sprintf("- %s (File: %s, Risk: %.2f)\n", c.Symbol, c.File, c.RiskScore))
+	cmd, err := utils.SafeCommand(ctx, "git", "diff", "HEAD", "--unified=0")
+	if err == nil {
+		diffOut, err := cmd.Output()
+		if err == nil && len(diffOut) > 0 {
+			diff := string(diffOut)
+			critical, _ := s.engine.IdentifyCriticalContext(ctx, diff)
+			if len(critical) > 0 {
+				var sb strings.Builder
+				sb.WriteString(systemPrompt)
+				sb.WriteString("\n\nCRITICAL SYMBOLS INVOLVED:\n")
+				for _, c := range critical {
+					sb.WriteString(fmt.Sprintf("- %s (File: %s, Risk: %.2f)\n", c.Symbol, c.File, c.RiskScore))
+				}
+				sb.WriteString("Please ensure these are documented with high fidelity.")
+				systemPrompt = sb.String()
 			}
-			sb.WriteString("Please ensure these are documented with high fidelity.")
-			systemPrompt = sb.String()
 		}
 	}
 
@@ -166,8 +169,10 @@ func (s *Server) handleSaveAnchor(ctx context.Context, req *mcp.CallToolRequest,
 	engramContent := fmt.Sprintf("**What**: Latent session state compaction.\n**Why**: Context window optimization.\n**Where**: Project: %s\n**Learned**: %s", project, args.Summary)
 
 	// Invoke Engram CLI autonomously
-	cmd := exec.CommandContext(ctx, "engram", "save", "--title", title, "--type", "session_summary", "--project", project, "--", engramContent)
-	if err := cmd.Run(); err != nil {
+	cmd, err := utils.SafeCommand(ctx, "engram", "save", "--title", title, "--type", "session_summary", "--project", project, "--", engramContent)
+	if err != nil {
+		s.logger.Warn("Failed to create safe Engram command", "error", err)
+	} else if err := cmd.Run(); err != nil {
 		s.logger.Warn("Failed to persist anchor to Engram, using local fallback", "error", err)
 
 		scouterDir := ".scouter"

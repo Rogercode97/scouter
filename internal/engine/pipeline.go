@@ -111,7 +111,9 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 	}
 
 	// DIVINE REDEMPTION: Universal Shadow Indexing (Asynchronous)
-	go p.ShadowIndex(context.Background())
+	verbose := p.Verbose
+	enrich := p.Enrich
+	go p.ShadowIndex(context.Background(), verbose, enrich)
 
 	inputTokens := utils.EstimateTokens(result.Stdout)
 	if inputTokens > 0 {
@@ -142,7 +144,7 @@ func (p *Pipeline) PassiveHealthIngest(ctx context.Context, output string) {
 }
 
 // ShadowIndex re-indexes files modified by the current execution.
-func (p *Pipeline) ShadowIndex(ctx context.Context) {
+func (p *Pipeline) ShadowIndex(ctx context.Context, verbose int, enrich bool) {
 	changes, err := utils.GetLocalChanges(ctx)
 	if err != nil || len(changes) == 0 {
 		return
@@ -157,6 +159,13 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 
 	cwd, _ := os.Getwd()
 	indexedCount := 0
+
+	p.mu.Lock()
+	if p.LSPManager == nil {
+		p.LSPManager = lsp.NewManager()
+	}
+	lspMgr := p.LSPManager
+	p.mu.Unlock()
 
 	for _, change := range changes {
 		absPath := filepath.Join(cwd, change.Path)
@@ -175,14 +184,8 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 			}
 		}
 
-		p.mu.Lock()
-		if p.LSPManager == nil {
-			p.LSPManager = lsp.NewManager()
-		}
-		p.mu.Unlock()
-
 		analyzer := NewAnalysisEngine(db)
-		truthEng := NewTruthEngine(db, analyzer, p.LSPManager, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		truthEng := NewTruthEngine(db, analyzer, lspMgr, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 		err = truthEng.Index(ctx, absPath)
 
 		if err == nil {
@@ -190,16 +193,16 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 		}
 	}
 
-	if indexedCount > 0 && p.Verbose > 0 {
+	if indexedCount > 0 && verbose > 0 {
 		fmt.Fprintf(os.Stderr, "scouter: shadow-indexed %d modified files\n", indexedCount)
 	}
 
-	if p.Enrich && indexedCount > 0 {
-		if p.Verbose > 0 {
+	if enrich && indexedCount > 0 {
+		if verbose > 0 {
 			fmt.Fprintf(os.Stderr, "scouter: performing semantic enrichment (Omniscience)...\n")
 		}
-		en := NewEnricher(db, p.LSPManager)
-		if err := en.Enrich(ctx); err != nil && p.Verbose > 0 {
+		en := NewEnricher(db, lspMgr)
+		if err := en.Enrich(ctx); err != nil && verbose > 0 {
 			fmt.Fprintf(os.Stderr, "scouter: enrichment failed: %v\n", err)
 		}
 	}
@@ -213,7 +216,9 @@ func (p *Pipeline) Passthrough(ctx context.Context, command string, args []strin
 		return 1
 	}
 	
-	go p.ShadowIndex(context.Background())
+	verbose := p.Verbose
+	enrich := p.Enrich
+	go p.ShadowIndex(context.Background(), verbose, enrich)
 	return code
 }
 

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Rogercode97/scouter/internal/display"
+	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"bytes"
 )

@@ -114,17 +114,15 @@ func preparePattern(parser *tree_sitter.Parser, pattern string, ext string) (*tr
 
 // StructuralRefactor performs a structural search and replaces matches with a template.
 func StructuralRefactor(ctx context.Context, filePath, pattern, template, ext string) (string, error) {
-	cmd := exec.CommandContext(ctx, "sg", "run", "--pattern", pattern, "--rewrite", template, filePath)
+	cmd, err := utils.SafeCommand(ctx, "sg", "run", "--pattern", pattern, "--rewrite", template, filePath)
+	if err != nil {
+		return "", err
+	}
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		// Check if sg is in path
-		if _, pathErr := exec.LookPath("sg"); pathErr != nil {
-			return "", fmt.Errorf("ast-grep (sg) not found in PATH: %w", pathErr)
-		}
-
 		// ast-grep returns 1 if no matches are found
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
 			content, err := os.ReadFile(filePath)
