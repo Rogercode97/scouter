@@ -383,6 +383,27 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 }
 
 func hasColumn(ctx context.Context, tx *sql.Tx, table, column string) (bool, error) {
+	// Strict allow-list for table names
+	allowedTables := map[string]bool{
+		"symbols":      true,
+		"symbols_fts":  true,
+		"calls":        true,
+		"file_index":   true,
+		"dependencies": true,
+		"test_results": true,
+		"violations":   true,
+	}
+	if !allowedTables[table] {
+		return false, fmt.Errorf("forbidden table name: %s", table)
+	}
+
+	// Strict validation for column names
+	for _, r := range column {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+			return false, fmt.Errorf("forbidden character in column name: %s", column)
+		}
+	}
+
 	query := fmt.Sprintf("SELECT 1 FROM pragma_table_info('%s') WHERE name = ?", table)
 	var dummy int
 	err := tx.QueryRowContext(ctx, query, column).Scan(&dummy)
@@ -1151,7 +1172,10 @@ func (s *Store) GetMemoryInsights(ctx context.Context, query string) ([]types.Me
 		return nil, nil
 	}
 
-	cmd := exec.CommandContext(ctx, "engram", "search", "--project", project, "--limit", "5", "--", query)
+	cmd, err := utils.SafeCommand(ctx, "engram", "search", "--project", project, "--limit", "5", "--", query)
+	if err != nil {
+		return nil, fmt.Errorf("SafeCommand failed: %w", err)
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("engram search failed: %w", err)

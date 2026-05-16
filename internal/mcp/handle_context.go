@@ -1,11 +1,9 @@
 package mcp
-
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -105,8 +103,10 @@ func (s *Server) handleHybridSearch(ctx context.Context, req *mcp.CallToolReques
 func (s *Server) handleCompactContext(ctx context.Context, req *mcp.CallToolRequest, args CompactContextParams) (*mcp.CallToolResult, any, error) {
 	// [Strike 5] Predictive Context: Identify critical hotspots for high-fidelity summary
 	systemPrompt := CompactContextSystemPrompt
-	diffOut, err := exec.CommandContext(ctx, "git", "diff", "HEAD", "--unified=0").Output()
-	if err == nil && len(diffOut) > 0 {
+	cmd, err := utils.SafeCommand(ctx, "git", "diff", "HEAD", "--unified=0")
+	if err == nil {
+		diffOut, err := cmd.Output()
+		if err == nil && len(diffOut) > 0 {
 		diff := string(diffOut)
 		critical, _ := s.engine.IdentifyCriticalContext(ctx, diff)
 		if len(critical) > 0 {
@@ -166,8 +166,9 @@ func (s *Server) handleSaveAnchor(ctx context.Context, req *mcp.CallToolRequest,
 	engramContent := fmt.Sprintf("**What**: Latent session state compaction.\n**Why**: Context window optimization.\n**Where**: Project: %s\n**Learned**: %s", project, args.Summary)
 
 	// Invoke Engram CLI autonomously
-	cmd := exec.CommandContext(ctx, "engram", "save", "--title", title, "--type", "session_summary", "--project", project, "--", engramContent)
-	if err := cmd.Run(); err != nil {
+	cmd, err := utils.SafeCommand(ctx, "engram", "save", "--title", title, "--type", "session_summary", "--project", project, "--", engramContent)
+	if err == nil {
+		if err := cmd.Run(); err != nil {
 		s.logger.Warn("Failed to persist anchor to Engram, using local fallback", "error", err)
 
 		scouterDir := ".scouter"
@@ -181,6 +182,9 @@ func (s *Server) handleSaveAnchor(ctx context.Context, req *mcp.CallToolRequest,
 				&mcp.TextContent{Text: "⚠️ Engram save failed. Anchor saved to local fallback: " + anchorPath},
 			},
 		}, nil, nil
+	}
+	} else {
+		s.logger.Warn("SafeCommand failed for anchor", "error", err)
 	}
 
 	return &mcp.CallToolResult{

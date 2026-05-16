@@ -118,7 +118,7 @@ func (a *AstGrepFilter) Apply(ctx context.Context, input ActionResult, params ma
 		args = append(args, searchPath)
 	}
 
-	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd := utils.SafeCommand(ctx, binary, args...)
 
 	if useStdin {
 		// Pipe stdin

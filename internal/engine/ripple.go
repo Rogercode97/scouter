@@ -180,7 +180,7 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 type BuildValidator struct{}
 
 func (v *BuildValidator) Validate(ctx context.Context, ledger *Ledger) (ValidationResult, error) {
-	cmd := exec.CommandContext(ctx, "go", "build", "./...")
+	cmd := utils.SafeCommand(ctx, "go", "build", "./...")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return ValidationResult{
 			Valid:   false,
@@ -203,7 +203,7 @@ func (v *TestValidator) Validate(ctx context.Context, ledger *Ledger) (Validatio
 		args = append(args, "./...")
 	}
 
-	cmd := exec.CommandContext(ctx, "go", args...)
+	cmd := utils.SafeCommand(ctx, "go", args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return ValidationResult{
 			Valid:   false,

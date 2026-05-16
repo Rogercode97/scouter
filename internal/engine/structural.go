@@ -114,7 +114,7 @@ func preparePattern(parser *tree_sitter.Parser, pattern string, ext string) (*tr
 
 // StructuralRefactor performs a structural search and replaces matches with a template.
 func StructuralRefactor(ctx context.Context, filePath, pattern, template, ext string) (string, error) {
-	cmd := exec.CommandContext(ctx, "sg", "run", "--pattern", pattern, "--rewrite", template, filePath)
+	cmd := utils.SafeCommand(ctx, "sg", "run", "--pattern", pattern, "--rewrite", template, filePath)
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

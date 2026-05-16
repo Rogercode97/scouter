@@ -43,7 +43,7 @@ type jsonrpcClient struct {
 }
 
 func NewClient(ctx context.Context, dir string, binary string, args ...string) (LSPClient, error) {
-	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd := utils.SafeCommand(ctx, binary, args...)
 	cmd.Dir = dir
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

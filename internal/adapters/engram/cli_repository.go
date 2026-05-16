@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/Rogercode97/scouter/internal/domain/memory"
+	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 /**
@@ -40,13 +40,16 @@ func (r *EngramRepository) SaveSummary(ctx context.Context, project string, summ
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "engram", "save",
+	cmd, err := utils.SafeCommand(ctx, "engram", "save",
 		title,
 		markdown,
 		"--project", project,
 		"--type", "architecture",
 		"--topic", topicKey,
 	)
+	if err != nil {
+		return fmt.Errorf("SafeCommand failed: %w", err)
+	}
 
 	cmd.Stdin = strings.NewReader(markdown)
 

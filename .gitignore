@@ -81,6 +81,7 @@ skill-arena/
 arena/
 cmd/*-study/
 *.skill
+skills/
 
 # Temporary backups
 *gemini.md

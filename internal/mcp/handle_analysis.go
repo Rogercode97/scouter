@@ -1,10 +1,10 @@
 package mcp
-
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os/exec"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/Rogercode97/scouter/internal/engine"
@@ -14,8 +14,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"bytes"
 )
-
-
 
 type IndexParams struct {
 	FilePath string `json:"filePath" jsonschema:"The absolute or relative path to the file or directory to index"`
@@ -156,8 +154,9 @@ func (s *Server) handleRead(ctx context.Context, req *mcp.CallToolRequest, args 
 
 	// [RTK Muscle] Delegation check
 	if _, err := exec.LookPath("rtk"); err == nil {
-		cmd := exec.CommandContext(ctx, "rtk", "read", path, "--pointer", args.Pointer, "--ultra-compact")
-		if out, err := cmd.CombinedOutput(); err == nil {
+		cmd, err := utils.SafeCommand(ctx, "rtk", "read", path, "--pointer", args.Pointer, "--ultra-compact")
+		if err == nil {
+			if out, err := cmd.CombinedOutput(); err == nil {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
 					&mcp.TextContent{Text: fmt.Sprintf("<thought>\nDelegated read to RTK for Pure Signal extraction (pointer: %s).\n</thought>\n%s", args.Pointer, string(out))},

@@ -143,11 +143,13 @@ func (e *ImpactEngine) getHistoricalRisk(ctx context.Context, symbol string, pat
 	queries := []string{symbol, relPath, topicKey}
 	uniqueIDs := make(map[string]bool)
 	for _, q := range queries {
-		cmd := exec.CommandContext(ctx, "engram", "search", "--type", "bugfix", "--project", project, "--limit", "10", "--", q)
-		out, err := cmd.Output()
+		cmd, err := utils.SafeCommand(ctx, "engram", "search", "--type", "bugfix", "--project", project, "--limit", "10", "--", q)
 		if err == nil {
-			matches := engramIDRegex.FindAllString(string(out), -1)
-			for _, m := range matches { uniqueIDs[m] = true }
+			out, err := cmd.Output()
+			if err == nil {
+				matches := engramIDRegex.FindAllString(string(out), -1)
+				for _, m := range matches { uniqueIDs[m] = true }
+			}
 		}
 	}
 	return len(uniqueIDs)
@@ -354,4 +356,6 @@ func findTestsForSymbols(ctx context.Context, db store.Repository, symbols []sto
 		result = append(result, t)
 	}
 	return result, nil
+}
+, nil
 }
