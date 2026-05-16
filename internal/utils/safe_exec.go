@@ -61,8 +61,10 @@ func SafeCommand(ctx context.Context, name string, args ...string) (*exec.Cmd, e
 		shArgs = append(shArgs, "-c", name+` "$@"`, "_")
 		shArgs = append(shArgs, args...)
 		// 'sh' is guaranteed to be in allowedBinaries
+		// #nosec G204: We have strict binary validation and argument sanitization in place.
 		return exec.CommandContext(ctx, "sh", shArgs...), nil
 	}
 
+	// #nosec G204: We have strict binary validation and argument sanitization in place.
 	return exec.CommandContext(ctx, name, args...), nil
 }
