@@ -7,42 +7,40 @@ import (
 	"strings"
 )
 
-// allowedBinaries defines the strict allow-list of executables permitted for system execution.
-var allowedBinaries = map[string]bool{
-	"git":      true,
-	"go":       true,
-	"rtk":      true,
-	"sg":       true,
-	"engram":   true,
-	"scouter":  true,
-	"sh":       true,
-	"bash":     true,
-	"gopls":    true,
-	"ast-grep": true,
-}
-
-// shellBuiltins lists commands that are shell built-ins and require sh -c wrapper.
-var shellBuiltins = map[string]bool{
-	"export":   true,
-	"unset":    true,
-	"source":   true,
-	"alias":    true,
-	"unalias":  true,
-	"eval":     true,
-	"set":      true,
-	"shopt":    true,
-	"declare":  true,
-	"local":    true,
-	"readonly": true,
-	"typeset":  true,
-	"ulimit":   true,
-	"umask":    true,
-}
-
 // SafeCommand creates a validated exec.Cmd to prevent command injection and unauthorized execution.
 // It enforces an allow-list of binaries and sanitizes arguments for dangerous shell characters.
 func SafeCommand(ctx context.Context, name string, args ...string) (*exec.Cmd, error) {
-	// 1. 🏛️ BINARY VALIDATION
+	// 🏛️ BINARY VALIDATION (Read-only maps)
+	allowedBinaries := map[string]bool{
+		"git":      true,
+		"go":       true,
+		"rtk":      true,
+		"sg":       true,
+		"engram":   true,
+		"scouter":  true,
+		"sh":       true,
+		"bash":     true,
+		"gopls":    true,
+		"ast-grep": true,
+	}
+
+	shellBuiltins := map[string]bool{
+		"export":   true,
+		"unset":    true,
+		"source":   true,
+		"alias":    true,
+		"unalias":  true,
+		"eval":     true,
+		"set":      true,
+		"shopt":    true,
+		"declare":  true,
+		"local":    true,
+		"readonly": true,
+		"typeset":  true,
+		"ulimit":   true,
+		"umask":    true,
+	}
+
 	if !allowedBinaries[name] && !shellBuiltins[name] {
 		return nil, fmt.Errorf("forbidden binary: %s", name)
 	}
