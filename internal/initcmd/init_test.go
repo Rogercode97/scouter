@@ -1,12 +1,15 @@
 package initcmd
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 func TestPatchSettingsNew(t *testing.T) {

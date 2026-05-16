@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"iter"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -382,7 +381,30 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
+// allowedTables defines the strict allow-list of tables permitted for dynamic schema checks.
+var allowedTables = map[string]bool{
+	"file_index":   true,
+	"symbols":      true,
+	"symbols_fts":  true,
+	"calls":        true,
+	"dependencies": true,
+	"test_results": true,
+	"violations":   true,
+}
+
+var columnRegex = regexp.MustCompile(`^[a-z0-9_]+$`)
+
 func hasColumn(ctx context.Context, tx *sql.Tx, table, column string) (bool, error) {
+	// 1. 🏛️ TABLE VALIDATION (Allow-list)
+	if !allowedTables[table] {
+		return false, fmt.Errorf("forbidden table: %s", table)
+	}
+
+	// 2. 🛡️ COLUMN VALIDATION (Regex)
+	if !columnRegex.MatchString(column) {
+		return false, fmt.Errorf("invalid column name: %s", column)
+	}
+
 	query := fmt.Sprintf("SELECT 1 FROM pragma_table_info('%s') WHERE name = ?", table)
 	var dummy int
 	err := tx.QueryRowContext(ctx, query, column).Scan(&dummy)
@@ -1151,7 +1173,10 @@ func (s *Store) GetMemoryInsights(ctx context.Context, query string) ([]types.Me
 		return nil, nil
 	}
 
-	cmd := exec.CommandContext(ctx, "engram", "search", "--project", project, "--limit", "5", "--", query)
+	cmd, err := utils.SafeCommand(ctx, "engram", "search", "--project", project, "--limit", "5", "--", query)
+	if err != nil {
+		return nil, fmt.Errorf("safe command: %w", err)
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("engram search failed: %w", err)

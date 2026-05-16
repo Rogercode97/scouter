@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/Rogercode97/scouter/internal/types"
+	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 // ASTRuleEngine executes architectural rules using ast-grep.
@@ -42,13 +43,16 @@ func (e *ASTRuleEngine) Audit(ctx context.Context, targetPath string) ([]types.A
 		rulePath := filepath.Join(e.rulesDir, ruleFile)
 		
 		// ast-grep scan -r <rule_file> <target> --json
-		cmd := exec.CommandContext(ctx, "sg", "scan", "-r", rulePath, targetPath, "--json")
+		cmd, err := utils.SafeCommand(ctx, "sg", "scan", "-r", rulePath, targetPath, "--json")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create safe command: %w", err)
+		}
 		
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
 
-		err := cmd.Run()
+		err = cmd.Run()
 		// ast-grep returns exit code 1 if matches are found, which is not a "command error" for us
 		if err != nil {
 			if _, ok := err.(*exec.ExitError); !ok {

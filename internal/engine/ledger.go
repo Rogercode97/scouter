@@ -37,7 +37,10 @@ type Ledger struct {
 	ledgerPath string
 }
 
-func NewLedger() *Ledger {
+func NewLedger(path string) *Ledger {
+	if path == "" {
+		path = ".scouter/staging/ledger.json"
+	}
 	l := &Ledger{
 		Staged: make(map[string]Patch),
 		Stats: MissionStats{
@@ -45,7 +48,7 @@ func NewLedger() *Ledger {
 		},
 		KiLimit:    100000, // Default 100k Ki
 		TurnLimit:  10,     // Default 10 turns
-		ledgerPath: ".scouter/staging/ledger.json",
+		ledgerPath: path,
 	}
 	
 	return l

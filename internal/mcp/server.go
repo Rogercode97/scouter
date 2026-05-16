@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sync"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
+	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -51,12 +51,12 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 	}
 
 		// [Sovereignty Upgrade] Initialize Engines
-	ledger := engine.NewLedger() // Staging Ledger with persistence
+	ledger := engine.NewLedger("") // Staging Ledger with persistence
 	impact := engine.NewImpactEngine(st, s.lspMgr)
 	analyzer := engine.NewAnalysisEngine(st)
 	ripple := engine.NewRippleEngine(st, nil, impact)
 	ripple.Validators = append(ripple.Validators, engine.NewLSPValidator(analyzer.ProjectRoot))
-	healer := engine.NewHealerEngine(st, s.lspMgr, analyzer, impact)
+	healer := engine.NewHealerEngine(st, s.lspMgr, analyzer, impact, ledger)
 	search := engine.NewSearchEngine(st)
 	compact := engine.NewCompactionEngine(st, ledger)
 	diagnostic := engine.NewDiagnosticEngine(st, analyzer, impact, healer, s.lspMgr)
@@ -181,7 +181,10 @@ func (m *healerMessenger) Ask(ctx context.Context, systemPrompt, userPrompt stri
 }
 
 func fetchEngramContext(query string) string {
-	cmd := execCommand("engram", "search", query, "--limit", "3")
+	cmd, err := utils.SafeCommand(context.Background(), "engram", "search", query, "--limit", "3")
+	if err != nil {
+		return ""
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return ""
@@ -430,6 +433,3 @@ func (s *Server) handleUnlockArsenal(ctx context.Context, req *mcp.CallToolReque
                 },
         }, nil, nil
 }
-
-
-var execCommand = exec.Command

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -60,5 +61,32 @@ func TestSanitizeFTS_Manual(t *testing.T) {
 	inputs := []string{"test", "test*", "*test", "don't", "\"quoted\""}
 	for _, in := range inputs {
 		t.Logf("Input: %q -> Got: %q", in, SanitizeFTS(in))
+	}
+}
+
+func TestSafeCommand(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name    string
+		binary  string
+		args    []string
+		wantErr bool
+	}{
+		{"Allowed binary", "git", []string{"status"}, false},
+		{"Allowed binary with safe args", "go", []string{"test", "./..."}, false},
+		{"Allowed binary with dangerous args", "go", []string{"test", "./...; rm -rf /"}, true},
+		{"Forbidden binary", "rm", []string{"-rf", "/"}, true},
+		{"Shell built-in", "export", []string{"FOO=bar"}, false},
+		{"Shell built-in with dangerous args", "export", []string{"FOO=bar; rm -rf /"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := SafeCommand(ctx, tt.binary, tt.args...)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SafeCommand(%q, %v) error = %v, wantErr %v", tt.binary, tt.args, err, tt.wantErr)
+			}
+		})
 	}
 }

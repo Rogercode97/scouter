@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"sync"
 	"time"
+
+	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 // Result holds the output of a command execution.
@@ -18,43 +20,19 @@ type Result struct {
 	Duration time.Duration
 }
 
-// shellBuiltins lists commands that are shell built-ins and cannot be
-// executed directly via exec.Command.
-var shellBuiltins = map[string]bool{
-	"export":   true,
-	"unset":    true,
-	"source":   true,
-	"alias":    true,
-	"unalias":  true,
-	"eval":     true,
-	"set":      true,
-	"shopt":    true,
-	"declare":  true,
-	"local":    true,
-	"readonly": true,
-	"typeset":  true,
-	"ulimit":   true,
-	"umask":    true,
-}
-
-// makeCommand creates an exec.Cmd, wrapping shell built-ins with sh -c
-// so they can be executed. Shell built-ins like "export" have no binary
-// in $PATH and would fail with exec.Command directly.
-func makeCommand(ctx context.Context, command string, args []string) *exec.Cmd {
-	if shellBuiltins[command] {
-		shArgs := make([]string, 0, len(args)+3)
-		shArgs = append(shArgs, "-c", command+` "$@"`, "_")
-		shArgs = append(shArgs, args...)
-		return exec.CommandContext(ctx, "sh", shArgs...)
-	}
-	return exec.CommandContext(ctx, command, args...)
+// makeCommand creates a validated exec.Cmd using the sovereign utils.SafeCommand.
+func makeCommand(ctx context.Context, command string, args []string) (*exec.Cmd, error) {
+	return utils.SafeCommand(ctx, command, args...)
 }
 
 // Execute runs a command, capturing stdout and stderr concurrently via goroutines.
 func Execute(ctx context.Context, command string, args []string) (*Result, error) {
 	start := time.Now()
 
-	cmd := makeCommand(ctx, command, args)
+	cmd, err := makeCommand(ctx, command, args)
+	if err != nil {
+		return nil, fmt.Errorf("safe command: %w", err)
+	}
 	// Don't connect stdin for captured commands — prevents blocking on
 	// commands that don't read stdin (most filtered commands).
 	// Passthrough commands still get stdin via the Passthrough function.
@@ -107,15 +85,18 @@ func Execute(ctx context.Context, command string, args []string) (*Result, error
 
 // Passthrough runs a command with inherited stdio (no capture).
 func Passthrough(ctx context.Context, command string, args []string) (int, error) {
-	cmd := makeCommand(ctx, command, args)
+	cmd, err := makeCommand(ctx, command, args)
+	if err != nil {
+		return 1, fmt.Errorf("safe command: %w", err)
+	}
+
 	cmd.Stdin = os.Stdin
 	// When running as MCP server, we MUST NOT write to os.Stdout directly
 	// as it will corrupt the JSON-RPC stream. Redirecting to Stderr is safer.
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 
-	err := cmd.Run()
-	if err != nil {
+	if err = cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return exitErr.ExitCode(), nil
 		}

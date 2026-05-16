@@ -29,7 +29,7 @@ func TestCompactSession(t *testing.T) {
 	}
 	defer os.Chdir(oldCwd)
 
-	ledger := NewLedger()
+	ledger := NewLedger("")
 	engine := NewCompactionEngine(nil, ledger)
 	ctx := context.Background()
 	truthKernel := "Test truth kernel for compaction"
@@ -71,7 +71,7 @@ func TestCompactSession(t *testing.T) {
 }
 
 func TestCompactSessionEmptySummary(t *testing.T) {
-	ledger := NewLedger()
+	ledger := NewLedger("")
 	engine := NewCompactionEngine(nil, ledger)
 	ctx := context.Background()
 
