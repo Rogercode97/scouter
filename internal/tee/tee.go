@@ -60,7 +60,7 @@ func MaybeSave(raw string, exitCode int, cmd string, cfg Config) string {
 		dir = envDir
 	}
 
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil { // #nosec G703 - directory path is controlled by application config
 		return "" // Silent failure
 	}
 

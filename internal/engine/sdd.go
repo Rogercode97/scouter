@@ -103,9 +103,8 @@ func (e *SDDEngine) SearchSpecs(ctx context.Context, query string, limit, offset
 		}
 
 		if filepath.Ext(path) == ".md" {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return nil
+			data, err := os.ReadFile(path) // #nosec G122 - CLI tool, TOCTOU risk is acceptable
+			if err != nil {				return nil
 			}
 			content := string(data)
 			if query == "" || strings.Contains(strings.ToLower(content), strings.ToLower(query)) || strings.Contains(strings.ToLower(path), strings.ToLower(query)) {

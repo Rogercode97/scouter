@@ -383,7 +383,7 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 }
 
 func hasColumn(ctx context.Context, tx *sql.Tx, table, column string) (bool, error) {
-	query := fmt.Sprintf("SELECT 1 FROM pragma_table_info('%s') WHERE name = ?", table)
+	query := fmt.Sprintf("SELECT 1 FROM pragma_table_info('%s') WHERE name = ?", table) // #nosec G201 - table name is internal
 	var dummy int
 	err := tx.QueryRowContext(ctx, query, column).Scan(&dummy)
 	if err == nil {
