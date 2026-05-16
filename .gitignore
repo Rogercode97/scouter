@@ -87,3 +87,10 @@ cmd/*-study/
 sdd_*.md
 scouter_exports/
 .atl/
+
+# SDD & OpenSpec Signal Filtering
+openspec/**/tmp_read.txt
+openspec/**/read_log.md
+openspec/**/scouter_index.md
+openspec/**/apply-progress.md
+openspec/**/exploration.md
