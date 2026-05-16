@@ -23,6 +23,7 @@ type Pipeline struct {
 	Tracker      *telemetry.Tracker
 	LSPManager   *lsp.Manager
 	mu           sync.Mutex
+	wg           sync.WaitGroup
 	TeeConfig    tee.Config
 	Verbose      int
 	GainLevel    int // 0: compact, 1: signal (SNR), 2: raw
@@ -113,7 +114,11 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 	// DIVINE REDEMPTION: Universal Shadow Indexing (Asynchronous)
 	verbose := p.Verbose
 	enrich := p.Enrich
-	go p.ShadowIndex(context.Background(), verbose, enrich)
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		p.ShadowIndex(context.Background(), verbose, enrich)
+	}()
 
 	inputTokens := utils.EstimateTokens(result.Stdout)
 	if inputTokens > 0 {
@@ -218,8 +223,17 @@ func (p *Pipeline) Passthrough(ctx context.Context, command string, args []strin
 	
 	verbose := p.Verbose
 	enrich := p.Enrich
-	go p.ShadowIndex(context.Background(), verbose, enrich)
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		p.ShadowIndex(context.Background(), verbose, enrich)
+	}()
 	return code
+}
+
+// Wait waits for all background tasks to complete.
+func (p *Pipeline) Wait() {
+	p.wg.Wait()
 }
 
 // ApplyPipeline executes filter actions sequentially.
