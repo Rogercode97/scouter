@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies (gopls, ast-grep)
         run: |
           go install golang.org/x/tools/gopls@latest
-          go install github.com/ast-grep/ast-grep@latest
+          npm install -g @ast-grep/cli
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Run Gosec Security Scanner
@@ -55,7 +55,7 @@ jobs:
       - name: Install dependencies (gopls, ast-grep)
         run: |
           go install golang.org/x/tools/gopls@latest
-          go install github.com/ast-grep/ast-grep@latest
+          npm install -g @ast-grep/cli
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Run Tests with Race Detector
