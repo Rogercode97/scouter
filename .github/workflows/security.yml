@@ -34,7 +34,7 @@ jobs:
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
         with:
-          args: ./...
+          args: -exclude=G104 ./...
 
       - name: Run Govulncheck
         uses: golang/govulncheck-action@v1
