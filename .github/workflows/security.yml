@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.25'
           check-latest: true
@@ -45,10 +45,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.25'
           check-latest: true
@@ -56,6 +56,7 @@ jobs:
       - name: Install dependencies (gopls, ast-grep)
         run: |
           go install golang.org/x/tools/gopls@latest
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
           curl -L https://github.com/ast-grep/ast-grep/releases/latest/download/ast-grep-x86_64-unknown-linux-musl.tar.gz | tar xz
           sudo mv ast-grep /usr/local/bin/
 
