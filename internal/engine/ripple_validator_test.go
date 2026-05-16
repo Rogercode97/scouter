@@ -7,7 +7,7 @@ import (
 
 func TestBuildValidator(t *testing.T) {
 	v := &BuildValidator{}
-	ledger := NewLedger()
+	ledger := NewLedger("")
 	ctx := context.Background()
 
 	// This test depends on the environment having 'go'.
@@ -26,7 +26,7 @@ func TestBuildValidator(t *testing.T) {
 
 func TestTestValidator(t *testing.T) {
 	v := &TestValidator{SpecificTests: []string{"-run", "TestBFSPropagationStrategy_Discover"}}
-	ledger := NewLedger()
+	ledger := NewLedger("")
 	ctx := context.Background()
 
 	res, err := v.Validate(ctx, ledger)

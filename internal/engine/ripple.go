@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"iter"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/Rogercode97/scouter/internal/store"
+	"github.com/Rogercode97/scouter/internal/utils"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -180,7 +180,10 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 type BuildValidator struct{}
 
 func (v *BuildValidator) Validate(ctx context.Context, ledger *Ledger) (ValidationResult, error) {
-	cmd := exec.CommandContext(ctx, "go", "build", "./...")
+	cmd, err := utils.SafeCommand(ctx, "go", "build", "./...")
+	if err != nil {
+		return ValidationResult{Valid: false, Message: fmt.Sprintf("Safe command error: %v", err)}, nil
+	}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return ValidationResult{
 			Valid:   false,
@@ -203,7 +206,10 @@ func (v *TestValidator) Validate(ctx context.Context, ledger *Ledger) (Validatio
 		args = append(args, "./...")
 	}
 
-	cmd := exec.CommandContext(ctx, "go", args...)
+	cmd, err := utils.SafeCommand(ctx, "go", args...)
+	if err != nil {
+		return ValidationResult{Valid: false, Message: fmt.Sprintf("Safe command error: %v", err)}, nil
+	}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return ValidationResult{
 			Valid:   false,
@@ -328,7 +334,7 @@ func (v *LSPValidator) Validate(ctx context.Context, ledger *Ledger) (Validation
 
 // Propagate traces the blast radius of a symbol and applies the transformation to all affected files.
 func (e *RippleEngine) Propagate(ctx context.Context, symbolName string, transformation string, maxDepth int) (*Ledger, error) {
-	ledger := NewLedger()
+	ledger := NewLedger("")
 	// Initialize budget from config or defaults
 	ledger.SetBudget(100000, 15) // Example: 100k Ki, 15 turns
 

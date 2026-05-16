@@ -143,7 +143,10 @@ func (e *ImpactEngine) getHistoricalRisk(ctx context.Context, symbol string, pat
 	queries := []string{symbol, relPath, topicKey}
 	uniqueIDs := make(map[string]bool)
 	for _, q := range queries {
-		cmd := exec.CommandContext(ctx, "engram", "search", "--type", "bugfix", "--project", project, "--limit", "10", "--", q)
+		cmd, err := utils.SafeCommand(ctx, "engram", "search", "--type", "bugfix", "--project", project, "--limit", "10", "--", q)
+		if err != nil {
+			continue
+		}
 		out, err := cmd.Output()
 		if err == nil {
 			matches := engramIDRegex.FindAllString(string(out), -1)
@@ -247,8 +250,10 @@ func (e *ImpactEngine) IdentifyCriticalContext(ctx context.Context, diff string)
 
 	// Fetch git root for proper path resolution
 	gitRoot := ""
-	if rootOut, err := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel").Output(); err == nil {
-		gitRoot = strings.TrimSpace(string(rootOut))
+	if cmd, err := utils.SafeCommand(ctx, "git", "rev-parse", "--show-toplevel"); err == nil {
+		if rootOut, err := cmd.Output(); err == nil {
+			gitRoot = strings.TrimSpace(string(rootOut))
+		}
 	}
 
 	impactChecks := 0

@@ -6,7 +6,7 @@ import (
 )
 
 func TestLedger_BudgetEnforcement(t *testing.T) {
-	l := NewLedger()
+	l := NewLedger("")
 	l.SetLedgerPath("test_budget_ledger.json")
 	defer os.Remove("test_budget_ledger.json")
 	
@@ -33,7 +33,7 @@ func TestLedger_BudgetEnforcement(t *testing.T) {
 	})
 
 	t.Run("Respect Ki Limit", func(t *testing.T) {
-		l2 := NewLedger()
+		l2 := NewLedger("")
 		l2.SetLedgerPath("test_ki_ledger.json")
 		defer os.Remove("test_ki_ledger.json")
 		

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/store"
+	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 func TestAnalyzeChurn(t *testing.T) {
@@ -19,7 +20,10 @@ func TestAnalyzeChurn(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	runCmd := func(args ...string) {
-		cmd := exec.Command("git", args...)
+		cmd, err := utils.SafeCommand(context.Background(), "git", args...)
+		if err != nil {
+			t.Fatalf("failed to create safe command: %v", err)
+		}
 		cmd.Dir = tmpDir
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v failed: %v\nOutput: %s", args, err, out)

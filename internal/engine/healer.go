@@ -29,13 +29,13 @@ import (
 	DoFixRequest func(ctx context.Context, prompt string) (string, error)
 }
 
-func NewHealerEngine(s store.Repository, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine) *HealerEngine {
+func NewHealerEngine(s store.Repository, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine, ledger *Ledger) *HealerEngine {
 	return &HealerEngine{
 		store:    s,
 		lspMgr:   l,
 		analyzer: a,
 		impact:   i,
-		Ledger:   NewLedger(),
+		Ledger:   ledger,
 	}
 }
 

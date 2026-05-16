@@ -7,7 +7,7 @@ import (
 )
 
 func TestLedgerStaging(t *testing.T) {
-	l := NewLedger()
+	l := NewLedger("")
 	l.SetLedgerPath("test_ledger.json")
 	defer os.Remove("test_ledger.json")
 	

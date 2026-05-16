@@ -43,7 +43,10 @@ type jsonrpcClient struct {
 }
 
 func NewClient(ctx context.Context, dir string, binary string, args ...string) (LSPClient, error) {
-	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd, err := utils.SafeCommand(ctx, binary, args...)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Dir = dir
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -334,4 +337,6 @@ func (c *jsonrpcClient) Close() error {
 		return c.cmd.Process.Kill()
 	}
 	return nil
+}
+rn nil
 }

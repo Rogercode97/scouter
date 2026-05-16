@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -48,7 +49,9 @@ func TestHealerEngine_Fix_DeepRCA(t *testing.T) {
 
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil)
-	h := NewHealerEngine(s, mgr, analyzer, impact)
+	lPath := filepath.Join(t.TempDir(), "ledger.json")
+	ledger := NewLedger(lPath)
+	h := NewHealerEngine(s, mgr, analyzer, impact, ledger)
 	
 	// Mock the LLM request
 	var capturedPrompt string
@@ -104,7 +107,9 @@ func TestHealerEngine_Shinigami(t *testing.T) {
 	mgr := lsp.NewManager()
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil)
-	h := NewHealerEngine(s, mgr, analyzer, impact)
+	lPath := filepath.Join(t.TempDir(), "ledger.json")
+	ledger := NewLedger(lPath)
+	h := NewHealerEngine(s, mgr, analyzer, impact, ledger)
 
 	// Mock parallel solvers with different responses
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
@@ -157,7 +162,9 @@ func TestHealerEngine_Fix_IntegrityWarning(t *testing.T) {
 
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil)
-	h := NewHealerEngine(s, nil, analyzer, impact)
+	lPath := filepath.Join(t.TempDir(), "ledger.json")
+	ledger := NewLedger(lPath)
+	h := NewHealerEngine(s, nil, analyzer, impact, ledger)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
 		return "```go\nfunc fixed() {}\n```", nil
