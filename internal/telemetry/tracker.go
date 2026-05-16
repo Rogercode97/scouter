@@ -101,7 +101,7 @@ func (t *Tracker) Track(ctx context.Context, originalCmd, scouterCmd string, inp
 	trackCountMu.Unlock()
 
 	if shouldCleanup {
-		go func() {
+		go func() { // #nosec G118 - intentional background task
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			_, _ = t.db.ExecContext(cleanupCtx, cleanupSQL)
