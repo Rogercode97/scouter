@@ -7,6 +7,25 @@
 - Handlers (`handleJudge`, `handleCompactContext`) MUST fetch Engram context and inject it into LLM prompts.
 - Injected context MUST be bound by token safety limits (e.g., hard cap on injected history tokens or count) to avoid context window explosion.
 
+### Requirement: Validated External Command Execution
+
+The system MUST NOT execute external binaries that are not present in the `allowedBinaries` allow-list. All external calls SHALL pass through `utils.SafeCommand` to ensure context-awareness and argument sanitization.
+
+#### Scenario: Block Forbidden Binary
+- GIVEN a call to `utils.SafeCommand` with name \"rm\"
+- WHEN the command is initialized
+- THEN it MUST return an error \"forbidden binary: rm\"
+
+#### Scenario: Allow Permitted Binary
+- GIVEN a call to `utils.SafeCommand` with name \"git\" and arguments [\"status\"]
+- WHEN the command is initialized
+- THEN it MUST return a valid `*exec.Cmd` object.
+
+#### Scenario: Sanitize Dangerous Arguments
+- GIVEN a call to `utils.SafeCommand` with binary \"go\" and arguments [\"test\", \"./...; rm -rf /\"]
+- WHEN the command is initialized
+- THEN it MUST return an error \"dangerous characters in argument: ./...; rm -rf /\"
+
 ## 2. Acceptance Scenarios
 
 ### Scenario 1: Session Compaction Persisting to Engram

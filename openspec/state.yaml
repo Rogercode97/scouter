@@ -5,8 +5,10 @@ trajectory:
   - "Verification: Unit and Integration tests passing"
   - "Archived: sdd-explorer successfully moved to archive"
   - "Archived: absorb-structural-intelligence successfully moved to archive"
+  - "Archived: hardening-v1-0-0-hakai successfully moved to archive (Engram mode)"
 active_changes: []
 archived_changes:
+  - "hardening-v1-0-0-hakai"
   - "sdd-explorer"
   - "absorb-structural-intelligence"
   - "mcp-sampling-integration"

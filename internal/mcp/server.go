@@ -162,7 +162,8 @@ type healerMessenger struct {
 }
 
 func (m *healerMessenger) Ask(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
-	fullUserPrompt := fmt.Sprintf("%s\n\nHistorical Context (Engram):\n%s", userPrompt, m.engramCtx)
+	engramCtx := fetchEngramContext(ctx, m.engramCtx)
+	fullUserPrompt := fmt.Sprintf("%s\n\nHistorical Context (Engram):\n%s", userPrompt, engramCtx)
 	res, err := m.req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
 		SystemPrompt: systemPrompt,
 		Messages: []*mcp.SamplingMessage{
@@ -180,8 +181,11 @@ func (m *healerMessenger) Ask(ctx context.Context, systemPrompt, userPrompt stri
 	return txt.Text, nil
 }
 
-func fetchEngramContext(query string) string {
-	cmd := execCommand("engram", "search", query, "--limit", "3")
+func fetchEngramContext(ctx context.Context, query string) string {
+	cmd, err := utils.SafeCommand(ctx, "engram", "search", query, "--limit", "3")
+	if err != nil {
+		return ""
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return ""
@@ -430,6 +434,3 @@ func (s *Server) handleUnlockArsenal(ctx context.Context, req *mcp.CallToolReque
                 },
         }, nil, nil
 }
-
-
-var execCommand = exec.Command

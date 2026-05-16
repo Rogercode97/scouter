@@ -34,3 +34,17 @@ Given changes are staged in the ledger
 When I clear the staging area
 Then all staged patches MUST be discarded
 And the disk MUST remain unchanged.
+
+### Requirement: Thread-Safe Mutation Management
+
+The Ledger and HealerEngine MUST be thread-safe. Access to shared state (staging area, in-memory caches) SHALL be synchronized using mutexes to prevent race conditions during concurrent test execution or parallel analysis.
+
+#### Scenario: Concurrent Staging
+- GIVEN multiple concurrent calls to `ledger.Stage()`
+- WHEN the changes are processed
+- THEN all changes MUST be stored correctly without data corruption or race detector warnings.
+
+#### Scenario: Isolated Test State
+- GIVEN concurrent tests running with `go test -race`
+- WHEN each test uses its own Ledger/Store instance or properly synchronized shared state
+- THEN the tests MUST pass consistently with zero race conditions.
