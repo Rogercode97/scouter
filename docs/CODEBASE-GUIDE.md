@@ -1,6 +1,19 @@
 # Codebase Navigation Guide
 
-This guide provides a structural overview of the Scouter repository to facilitate navigation and understanding of the system's architecture and data flow.
+**This guide is for maintainers and contributors who need to understand where Scouter's responsibilities live, which invariants are non-negotiable, and which file to open when something needs to change.**
+
+Scouter is a structural intelligence engine. The center of the product is a Go binary that parses ASTs and writes to SQLite; the CLI, MCP, and analysis engines are interfaces around that core.
+
+## Quick Map: If you need X, read Y
+
+| If you need to... | Open first | Then check |
+|---|---|---|
+| Understand the system design | `docs/ARCHITECTURE.md` | `README.md` |
+| Change MCP tools | `internal/mcp/server.go` | `internal/mcp/handlers.go`, `internal/mcp/AGENTS.md` |
+| Change core analysis logic | `internal/engine/truth.go` | `internal/engine/AGENTS.md`, `internal/engine/*_test.go` |
+| Change AST parsing or storage | `internal/store/store.go` | `internal/engine/treesitter.go` |
+| Change CLI output formatting | `internal/display/display.go` | `internal/display/density.go` |
+| Prepare or review a large feature | `openspec/changes/*` | `CONTRIBUTING.md`, `openspec/specs/*` |
 
 ## 📂 Repository Structure
 

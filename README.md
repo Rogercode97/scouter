@@ -4,6 +4,32 @@
 
 Scouter provides deep AST inspection, impact analysis, and automated refactoring capabilities. By indexing codebases into a queryable structure, it enables precise navigation and data-driven insights for complex software projects.
 
+## 90-Second Mental Model
+
+```text
+AI Agent (Claude / Gemini / Cursor)
+        │
+        │ Requests analysis, impact assessment, or refactoring
+        ▼
+cmd/scouter (MCP Server & CLI)
+        │
+        ├── internal/mcp        Tools: search, impact, refactor, diagnose
+        │
+        ▼
+internal/engine (Analysis Engine)
+  Orchestrates structural analysis and safe mutation
+        │
+        ├── impact.go           Calculates the "Blast Radius"
+        ├── ripple.go           Propagates changes across the AST
+        ├── healer.go           Diagnoses and verifies fixes
+        │
+        ▼
+internal/store (Persistence & Indexing)
+  SQLite + Tree-sitter (The structural map of the codebase)
+```
+
+> **Core Invariant:** Validation is finality. No destructive mutation is applied without passing through the Staging Ledger and Impact Analysis.
+
 ## 🚀 Quick Start
 
 1. **Install the binary:**
@@ -35,22 +61,14 @@ Scouter provides deep AST inspection, impact analysis, and automated refactoring
 - **Result Truncation**: Automated signal-to-noise filtering to maintain focus on relevant data.
 - **Security Auditing**: Regularly scanned with `gosec`, `govulncheck`, and CodeQL to ensure robustness.
 
-## 🛠️ Tool Reference
+## 📚 Documentation Map
 
-| Tool | Purpose |
+| If you need to... | Read this |
 | :--- | :--- |
-| `diagnose` | Performs root cause analysis and validates potential fixes. |
-| `refactor` | Propagates changes across interfaces and implementations. |
-| `impact` | Analyzes the blast radius of a symbol change. |
-| `critical_path` | Identifies central symbols and potential points of failure. |
-| `search` | Pattern-based discovery using AST structures. |
-
-## 📚 Documentation
-
-- [Architecture Overview](./docs/ARCHITECTURE.md)
-- [Codebase Guide](./docs/CODEBASE-GUIDE.md)
-- [Installation & MCP Setup](./docs/INSTALLATION.md)
-- [Security Policy](./SECURITY.md)
+| Understand the system design | [Architecture Overview](./docs/ARCHITECTURE.md) |
+| Find where logic lives | [Codebase Guide](./docs/CODEBASE-GUIDE.md) |
+| Connect an AI agent | [Installation & MCP Setup](./docs/INSTALLATION.md) |
+| Report a vulnerability | [Security Policy](./SECURITY.md) |
 
 ---
 *MIT License*
