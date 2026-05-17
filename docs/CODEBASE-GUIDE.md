@@ -1,41 +1,41 @@
-# 🗺️ Scouter Codebase Guide
+# Codebase Navigation Guide
 
-This guide provides a structural map of the Scouter repository to help you navigate and understand the flow of data and responsibility.
+This guide provides a structural overview of the Scouter repository to facilitate navigation and understanding of the system's architecture and data flow.
 
-## 📂 Directory Map
+## 📂 Repository Structure
 
-| Directory | Responsibility | Key Symbols |
+| Directory | Responsibility | Key Components |
 | :--- | :--- | :--- |
-| `cmd/scouter` | Entry point for the CLI and MCP Server. | `main.go` |
-| `internal/mcp` | MCP Server implementation and Tool adapters. | `Server`, `handleSearch` |
-| `internal/engine` | Core analytical and mutation logic (TruthEngine). | `TruthEngine`, `RippleEngine` |
-| `internal/store` | Persistence layer (SQLite, FTS5, Call Graph). | `Store`, `migrate` |
-| `internal/adapters`| External integrations (Engram, LLM Sampling). | `MemoryProvider` |
-| `internal/display` | UI logic for CLI output and formatting. | `Display`, `Gain` |
-| `openspec` | SDD (Spec-Driven Development) artifacts. | `specs.md`, `tasks.md` |
+| `cmd/scouter` | Entry point for the CLI and MCP Server. | CLI commands, server initialization. |
+| `internal/mcp` | Model Context Protocol (MCP) server implementation. | Tool handlers, resource providers. |
+| `internal/engine` | Core analysis logic and processing engines. | Search, Impact, Refactoring, and Diagnostics. |
+| `internal/store` | Persistence layer and data management. | SQLite integration, indexing logic. |
+| `internal/adapters`| External service integrations and adapters. | Memory and third-party service providers. |
+| `internal/display` | Output formatting and user interface logic. | CLI rendering, data serialization. |
+| `openspec` | Specification-Driven Development (SDD) documentation. | Project specifications and task tracking. |
 
-## 🚀 Critical Paths
+## 🚀 Key Data Flows
 
-### 1. The Boot Sequence
-Located in `cmd/scouter/main.go`. It initializes the `Store`, injects it into the `TruthEngine`, and launches either the CLI or the MCP Server.
+### 1. Initialization
+The application initializes in `cmd/scouter/main.go`. It sets up the storage layer, configures the analysis engines, and starts the requested interface (either the interactive CLI or the MCP server).
 
-### 2. Analytical Request Flow
-1. **MCP Handler** (`internal/mcp/handlers.go`): Receives the JSON-RPC request.
-2. **TruthEngine** (`internal/engine/truth.go`): Orchestrates the request (e.g., `AnalyzeImpact`).
-3. **Specialized Engine**: The request is delegated (e.g., `internal/engine/impact.go`).
-4. **Store**: Fetches the required AST symbols or Call Graph data.
+### 2. Analysis Request Pipeline
+1. **Interface Layer** (`internal/mcp`): Receives and validates incoming requests.
+2. **Orchestration Layer** (`internal/engine`): Coordinates the necessary analysis tasks.
+3. **Execution Engines**: Specific tasks are delegated to specialized engines (e.g., impact analysis in `internal/engine/impact.go`).
+4. **Storage Access**: Data is retrieved from the indexed symbols or the call graph in the storage layer.
 
-### 3. Evolutionary Change Flow
-1. **Ripple/Evolve**: A mutation is proposed.
-2. **Impact Analysis**: The "blast radius" is calculated and verified.
-3. **Staging Ledger**: The change is staged in memory (not yet on disk).
-4. **Commit**: The `Ledger` applies the final changes to the filesystem.
+### 3. Change Management Workflow
+1. **Proposal**: A code modification is proposed through the refactoring engine.
+2. **Impact Assessment**: The system calculates the dependency chain to identify potential side effects.
+3. **Staging**: Changes are recorded in a staging ledger for validation.
+4. **Application**: Once verified, changes are committed to the filesystem.
 
-## 🛠️ Development Mandates
+## 🛠️ Development Guidelines
 
-- **Don't touch the Domain**: Business logic belongs in `internal/engine`. Keep `internal/mcp` as thin as possible.
-- **TDD First**: Every new analytical capability MUST have a corresponding test in `internal/engine/*_test.go`.
-- **Pure Signal**: Truncate massive outputs. Use the `Display` package for formatting.
+- **Architectural Integrity**: Maintain a clear separation between domain logic (`internal/engine`) and interface adapters (`internal/mcp`).
+- **Testing Requirements**: All core analysis features must include comprehensive unit and integration tests.
+- **Data Density**: Ensure that analysis results are concise and relevant, avoiding excessive output in automated environments.
 
 ---
-*The map is not the territory, but a good map prevents a lot of backtracking. Hakai.*
+*Structural clarity is the foundation of maintainable software.*

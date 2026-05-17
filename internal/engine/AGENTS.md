@@ -1,23 +1,23 @@
 # internal/engine — Agent Instructions
 
 ## Overview
-The Engine is the core intelligence of Scouter. It implements the "TruthEngine" pattern, coordinating specialized sub-engines to analyze, heal, and evolve the codebase.
+The `internal/engine` package contains the core analysis logic for Scouter. It implements the primary analysis engine, coordinating specialized sub-engines to analyze, diagnose, and refactor the codebase.
 
 ## Sub-Engines
-- `truth.go`: Central orchestrator and dependency injector.
-- `impact.go`: Calculates blast radius and risk scores (Wave 9 formula).
-- `analyzer.go`: AST-based symbol extraction and centrality calculation.
-- `healer.go`: Autonomous Root Cause Analysis (RCA) and fixing.
-- `ripple.go`: Strategic change propagation using BFS and validation pipelines.
-- `compaction.go`: Context window optimization and summarization.
+- `truth.go`: Central orchestrator and dependency injector for the analysis suite.
+- `impact.go`: Calculates the blast radius and risk scores of proposed changes.
+- `analyzer.go`: Handles AST-based symbol extraction and centrality metrics.
+- `healer.go`: Provides automated root cause analysis (RCA) and repair verification.
+- `ripple.go`: Manages coordinated change propagation across multiple files.
+- `compaction.go`: Optimizes context windows through summarization and filtering.
 
 ## Development Guidelines
-- **Statelessness**: Engines should ideally be stateless, relying on `store.Repository` for data.
-- **AST Sovereignty**: Use `go-sitter` for all structural analysis. Avoid regex for code parsing.
-- **Falsifiable Hypotheses**: In `healer.go`, never apply a fix without a reproduction test case.
-- **Risk Calculation**: Follow the logarithmic normalization formula defined in `impact.go`.
+- **Stateless Design**: Engines should remain stateless where possible, utilizing the storage layer for persistent data.
+- **AST Integrity**: Utilize Tree-sitter for all structural analysis to ensure accuracy across different languages.
+- **Verification Mandate**: In `healer.go`, do not apply automated fixes without a corresponding reproduction test.
+- **Metric Normalization**: Follow the standardized formulas for calculating impact and risk as defined in the engine logic.
 
-## Boundaries
-- ✅ **Always do:** Add unit tests for every new engine capability.
-- ⚠️ **Ask first:** Modifying the `TruthEngine` interface or adding global state.
-- 🚫 **Never do:** Perform side effects (file writes) without a rollback mechanism.
+## Operational Boundaries
+- ✅ **Required:** Add comprehensive unit tests for all new analysis capabilities.
+- ⚠️ **Review Needed:** Consult on modifications to the main analysis engine interface or the introduction of global state.
+- 🚫 **Prohibited:** Executing file system modifications without a robust rollback or staging mechanism.

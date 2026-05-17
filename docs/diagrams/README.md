@@ -1,15 +1,12 @@
-# 📊 Scouter Diagrams
+# Architecture Diagrams
 
-This directory contains architectural and workflow diagrams for Scouter.
-
-## Usage
-
-We prefer **Mermaid.js** for all diagrams to ensure they are version-controlled and easy to edit directly in Markdown.
+This directory contains visual representations of Scouter's internal architecture and data flow.
 
 ## Available Diagrams
 
-- **[N/A]** — *Upcoming: Ripple Propagation Flow*
-- **[N/A]** — *Upcoming: TruthEngine Coordination*
+- **[N/A]** — *Upcoming: AnalysisEngine Coordination*
+- **[N/A]** — *Upcoming: Data Persistence Layer*
+- **[N/A]** — *Upcoming: MCP Integration Flow*
 
 ---
-*Visualizing sovereignty. Hakai.*
+*Visualizing system architecture and structural dependencies.*

@@ -1,9 +1,10 @@
-# Scouter 🕶️ (v1.0.0 — HAKAI Evolution)
+# Scouter 🕶️
 
-**The World's First Autonomous Engineering OS with Deep Memory Orchestration.**
-Scouter bridges your codebase with an AI agent's long-term memory, transforming development into a high-density, context-aware experience by merging AST intelligence with the Engram persistence layer.
+**A Structural Analysis and Intelligence Engine for Codebases.**
 
-## 🚀 Quick Path (Installation & Verification)
+Scouter provides deep AST inspection, impact analysis, and automated refactoring capabilities. By indexing codebases into a queryable structure, it enables precise navigation and data-driven insights for complex software projects.
+
+## 🚀 Quick Start
 
 1. **Install the binary:**
    ```bash
@@ -13,43 +14,43 @@ Scouter bridges your codebase with an AI agent's long-term memory, transforming 
    ```bash
    scouter --version
    ```
-3. **Run a structural search (Example):**
+3. **Run a structural search:**
    ```bash
    scouter search "func main"
    ```
 
-## 🧠 Core Capabilities (v1.0.0)
+## 🛠️ Key Capabilities
 
-| Capability | Description | Impact |
+| Capability | Description | Benefit |
 | :--- | :--- | :--- |
-| **Sovereign Context (ACCP)** | State-aware context management (`HOT`, `WARM`, `COLD`). | Up to 98% token reduction. |
-| **HAKAI Density Format** | Token-efficient wire format using path interning. | Massive result sets without context overflow. |
-| **Engram Link** | Deep memory orchestration for historical healing. | Agents remember past ADRs and bugfixes. |
-| **Ripple V2** | Bidirectional hierarchy traversal for refactoring. | Zero blind spots during architectural changes. |
-| **Shinigami Protocol** | Solver-Verifier model with Parallel Sampling. | Autonomous RCA and verified fixes. |
+| **Stateful Context Management** | Adaptive context windowing for LLM integrations. | Significant reduction in token consumption. |
+| **High-Density Data Format** | Efficient serialization using path interning. | Handles large result sets without context overflow. |
+| **Persistence Layer Integration** | Connects AST data with historical metadata. | Tracks long-term changes and refactoring history. |
+| **Impact Analysis** | Calculates the reach of changes across the codebase. | Identifies potential regressions and dependencies. |
+| **Automated Diagnostics** | Root cause analysis and automated verification loops. | Accelerates debugging and code maintenance. |
 
-## 🛡️ Technical Sovereignty & Security
+## 🛡️ Security & Reliability
 
-- **Staging Ledger**: Mandatory staging area for all destructive operations with disk persistence.
-- **Pure Signal**: Automated truncation of massive tool results to maintain context density.
-- **Automated Security**: Protected by `gosec` (SAST), `govulncheck`, and CodeQL.
+- **Staging Ledger**: All destructive operations are staged and validated before being committed to disk.
+- **Result Truncation**: Automated signal-to-noise filtering to maintain focus on relevant data.
+- **Security Auditing**: Regularly scanned with `gosec`, `govulncheck`, and CodeQL to ensure robustness.
 
-## 🛠️ MCP Toolset (Quick Reference)
+## 🛠️ Tool Reference
 
 | Tool | Purpose |
 | :--- | :--- |
-| `self_heal` | Autonomous RCA -> Parallel Fix -> Ledger Verify. |
-| `ripple_refactor` | Interface-aware change propagation. |
-| `impact` | Recursive blast radius analysis with Risk Scoring. |
-| `critical_code` | Identify hotspots based on centrality and fragility. |
-| `structural_search` | Pattern-based AST discovery. |
+| `diagnose` | Performs root cause analysis and validates potential fixes. |
+| `refactor` | Propagates changes across interfaces and implementations. |
+| `impact` | Analyzes the blast radius of a symbol change. |
+| `critical_path` | Identifies central symbols and potential points of failure. |
+| `search` | Pattern-based discovery using AST structures. |
 
-## 📚 Next Steps & Deep Dives
+## 📚 Documentation
 
-- 📐 **[Architecture & Mechanics](./docs/ARCHITECTURE.md)**
-- 🗺️ **[Codebase Navigation Guide](./docs/CODEBASE-GUIDE.md)**
-- 🚀 **[MCP Registration & Setup](./docs/INSTALLATION.md)**
-- 🛡️ **[Security Policy & Reporting](./SECURITY.md)**
+- [Architecture Overview](./docs/ARCHITECTURE.md)
+- [Codebase Guide](./docs/CODEBASE-GUIDE.md)
+- [Installation & MCP Setup](./docs/INSTALLATION.md)
+- [Security Policy](./SECURITY.md)
 
 ---
-*MIT License — The memory is the signal. Hakai.*
+*MIT License*

@@ -1,23 +1,23 @@
-# Scouter (v1.0.0 — HAKAI Evolution)
+# Scouter
 
-> The World's First Autonomous Engineering OS with Deep Memory Orchestration.
+> A Structural Analysis and Intelligence Engine for Codebases.
 
-Scouter is a Sovereign Engineering Engine that bridges a codebase with an AI agent's long-term memory. It transforms development into a high-density, context-aware experience by merging AST intelligence with the Engram persistence layer.
+Scouter is a high-performance analysis engine that facilitates codebase exploration and automated code manipulation. It integrates AST-based indexing with a persistence layer to provide deep structural insights and impact analysis.
 
 ## Core Capabilities
-- **Sovereign Context Wrappers (ACCP/ULMEN)**: State-aware context management (`HOT`, `WARM`, `COLD`) for up to 98% token reduction.
-- **HAKAI Density Format**: Token-efficient wire format for MCP responses using path interning.
-- **Engram Link**: Deep memory orchestration for historical healing, ADR-aware refactoring, and session continuity.
-- **Ripple V2**: Interface omniscience for bidirectional hierarchy traversal.
-- **Shinigami Protocol**: Solver-Verifier model for autonomous RCA and parallel fixing.
+- **Stateful Context Management**: Adaptive context windowing for LLM integrations, optimized for token efficiency.
+- **High-Density Data Serialization**: Efficient wire format for data transmission using path interning to handle large result sets.
+- **Persistence Layer Integration**: Connects structural data with historical analysis and metadata for long-term project tracking.
+- **Impact Analysis**: Comprehensive dependency mapping and blast radius calculation for proposed changes.
+- **Automated Diagnostics**: Structured root cause analysis and verification loops for code maintenance.
 
 ## Documentation Map
-- `docs/ARCHITECTURE.md`: System design and internal mechanics.
-- `docs/CODEBASE-GUIDE.md`: Navigation map for the source code.
-- `docs/INSTALLATION.md`: Setup and MCP registration instructions.
-- `SABIDURIA.md`: Technical vision, lessons learned, and the transcendence backlog.
+- `docs/ARCHITECTURE.md`: System design and internal components.
+- `docs/CODEBASE-GUIDE.md`: Structural map of the repository.
+- `docs/INSTALLATION.md`: Setup and integration instructions.
+- `CHANGELOG.md`: Detailed history of project updates and features.
 
 ## Engineering Standards
-- **Absolute Signal**: Zero slop. High-density technical communication.
-- **Empirical Absolute**: All code must be verified via tests (`go test ./...`).
-- **Hexagonal Isolation**: Strict decoupling between business logic and persistence.
+- **Technical Excellence**: Focus on high-quality, maintainable code and clear documentation.
+- **Verified Implementation**: Comprehensive test coverage is required for all core functionality.
+- **Modular Design**: Strict separation between analysis logic, data storage, and interface adapters.

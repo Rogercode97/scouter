@@ -1,44 +1,44 @@
-# 📐 Scouter Architecture
+# Scouter Architecture
 
-Scouter is a **Sovereign Structural Intelligence Engine** designed to bridge the gap between static code analysis and autonomous AI reasoning. It provides high-fidelity AST mapping, impact analysis, and atomic refactoring tools through a modular, hex-inspired architecture.
+Scouter is a structural intelligence engine designed to facilitate deep codebase analysis and automated code manipulation. It combines static analysis, call graph generation, and impact assessment into a unified system accessible via CLI or the Model Context Protocol (MCP).
 
-## 🔱 Sovereign Anchors
+## Design Principles
 
-| Pattern | Rationale |
+| Principle | Description |
 | :--- | :--- |
-| **Hexagonal Isolation** | The core domain (TruthEngine) is decoupled from MCP handlers and LSP infrastructure via clear Ports & Adapters. |
-| **Screaming Architecture** | The directory structure (`internal/engine`, `internal/mcp`, `internal/store`) clearly reveals its purpose: Analyze, Communicate, Persist. |
-| **Validation is Finality** | No destructive mutation is applied without passing through the **Staging Ledger** and the **Impact Engine**. |
-| **Deep Modules** | The `TruthEngine` provides a high-leverage interface that hides the complexity of Tree-sitter, SQLite, and LSP coordination. |
+| **Hexagonal Architecture** | The core logic (analysis engines) is isolated from external interfaces (MCP, CLI) via defined ports and adapters. |
+| **Explicit Organization** | Directory structures (`internal/engine`, `internal/mcp`, `internal/store`) clearly separate analysis, communication, and storage concerns. |
+| **Verified Mutation** | All code modifications pass through a staging ledger and impact analysis before execution to ensure system integrity. |
+| **Separation of Concerns** | Specialized engines handle specific tasks (parsing, search, impact, refactoring) to maintain a maintainable and scalable codebase. |
 
-## 🏗️ The Three Pillars
+## System Components
 
-### 1. The Truth Engine (`internal/engine`)
-The heart of Scouter. It coordinates specialized "organs" to achieve structural omniscience:
-- **Search Engine**: AST-aware discovery using Tree-sitter patterns.
-- **Impact Engine**: Calculates the "blast radius" of changes using the Global Call Graph.
-- **Ripple Engine**: Propagates changes across interfaces and implementations.
-- **Healer Engine**: Autonomous RCA (Root Cause Analysis) and TDD-driven fixing.
+### 1. Analysis Engines (`internal/engine`)
+The core functionality of Scouter, responsible for structural understanding:
+- **Search Engine**: AST-aware pattern matching using Tree-sitter.
+- **Impact Engine**: Calculates dependency chains and change propagation through the global call graph.
+- **Refactoring Engine**: Handles coordinated changes across multiple files and interfaces.
+- **Diagnostic Engine**: Provides automated root cause analysis and verification of fixes.
 
-### 2. The Persistence Vault (`internal/store`)
-A high-performance SQLite-backed repository that stores:
-- **Symbol Index**: A comprehensive map of every AST node and its metadata.
-- **Call Graph**: A bidirectional map of call sites and dependencies.
-- **Engram Link**: Integration with long-term memory to preserve architectural wisdom.
+### 2. Data Persistence (`internal/store`)
+A persistent storage layer backed by SQLite that manages:
+- **Symbol Registry**: An indexed database of AST nodes and their associated metadata.
+- **Call Graph Database**: A map of functional relationships and dependencies.
+- **Contextual Memory**: Integration with persistent storage to maintain analysis history across sessions.
 
-### 3. The Sovereign Adapter (`internal/mcp`)
-The primary interface for AI agents. It implements the **Model Context Protocol (MCP)**, providing:
-- **Tools**: Direct access to Scouter's analytical and mutation powers.
-- **Resources**: Real-time access to ADRs, the Staging Ledger, and the Roadmap.
-- **Instructions**: Sovereign mandates inyected into the agent's system prompt.
+### 3. Integration Adapters (`internal/mcp`)
+Interfaces for external consumers, primarily AI agents:
+- **MCP Implementation**: Provides tool definitions and resource access for LLM environments.
+- **Resource Management**: Facilitates access to analysis reports, staging ledgers, and project metadata.
+- **System Instructions**: Standardized operational protocols for integrated tools.
 
-## 🌊 Core Workflow: The Evolutionary Loop
+## Standard Workflow
 
-1. **Scout**: Map the territory using `index` and `search`.
-2. **Analyze**: Calculate risk and reach using `impact` and `critical_code`.
-3. **Transform**: Stage atomic mutations in the **Staging Ledger** via `ripple_refactor` or `evolve`.
-4. **Verify**: Prove integrity via `predict` (testing) and `self_heal`.
-5. **Seal**: Commit changes to disk and persist the discovery in **Engram**.
+1. **Discovery**: Index the project and identify structural patterns using search tools.
+2. **Analysis**: Assess the impact and risks associated with proposed changes.
+3. **Staging**: Prepare atomic modifications in the staging ledger for review.
+4. **Verification**: Validate the integrity of changes using diagnostic tools and tests.
+5. **Execution**: Commit verified changes to the file system.
 
 ---
-*True engineering is the art of building systems that remain sovereign under the pressure of change. Hakai.*
+*Engineering Excellence through Structural Integrity.*
