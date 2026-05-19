@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/tools/imports"
+
 	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
@@ -120,13 +122,20 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 	prompt := contextBuilder.String()
 
 	type candidate struct {
-		id     int
-		code   string
-		score  float64
+		id       int
+		code     string
+		score    float64
+		fullCode string
+		valid    bool
 	}
 
 	candidates := make(chan candidate, 3)
 	var wg sync.WaitGroup
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	fullContent, _ := os.ReadFile(failingFile)
 
 	for i := 0; i < 3; i++ {
 		wg.Add(1)
@@ -134,7 +143,36 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 			defer wg.Done()
 			resRaw, err := e.DoFixRequest(ctx, prompt+"\n\nProvide solution variant #"+strconv.Itoa(id))
 			if err == nil {
-				candidates <- candidate{id: id, code: utils.ExtractCodeBlock(resRaw)}
+				candidateCode := utils.ExtractCodeBlock(resRaw)
+				
+				newContent := string(fullContent[:target.Range.Start]) + candidateCode + string(fullContent[target.Range.End:])
+				
+				processedContent, err := imports.Process(failingFile, []byte(newContent), nil)
+				if err != nil {
+					processedContent = []byte(newContent)
+				}
+
+				tempLedger := NewLedger()
+				_ = tempLedger.Stage(failingFile, Patch{
+					FilePath:   failingFile,
+					Original:   string(fullContent),
+					NewContent: string(processedContent),
+				})
+				
+				validator := NewLSPValidator("")
+				valRes, _ := validator.Validate(ctx, tempLedger)
+				valid := valRes.Valid
+
+				candidates <- candidate{
+					id:       id,
+					code:     candidateCode,
+					fullCode: string(processedContent),
+					valid:    valid,
+				}
+
+				if valid {
+					cancel()
+				}
 			}
 		}(i)
 	}
@@ -146,6 +184,10 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 	var bestCandidate *candidate
 	
 	for c := range candidates {
+		if !c.valid {
+			continue
+		}
+
 		curr := c
 		curr.score = 1.0 
 		
@@ -161,17 +203,14 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 	}
 
 	if bestCandidate == nil {
-		return nil, fmt.Errorf("no valid candidates generated")
+		return nil, fmt.Errorf("all candidates failed validation")
 	}
 
 	// 5. Stage in Ledger (Wave 12.0 Mandate)
-	fullContent, _ := os.ReadFile(failingFile)
-	newContent := string(fullContent[:target.Range.Start]) + bestCandidate.code + string(fullContent[target.Range.End:])
-	
 	err = e.Ledger.Stage(failingFile, Patch{
 		FilePath:   failingFile,
 		Original:   string(fullContent),
-		NewContent: newContent,
+		NewContent: bestCandidate.fullCode,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to stage fix: %w", err)
