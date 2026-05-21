@@ -115,45 +115,37 @@ func printDashboard(s *telemetry.GainStats) {
 		fmt.Println("\n  scouter — Token Savings Report")
 		fmt.Println("  " + FormatSeparator(30))
 		fmt.Printf("  %-20s  %d\n", "Commands filtered", s.TotalCommands)
-		fmt.Printf("  %-20s  %s\n", "Tokens saved", utils.FormatTokens(s.TotalSaved))
-		fmt.Printf("  %-20s  %.1f%%\n", "Avg savings", s.AvgSavings)
-		fmt.Printf("  %-20s  %.1fh\n", "Time reclaimed", s.HoursReclaimed)
+		fmt.Printf("  %-20s  %s\n", "Noise purged", utils.FormatTokens(s.TotalSaved))
+		fmt.Printf("  %-20s  %.1f%%\n", "Signal ratio", s.AvgSavings)
+		fmt.Printf("  %-20s  %.1fx\n", "Context density", s.ContextDensity)
 		fmt.Println()
 		return
 	}
 
-	// KPI Block: Tokens Saved
+	// KPI Block: Noise Purged (Tokens Saved)
 	kpi1 := lipgloss.NewStyle().
 		Padding(0, 2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(HeaderStyle.GetForeground()).
 		Width(24).
-		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("TOKENS SAVED"), StatStyle.Render(utils.FormatTokens(s.TotalSaved))))
+		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("NOISE PURGED"), StatStyle.Render(utils.FormatTokens(s.TotalSaved))))
 
-	// KPI Block: Time Reclaimed
-	timeStr := fmt.Sprintf("%.1fh", s.HoursReclaimed)
-	if s.HoursReclaimed < 1.0 {
-		mins := int(s.HoursReclaimed * 60)
-		if mins == 0 {
-			timeStr = "< 1m"
-		} else {
-			timeStr = fmt.Sprintf("%dm", mins)
-		}
-	}
+	// KPI Block: Context Density
+	densityStr := fmt.Sprintf("%.1fx", s.ContextDensity)
 	kpi2 := lipgloss.NewStyle().
 		Padding(0, 2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(SuccessStyle.GetForeground()).
 		Width(24).
-		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("TIME RECLAIMED"), SuccessStyle.Bold(true).Render(timeStr)))
+		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("CONTEXT DENSITY"), SuccessStyle.Bold(true).Render(densityStr)))
 
-	// KPI Block: Efficiency
+	// KPI Block: Signal Ratio (Efficiency)
 	kpi3 := lipgloss.NewStyle().
 		Padding(0, 2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(HeaderStyle.GetForeground()).
 		Width(24).
-		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("EFFICIENCY"), ColorTier(TierLabel(s.AvgSavings))))
+		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("SIGNAL RATIO"), ColorTier(TierLabel(s.AvgSavings))))
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, kpi1, kpi2, kpi3)
 
