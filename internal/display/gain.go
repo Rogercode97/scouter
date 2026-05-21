@@ -108,30 +108,42 @@ func RunGain(tracker *telemetry.Tracker, args []string) error {
 	return nil
 }
 
+func calculateDensity(avgSavings float64) float64 {
+	if avgSavings >= 100 {
+		return 99.9
+	}
+	density := 100.0 / (100.0 - avgSavings)
+	if density > 99.9 {
+		return 99.9
+	}
+	return density
+}
+
 func printDashboard(s *telemetry.GainStats) {
 	tty := IsTerminal()
+	density := calculateDensity(s.AvgSavings)
 
 	if !tty {
 		fmt.Println("\n  scouter — Token Savings Report")
 		fmt.Println("  " + FormatSeparator(30))
 		fmt.Printf("  %-20s  %d\n", "Commands filtered", s.TotalCommands)
-		fmt.Printf("  %-20s  %s\n", "Noise purged", utils.FormatTokens(s.TotalSaved))
-		fmt.Printf("  %-20s  %.1f%%\n", "Signal ratio", s.AvgSavings)
-		fmt.Printf("  %-20s  %.1fx\n", "Context density", s.ContextDensity)
+		fmt.Printf("  %-20s  %s\n", "Tokens purged", utils.FormatTokens(s.TotalSaved))
+		fmt.Printf("  %-20s  %.1f%%\n", "Compression", s.AvgSavings)
+		fmt.Printf("  %-20s  %.1fx\n", "Context density", density)
 		fmt.Println()
 		return
 	}
 
-	// KPI Block: Noise Purged (Tokens Saved)
+	// KPI Block: Tokens Purged
 	kpi1 := lipgloss.NewStyle().
 		Padding(0, 2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(HeaderStyle.GetForeground()).
 		Width(24).
-		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("NOISE PURGED"), StatStyle.Render(utils.FormatTokens(s.TotalSaved))))
+		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("TOKENS PURGED"), StatStyle.Render(utils.FormatTokens(s.TotalSaved))))
 
 	// KPI Block: Context Density
-	densityStr := fmt.Sprintf("%.1fx", s.ContextDensity)
+	densityStr := fmt.Sprintf("%.1fx", density)
 	kpi2 := lipgloss.NewStyle().
 		Padding(0, 2).
 		Border(lipgloss.RoundedBorder()).
@@ -139,13 +151,13 @@ func printDashboard(s *telemetry.GainStats) {
 		Width(24).
 		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("CONTEXT DENSITY"), SuccessStyle.Bold(true).Render(densityStr)))
 
-	// KPI Block: Signal Ratio (Efficiency)
+	// KPI Block: Compression
 	kpi3 := lipgloss.NewStyle().
 		Padding(0, 2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(HeaderStyle.GetForeground()).
 		Width(24).
-		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("SIGNAL RATIO"), ColorTier(TierLabel(s.AvgSavings))))
+		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("COMPRESSION"), ColorTier(TierLabel(s.AvgSavings))))
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, kpi1, kpi2, kpi3)
 

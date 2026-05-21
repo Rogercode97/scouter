@@ -147,6 +147,5 @@ type PeriodStats struct {
 type GainStats struct {
 	TotalSaved     int
 	AvgSavings     float64
-	ContextDensity float64 // Multiplier (e.g. 5.2x denser)
 	TotalCommands  int
 }

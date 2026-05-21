@@ -136,19 +136,9 @@ func (t *Tracker) GetGainStats(ctx context.Context) (*GainStats, error) {
 		return nil, fmt.Errorf("gain stats: %w", err)
 	}
 
-	// Calculate Context Density multiplier.
-	// If savings is 80%, output is 20% of input. Density = 100 / 20 = 5.0x.
-	density := 1.0
-	if summary.AvgSavings > 0 && summary.AvgSavings < 100 {
-		density = 100.0 / (100.0 - summary.AvgSavings)
-	} else if summary.AvgSavings >= 100 {
-		density = 99.9 // Max cap for pure deletion
-	}
-
 	return &GainStats{
 		TotalSaved:     summary.TotalSaved,
 		AvgSavings:     summary.AvgSavings,
-		ContextDensity: density,
 		TotalCommands:  summary.TotalCommands,
 	}, nil
 }
