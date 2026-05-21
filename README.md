@@ -20,7 +20,7 @@
 
 > **scouter** `/ˈskaʊ.tər/` — _reconnaissance_: a tool that explores codebases to gather structural intelligence and predict the impact of changes.
 
-**Scouter** is the "tactical visor" for your AI coding agents. While others see text, Scouter sees the **Abstract Syntax Tree (AST)**. It provides the deep intelligence needed for safe refactoring, impact analysis (Blast Radius), and autonomous bug healing.
+**Scouter** is the "tactical visor" for your AI coding agents. While [Engram](https://github.com/Gentleman-Programming/engram) provides the **Brain** (Memory), Scouter provides the **Eyes** (Structural Analysis). While others see text, Scouter sees the **Abstract Syntax Tree (AST)**.
 
 ```mermaid
 graph TD
@@ -44,7 +44,7 @@ go install github.com/Rogercode97/scouter/cmd/scouter@latest
 | Agent                       | One-liner / Setup                                                                 |
 | --------------------------- | ---------------------------------------------------------------------------------- |
 | Gemini CLI                  | `scouter setup gemini-cli`                                                        |
-| Claude Code                 | `claude plugin install /path/to/scouter`                                          |
+| Claude Code                 | `claude plugin install $(which scouter)`                                          |
 | VS Code / Cursor            | Add MCP: `{"command": "scouter", "args": ["mcp"]}`                                |
 | Other Agents                | See [docs/AGENT-SETUP.md](docs/AGENT-SETUP.md)                                   |
 
@@ -53,19 +53,18 @@ go install github.com/Rogercode97/scouter/cmd/scouter@latest
 ```bash
 scouter index .             # Map the codebase
 scouter predict             # Predict affected tests from git diff
-scouter gain                # View token savings and adoption stats
 ```
 
 ## 🛠️ MCP Tools
 
-Scouter exposes its intelligence via **12+ specialized tools** for agents:
+Scouter exposes its intelligence via **27 specialized tools** for agents:
 
 | Category               | Tools                                                                 |
 | ---------------------- | --------------------------------------------------------------------- |
-| **Intelligence**       | `scouter_index`, `scouter_search`, `scouter_type_info`                |
-| **Impact & Flow**      | `scouter_impact`, `scouter_callers`, `scouter_goto_definition`        |
-| **Autonomous Healing** | `scouter_diagnose`, `scouter_verify`, `scouter_shinigami`             |
-| **Refactoring**        | `scouter_ripple_refactor`, `scouter_commit`, `scouter_rollback`       |
+| **Intelligence**       | `index`, `search`, `read`, `type_info`                                |
+| **Impact & Flow**      | `impact`, `callers`, `goto_definition`                                |
+| **Autonomous Healing** | `self_heal` (RCA -> Fix -> Verify)                                    |
+| **Refactoring**        | `ripple_refactor`, `scouter_commit`, `scouter_rollback`, `scouter_diff` |
 
 > **Core Invariant:** Validation is finality. No destructive mutation is applied without passing through the Staging Ledger and Impact Analysis.
 
