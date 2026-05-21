@@ -142,3 +142,11 @@ type PeriodStats struct {
 	SavedTokens  int
 	AvgSavings   float64
 }
+
+// GainStats holds high-level metrics for the Gain dashboard.
+type GainStats struct {
+	TotalSaved     int
+	AvgSavings     float64
+	HoursReclaimed float64
+	TotalCommands  int
+}

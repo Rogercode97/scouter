@@ -129,6 +129,26 @@ func (t *Tracker) GetSummary(ctx context.Context) (*Summary, error) {
 	return &s, nil
 }
 
+// TokensPerHourReclaimed represents the average human cognitive processing rate.
+// We estimate a senior developer processes ~2500 abstract syntax tokens (reading, 
+// comprehending context, and reasoning about impact) per hour of focused work.
+const TokensPerHourReclaimed = 2500.0
+
+// GetGainStats returns aggregate metrics for the dashboard UI.
+func (t *Tracker) GetGainStats(ctx context.Context) (*GainStats, error) {
+	summary, err := t.GetSummary(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("gain stats: %w", err)
+	}
+
+	return &GainStats{
+		TotalSaved:     summary.TotalSaved,
+		AvgSavings:     summary.AvgSavings,
+		HoursReclaimed: float64(summary.TotalSaved) / TokensPerHourReclaimed,
+		TotalCommands:  summary.TotalCommands,
+	}, nil
+}
+
 // GetDaily returns daily stats for the last N days.
 func (t *Tracker) GetDaily(ctx context.Context, days int) ([]DayStats, error) {
 	if err := t.ensureOpen(ctx); err != nil {

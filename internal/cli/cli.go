@@ -9,8 +9,10 @@ import (
 	"os/exec"
 
 	"github.com/Rogercode97/scouter/internal/config"
+	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
+	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/initcmd"
 	"github.com/Rogercode97/scouter/internal/mcp"
 	"github.com/Rogercode97/scouter/internal/store"
@@ -48,13 +50,19 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	cmd := remaining[0]
 	cmdArgs := remaining[1:]
 
+	// Foundation: Load mandatory configuration
+	cfg, err := config.Load(ctx)
+	if err != nil {
+		fmt.Fprintf(stderr, "error loading config: %v\n", err)
+		return 1
+	}
+
+	// Telemetry: Lazy tracker to avoid SQLite locks on fast paths
+	tracker := telemetry.NewLazyTracker(cfg.Tracking.DBPath)
+	defer tracker.Close()
+
 	switch cmd {
 	case "mcp":
-		cfg, err := config.Load(ctx)
-		if err != nil {
-			fmt.Fprintf(stderr, "error loading config: %v\n", err)
-			return 1
-		}
 		db, err := store.New(ctx, cfg.Tracking.DBPath)
 		if err != nil {
 			fmt.Fprintf(stderr, "error opening database: %v\n", err)
@@ -73,11 +81,6 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 
 	case "index":
-		cfg, err := config.Load(ctx)
-		if err != nil {
-			fmt.Fprintf(stderr, "error loading config: %v\n", err)
-			return 1
-		}
 		db, err := store.New(ctx, cfg.Tracking.DBPath)
 		if err != nil {
 			fmt.Fprintf(stderr, "error opening database: %v\n", err)
@@ -108,19 +111,10 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 
 	case "gain":
-		cfg, err := config.Load(ctx)
-		if err != nil {
-			fmt.Fprintf(stderr, "error loading config: %v\n", err)
+		if err := display.RunGain(tracker, cmdArgs); err != nil {
+			fmt.Fprintf(stderr, "error running gain: %v\n", err)
 			return 1
 		}
-		tracker, err := telemetry.NewTracker(ctx, cfg.Tracking.DBPath)
-		if err != nil {
-			fmt.Fprintf(stderr, "error creating tracker: %v\n", err)
-			return 1
-		}
-		defer tracker.Close()
-		// display.RunGain also writes to stdout, this part is still not fully testable
-		// but we accept this for now.
 		return 0
 
 	case "setup":
@@ -131,11 +125,6 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 
 	case "predict":
-		cfg, err := config.Load(ctx)
-		if err != nil {
-			fmt.Fprintf(stderr, "error loading config: %v\n", err)
-			return 1
-		}
 		db, err := store.New(ctx, cfg.Tracking.DBPath)
 		if err != nil {
 			fmt.Fprintf(stderr, "error opening database: %v\n", err)
@@ -174,12 +163,21 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 	
 	default:
-		// Fallback to pipeline
+		// Initialize heavy dependencies only for Pipeline routing
+		tracker.WarmUp(ctx)
+		filters, err := filter.LoadAll(cfg.Filters.Dir)
+		if err != nil {
+			slog.Warn("could not load filters", "path", cfg.Filters.Dir, "error", err)
+		}
+		reg := filter.NewRegistry(filters)
+
 		p := &engine.Pipeline{
+			Registry:     reg,
+			Tracker:      tracker,
 			Verbose:      flags.Verbose,
 			UltraCompact: flags.UltraCompact,
 			Enrich:       flags.Enrich,
 		}
-		return p.Passthrough(ctx, cmd, cmdArgs)
+		return p.Run(ctx, cmd, cmdArgs)
 	}
 }

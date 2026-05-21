@@ -189,6 +189,30 @@ func TestGetMonthly(t *testing.T) {
 	}
 }
 
+func TestGetGainStats(t *testing.T) {
+	tracker := newTestTracker(t)
+
+	_ = tracker.Track(context.Background(), "git log", "scouter git log", 1000, 200, 50)
+	_ = tracker.Track(context.Background(), "go test", "scouter go test", 2000, 300, 100)
+
+	stats, err := tracker.GetGainStats(context.Background())
+	if err != nil {
+		t.Fatalf("gain stats: %v", err)
+	}
+
+	if stats.TotalCommands != 2 {
+		t.Errorf("total commands = %d, want 2", stats.TotalCommands)
+	}
+	// Total saved = (1000-200) + (2000-300) = 800 + 1700 = 2500
+	if stats.TotalSaved != 2500 {
+		t.Errorf("total saved = %d, want 2500", stats.TotalSaved)
+	}
+	// Hours reclaimed = 2500 / 2500.0 = 1.0
+	if stats.HoursReclaimed != 1.0 {
+		t.Errorf("hours reclaimed = %.1f, want 1.0", stats.HoursReclaimed)
+	}
+}
+
 func TestDBPath(t *testing.T) {
 	t.Setenv("SCOUTER_DB_PATH", "/custom/path.db")
 	if got := DBPath(""); got != "/custom/path.db" {

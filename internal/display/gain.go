@@ -9,6 +9,7 @@ import (
 
 	"github.com/Rogercode97/scouter/internal/telemetry"
 	"github.com/Rogercode97/scouter/internal/utils"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // RunGain executes the gain (token savings report) command.
@@ -63,12 +64,14 @@ func RunGain(tracker *telemetry.Tracker, args []string) error {
 		}
 	}
 
-	summary, err := tracker.GetSummary(context.Background())
+	ctx := context.Background()
+	stats, err := tracker.GetGainStats(ctx)
 	if err != nil {
-		return fmt.Errorf("get summary: %w", err)
+		return fmt.Errorf("get gain stats: %w", err)
 	}
 
 	if showJSON {
+		summary, _ := tracker.GetSummary(ctx)
 		return exportJSON(summary, tracker, days)
 	}
 	if showCSV {
@@ -80,80 +83,84 @@ func RunGain(tracker *telemetry.Tracker, args []string) error {
 	}
 
 	if showTop {
-		printSummary(summary)
+		printDashboard(stats)
 		return showByCommand(tracker, topN)
 	}
 
 	if showWeekly {
-		printSummary(summary)
+		printDashboard(stats)
 		return showPeriodReport(tracker, "weekly")
 	}
 
 	if showMonthly {
-		printSummary(summary)
+		printDashboard(stats)
 		return showPeriodReport(tracker, "monthly")
 	}
 
 	if showDaily {
-		return showDailyReport(tracker, days, summary)
+		return showDailyReport(tracker, days, stats)
 	}
 
 	// Default: full dashboard (summary + sparkline + top commands)
-	printSummary(summary)
+	printDashboard(stats)
 	showSparkline(tracker)
 	_ = showByCommand(tracker, 10)
 	return nil
 }
 
-func printSummary(s *telemetry.Summary) {
+func printDashboard(s *telemetry.GainStats) {
 	tty := IsTerminal()
 
-	fmt.Println()
-	if tty {
-		fmt.Println(HeaderStyle.Render("  scouter — Token Savings Report"))
-		fmt.Println(DimStyle.Render("  " + FormatSeparator(30)))
-	} else {
-		fmt.Println("  scouter — Token Savings Report")
+	if !tty {
+		fmt.Println("\n  scouter — Token Savings Report")
 		fmt.Println("  " + FormatSeparator(30))
+		fmt.Printf("  %-20s  %d\n", "Commands filtered", s.TotalCommands)
+		fmt.Printf("  %-20s  %s\n", "Tokens saved", utils.FormatTokens(s.TotalSaved))
+		fmt.Printf("  %-20s  %.1f%%\n", "Avg savings", s.AvgSavings)
+		fmt.Printf("  %-20s  %.1fh\n", "Time reclaimed", s.HoursReclaimed)
+		fmt.Println()
+		return
 	}
-	fmt.Println()
 
-	tier := TierLabel(s.AvgSavings)
+	// KPI Block: Tokens Saved
+	kpi1 := lipgloss.NewStyle().
+		Padding(0, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(HeaderStyle.GetForeground()).
+		Width(24).
+		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("TOKENS SAVED"), StatStyle.Render(utils.FormatTokens(s.TotalSaved))))
 
-	// printKPI renders a label-value pair. If value is already styled
-	// (contains ANSI codes), pass styled=true to avoid double-wrapping.
-	printKPI := func(label, value string, styled bool) {
-		if tty {
-			styledValue := value
-			if !styled {
-				styledValue = StatStyle.Render(value)
-			}
-			fmt.Printf("  %s  %s\n", DimStyle.Render(fmt.Sprintf("%-20s", label)), styledValue)
+	// KPI Block: Time Reclaimed
+	timeStr := fmt.Sprintf("%.1fh", s.HoursReclaimed)
+	if s.HoursReclaimed < 1.0 {
+		mins := int(s.HoursReclaimed * 60)
+		if mins == 0 {
+			timeStr = "< 1m"
 		} else {
-			fmt.Printf("  %-20s  %s\n", label, value)
+			timeStr = fmt.Sprintf("%dm", mins)
 		}
 	}
+	kpi2 := lipgloss.NewStyle().
+		Padding(0, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(SuccessStyle.GetForeground()).
+		Width(24).
+		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("TIME RECLAIMED"), SuccessStyle.Bold(true).Render(timeStr)))
 
-	printKPI("Commands filtered", fmt.Sprintf("%d", s.TotalCommands), false)
-	printKPI("Tokens saved", utils.FormatTokens(s.TotalSaved), false)
-	printKPI("Avg savings", ColorSavings(s.AvgSavings), true)
-	printKPI("Efficiency", ColorTier(tier), true)
-	printKPI("Total time", fmt.Sprintf("%.1fs", float64(s.TotalTimeMs)/1000), false)
+	// KPI Block: Efficiency
+	kpi3 := lipgloss.NewStyle().
+		Padding(0, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(HeaderStyle.GetForeground()).
+		Width(24).
+		Render(fmt.Sprintf("%s\n%s", DimStyle.Render("EFFICIENCY"), ColorTier(TierLabel(s.AvgSavings))))
 
-	// Efficiency bar
-	pct := s.AvgSavings
-	if pct < 0 {
-		pct = 0
-	} else if pct > 100 {
-		pct = 100
-	}
-	bar := ColorBar(int(pct), 100, 20)
+	row := lipgloss.JoinHorizontal(lipgloss.Top, kpi1, kpi2, kpi3)
+
 	fmt.Println()
-	if tty {
-		fmt.Printf("  %s %s\n", bar, DimStyle.Render(fmt.Sprintf("%.0f%%", s.AvgSavings)))
-	} else {
-		fmt.Printf("  %s %.0f%%\n", bar, s.AvgSavings)
-	}
+	fmt.Println(HeaderStyle.Render("  scouter — Strategic Gain Dashboard"))
+	fmt.Println()
+	fmt.Println(lipgloss.NewStyle().MarginLeft(2).Render(row))
 	fmt.Println()
 }
 
@@ -229,13 +236,13 @@ func showSparkline(tracker *telemetry.Tracker) {
 	fmt.Println()
 }
 
-func showDailyReport(tracker *telemetry.Tracker, days int, summary *telemetry.Summary) error {
+func showDailyReport(tracker *telemetry.Tracker, days int, stats *telemetry.GainStats) error {
 	daily, err := tracker.GetDaily(context.Background(), days)
 	if err != nil {
 		return err
 	}
 
-	printSummary(summary)
+	printDashboard(stats)
 
 	headers := []string{"Date", "Cmds", "Input", "Output", "Saved", "Savings"}
 	var rows [][]string
