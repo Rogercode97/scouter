@@ -62,7 +62,7 @@ func TestRippleIntegration_FullFlow(t *testing.T) {
 		},
 	}
 
-	ie := engine.NewImpactEngine(ms, nil)
+	ie := engine.NewImpactEngine(ms, nil, nil)
 	mt := &mockTruthTransformer{
 		transformFunc: func(file, symbol, transformation string) (string, error) {
 			return "transformed " + symbol + " in " + file, nil

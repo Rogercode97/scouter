@@ -59,7 +59,7 @@ func UseB(b B) {
 
 	// Index and Resolve
 	analyzer := engine.NewAnalysisEngine(st)
-	te := engine.NewTruthEngine(st, analyzer, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	te := engine.NewTruthEngine(st, nil, analyzer, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err := te.Index(ctx, filePath); err != nil {
 		t.Fatalf("failed to index: %v", err)
 	}
@@ -82,7 +82,7 @@ func UseB(b B) {
 
 	lspMgr := lsp.NewManager()
 	defer lspMgr.Close()
-	impact := engine.NewImpactEngine(st, lspMgr)
+	impact := engine.NewImpactEngine(st, lspMgr, nil)
 	strategy := engine.NewBFSPropagationStrategy(st, impact)
 
 	fq := func(name string) string { return pkgPath + "." + name }

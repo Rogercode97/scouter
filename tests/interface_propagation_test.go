@@ -54,7 +54,7 @@ func Welcome(g Greeter) {
 
 	// 2. Index and Resolve
 	analyzer := engine.NewAnalysisEngine(st)
-	te := engine.NewTruthEngine(st, analyzer, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	te := engine.NewTruthEngine(st, nil, analyzer, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err := te.Index(ctx, filePath); err != nil {
 		t.Fatalf("failed to index: %v", err)
 	}
@@ -78,7 +78,7 @@ func Welcome(g Greeter) {
 
 	lspMgr := lsp.NewManager()
 	defer lspMgr.Close()
-	impact := engine.NewImpactEngine(st, lspMgr)
+	impact := engine.NewImpactEngine(st, lspMgr, nil)
 	strategy := engine.NewBFSPropagationStrategy(st, impact)
 
 	// FQN helpers
