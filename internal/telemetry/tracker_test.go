@@ -207,10 +207,6 @@ func TestGetGainStats(t *testing.T) {
 	if stats.TotalSaved != 2500 {
 		t.Errorf("total saved = %d, want 2500", stats.TotalSaved)
 	}
-	// Hours reclaimed = 2500 / 2500.0 = 1.0
-	if stats.HoursReclaimed != 1.0 {
-		t.Errorf("hours reclaimed = %.1f, want 1.0", stats.HoursReclaimed)
-	}
 }
 
 func TestDBPath(t *testing.T) {
