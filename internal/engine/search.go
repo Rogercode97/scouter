@@ -3,19 +3,22 @@ package engine
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sync"
 
+	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
 )
 
 // SearchEngine unifies AST structural search with Engram historical insights.
 type SearchEngine struct {
-	store store.Repository
+	store  store.Repository
+	memory memory.MemoryProvider
 }
 
-func NewSearchEngine(s store.Repository) *SearchEngine {
-	return &SearchEngine{store: s}
+func NewSearchEngine(s store.Repository, m memory.MemoryProvider) *SearchEngine {
+	return &SearchEngine{store: s, memory: m}
 }
 
 // HybridSearch executes parallel lookups in the AST and Engram databases.
@@ -47,7 +50,11 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 
 	go func() {
 		defer wg.Done()
-		res, err := e.store.GetMemoryInsights(ctx, query)
+		if e.memory == nil {
+			insChan <- insRes{nil, nil}
+			return
+		}
+		res, err := e.memory.SearchInsights(ctx, query, 5)
 		insChan <- insRes{res, err}
 	}()
 
@@ -69,14 +76,36 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 	var symbols []types.Symbol
 	for _, s := range sRes.symbols {
 		symbols = append(symbols, types.Symbol{
-			Name:      s.Name,
-			Type:      s.Type,
-			Signature: s.Signature,
-			Doc:       s.Doc,
-			Path:      s.Path,
-			StartLine: s.StartLine,
-			EndLine:   s.EndLine,
+			Name:         s.Name,
+			Type:         s.Type,
+			PackagePath:  s.PackagePath,
+			ReceiverType: s.ReceiverType,
+			Signature:    s.Signature,
+			Doc:          s.Doc,
+			Path:         s.Path,
+			StartLine:    s.StartLine,
+			EndLine:      s.EndLine,
 		})
+	}
+
+	// [Divine Correlation] Link AST symbols with Memory Insights
+	for i := range symbols {
+		for j := range iRes.insights {
+			symName := symbols[i].Name
+			insight := &iRes.insights[j]
+			
+			pattern := `(?i)\b` + regexp.QuoteMeta(symName) + `\b`
+			matchedTitle, _ := regexp.MatchString(pattern, insight.Title)
+			matchedWhy, _ := regexp.MatchString(pattern, insight.Why)
+			matchedLearned, _ := regexp.MatchString(pattern, insight.Learned)
+
+			// Check if symbol name appears in title, why, or learned sections
+			if matchedTitle || matchedWhy || matchedLearned {
+				
+				symbols[i].LinkedInsights = append(symbols[i].LinkedInsights, insight.ID)
+				insight.LinkedSymbols = append(insight.LinkedSymbols, symName)
+			}
+		}
 	}
 
 	return &types.HybridSearchResult{

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/pmezard/go-difflib/difflib"
+	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
@@ -26,6 +27,7 @@ type Messenger interface {
 // between different specialized engines.
 type TruthEngine struct {
 	store      store.Repository
+	memory     memory.MemoryProvider
 	analyzer   *AnalysisEngine
 	lspMgr     *lsp.Manager
 	impact     *ImpactEngine
@@ -44,6 +46,7 @@ type TruthEngine struct {
 // NewTruthEngine initializes a new TruthEngine with its dependencies.
 func NewTruthEngine(
 	store store.Repository,
+	memory memory.MemoryProvider,
 	analyzer *AnalysisEngine,
 	lspMgr *lsp.Manager,
 	impact *ImpactEngine,
@@ -59,6 +62,7 @@ func NewTruthEngine(
 ) *TruthEngine {
 	return &TruthEngine{
 		store:      store,
+		memory:     memory,
 		analyzer:   analyzer,
 		lspMgr:     lspMgr,
 		impact:     impact,

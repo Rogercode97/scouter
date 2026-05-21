@@ -33,6 +33,7 @@ func TestArchitecturalAuditIntegration(t *testing.T) {
 	// Setup TruthEngine with RuleEngine
 	engine := NewTruthEngine(
 		repo,
+		nil, // memory
 		nil, // analyzer
 		nil, // lsp
 		nil, // impact

@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"sync"
 
 	"github.com/Rogercode97/scouter/internal/adapters/engram"
@@ -50,20 +48,26 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 		logger:   logger,
 	}
 
-		// [Sovereignty Upgrade] Initialize Engines
+	// [Dream Ascension] Initialize Memory Service
+	engramPath, _ := engram.DiscoverDBPath()
+	memoryProvider := engram.NewSQLiteMemoryProvider(engramPath)
+	repo := engram.NewEngramRepository(false)
+
+	// [Sovereignty Upgrade] Initialize Engines
 	ledger := engine.NewLedger() // Staging Ledger with persistence
-	impact := engine.NewImpactEngine(st, s.lspMgr)
+	impact := engine.NewImpactEngine(st, s.lspMgr, memoryProvider)
 	analyzer := engine.NewAnalysisEngine(st)
 	ripple := engine.NewRippleEngine(st, nil, impact)
 	ripple.Validators = append(ripple.Validators, engine.NewLSPValidator(analyzer.ProjectRoot))
 	healer := engine.NewHealerEngine(st, s.lspMgr, analyzer, impact)
-	search := engine.NewSearchEngine(st)
+	search := engine.NewSearchEngine(st, memoryProvider)
 	compact := engine.NewCompactionEngine(st, ledger)
 	diagnostic := engine.NewDiagnosticEngine(st, analyzer, impact, healer, s.lspMgr)
 	sdd := engine.NewSDDEngine(".")
 
 	s.engine = engine.NewTruthEngine(
 		st,
+		memoryProvider,
 		analyzer,
 		s.lspMgr,
 		impact,
@@ -78,11 +82,6 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 		nil, // Messenger will be injected per-request if needed
 	)
 
-	// [Dream Ascension] Initialize Memory Service
-	home, _ := os.UserHomeDir()
-	dbPath := filepath.Join(home, ".config", "scouter", "scouter.db")
-	memoryProvider := engram.NewSQLiteMemoryProvider(dbPath)
-	repo := engram.NewEngramRepository(false)
 	s.appService = memory.NewAppService(memoryProvider, nil, repo)
 
 	s.registerCoreTools()

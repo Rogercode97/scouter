@@ -50,7 +50,7 @@ func TestHealerEngine_Fix_DeepRCA(t *testing.T) {
 	})
 
 	analyzer := NewAnalysisEngine(s)
-	impact := NewImpactEngine(s, nil)
+	impact := NewImpactEngine(s, nil, nil)
 	h := NewHealerEngine(s, mgr, analyzer, impact)
 	
 	// Mock the LLM request
@@ -111,7 +111,7 @@ func TestHealerEngine_Shinigami(t *testing.T) {
 
 	mgr := lsp.NewManager()
 	analyzer := NewAnalysisEngine(s)
-	impact := NewImpactEngine(s, nil)
+	impact := NewImpactEngine(s, nil, nil)
 	h := NewHealerEngine(s, mgr, analyzer, impact)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
@@ -153,7 +153,7 @@ func TestHealerEngine_Cancellation(t *testing.T) {
 	defer s.Close()
 
 	analyzer := NewAnalysisEngine(s)
-	impact := NewImpactEngine(s, nil)
+	impact := NewImpactEngine(s, nil, nil)
 	h := NewHealerEngine(s, nil, analyzer, impact)
 
 	var wg sync.WaitGroup
@@ -195,7 +195,7 @@ func TestHealerEngine_AllFail(t *testing.T) {
 	defer s.Close()
 
 	analyzer := NewAnalysisEngine(s)
-	impact := NewImpactEngine(s, nil)
+	impact := NewImpactEngine(s, nil, nil)
 	h := NewHealerEngine(s, nil, analyzer, impact)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
@@ -240,7 +240,7 @@ func TestHealerEngine_Imports(t *testing.T) {
 	defer s.Close()
 
 	analyzer := NewAnalysisEngine(s)
-	impact := NewImpactEngine(s, nil)
+	impact := NewImpactEngine(s, nil, nil)
 	h := NewHealerEngine(s, nil, analyzer, impact)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
@@ -290,7 +290,7 @@ func TestHealerEngine_Fix_IntegrityWarning(t *testing.T) {
 	defer s.Close()
 
 	analyzer := NewAnalysisEngine(s)
-	impact := NewImpactEngine(s, nil)
+	impact := NewImpactEngine(s, nil, nil)
 	h := NewHealerEngine(s, nil, analyzer, impact)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {

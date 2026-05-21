@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"iter"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 
@@ -118,7 +116,6 @@ type Repository interface {
 	SaveTestResult(ctx context.Context, res *types.TestResult) error
 	GetHealthReport(ctx context.Context, symbol string, failuresOnly bool) iter.Seq2[types.TestResult, error]
 	ClearTestResults(ctx context.Context) error
-	GetMemoryInsights(ctx context.Context, query string) ([]types.MemoryInsight, error)
 	SaveViolation(ctx context.Context, v *types.ASTRuleMatch) error
 	GetViolationsByFile(ctx context.Context, path string) ([]Violation, error)
 	WithTransaction(ctx context.Context, fn func(context.Context, Repository) error) error
@@ -158,7 +155,10 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 		return nil, fmt.Errorf("failed to commit migration: %w", err)
 	}
 
-	s := &Store{db: db}
+	s := &Store{
+		db: db,
+	}
+
 	// Go 1.25 native cleanup
 	runtime.AddCleanup(s, func(db *sql.DB) {
 		_ = db.Close()
@@ -1144,60 +1144,3 @@ func (s *Store) WithTransaction(ctx context.Context, fn func(context.Context, Re
 }
 
 func (s *Store) Close() error { return s.db.Close() }
-
-func (s *Store) GetMemoryInsights(ctx context.Context, query string) ([]types.MemoryInsight, error) {
-	project := utils.GetRepoName(ctx)
-	if project == "" {
-		return nil, nil
-	}
-
-	cmd := exec.CommandContext(ctx, "engram", "search", "--project", project, "--limit", "5", "--", query)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("engram search failed: %w", err)
-	}
-
-	return parseEngramInsights(string(out)), nil
-}
-
-func parseEngramInsights(input string) []types.MemoryInsight {
-	var insights []types.MemoryInsight
-	lines := strings.Split(input, "\n")
-
-	headerRegex := regexp.MustCompile(`^\[\d+\] #(\d+) \((\w+)\) (?:—|-) (.+)$`)
-	whyRegex := regexp.MustCompile(`(?i)\*\*Why\*\*: (.+)$`)
-	learnedRegex := regexp.MustCompile(`(?i)\*\*Learned\*\*: (.+)$`)
-
-	var current *types.MemoryInsight
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if matches := headerRegex.FindStringSubmatch(trimmed); matches != nil {
-			if current != nil {
-				insights = append(insights, *current)
-			}
-			current = &types.MemoryInsight{
-				ID:    matches[1],
-				Type:  matches[2],
-				Title: matches[3],
-			}
-			continue
-		}
-
-		if current == nil {
-			continue
-		}
-
-		if matches := whyRegex.FindStringSubmatch(trimmed); matches != nil {
-			current.Why = matches[1]
-		} else if matches := learnedRegex.FindStringSubmatch(trimmed); matches != nil {
-			current.Learned = matches[1]
-		}
-	}
-
-	if current != nil {
-		insights = append(insights, *current)
-	}
-
-	return insights
-}

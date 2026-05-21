@@ -12,6 +12,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// GainStats holds high-level metrics for the Gain dashboard.
+type GainStats struct {
+	TotalSaved     int
+	AvgSavings     float64
+	TotalCommands  int
+	HoursReclaimed float64
+}
+
 // RunGain executes the gain (token savings report) command.
 func RunGain(tracker *telemetry.Tracker, args []string) error {
 	if tracker == nil {
@@ -65,13 +73,19 @@ func RunGain(tracker *telemetry.Tracker, args []string) error {
 	}
 
 	ctx := context.Background()
-	stats, err := tracker.GetGainStats(ctx)
+	summary, err := tracker.GetSummary(ctx)
 	if err != nil {
-		return fmt.Errorf("get gain stats: %w", err)
+		return fmt.Errorf("get summary: %w", err)
+	}
+
+	stats := &GainStats{
+		TotalSaved:     summary.TotalSaved,
+		AvgSavings:     summary.AvgSavings,
+		TotalCommands:  summary.TotalCommands,
+		HoursReclaimed: float64(summary.TotalSaved) / 1000.0,
 	}
 
 	if showJSON {
-		summary, _ := tracker.GetSummary(ctx)
 		return exportJSON(summary, tracker, days)
 	}
 	if showCSV {
@@ -119,7 +133,7 @@ func calculateDensity(avgSavings float64) float64 {
 	return density
 }
 
-func printDashboard(s *telemetry.GainStats) {
+func printDashboard(s *GainStats) {
 	tty := IsTerminal()
 	density := calculateDensity(s.AvgSavings)
 
@@ -128,6 +142,7 @@ func printDashboard(s *telemetry.GainStats) {
 		fmt.Println("  " + FormatSeparator(30))
 		fmt.Printf("  %-20s  %d\n", "Commands filtered", s.TotalCommands)
 		fmt.Printf("  %-20s  %s\n", "Tokens purged", utils.FormatTokens(s.TotalSaved))
+		fmt.Printf("  %-20s  %.1f hours\n", "Hours reclaimed", s.HoursReclaimed)
 		fmt.Printf("  %-20s  %.1f%%\n", "Compression", s.AvgSavings)
 		fmt.Printf("  %-20s  %.1fx\n", "Context density", density)
 		fmt.Println()
@@ -240,7 +255,7 @@ func showSparkline(tracker *telemetry.Tracker) {
 	fmt.Println()
 }
 
-func showDailyReport(tracker *telemetry.Tracker, days int, stats *telemetry.GainStats) error {
+func showDailyReport(tracker *telemetry.Tracker, days int, stats *GainStats) error {
 	daily, err := tracker.GetDaily(context.Background(), days)
 	if err != nil {
 		return err

@@ -1,6 +1,10 @@
 package memory
 
-import "context"
+import (
+	"context"
+
+	"github.com/Rogercode97/scouter/internal/types"
+)
 
 /**
  * ⚔️ HAKAISHIN DOMAIN: Observations (WAVE 7)
@@ -45,6 +49,7 @@ type Summary struct {
 type MemoryProvider interface {
 	GetRecentObservations(ctx context.Context, project string, hours int) ([]Observation, error)
 	SaveObservation(ctx context.Context, project string, memory DistilledMemory) error
+	SearchInsights(ctx context.Context, query string, limit int) ([]types.MemoryInsight, error)
 }
 
 /**
@@ -62,4 +67,12 @@ type Distiller interface {
  */
 type SummaryRepository interface {
 	SaveSummary(ctx context.Context, project string, summary Summary) error
+}
+
+/**
+ * ⚔️ HAKAISHIN DOMAIN: Symbol Searcher Interface
+ * Used by providers to correlate memory with structural data.
+ */
+type SymbolSearcher interface {
+	SearchSymbols(ctx context.Context, query string, symType string, limit, offset int) ([]types.Symbol, error)
 }

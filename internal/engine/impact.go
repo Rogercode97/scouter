@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
@@ -26,12 +27,14 @@ var engramIDRegex = regexp.MustCompile(`\[\d+\] #\d+`)
 type ImpactEngine struct {
 	store      store.Repository
 	LSPManager *lsp.Manager
+	memory     memory.MemoryProvider
 }
 
-func NewImpactEngine(s store.Repository, lm *lsp.Manager) *ImpactEngine {
+func NewImpactEngine(s store.Repository, lm *lsp.Manager, mem memory.MemoryProvider) *ImpactEngine {
 	return &ImpactEngine{
 		store:      s,
 		LSPManager: lm,
+		memory:     mem,
 	}
 }
 
@@ -133,21 +136,27 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 }
 
 func (e *ImpactEngine) getHistoricalRisk(ctx context.Context, symbol string, path string, symbolID string) int {
-	project := utils.GetRepoName(ctx)
-	if project == "" { return 0 }
 	topicKey := "scouter/risk/" + symbolID
 	relPath := path
 	if cwd, err := os.Getwd(); err == nil {
-		if rel, err := filepath.Rel(cwd, path); err == nil { relPath = rel }
+		if rel, err := filepath.Rel(cwd, path); err == nil {
+			relPath = rel
+		}
 	}
 	queries := []string{symbol, relPath, topicKey}
 	uniqueIDs := make(map[string]bool)
 	for _, q := range queries {
-		cmd := exec.CommandContext(ctx, "engram", "search", "--type", "bugfix", "--project", project, "--limit", "10", "--", q)
-		out, err := cmd.Output()
+		if e.memory == nil {
+			continue
+		}
+		insights, err := e.memory.SearchInsights(ctx, q, 10)
 		if err == nil {
-			matches := engramIDRegex.FindAllString(string(out), -1)
-			for _, m := range matches { uniqueIDs[m] = true }
+			for _, insight := range insights {
+				// We only care about bugfixes for historical risk
+				if strings.EqualFold(insight.Type, "bugfix") {
+					uniqueIDs[insight.ID] = true
+				}
+			}
 		}
 	}
 	return len(uniqueIDs)

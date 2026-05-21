@@ -80,11 +80,12 @@ type TestEvent struct {
 }
 
 type MemoryInsight struct {
-	ID      string `json:"id"`
-	Type    string `json:"type"`
-	Title   string `json:"title"`
-	Learned string `json:"learned"`
-	Why     string `json:"why"`
+	ID            string   `json:"id"`
+	Type          string   `json:"type"`
+	Title         string   `json:"title"`
+	Learned       string   `json:"learned"`
+	Why           string   `json:"why"`
+	LinkedSymbols []string `json:"linked_symbols,omitempty"`
 }
 
 type HybridSearchResult struct {
@@ -98,15 +99,16 @@ type TestTarget struct {
 }
 
 type Symbol struct {
-	Name         string `json:"name"`
-	Type         string `json:"type"`
-	PackagePath  string `json:"package_path"`  // Fully qualified package path
-	ReceiverType string `json:"receiver_type"` // pointer, value, or empty
-	Signature    string `json:"signature,omitempty"`
-	Doc          string `json:"doc"`
-	Path         string `json:"path"`
-	StartLine    int    `json:"start_line"`
-	EndLine      int    `json:"end_line"`
+	Name           string   `json:"name"`
+	Type           string   `json:"type"`
+	PackagePath    string   `json:"package_path"`  // Fully qualified package path
+	ReceiverType   string   `json:"receiver_type"` // pointer, value, or empty
+	Signature      string   `json:"signature,omitempty"`
+	Doc            string   `json:"doc"`
+	Path           string   `json:"path"`
+	StartLine      int      `json:"start_line"`
+	EndLine        int      `json:"end_line"`
+	LinkedInsights []string `json:"linked_insights,omitempty"`
 }
 
 type CompactionResult struct {

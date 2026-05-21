@@ -100,7 +100,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		defer lspMgr.Close()
 		
 		analyzer := engine.NewAnalysisEngine(db)
-		te := engine.NewTruthEngine(db, analyzer, lspMgr, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		te := engine.NewTruthEngine(db, nil, analyzer, lspMgr, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 		
 		if err := te.Index(ctx, path); err != nil {
 			fmt.Fprintf(stderr, "index error: %v\n", err)
@@ -144,7 +144,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			diff = string(out)
 		}
 
-		ie := engine.NewImpactEngine(db, nil)
+		ie := engine.NewImpactEngine(db, nil, nil)
 		results, err := ie.PredictTests(ctx, diff)
 		if err != nil {
 			fmt.Fprintf(stderr, "prediction error: %v\n", err)

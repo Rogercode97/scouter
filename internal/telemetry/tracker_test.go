@@ -189,23 +189,23 @@ func TestGetMonthly(t *testing.T) {
 	}
 }
 
-func TestGetGainStats(t *testing.T) {
+func TestGetSummary(t *testing.T) {
 	tracker := newTestTracker(t)
 
 	_ = tracker.Track(context.Background(), "git log", "scouter git log", 1000, 200, 50)
 	_ = tracker.Track(context.Background(), "go test", "scouter go test", 2000, 300, 100)
 
-	stats, err := tracker.GetGainStats(context.Background())
+	summary, err := tracker.GetSummary(context.Background())
 	if err != nil {
-		t.Fatalf("gain stats: %v", err)
+		t.Fatalf("summary: %v", err)
 	}
 
-	if stats.TotalCommands != 2 {
-		t.Errorf("total commands = %d, want 2", stats.TotalCommands)
+	if summary.TotalCommands != 2 {
+		t.Errorf("total commands = %d, want 2", summary.TotalCommands)
 	}
 	// Total saved = (1000-200) + (2000-300) = 800 + 1700 = 2500
-	if stats.TotalSaved != 2500 {
-		t.Errorf("total saved = %d, want 2500", stats.TotalSaved)
+	if summary.TotalSaved != 2500 {
+		t.Errorf("total saved = %d, want 2500", summary.TotalSaved)
 	}
 }
 

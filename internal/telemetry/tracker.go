@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"time"
 )
@@ -61,11 +62,13 @@ func (t *Tracker) ensureOpen(ctx context.Context) error {
 			return
 		}
 
-		db, err := sql.Open("sqlite", t.dbPath)
+		dsn := t.dbPath + "?_pragma=busy_timeout(5000)"
+		db, err := sql.Open("sqlite", dsn)
 		if err != nil {
 			t.initErr = fmt.Errorf("open db: %w", err)
 			return
 		}
+		db.SetMaxOpenConns(1)
 
 		if _, err := db.ExecContext(ctx, createTableSQL); err != nil {
 			_ = db.Close()
@@ -78,11 +81,31 @@ func (t *Tracker) ensureOpen(ctx context.Context) error {
 	return t.initErr
 }
 
+func redactSecrets(cmd string) string {
+	// 1. Redact common flags (added -p, -u)
+	reFlags := regexp.MustCompile(`(?i)(--?(?:token|pass(?:word)?|p|api-?key|secret|auth|key|credential|u)[= ])(\S+)`)
+	cmd = reFlags.ReplaceAllString(cmd, "${1}[REDACTED]")
+
+	// 2. Redact inline environment variables
+	reEnv := regexp.MustCompile(`(?i)\b([a-z0-9_]*(?:token|api_?key|secret|pass(?:word)?|credential|auth)[a-z0-9_]*=)([^\s]+)`)
+	cmd = reEnv.ReplaceAllString(cmd, "${1}[REDACTED]")
+
+	// 3. Redact credentials embedded in URIs
+	reURI := regexp.MustCompile(`([a-zA-Z]+://[^:\s]+:)([^@\s]+)(@[^\s]+)`)
+	cmd = reURI.ReplaceAllString(cmd, "${1}[REDACTED]${3}")
+
+	return cmd
+}
+
 // Track records a filtered command execution.
 func (t *Tracker) Track(ctx context.Context, originalCmd, scouterCmd string, inputTokens, outputTokens int, execTimeMs int64) error {
 	if err := t.ensureOpen(ctx); err != nil {
 		return fmt.Errorf("track: %w", err)
 	}
+
+	// Sanitize commands to redact potential secrets
+	originalCmd = redactSecrets(originalCmd)
+	scouterCmd = redactSecrets(scouterCmd)
 
 	saved := inputTokens - outputTokens
 	pct := 0.0
@@ -127,20 +150,6 @@ func (t *Tracker) GetSummary(ctx context.Context) (*Summary, error) {
 		return nil, fmt.Errorf("summary: %w", err)
 	}
 	return &s, nil
-}
-
-// GetGainStats returns aggregate metrics for the dashboard UI.
-func (t *Tracker) GetGainStats(ctx context.Context) (*GainStats, error) {
-	summary, err := t.GetSummary(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("gain stats: %w", err)
-	}
-
-	return &GainStats{
-		TotalSaved:     summary.TotalSaved,
-		AvgSavings:     summary.AvgSavings,
-		TotalCommands:  summary.TotalCommands,
-	}, nil
 }
 
 // GetDaily returns daily stats for the last N days.
