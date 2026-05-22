@@ -12,14 +12,12 @@ import (
 type AppService struct {
 	memory    MemoryProvider
 	distiller Distiller
-	repo      SummaryRepository
 }
 
-func NewAppService(memory MemoryProvider, distiller Distiller, repo SummaryRepository) *AppService {
+func NewAppService(memory MemoryProvider, distiller Distiller) *AppService {
 	return &AppService{
 		memory:    memory,
 		distiller: distiller,
-		repo:      repo,
 	}
 }
 
@@ -49,7 +47,7 @@ func (s *AppService) DistillAndSave(ctx context.Context, project string, hours i
 	}
 
 	// (3) Persist
-	err = s.repo.SaveSummary(ctx, project, summary)
+	err = s.memory.SaveSummary(ctx, project, summary)
 	if err != nil {
 		return fmt.Errorf("[HAKAI] Failed to save distilled summary: %w", err)
 	}

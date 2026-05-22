@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -165,27 +164,19 @@ func (s *Server) handleSaveAnchor(ctx context.Context, req *mcp.CallToolRequest,
 	title := fmt.Sprintf("[ANCHOR] Session State %s", now)
 	engramContent := fmt.Sprintf("**What**: Latent session state compaction.\n**Why**: Context window optimization.\n**Where**: Project: %s\n**Learned**: %s", project, args.Summary)
 
-	// Invoke Engram CLI autonomously
-	cmd := exec.CommandContext(ctx, "engram", "save", "--title", title, "--type", "session_summary", "--project", project, "--", engramContent)
-	if err := cmd.Run(); err != nil {
-		s.logger.Warn("Failed to persist anchor to Engram, using local fallback", "error", err)
-
-		scouterDir := ".scouter"
-		os.MkdirAll(scouterDir, 0755)
-		anchorPath := filepath.Join(scouterDir, "anchor.md")
-		header := fmt.Sprintf("# 🏛️ SCOUTER ANCHOR (Local Fallback)\n*Compacted on: %s*\n\n", now)
-		os.WriteFile(anchorPath, []byte(header+args.Summary), 0644)
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: "⚠️ Engram save failed. Anchor saved to local fallback: " + anchorPath},
-			},
-		}, nil, nil
+	// [Sinergia Upgrade] Direct SQLite Persistence
+	err := s.engine.MemoryProvider().SaveObservation(ctx, project, memory.DistilledMemory{
+		Type:    "session_summary",
+		Title:   title,
+		Content: engramContent,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to save anchor: %w", err)
 	}
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: "✅ Latent memory anchored in Engram for project: " + project},
+			&mcp.TextContent{Text: fmt.Sprintf("Session state anchored successfully in Engram: %s", title)},
 		},
 	}, nil, nil
-}
+	}

@@ -79,6 +79,10 @@ func NewTruthEngine(
 	}
 }
 
+func (e *TruthEngine) MemoryProvider() memory.MemoryProvider {
+	return e.memory
+}
+
 // Index parses, hashes and persists a file or directory to the store.
 func (e *TruthEngine) Index(ctx context.Context, path string) error {
 	if e.store == nil {

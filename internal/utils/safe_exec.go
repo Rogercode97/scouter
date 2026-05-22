@@ -16,7 +16,6 @@ func SafeCommand(ctx context.Context, name string, args ...string) (*exec.Cmd, e
 		"go":       true,
 		"rtk":      true,
 		"sg":       true,
-		"engram":   true,
 		"scouter":  true,
 		"sh":       true,
 		"bash":     true,

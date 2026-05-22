@@ -3,7 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/Rogercode97/scouter/internal/adapters/llm"
@@ -100,16 +100,36 @@ func (s *Server) handleKnowledgeGraph(ctx context.Context, req *mcp.CallToolRequ
 		return nil, nil, fmt.Errorf("missing symbolName")
 	}
 
-	// Invoke Engram CLI search
-	cmd := exec.CommandContext(ctx, "engram", "search", "--query", args.SymbolName)
-	out, err := cmd.CombinedOutput()
+	// [Sinergia Upgrade] Direct SQLite Search
+	insights, err := s.engine.MemoryProvider().SearchInsights(ctx, args.SymbolName, 5)
 	if err != nil {
-		return nil, nil, fmt.Errorf("engram search failed: %w\n%s", err, string(out))
+		return nil, nil, fmt.Errorf("knowledge graph query failed: %w", err)
+	}
+
+	if len(insights) == 0 {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: fmt.Sprintf("No relevant memories found for symbol: %s", args.SymbolName)},
+			},
+		}, nil, nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("### Knowledge Graph: %s\n\n", args.SymbolName))
+	for _, in := range insights {
+		sb.WriteString(fmt.Sprintf("[%s] #%s: %s\n", in.Type, in.ID, in.Title))
+		if in.Why != "" {
+			sb.WriteString(fmt.Sprintf("- **Why**: %s\n", in.Why))
+		}
+		if in.Learned != "" {
+			sb.WriteString(fmt.Sprintf("- **Learned**: %s\n", in.Learned))
+		}
+		sb.WriteString("\n")
 	}
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(out)},
+			&mcp.TextContent{Text: sb.String()},
 		},
 	}, nil, nil
 }

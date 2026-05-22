@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"strings"
 	"sync"
 
 	"github.com/Rogercode97/scouter/internal/adapters/engram"
@@ -51,7 +52,6 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 	// [Dream Ascension] Initialize Memory Service
 	engramPath, _ := engram.DiscoverDBPath()
 	memoryProvider := engram.NewSQLiteMemoryProvider(engramPath)
-	repo := engram.NewEngramRepository(false)
 
 	// [Sovereignty Upgrade] Initialize Engines
 	ledger := engine.NewLedger() // Staging Ledger with persistence
@@ -82,7 +82,7 @@ func NewServer(st store.Repository, logger *slog.Logger) *Server {
 		nil, // Messenger will be injected per-request if needed
 	)
 
-	s.appService = memory.NewAppService(memoryProvider, nil, repo)
+	s.appService = memory.NewAppService(memoryProvider, nil)
 
 	s.registerCoreTools()
 	s.registerResources()
@@ -179,13 +179,18 @@ func (m *healerMessenger) Ask(ctx context.Context, systemPrompt, userPrompt stri
 	return txt.Text, nil
 }
 
-func fetchEngramContext(query string) string {
-	cmd := execCommand("engram", "search", query, "--limit", "3")
-	out, err := cmd.CombinedOutput()
+func (s *Server) fetchEngramContext(ctx context.Context, query string) string {
+	insights, err := s.engine.MemoryProvider().SearchInsights(ctx, query, 3)
 	if err != nil {
 		return ""
 	}
-	res := string(out)
+
+	var sb strings.Builder
+	for _, in := range insights {
+		sb.WriteString(fmt.Sprintf("[%s] %s: %s\n", in.Type, in.Title, in.Why))
+	}
+
+	res := sb.String()
 	if len(res) > 1000 {
 		return res[:1000] + "\n...[truncated]"
 	}

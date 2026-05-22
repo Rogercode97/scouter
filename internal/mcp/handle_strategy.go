@@ -28,7 +28,7 @@ type ExploreSDDParams struct {
 // Handlers
 
 func (s *Server) handleJudge(ctx context.Context, req *mcp.CallToolRequest, args JudgeParams) (*mcp.CallToolResult, any, error) {
-	engramCtx := fetchEngramContext("architecture decisions ADR " + args.Proposal)
+	engramCtx := s.fetchEngramContext(ctx, "architecture decisions ADR "+args.Proposal)
 
 	prompt := fmt.Sprintf("Architectural Proposal: %s\n\nGit Diff:\n%s\n\nHistorical Context:\n%s", args.Proposal, args.Diff, engramCtx)
 

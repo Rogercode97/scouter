@@ -29,6 +29,7 @@ type Message struct {
  */
 type DistilledMemory struct {
 	Type    string `json:"type"` // architecture, bugfix, pattern
+	Topic   string `json:"topic,omitempty"`
 	Title   string `json:"title"`
 	Content string `json:"content"`
 }
@@ -50,6 +51,7 @@ type MemoryProvider interface {
 	GetRecentObservations(ctx context.Context, project string, hours int) ([]Observation, error)
 	SaveObservation(ctx context.Context, project string, memory DistilledMemory) error
 	SearchInsights(ctx context.Context, query string, limit int) ([]types.MemoryInsight, error)
+	SaveSummary(ctx context.Context, project string, summary Summary) error
 }
 
 /**
@@ -59,14 +61,6 @@ type MemoryProvider interface {
 type Distiller interface {
 	Distill(ctx context.Context, logs []Observation) (Summary, error)
 	DistillTranscript(ctx context.Context, transcript []Message) ([]DistilledMemory, error)
-}
-
-/**
- * ⚔️ HAKAISHIN DOMAIN: Repository Interface
- * For saving the distilled summary back into the persistent system.
- */
-type SummaryRepository interface {
-	SaveSummary(ctx context.Context, project string, summary Summary) error
 }
 
 /**

@@ -49,10 +49,28 @@ func (p *SQLiteMemoryProvider) WithSymbolSearcher(fn func(ctx context.Context, q
 	return p
 }
 
-func (p *SQLiteMemoryProvider) GetRecentObservations(ctx context.Context, project string, hours int) ([]memory.Observation, error) {
-	// Open in read-only mode for safety
-	dsn := fmt.Sprintf("file:%s?mode=ro", p.dbPath)
+func (p *SQLiteMemoryProvider) openDB(ctx context.Context, readOnly bool) (*sql.DB, error) {
+	dsn := p.dbPath
+	if readOnly {
+		dsn = fmt.Sprintf("file:%s?mode=ro&_pragma=busy_timeout(5000)", p.dbPath)
+	} else {
+		dsn = fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)", p.dbPath)
+	}
+
 	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	if !readOnly {
+		db.SetMaxOpenConns(1) // Single writer pattern for SQLite
+	}
+
+	return db, nil
+}
+
+func (p *SQLiteMemoryProvider) GetRecentObservations(ctx context.Context, project string, hours int) ([]memory.Observation, error) {
+	db, err := p.openDB(ctx, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database (ro): %w", err)
 	}
@@ -104,11 +122,18 @@ func (p *SQLiteMemoryProvider) GetRecentObservations(ctx context.Context, projec
 }
 
 func (p *SQLiteMemoryProvider) SaveObservation(ctx context.Context, project string, mem memory.DistilledMemory) error {
-	db, err := sql.Open("sqlite", p.dbPath)
+	db, err := p.openDB(ctx, false)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 	defer db.Close()
+
+	// Use BEGIN IMMEDIATE for write transactions to prevent "database is locked" errors in concurrent environments
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
 
 	query := `
 		INSERT INTO observations (project, content, created_at)
@@ -117,20 +142,85 @@ func (p *SQLiteMemoryProvider) SaveObservation(ctx context.Context, project stri
 
 	content := fmt.Sprintf("[%s] %s: %s", mem.Type, mem.Title, mem.Content)
 
-	_, err = db.ExecContext(ctx, query, project, content)
+	_, err = tx.ExecContext(ctx, query, project, content)
 	if err != nil {
 		return fmt.Errorf("failed to insert observation: %w", err)
 	}
 
-	return nil
+	return tx.Commit()
+}
+
+func (p *SQLiteMemoryProvider) SaveSummary(ctx context.Context, project string, summary memory.Summary) error {
+	db, err := p.openDB(ctx, false)
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer db.Close()
+
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	markdown := p.formatSummaryMarkdown(summary)
+	query := `
+		INSERT INTO observations (project, content, created_at)
+		VALUES (?, ?, datetime('now'))
+	`
+
+	_, err = tx.ExecContext(ctx, query, project, markdown)
+	if err != nil {
+		return fmt.Errorf("failed to insert summary observation: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+func (p *SQLiteMemoryProvider) formatSummaryMarkdown(s memory.Summary) string {
+	var sb strings.Builder
+	sb.WriteString("# Engram Distillation Summary\n\n")
+
+	sb.WriteString("## Architectural Decisions\n")
+	if len(s.ADRs) == 0 {
+		sb.WriteString("- No significant architectural decisions detected.\n")
+	} else {
+		for _, adr := range s.ADRs {
+			sb.WriteString("- ")
+			sb.WriteString(adr)
+			sb.WriteString("\n")
+		}
+	}
+
+	sb.WriteString("\n## Root Cause Bug Fixes\n")
+	if len(s.BugFixes) == 0 {
+		sb.WriteString("- No root cause bug fixes identified.\n")
+	} else {
+		for _, bf := range s.BugFixes {
+			sb.WriteString("- ")
+			sb.WriteString(bf)
+			sb.WriteString("\n")
+		}
+	}
+
+	sb.WriteString("\n## Established Patterns\n")
+	if len(s.Patterns) == 0 {
+		sb.WriteString("- No new patterns or conventions found.\n")
+	} else {
+		for _, p := range s.Patterns {
+			sb.WriteString("- ")
+			sb.WriteString(p)
+			sb.WriteString("\n")
+		}
+	}
+
+	return sb.String()
 }
 
 func (p *SQLiteMemoryProvider) SearchInsights(ctx context.Context, query string, limit int) ([]types.MemoryInsight, error) {
 	project := utils.GetRepoName(ctx)
 
-	// Open in read-only mode
-	dsn := fmt.Sprintf("file:%s?mode=ro", p.dbPath)
-	db, err := sql.Open("sqlite", dsn)
+	db, err := p.openDB(ctx, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database (ro): %w", err)
 	}

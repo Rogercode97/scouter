@@ -57,37 +57,3 @@ func fakeExecCommand(command string, args ...string) *exec.Cmd {
 	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
 	return cmd
 }
-
-func TestFetchEngramContext(t *testing.T) {
-	originalExecCommand := execCommand
-	execCommand = fakeExecCommand
-	defer func() { execCommand = originalExecCommand }()
-
-	t.Run("successful search", func(t *testing.T) {
-		res := fetchEngramContext("normal_query")
-		expected := "simulated result for normal_query"
-		if res != expected {
-			t.Errorf("expected %q, got %q", expected, res)
-		}
-	})
-
-	t.Run("command error", func(t *testing.T) {
-		res := fetchEngramContext("error")
-		if res != "" {
-			t.Errorf("expected empty string on error, got %q", res)
-		}
-	})
-
-	t.Run("truncates long output", func(t *testing.T) {
-		res := fetchEngramContext("long")
-		if len(res) <= 1000 {
-			t.Errorf("expected length > 1000, got %d", len(res))
-		}
-		if !strings.HasSuffix(res, "\n...[truncated]") {
-			t.Errorf("expected truncation suffix, got %q", res)
-		}
-		if len(res) != 1000+len("\n...[truncated]") {
-			t.Errorf("expected exactly 1000 chars + suffix, got %d", len(res))
-		}
-	})
-}

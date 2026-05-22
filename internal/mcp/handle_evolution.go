@@ -47,7 +47,7 @@ func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, a
 	if len(searchQuery) > 100 {
 		searchQuery = searchQuery[:100]
 	}
-	engramCtx := fetchEngramContext("bugfix " + searchQuery)
+	engramCtx := s.fetchEngramContext(ctx, "bugfix "+searchQuery)
 
 	// Delegate to TruthEngine
 	res, err := s.engine.Fix(ctx, args.ErrorLog, &healerMessenger{req: req, engramCtx: engramCtx})

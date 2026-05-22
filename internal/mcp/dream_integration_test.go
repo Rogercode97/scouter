@@ -67,8 +67,7 @@ func TestDream_PassiveIntegration(t *testing.T) {
 			{Type: "architecture", Title: "Test Decision", Content: "We decided to use SQLite for tests."},
 		},
 	}
-	repo := engram.NewEngramRepository(true) // Dry run
-	server.appService = memory.NewAppService(memoryProvider, mockDistiller, repo)
+	server.appService = memory.NewAppService(memoryProvider, mockDistiller)
 
 	// 3. Manually trigger PassiveDistill directly
 	// This verifies the integration between AppService and SQLiteMemoryProvider
