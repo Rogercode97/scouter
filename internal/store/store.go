@@ -83,6 +83,8 @@ type Violation struct {
 type Repository interface {
 	GetFileIndex(ctx context.Context, path string) (*FileIndex, error)
 	SaveFileIndex(ctx context.Context, idx *FileIndex) error
+	GetDirectoryHash(ctx context.Context, path string) (string, int64, error)
+	SaveDirectoryHash(ctx context.Context, path string, hash string, mtime int64) error
 	ClearSymbols(ctx context.Context, path string) error
 	SaveSymbol(ctx context.Context, sym *Symbol) error
 	SearchSymbols(ctx context.Context, query string, symType string, limit, offset int) ([]Symbol, error)
@@ -170,6 +172,7 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 func migrate(ctx context.Context, tx *sql.Tx) error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS file_index (path TEXT PRIMARY KEY, mtime INTEGER, hash TEXT, ast_json TEXT, project TEXT);`,
+		`CREATE TABLE IF NOT EXISTS directory_hashes (path TEXT PRIMARY KEY, hash TEXT, mtime INTEGER);`,
 		`CREATE TABLE IF NOT EXISTS symbols (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, package_path TEXT DEFAULT '', receiver_type TEXT DEFAULT '', signature TEXT DEFAULT '', doc TEXT, path TEXT, start_byte INTEGER, end_byte INTEGER, start_line INTEGER, start_col INTEGER, end_line INTEGER, structural_hash TEXT DEFAULT '', indegree INTEGER DEFAULT 0, FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);`,
 		`CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(name, type, signature, doc, path, content='symbols', content_rowid='id');`,
 		`CREATE TRIGGER IF NOT EXISTS symbols_ai AFTER INSERT ON symbols BEGIN INSERT INTO symbols_fts(rowid, name, type, signature, doc, path) VALUES (new.id, new.name, new.type, new.signature, new.doc, new.path); END;`,
@@ -426,17 +429,43 @@ func (s *Store) GetFileIndex(ctx context.Context, p string) (*FileIndex, error) 
 }
 
 func (s *Store) SaveFileIndex(ctx context.Context, idx *FileIndex) error {
-	query := `INSERT INTO file_index (path, mtime, hash, ast_json, project, freshness) 
-              VALUES (?, ?, ?, ?, ?, ?) 
-              ON CONFLICT(path) DO UPDATE SET 
-                mtime=excluded.mtime, 
-                hash=excluded.hash, 
-                ast_json=excluded.ast_json, 
+	query := `INSERT INTO file_index (path, mtime, hash, ast_json, project, freshness)
+              VALUES (?, ?, ?, ?, ?, ?)
+              ON CONFLICT(path) DO UPDATE SET
+                mtime=excluded.mtime,
+                hash=excluded.hash,
+                ast_json=excluded.ast_json,
                 project=excluded.project,
                 freshness=excluded.freshness`
 	_, err := s.exec(ctx, query, idx.Path, idx.Mtime, idx.Hash, idx.ASTJSON, idx.Project, idx.Freshness)
 	if err != nil {
 		return fmt.Errorf("failed to save file index: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) GetDirectoryHash(ctx context.Context, p string) (string, int64, error) {
+	var hash string
+	var mtime int64
+	err := s.queryRow(ctx, "SELECT hash, mtime FROM directory_hashes WHERE path = ?", p).Scan(&hash, &mtime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", 0, nil
+		}
+		return "", 0, fmt.Errorf("failed to get directory hash: %w", err)
+	}
+	return hash, mtime, nil
+}
+
+func (s *Store) SaveDirectoryHash(ctx context.Context, p string, hash string, mtime int64) error {
+	query := `INSERT INTO directory_hashes (path, hash, mtime)
+              VALUES (?, ?, ?)
+              ON CONFLICT(path) DO UPDATE SET
+                hash=excluded.hash,
+                mtime=excluded.mtime`
+	_, err := s.exec(ctx, query, p, hash, mtime)
+	if err != nil {
+		return fmt.Errorf("failed to save directory hash: %w", err)
 	}
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/utils"
@@ -648,5 +649,59 @@ func TestStore_Migration(t *testing.T) {
 	hasRec, _ := hasColumn(ctx, tx, "symbols", "receiver_type")
 	if !hasRec {
 		t.Error("Column 'receiver_type' missing after migration")
+	}
+}
+
+func TestDirectoryHashes(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "scouter.db")
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	// Initial get should be empty
+	hash, mtime, err := s.GetDirectoryHash(ctx, "/test/dir")
+	if err != nil {
+		t.Fatalf("GetDirectoryHash failed: %v", err)
+	}
+	if hash != "" {
+		t.Errorf("Expected empty hash, got %s", hash)
+	}
+
+	// Save hash
+	err = s.SaveDirectoryHash(ctx, "/test/dir", "hash123", 1000)
+	if err != nil {
+		t.Fatalf("SaveDirectoryHash failed: %v", err)
+	}
+
+	// Get hash again
+	hash, mtime, err = s.GetDirectoryHash(ctx, "/test/dir")
+	if err != nil {
+		t.Fatalf("GetDirectoryHash failed: %v", err)
+	}
+	if hash != "hash123" {
+		t.Errorf("Expected hash123, got %s", hash)
+	}
+	if mtime != 1000 {
+		t.Errorf("Expected mtime 1000, got %d", mtime)
+	}
+
+	// Update hash
+	err = s.SaveDirectoryHash(ctx, "/test/dir", "hash456", 2000)
+	if err != nil {
+		t.Fatalf("SaveDirectoryHash failed on update: %v", err)
+	}
+
+	hash, mtime, err = s.GetDirectoryHash(ctx, "/test/dir")
+	if err != nil {
+		t.Fatalf("GetDirectoryHash failed: %v", err)
+	}
+	if hash != "hash456" {
+		t.Errorf("Expected hash456, got %s", hash)
+	}
+	if mtime != 2000 {
+		t.Errorf("Expected mtime 2000, got %d", mtime)
 	}
 }

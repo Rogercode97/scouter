@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/pmezard/go-difflib/difflib"
@@ -14,6 +15,23 @@ import (
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
+)
+
+var (
+	BlockedDirs = map[string]bool{
+		".git":         true,
+		".scouter":     true,
+		"node_modules": true,
+		"vendor":       true,
+	}
+	SupportedExts = map[string]bool{
+		".go":  true,
+		".ts":  true,
+		".tsx": true,
+		".js":  true,
+		".jsx": true,
+		".py":  true,
+	}
 )
 
 // Messenger defines the interface for the TruthEngine to communicate with the user
@@ -100,96 +118,154 @@ func (e *TruthEngine) Index(ctx context.Context, path string) error {
 	}
 
 	if fi.IsDir() {
-		return e.indexDirectory(ctx, validatedPath)
-	}
-
-	return e.indexFile(ctx, validatedPath)
-}
-
-func (e *TruthEngine) indexDirectory(ctx context.Context, dir string) error {
-	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		if info.IsDir() {
-			// Skip blacklisted directories (security check)
-			for _, blocked := range []string{".git", ".scouter", "node_modules", "vendor"} {
-				if info.Name() == blocked {
-					return filepath.SkipDir
-				}
-			}
-			return nil
-		}
-
-		// Only index supported extensions
-		ext := filepath.Ext(path)
-		supported := []string{".go", ".ts", ".tsx", ".js", ".jsx", ".py"}
-		isSupported := false
-		for _, s := range supported {
-			if ext == s {
-				isSupported = true
-				break
-			}
-		}
-
-		if !isSupported {
-			return nil
-		}
-
-		if err := e.indexFile(ctx, path); err != nil {
-			// Log error and continue with other files
-			e.logger.Error("failed to index file", "path", path, "error", err)
-		}
-
-		return nil
-	})
-}
-
-func (e *TruthEngine) indexFile(ctx context.Context, path string) error {
-	itPointers, itCalls, err := StreamSymbols(ctx, path)
-	if err != nil {
+		_, err = e.indexDirectory(ctx, validatedPath)
 		return err
 	}
 
-	hash, _ := utils.CalculateHash(path)
-	fi, _ := os.Stat(path)
-	mtime := int64(0)
-	if fi != nil {
-		mtime = fi.ModTime().UnixNano()
+	_, err = e.indexFile(ctx, validatedPath)
+	return err
+}
+
+func (e *TruthEngine) indexDirectory(ctx context.Context, dir string) (string, error) {
+	storedHash, _, err := e.store.GetDirectoryHash(ctx, dir)
+	// Zero-Latency Oracle: Directory-level bypass
+	// Note: We intentionally don't check mtime here because in many filesystems, 
+	// a directory's mtime doesn't change when a file's content changes.
+	// The Merkle Tree (aggregated child hashes) is our primary source of truth.
+	if err == nil && storedHash != "" {
+		// In a full implementation, we'd need a way to verify if we can trust 
+		// this hash without walking. For now, let's keep it robust.
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", fmt.Errorf("error reading directory: %w", err)
+	}
+
+	var hashes []string
+	for _, entry := range entries {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+
+		path := filepath.Join(dir, entry.Name())
+
+		if entry.IsDir() {
+			if BlockedDirs[entry.Name()] {
+				continue
+			}
+			childHash, err := e.indexDirectory(ctx, path)
+			if err != nil {
+				e.logger.Error("failed to index directory", "path", path, "error", err)
+				continue
+			}
+			if childHash != "" {
+				hashes = append(hashes, childHash)
+			}
+		} else {
+			ext := filepath.Ext(path)
+			if !SupportedExts[ext] {
+				continue
+			}
+			childHash, err := e.indexFile(ctx, path)
+			if err != nil {
+				e.logger.Error("failed to index file", "path", path, "error", err)
+				continue
+			}
+			if childHash != "" {
+				hashes = append(hashes, childHash)
+			}
+		}
+	}
+
+	sort.Strings(hashes)
+	dirHash := utils.StringHash(strings.Join(hashes, ""))
+
+	if storedHash == dirHash {
+		return storedHash, nil // Recursive Bypass
+	}
+
+	err = e.store.SaveDirectoryHash(ctx, dir, dirHash, 0)
+	if err != nil {
+		return "", fmt.Errorf("failed to save directory hash: %w", err)
+	}
+
+	return dirHash, nil
+}
+
+func (e *TruthEngine) indexFile(ctx context.Context, path string) (string, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return "", fmt.Errorf("error stating file: %w", err)
+	}
+	mtime := fi.ModTime().UnixNano()
+
+	existingIdx, err := e.store.GetFileIndex(ctx, path)
+	if err == nil && existingIdx != nil {
+		if existingIdx.Mtime == mtime {
+			return existingIdx.Hash, nil // Truly unchanged, skip everything
+		}
+	}
+
+	hash, err := utils.CalculateHash(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to calculate hash: %w", err)
+	}
+
+	if existingIdx != nil && existingIdx.Hash == hash {
+		existingIdx.Mtime = mtime
+		err = e.store.SaveFileIndex(ctx, existingIdx)
+		if err != nil {
+			return "", fmt.Errorf("failed to update file index: %w", err)
+		}
+		return hash, nil
+	}
+
+	e.logger.Info("indexing file", "path", path)
+
+	itPointers, itCalls, err := StreamSymbols(ctx, path)
+	if err != nil {
+		return "", err
 	}
 
 	err = e.store.WithTransaction(ctx, func(ctx context.Context, tx store.Repository) error {
-		tx.SaveFileIndex(ctx, &store.FileIndex{
+		err := tx.SaveFileIndex(ctx, &store.FileIndex{
 			Path:    path,
 			Mtime:   mtime,
 			Hash:    hash,
 			ASTJSON: "{}",
 			Project: utils.GetRepoName(ctx),
 		})
-		tx.ClearSymbols(ctx, path)
-		tx.ClearCalls(ctx, path)
+		if err != nil {
+			return err
+		}
+
+		err = tx.ClearSymbols(ctx, path)
+		if err != nil {
+			return err
+		}
+		err = tx.ClearCalls(ctx, path)
+		if err != nil {
+			return err
+		}
 
 		for ptr := range itPointers {
 			if err := tx.SaveSymbol(ctx, &store.Symbol{
-				Name:         ptr.Name,
-				Type:         ptr.Type,
-				PackagePath:  ptr.PackagePath,
-				ReceiverType: ptr.ReceiverType,
-				Signature:    ptr.Signature,
-				Doc:          ptr.Doc,
-				Path:         path,
-				StartByte:    ptr.Range.Start,
-				EndByte:      ptr.Range.End,
-				StartLine:    ptr.StartLine,
-				StartCol:     ptr.StartCol,
-				EndLine:      ptr.EndLine,
+				Name:           ptr.Name,
+				Type:           ptr.Type,
+				PackagePath:    ptr.PackagePath,
+				ReceiverType:   ptr.ReceiverType,
+				Signature:      ptr.Signature,
+				Doc:            ptr.Doc,
+				Path:           path,
+				StartByte:      ptr.Range.Start,
+				EndByte:        ptr.Range.End,
+				StartLine:      ptr.StartLine,
+				StartCol:       ptr.StartCol,
+				EndLine:        ptr.EndLine,
+				StructuralHash: ptr.StructuralHash,
 			}); err != nil {
 				return err
 			}
@@ -211,32 +287,40 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to save index for %s: %w", path, err)
+		return "", fmt.Errorf("failed to save index for %s: %w", path, err)
 	}
 
-	// Architectural Audit (Wave 13.5)
 	if e.astRules != nil {
 		violations, err := e.astRules.Audit(ctx, path)
 		if err == nil && len(violations) > 0 {
-			_ = e.store.WithTransaction(ctx, func(ctx context.Context, tx store.Repository) error {
+			err = e.store.WithTransaction(ctx, func(ctx context.Context, tx store.Repository) error {
 				for _, v := range violations {
-					_ = tx.SaveViolation(ctx, &v)
+					if err := tx.SaveViolation(ctx, &v); err != nil {
+						return err
+					}
 				}
 				return nil
 			})
+			if err != nil {
+				return "", fmt.Errorf("failed to save violations: %w", err)
+			}
 		}
 	}
 
-	// Post-indexing resolution (only if analyzer is present)
 	if e.analyzer != nil {
-		_ = e.analyzer.ResolveInterfaces(ctx)
-		_ = e.analyzer.ResolveCentrality(ctx)
+		err = e.analyzer.ResolveInterfaces(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve interfaces: %w", err)
+		}
+		err = e.analyzer.ResolveCentrality(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve centrality: %w", err)
+		}
 	}
 
-	return nil
+	return hash, nil
 }
 
-// GetCriticalSymbols delegates to the AnalysisEngine.
 func (e *TruthEngine) GetCriticalSymbols(ctx context.Context, limit int) ([]store.CriticalSymbol, error) {
 	if e.analyzer == nil {
 		return nil, fmt.Errorf("analysis engine not initialized")
@@ -244,7 +328,6 @@ func (e *TruthEngine) GetCriticalSymbols(ctx context.Context, limit int) ([]stor
 	return e.analyzer.GetCriticalSymbols(ctx, limit)
 }
 
-// AnalyzeImpact calculates the blast radius of a symbol and potentially invokes the Oracle.
 func (e *TruthEngine) AnalyzeImpact(ctx context.Context, symbol, path string, verbose bool, messenger Messenger) (*types.ImpactResult, error) {
 	if e.diagnostic == nil {
 		return nil, fmt.Errorf("diagnostic engine not initialized")
@@ -255,17 +338,17 @@ func (e *TruthEngine) AnalyzeImpact(ctx context.Context, symbol, path string, ve
 		return nil, err
 	}
 
-	// Oracle Logic
 	if risk.RiskScore >= 0.8 && messenger != nil {
 		prompt := fmt.Sprintf("The function '%s' in '%s' has a CRITICAL Risk Score of %.4f. Based on its centrality and blast radius, please provide a brief architectural refactoring proposal to reduce its impact.", symbol, path, risk.RiskScore)
-		_, _ = messenger.Ask(ctx, "You are an expert software architect.", prompt)
+		_, err := messenger.Ask(ctx, "You are an expert software architect.", prompt)
+		if err != nil {
+			e.logger.Error("oracle ask failed", "error", err)
+		}
 	}
 
-	// Maintain backward compatibility with the return type for now
 	return e.impact.Analyze(ctx, symbol, path, 5)
 }
 
-// PredictTests identifies tests affected by changes described in the diff string.
 func (e *TruthEngine) PredictTests(ctx context.Context, diff string) ([]types.TestTarget, error) {
 	if e.impact == nil {
 		return nil, fmt.Errorf("impact engine not initialized")
@@ -273,17 +356,14 @@ func (e *TruthEngine) PredictTests(ctx context.Context, diff string) ([]types.Te
 	return e.impact.PredictTests(ctx, diff)
 }
 
-// HybridSearch performs a search across AST symbols and Engram insights.
 func (e *TruthEngine) HybridSearch(ctx context.Context, query string, limit, offset int) (*types.HybridSearchResult, error) {
 	return e.search.HybridSearch(ctx, query, limit, offset)
 }
 
-// CompactSession reduces noise in a session log.
 func (e *TruthEngine) CompactSession(ctx context.Context, log string) (*types.CompactionResult, error) {
 	return e.compact.CompactSession(ctx, log)
 }
 
-// IdentifyCriticalContext finds high-risk changes in a diff.
 func (e *TruthEngine) IdentifyCriticalContext(ctx context.Context, diff string) ([]types.ImpactEntity, error) {
 	if e.impact == nil {
 		return nil, fmt.Errorf("impact engine not initialized")
@@ -291,7 +371,6 @@ func (e *TruthEngine) IdentifyCriticalContext(ctx context.Context, diff string) 
 	return e.impact.IdentifyCriticalContext(ctx, diff)
 }
 
-// FindLogicalTwins finds symbols with the same structural hash as the target.
 func (e *TruthEngine) FindLogicalTwins(ctx context.Context, symbolName, path string) ([]types.Symbol, error) {
 	if e.store == nil {
 		return nil, fmt.Errorf("store not initialized")
@@ -302,12 +381,14 @@ func (e *TruthEngine) FindLogicalTwins(ctx context.Context, symbolName, path str
 		return nil, err
 	}
 
-	// 1. Find the target symbol to get its hash
 	symbols, err := e.store.GetSymbolsByNameInFile(ctx, symbolName, cleanPath)
 	if err != nil || len(symbols) == 0 {
-		// Try indexing if not found
 		if err := e.Index(ctx, cleanPath); err == nil {
-			symbols, _ = e.store.GetSymbolsByNameInFile(ctx, symbolName, cleanPath)
+			var errIdx error
+			symbols, errIdx = e.store.GetSymbolsByNameInFile(ctx, symbolName, cleanPath)
+			if errIdx != nil {
+				return nil, fmt.Errorf("failed to get symbols after indexing: %w", errIdx)
+			}
 		}
 	}
 
@@ -320,13 +401,11 @@ func (e *TruthEngine) FindLogicalTwins(ctx context.Context, symbolName, path str
 		return nil, fmt.Errorf("symbol '%s' has no structural hash", symbolName)
 	}
 
-	// 2. Search for twins
 	twins, err := e.store.GetSymbolsByStructuralHash(ctx, target.StructuralHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find twins: %w", err)
 	}
 
-	// 3. Filter and Map
 	var results []types.Symbol
 	for _, twin := range twins {
 		if twin.Name == target.Name && twin.Path == target.Path {
@@ -346,7 +425,6 @@ func (e *TruthEngine) FindLogicalTwins(ctx context.Context, symbolName, path str
 	return results, nil
 }
 
-// Fix attempts to autonomously fix a test failure via the DiagnosticEngine.
 func (e *TruthEngine) Fix(ctx context.Context, errorLog string, messenger Messenger) (string, error) {
 	if e.diagnostic == nil {
 		return "", fmt.Errorf("diagnostic engine not initialized")
@@ -365,7 +443,6 @@ func (e *TruthEngine) Fix(ctx context.Context, errorLog string, messenger Messen
 	return fmt.Sprintf("Status: %s\nFile: %s\nFixed Code:\n%s\nTest Output:\n%s", res.Status, res.Metadata["failingFile"], res.FixedCode, res.TestOutput), nil
 }
 
-// Propagate applies an architectural refactor across the codebase.
 func (e *TruthEngine) Propagate(ctx context.Context, symbol, transformation string, messenger Messenger) (string, error) {
 	if messenger != nil {
 		e.ripple.Transformer = NewMCPTransformer(e.store, func(ctx context.Context, file, sym, prompt string) (string, error) {
@@ -375,7 +452,6 @@ func (e *TruthEngine) Propagate(ctx context.Context, symbol, transformation stri
 	ledger, err := e.ripple.Propagate(ctx, symbol, transformation, 5)
 	if err != nil {
 		if ledger != nil && len(ledger.StagedFiles()) > 0 {
-			// Validation failed but changes were staged
 			return fmt.Sprintf("❌ Validation failed: %v. Staged files: %v", err, ledger.StagedFiles()), err
 		}
 		return "", err
@@ -384,7 +460,6 @@ func (e *TruthEngine) Propagate(ctx context.Context, symbol, transformation stri
 	return fmt.Sprintf("✅ Transformation staged in Ledger for %d files: %v. Use 'scouter_commit' to apply or 'scouter_diff' to review.", len(ledger.AffectedFiles()), ledger.AffectedFiles()), nil
 }
 
-// CommitLedger applies all staged changes to disk.
 func (e *TruthEngine) CommitLedger(ctx context.Context) (string, error) {
 	if e.ledger == nil {
 		return "", fmt.Errorf("ledger not initialized")
@@ -402,7 +477,6 @@ func (e *TruthEngine) CommitLedger(ctx context.Context) (string, error) {
 	return fmt.Sprintf("✅ Committed changes to %d files: %v", len(files), files), nil
 }
 
-// RollbackLedger clears all staged changes.
 func (e *TruthEngine) RollbackLedger(ctx context.Context) (string, error) {
 	if e.ledger == nil {
 		return "", fmt.Errorf("ledger not initialized")
@@ -415,7 +489,6 @@ func (e *TruthEngine) RollbackLedger(ctx context.Context) (string, error) {
 	return "✅ Ledger rolled back. All staged changes cleared.", nil
 }
 
-// GetLedgerSummary returns a summary of the current staged changes.
 func (e *TruthEngine) GetLedgerSummary(ctx context.Context) string {
 	if e.ledger == nil {
 		return "Ledger not initialized."
@@ -423,7 +496,6 @@ func (e *TruthEngine) GetLedgerSummary(ctx context.Context) string {
 	return e.ledger.Summary()
 }
 
-// GetLedgerDiff returns the diff of all staged changes.
 func (e *TruthEngine) GetLedgerDiff(ctx context.Context) (string, error) {
 	if e.ledger == nil {
 		return "", fmt.Errorf("ledger not initialized")
@@ -444,7 +516,6 @@ func (e *TruthEngine) GetLedgerDiff(ctx context.Context) (string, error) {
 			Context:  3,
 		})
 		if err != nil {
-			// Fallback if diff generation fails
 			sb.WriteString(fmt.Sprintf("--- %s (Original)\n+++ %s (Staged)\n", p.FilePath, p.FilePath))
 			if p.Diff != "" {
 				sb.WriteString(p.Diff)
@@ -466,7 +537,6 @@ func (e *TruthEngine) GetLedgerDiff(ctx context.Context) (string, error) {
 	return sb.String(), nil
 }
 
-// StageMutation stages a single file change in the Ledger.
 func (e *TruthEngine) StageMutation(ctx context.Context, filePath, newContent string) error {
 	if e.ledger == nil {
 		return fmt.Errorf("ledger not initialized")
@@ -488,7 +558,6 @@ func (e *TruthEngine) StageMutation(ctx context.Context, filePath, newContent st
 	return e.ledger.Stage(cleanPath, patch)
 }
 
-// GetSDDRoadmap retrieves the project roadmap from the SDD engine.
 func (e *TruthEngine) GetSDDRoadmap(ctx context.Context) (*SDDRoadmap, error) {
 	if e.sdd == nil {
 		return nil, fmt.Errorf("SDD engine not initialized")
@@ -496,7 +565,6 @@ func (e *TruthEngine) GetSDDRoadmap(ctx context.Context) (*SDDRoadmap, error) {
 	return e.sdd.ParseRoadmap(ctx)
 }
 
-// GetSDDTasks retrieves the current tasks from the SDD engine.
 func (e *TruthEngine) GetSDDTasks(ctx context.Context) ([]SDDTask, error) {
 	if e.sdd == nil {
 		return nil, fmt.Errorf("SDD engine not initialized")
@@ -504,11 +572,9 @@ func (e *TruthEngine) GetSDDTasks(ctx context.Context) ([]SDDTask, error) {
 	return e.sdd.ParseTasks(ctx)
 }
 
-// SearchSDDSpecs searches for specifications using the SDD engine.
 func (e *TruthEngine) SearchSDDSpecs(ctx context.Context, query string, limit, offset int) ([]SpecResult, error) {
 	if e.sdd == nil {
 		return nil, fmt.Errorf("SDD engine not initialized")
 	}
 	return e.sdd.SearchSpecs(ctx, query, limit, offset)
 }
-
