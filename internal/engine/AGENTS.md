@@ -13,7 +13,8 @@ The `internal/engine` package contains the core analysis logic for Scouter. It i
 
 ## Development Guidelines
 - **Stateless Design**: Engines should remain stateless where possible, utilizing the storage layer for persistent data.
-- **AST Integrity**: Utilize Tree-sitter for all structural analysis to ensure accuracy across different languages.
+- **AST Integrity**: Utilize Tree-sitter for all structural analysis to ensure accuracy across different languages. Use `StreamWithTreeSitter` and `iter.Seq` to minimize memory overhead when parsing large files.
+- **Rust Support**: Rust trait implementations (`impl Trait for Type`) are explicitly extracted as `implements` links directly by the parser, mapping to the caller/callee relation structure.
 - **Verification Mandate**: In `healer.go`, do not apply automated fixes without a corresponding reproduction test.
 - **Metric Normalization**: Follow the standardized formulas for calculating impact and risk as defined in the engine logic.
 

@@ -4,9 +4,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Rogercode97/scouter/internal/types"
 )
 
-func TestParseWithTreeSitter_Calls(t *testing.T) {
+func TestStreamWithTreeSitter_Calls(t *testing.T) {
 	// Create a sample TS file
 	content := []byte(`
 		function caller() {
@@ -20,9 +22,19 @@ func TestParseWithTreeSitter_Calls(t *testing.T) {
 	os.WriteFile(filePath, content, 0644)
 
 	ctx := t.Context()
-	pointers, calls, err := ParseWithTreeSitter(ctx, filePath)
+	pointersIt, callsIt, err := StreamWithTreeSitter(ctx, filePath)
 	if err != nil {
-		t.Fatalf("ParseWithTreeSitter failed: %v", err)
+		t.Fatalf("StreamWithTreeSitter failed: %v", err)
+	}
+
+	var pointers []types.ASTPointer
+	for p := range pointersIt {
+		pointers = append(pointers, p)
+	}
+
+	var calls []types.ASTCall
+	for c := range callsIt {
+		calls = append(calls, c)
 	}
 
 	if len(calls) == 0 {
@@ -44,7 +56,7 @@ func TestParseWithTreeSitter_Calls(t *testing.T) {
 	}
 }
 
-func TestParseWithTreeSitter_Doc(t *testing.T) {
+func TestStreamWithTreeSitter_Doc(t *testing.T) {
 	t.Run("TypeScript", func(t *testing.T) {
 		content := []byte(`
 			/**
@@ -60,9 +72,14 @@ func TestParseWithTreeSitter_Doc(t *testing.T) {
 		os.WriteFile(filePath, content, 0644)
 
 		ctx := t.Context()
-		pointers, _, err := ParseWithTreeSitter(ctx, filePath)
+		pointersIt, _, err := StreamWithTreeSitter(ctx, filePath)
 		if err != nil {
-			t.Fatalf("ParseWithTreeSitter failed: %v", err)
+			t.Fatalf("StreamWithTreeSitter failed: %v", err)
+		}
+
+		var pointers []types.ASTPointer
+		for p := range pointersIt {
+			pointers = append(pointers, p)
 		}
 
 		foundClass := false
@@ -105,9 +122,14 @@ class World:
 		os.WriteFile(filePath, content, 0644)
 
 		ctx := t.Context()
-		pointers, _, err := ParseWithTreeSitter(ctx, filePath)
+		pointersIt, _, err := StreamWithTreeSitter(ctx, filePath)
 		if err != nil {
-			t.Fatalf("ParseWithTreeSitter failed: %v", err)
+			t.Fatalf("StreamWithTreeSitter failed: %v", err)
+		}
+
+		var pointers []types.ASTPointer
+		for p := range pointersIt {
+			pointers = append(pointers, p)
 		}
 
 		foundFunc := false
@@ -131,3 +153,50 @@ class World:
 		}
 	})
 }
+
+func TestStreamWithTreeSitter_RustImpl(t *testing.T) {
+	content := []byte(`
+		trait Animal {
+			fn speak(&self);
+		}
+
+		struct Dog {}
+
+		impl Animal for Dog {
+			fn speak(&self) {
+				println!("Woof");
+			}
+		}
+	`)
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "test.rs")
+	os.WriteFile(filePath, content, 0644)
+
+	ctx := t.Context()
+	pointersIt, callsIt, err := StreamWithTreeSitter(ctx, filePath)
+	if err != nil {
+		t.Fatalf("StreamWithTreeSitter failed: %v", err)
+	}
+
+	var pointers []types.ASTPointer
+	for p := range pointersIt {
+		pointers = append(pointers, p)
+	}
+
+	var calls []types.ASTCall
+	for c := range callsIt {
+		calls = append(calls, c)
+	}
+
+	foundImpl := false
+	for _, call := range calls {
+		if call.LinkType == "implements" && call.CallerName == "Dog" && call.CalleeName == "Animal" {
+			foundImpl = true
+		}
+	}
+
+	if !foundImpl {
+		t.Errorf("Expected implements link from Dog to Animal, but did not find it. Calls found: %v", calls)
+	}
+}
+

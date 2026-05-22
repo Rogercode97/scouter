@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"iter"
 	"log/slog"
 	"math"
 	"os"
@@ -54,7 +55,6 @@ func init() {
                     (call_expression function: (member_expression property: (property_identifier) @callee))
                     (call_expression function: (member_expression object: (identifier) @obj property: (property_identifier) @callee))`
 
-
 	registerLanguage(".ts", tsLang, tsQuery, tsCallQuery)
 
 	// TSX/JSX Configuration: uses LanguageTSX
@@ -77,7 +77,8 @@ func init() {
          (struct_item name: (type_identifier) @name) @class
          (trait_item name: (type_identifier) @name) @interface`,
 		`(call_expression function: (identifier) @callee)
-         (call_expression function: (field_expression field: (field_identifier) @callee))`)
+         (call_expression function: (field_expression field: (field_identifier) @callee))
+         (impl_item trait: (type_identifier) @trait_name type: (type_identifier) @type_name) @impl_block`)
 }
 
 func registerLanguage(ext string, lang *tree_sitter.Language, qSrc, cSrc string) {
@@ -92,7 +93,7 @@ func registerLanguage(ext string, lang *tree_sitter.Language, qSrc, cSrc string)
 	languageConfigs[ext] = &LanguageConfig{Language: lang, Query: q, CallQuery: cq}
 }
 
-func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPointer, []types.ASTCall, error) {
+func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.ASTPointer], iter.Seq[types.ASTCall], error) {
 	filePath, err := utils.ValidatePath(filePath)
 	if err != nil {
 		return nil, nil, err
@@ -101,7 +102,7 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 	ext := filepath.Ext(filePath)
 	config, ok := languageConfigs[ext]
 	if !ok {
-		return []types.ASTPointer{}, []types.ASTCall{}, nil
+		return func(yield func(types.ASTPointer) bool) {}, func(yield func(types.ASTCall) bool) {}, nil
 	}
 
 	if config.Query == nil || config.CallQuery == nil {
@@ -113,13 +114,6 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 		return nil, nil, err
 	}
 
-	parser := tree_sitter.NewParser()
-	defer parser.Close()
-	parser.SetLanguage(config.Language)
-
-	tree := parser.Parse(content, nil)
-	defer tree.Close()
-
 	safeInt := func(u uint) int {
 		i, err := utils.SafeUintToInt(u)
 		if err != nil {
@@ -128,104 +122,151 @@ func ParseWithTreeSitter(ctx context.Context, filePath string) ([]types.ASTPoint
 		return i
 	}
 
-	var pointers []types.ASTPointer
-	var calls []types.ASTCall
+	// Shared logic for parsing the tree once
+	parser := tree_sitter.NewParser()
+	parser.SetLanguage(config.Language)
+	tree := parser.Parse(content, nil)
 
-	// Query definitions
-	cursor := tree_sitter.NewQueryCursor()
-	defer cursor.Close()
-	matches := cursor.Matches(config.Query, tree.RootNode(), content)
-	for match := matches.Next(); match != nil; match = matches.Next() {
-		var name, symType, recv, mname, iname string
-		var symNode tree_sitter.Node
-		for _, cap := range match.Captures {
-			nameN := config.Query.CaptureNames()[cap.Index]
-			switch nameN {
-			case "name":
-				name = cap.Node.Utf8Text(content)
-			case "recv":
-				recv = cap.Node.Utf8Text(content)
-			case "mname":
-				mname = cap.Node.Utf8Text(content)
-			case "iname":
-				iname = cap.Node.Utf8Text(content)
+	pointerIter := func(yield func(types.ASTPointer) bool) {
+		cursor := tree_sitter.NewQueryCursor()
+		defer cursor.Close()
+		matches := cursor.Matches(config.Query, tree.RootNode(), content)
+		for match := matches.Next(); match != nil; match = matches.Next() {
+			select {
+			case <-ctx.Done():
+				return
 			default:
-				symType = nameN
-				symNode = cap.Node
-			}
-		}
-
-		// Handle normal symbols
-		if name != "" && symType != "interface_spec" {
-			fullName := name
-			if recv != "" {
-				fullName = recv + "." + name
 			}
 
-			doc := extractDoc(symNode, content, ext)
-			h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s", symType, fullName)))
-			pointers = append(pointers, types.ASTPointer{
-				Type:           symType,
-				Name:           fullName,
-				Doc:            doc,
-				Range:          types.Range{Start: safeInt(symNode.StartByte()), End: safeInt(symNode.EndByte())},
-				StartLine:      safeInt(symNode.StartPosition().Row) + 1,
-				EndLine:        safeInt(symNode.EndPosition().Row) + 1,
-				Hash:           hex.EncodeToString(h[:]),
-				StructuralHash: GetStructuralHash(&symNode, content),
-			})
-		}
-
-		// Handle interface method specs
-		if mname != "" {
-			parentInterface := name
-			if iname != "" {
-				parentInterface = iname
-			}
-			fullMethodName := parentInterface + ":" + mname
-			pointers = append(pointers, types.ASTPointer{
-				Type:           "method_spec",
-				Name:           fullMethodName,
-				Range:          types.Range{Start: safeInt(symNode.StartByte()), End: safeInt(symNode.EndByte())},
-				StartLine:      safeInt(symNode.StartPosition().Row) + 1,
-				EndLine:        safeInt(symNode.EndPosition().Row) + 1,
-				Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
-				StructuralHash: GetStructuralHash(&symNode, content),
-			})
-		}
-	}
-
-	// Query calls
-	callMatches := cursor.Matches(config.CallQuery, tree.RootNode(), content)
-	for match := callMatches.Next(); match != nil; match = callMatches.Next() {
-		var callee string
-		var callNode tree_sitter.Node
-		for _, cap := range match.Captures {
-			if config.CallQuery.CaptureNames()[cap.Index] == "callee" {
-				callee = cap.Node.Utf8Text(content)
-				callNode = cap.Node
-			}
-		}
-		if callee != "" {
-			calleePath := ""
-			if callNode.Parent() != nil && callNode.Parent().Kind() == "call_expression" {
-				if callNode.Kind() == "identifier" {
-					calleePath = filePath
+			var name, symType, recv, mname, iname string
+			var symNode tree_sitter.Node
+			for _, cap := range match.Captures {
+				nameN := config.Query.CaptureNames()[cap.Index]
+				switch nameN {
+				case "name":
+					name = cap.Node.Utf8Text(content)
+				case "recv":
+					recv = cap.Node.Utf8Text(content)
+				case "mname":
+					mname = cap.Node.Utf8Text(content)
+				case "iname":
+					iname = cap.Node.Utf8Text(content)
+				default:
+					symType = nameN
+					symNode = cap.Node
 				}
 			}
 
-			calls = append(calls, types.ASTCall{
-				CallerName: findTSCaller(callNode, content),
-				CalleeName: callee,
-				CalleePath: calleePath,
-				LinkType:   "call",
-				Path:       filePath,
-				Line:       safeInt(callNode.StartPosition().Row) + 1,
-			})
+			// Handle normal symbols
+			if name != "" && symType != "interface_spec" {
+				fullName := name
+				if recv != "" {
+					fullName = recv + "." + name
+				}
+
+				doc := extractDoc(symNode, content, ext)
+				h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s", symType, fullName)))
+				p := types.ASTPointer{
+					Type:           symType,
+					Name:           fullName,
+					Doc:            doc,
+					Range:          types.Range{Start: safeInt(symNode.StartByte()), End: safeInt(symNode.EndByte())},
+					StartLine:      safeInt(symNode.StartPosition().Row) + 1,
+					EndLine:        safeInt(symNode.EndPosition().Row) + 1,
+					Hash:           hex.EncodeToString(h[:]),
+					StructuralHash: GetStructuralHash(&symNode, content),
+				}
+				if !yield(p) {
+					return
+				}
+			}
+
+			// Handle interface method specs
+			if mname != "" {
+				parentInterface := name
+				if iname != "" {
+					parentInterface = iname
+				}
+				fullMethodName := parentInterface + "." + mname
+				p := types.ASTPointer{
+					Type:           "interface_method",
+					Name:           fullMethodName,
+					Range:          types.Range{Start: safeInt(symNode.StartByte()), End: safeInt(symNode.EndByte())},
+					StartLine:      safeInt(symNode.StartPosition().Row) + 1,
+					EndLine:        safeInt(symNode.EndPosition().Row) + 1,
+					Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
+					StructuralHash: GetStructuralHash(&symNode, content),
+				}
+				if !yield(p) {
+					return
+				}
+			}
 		}
 	}
 
-	return pointers, calls, nil
+	callIter := func(yield func(types.ASTCall) bool) {
+		cursor := tree_sitter.NewQueryCursor()
+		defer cursor.Close()
+
+		callMatches := cursor.Matches(config.CallQuery, tree.RootNode(), content)
+		for match := callMatches.Next(); match != nil; match = callMatches.Next() {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			var callee string
+			var callNode tree_sitter.Node
+			var traitName, typeName string
+			for _, cap := range match.Captures {
+				name := config.CallQuery.CaptureNames()[cap.Index]
+				if name == "callee" {
+					callee = cap.Node.Utf8Text(content)
+					callNode = cap.Node
+				} else if name == "trait_name" {
+					traitName = cap.Node.Utf8Text(content)
+				} else if name == "type_name" {
+					typeName = cap.Node.Utf8Text(content)
+					callNode = cap.Node
+				}
+			}
+
+			if traitName != "" && typeName != "" {
+				c := types.ASTCall{
+					CallerName: typeName,
+					CalleeName: traitName,
+					LinkType:   "implements",
+					Path:       filePath,
+					Line:       safeInt(callNode.StartPosition().Row) + 1,
+				}
+				if !yield(c) {
+					return
+				}
+			} else if callee != "" {
+				calleePath := ""
+				if callNode.Parent() != nil && callNode.Parent().Kind() == "call_expression" {
+					if callNode.Kind() == "identifier" {
+						calleePath = filePath
+					}
+				}
+
+				c := types.ASTCall{
+					CallerName: findTSCaller(callNode, content),
+					CalleeName: callee,
+					CalleePath: calleePath,
+					LinkType:   "call",
+					Path:       filePath,
+					Line:       safeInt(callNode.StartPosition().Row) + 1,
+				}
+				if !yield(c) {
+					return
+				}
+			}
+		}
+	}
+
+	return pointerIter, callIter, nil
 }
 
 func findTSCaller(node tree_sitter_node, content []byte) string {
@@ -244,7 +285,7 @@ func findTSCaller(node tree_sitter_node, content []byte) string {
 				}
 				parentClass = parentClass.Parent()
 			}
-			
+
 			if name := curr.ChildByFieldName("name"); name != nil {
 				methodName := name.Utf8Text(content)
 				if recvName != "" {

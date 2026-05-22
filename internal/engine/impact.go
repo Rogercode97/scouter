@@ -56,15 +56,14 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 	// 2. Fetch Target Metadata
 	// Note: We search for the specific symbol in the specific path to get its metadata.
 	targetSymbols, err := e.store.GetSymbolsByNameInFile(ctx, symbol, path)
-	var centrality int
+	var centrality float64
 	var isExported bool
 	var signature string
 	if err == nil && len(targetSymbols) > 0 {
 		sym := targetSymbols[0]
 		isExported = strings.Contains("ABCDEFGHIJKLMNOPQRSTUVWXYZ", string(sym.Name[0]))
 		signature = sym.Signature
-		// Note: centrality (indegree) is stored in the database, but we might need a specific field.
-		// For now, we'll assume it's available or we calculate it.
+		centrality = sym.PageRank
 	}
 
 	symbolID := utils.SymbolSignatureHash(symbol, path, signature)
@@ -74,7 +73,7 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 			Symbol: symbol,
 			File:   path,
 			Metrics: types.RiskMetrics{
-				Centrality:         float64(centrality),
+				Centrality:         centrality,
 				PublicExport:       isExported,
 				HistoricalBugfixes: e.getHistoricalRisk(ctx, symbol, path, symbolID),
 			},
@@ -107,7 +106,13 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 				}
 			}
 		}
-		edge := fmt.Sprintf("    %s[\"%s\"] --> %s[\"%s\"]", r.Symbol, r.Symbol, parent, parent)
+		
+		edgeSymbol := "-->"
+		if r.LinkType == "implements" {
+			edgeSymbol = "-.->"
+		}
+		
+		edge := fmt.Sprintf("    %s[\"%s\"] %s %s[\"%s\"]", r.Symbol, r.Symbol, edgeSymbol, parent, parent)
 		if !edges[edge] {
 			mermaid += edge + "\n"
 			edges[edge] = true
@@ -116,7 +121,7 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 	res.Mermaid = mermaid
 
 	// 4. Risk Score
-	cScore := math.Min(1.0, math.Log1p(float64(centrality))/math.Log1p(100.0))
+	cScore := math.Min(1.0, math.Log1p(centrality)/math.Log1p(100.0))
 	bScore := math.Min(1.0, math.Log1p(float64(blastRadius))/math.Log1p(500.0))
 	hScore := math.Min(0.2, float64(res.Target.Metrics.HistoricalBugfixes)*0.05)
 	eScore := 0.0

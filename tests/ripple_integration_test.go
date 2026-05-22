@@ -33,6 +33,14 @@ func (m *mockRippleStore) GetCallees(ctx context.Context, name string) ([]store.
 	return m.callees, nil
 }
 
+func (m *mockRippleStore) GetCallersRecursive(ctx context.Context, name string, path string, maxDepth int) ([]store.Call, error) {
+	return m.callers, nil
+}
+
+func (m *mockRippleStore) GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]store.Symbol, error) {
+	return m.symbols, nil
+}
+
 func (m *mockRippleStore) SearchSymbols(ctx context.Context, query, symType string, limit, offset int) ([]store.Symbol, error) {
 	return m.symbols, nil
 }
@@ -133,3 +141,58 @@ type mockValidator struct {
 func (v *mockValidator) Validate(ctx context.Context, ledger *engine.Ledger) (engine.ValidationResult, error) {
 	return v.validateFunc(ledger)
 }
+
+func TestImpactEngine_Analyze_Mixed(t *testing.T) {
+	ctx := context.Background()
+
+	// Setup mock store with Go and Rust symbols
+	ms := &mockRippleStore{
+		callers: []store.Call{
+			{CallerName: "SymB", Path: "fileB.go", LinkType: "calls"},
+			{CallerName: "Dog", Path: "dog.rs", LinkType: "implements"},
+		},
+		symbols: []store.Symbol{
+			{Name: "SymA", Path: "fileA.go", PageRank: 42.0},
+		},
+	}
+
+	ie := engine.NewImpactEngine(ms, nil, nil)
+	
+	res, err := ie.Analyze(ctx, "SymA", "fileA.go", 1)
+	if err != nil {
+		t.Fatalf("Analyze failed: %v", err)
+	}
+
+	// Verify Centrality is using PageRank
+	if res.Target.Metrics.Centrality != 42.0 {
+		t.Errorf("Expected Centrality 42.0, got %f", res.Target.Metrics.Centrality)
+	}
+
+	// Verify Mermaid generation
+	if res.Mermaid == "" {
+		t.Errorf("Expected Mermaid graph, got empty")
+	}
+	
+	// Check for correct edges
+	// calls edge should be -->
+	// implements edge should be -.->
+	mermaid := res.Mermaid
+	if !contains(mermaid, "-->") {
+		t.Errorf("Expected --> in mermaid graph, got: %s", mermaid)
+	}
+	if !contains(mermaid, "-.->") {
+		t.Errorf("Expected -.-> in mermaid graph, got: %s", mermaid)
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && func() bool {
+		for i := 0; i <= len(s)-len(substr); i++ {
+			if s[i:i+len(substr)] == substr {
+				return true
+			}
+		}
+		return false
+	}()
+}
+

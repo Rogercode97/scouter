@@ -35,9 +35,9 @@ func ParseFile(ctx context.Context, filePath string, lspMgr *lsp.Manager) ([]typ
 	itPointers, itCalls, err := StreamSymbols(ctx, filePath)
 	if err != nil {
 		// Try Tree-sitter for multi-language support as fallback
-		p, c, tsErr := ParseWithTreeSitter(ctx, filePath)
+		pIt, cIt, tsErr := StreamWithTreeSitter(ctx, filePath)
 		if tsErr == nil {
-			return p, c, nil
+			return slices.Collect(pIt), slices.Collect(cIt), nil
 		}
 		return nil, nil, fmt.Errorf("parsing failed for %s: %w (fallback error: %v)", filePath, err, tsErr)
 	}
@@ -56,12 +56,11 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 
 	ext := filepath.Ext(filePath)
 	if ext != ".go" {
-		// Tree-sitter fallback still returns slices for now, we wrap them in iterators
-		p, c, err := ParseWithTreeSitter(ctx, filePath)
+		pIt, cIt, err := StreamWithTreeSitter(ctx, filePath)
 		if err != nil {
 			return nil, nil, err
 		}
-		return slices.Values(p), slices.Values(c), nil
+		return pIt, cIt, nil
 	}
 
 	// 2. Path Security Check
