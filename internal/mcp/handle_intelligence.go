@@ -43,7 +43,7 @@ type FindLogicalTwinParams struct {
 }
 func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, args ImpactParams) (*mcp.CallToolResult, any, error) {
 	// [Sovereignty Upgrade] Route through TruthEngine
-	res, err := s.engine.AnalyzeImpact(ctx, args.SymbolName, args.FilePath, args.Verbose, &mcpMessenger{req: req})
+	res, err := s.engine.AnalyzeImpact(ctx, args.SymbolName, args.FilePath, args.Verbose, &mcpMessenger{server: s, req: req})
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to analyze impact: %v", err)}},

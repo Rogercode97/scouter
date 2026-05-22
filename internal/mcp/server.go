@@ -16,16 +16,19 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+const MaxSessionHistory = 100
+
 // Server wraps the official MCP SDK server to provide Scouter-specific domain logic.
 type Server struct {
-	mcpServer  *mcp.Server
-	store      store.Repository
-	resolver   *PointerResolver
-	lspMgr     *lsp.Manager
-	engine     *engine.TruthEngine
-	appService *memory.AppService
-	logger     *slog.Logger
-	mu         sync.RWMutex
+	mcpServer      *mcp.Server
+	store          store.Repository
+	resolver       *PointerResolver
+	lspMgr         *lsp.Manager
+	engine         *engine.TruthEngine
+	appService     *memory.AppService
+	logger         *slog.Logger
+	mu             sync.RWMutex
+	sessionHistory []memory.Message
 	arsenalUnlocked bool
 }
 
@@ -101,6 +104,19 @@ func (s *Server) Close() error {
 	return s.lspMgr.Close()
 }
 
+// AppendSessionMessage adds a message to the session history with a fixed capacity.
+func (s *Server) AppendSessionMessage(msg memory.Message) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if len(s.sessionHistory) >= MaxSessionHistory {
+		// Evict oldest (ring buffer behavior)
+		s.sessionHistory = append(s.sessionHistory[1:], msg)
+	} else {
+		s.sessionHistory = append(s.sessionHistory, msg)
+	}
+}
+
 // GotoDefinition performs an LSP definition request.
 func (s *Server) GotoDefinition(ctx context.Context, path string, pos lsp.Position) ([]lsp.Location, error) {
 	client, err := s.lspMgr.GetClient(ctx, path)
@@ -133,10 +149,14 @@ func (s *Server) Hover(ctx context.Context, path string, pos lsp.Position) (*lsp
 
 // mcpMessenger adapts MCP Sampling to TruthEngine's Messenger interface.
 type mcpMessenger struct {
-	req *mcp.CallToolRequest
+	server *Server
+	req    *mcp.CallToolRequest
 }
 
 func (m *mcpMessenger) Ask(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	// Log user prompt
+	m.server.AppendSessionMessage(memory.Message{Role: "user", Content: userPrompt})
+
 	res, err := m.req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
 		SystemPrompt: systemPrompt,
 		Messages: []*mcp.SamplingMessage{
@@ -151,17 +171,26 @@ func (m *mcpMessenger) Ask(ctx context.Context, systemPrompt, userPrompt string)
 	if !ok {
 		return "", fmt.Errorf("unexpected sampling response type")
 	}
+
+	// Log assistant response
+	m.server.AppendSessionMessage(memory.Message{Role: "assistant", Content: txt.Text})
+
 	return txt.Text, nil
 }
 
 // healerMessenger adapts MCP Sampling with Engram context for the Healer engine.
 type healerMessenger struct {
+	server    *Server
 	req       *mcp.CallToolRequest
 	engramCtx string
 }
 
 func (m *healerMessenger) Ask(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
 	fullUserPrompt := fmt.Sprintf("%s\n\nHistorical Context (Engram):\n%s", userPrompt, m.engramCtx)
+	
+	// Log user prompt
+	m.server.AppendSessionMessage(memory.Message{Role: "user", Content: fullUserPrompt})
+
 	res, err := m.req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
 		SystemPrompt: systemPrompt,
 		Messages: []*mcp.SamplingMessage{
@@ -176,6 +205,10 @@ func (m *healerMessenger) Ask(ctx context.Context, systemPrompt, userPrompt stri
 	if !ok {
 		return "", fmt.Errorf("unexpected sampling response type")
 	}
+
+	// Log assistant response
+	m.server.AppendSessionMessage(memory.Message{Role: "assistant", Content: txt.Text})
+
 	return txt.Text, nil
 }
 

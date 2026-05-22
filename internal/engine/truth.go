@@ -200,18 +200,25 @@ func (e *TruthEngine) Index(ctx context.Context, path string) error {
 	}
 	workerSem := make(chan struct{}, maxWorkers)
 
+	var indexErr error
 	if fi.IsDir() {
-		_, err = e.indexDirectory(ctx, validatedPath, workerSem, collector)
+		_, indexErr = e.indexDirectory(ctx, validatedPath, workerSem, collector)
 	} else {
-		_, err = e.indexFile(ctx, validatedPath, workerSem, collector)
+		_, indexErr = e.indexFile(ctx, validatedPath, workerSem, collector)
 	}
 
+	// CERRAMOS EL CANAL AQUÍ SOLO DESPUÉS DE QUE indexDirectory/indexFile (y todos sus sub-workers) HAYAN TERMINADO
 	close(collector.ch)
-	if errColl := collector.Wait(); errColl != nil {
-		return fmt.Errorf("collector failed: %w", errColl)
+	collErr := collector.Wait()
+
+	if indexErr != nil {
+		return indexErr
+	}
+	if collErr != nil {
+		return fmt.Errorf("collector failed: %w", collErr)
 	}
 	
-	if err == nil && e.analyzer != nil {
+	if e.analyzer != nil {
 		if aErr := e.analyzer.ResolveInterfaces(ctx); aErr != nil {
 			e.logger.Error("failed to resolve interfaces", "error", aErr)
 		}
@@ -342,7 +349,7 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 
 	itPointers, itCalls, err := StreamSymbols(ctx, path)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("parsing failed for %s: %w", path, err)
 	}
 
 	batchItem := store.BatchItem{
@@ -404,7 +411,13 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 		}
 	}
 
-	collector.ch <- batchItem
+	// Envío seguro al colector con soporte para cancelación
+	select {
+	case collector.ch <- batchItem:
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+
 	return hash, nil
 }
 

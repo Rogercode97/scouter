@@ -120,6 +120,9 @@ func (s *Server) handleCompactContext(ctx context.Context, req *mcp.CallToolRequ
 		}
 	}
 
+	// Log user prompt (the request for compaction)
+	s.AppendSessionMessage(memory.Message{Role: "user", Content: "Requesting context compaction."})
+
 	// 1. Sampling Request (Self-Summarization Loop)
 	samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
 		SystemPrompt: systemPrompt,
@@ -136,6 +139,9 @@ func (s *Server) handleCompactContext(ctx context.Context, req *mcp.CallToolRequ
 	if !ok {
 		return nil, nil, fmt.Errorf("unexpected sampling response type: %T", samplingRes.Content)
 	}
+
+	// Log assistant response
+	s.AppendSessionMessage(memory.Message{Role: "assistant", Content: txt.Text})
 
 	// 2. Delegate to TruthEngine for compaction
 	res, err := s.engine.CompactSession(ctx, txt.Text)

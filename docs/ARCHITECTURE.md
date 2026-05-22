@@ -15,6 +15,7 @@ Scouter is a structural intelligence engine designed to facilitate deep codebase
 
 ### 1. Analysis Engines (`internal/engine`)
 The core functionality of Scouter, responsible for structural understanding:
+- **Truth Engine**: The central orchestrator that coordinates all specialized engines. It utilizes a **Worker Pool + Single Collector** pattern for high-performance indexing, enabling concurrent AST parsing while maintaining atomic database writes via a dedicated collector.
 - **Search Engine**: AST-aware pattern matching using Tree-sitter.
 - **Impact Engine**: Calculates dependency chains and change propagation through the global call graph.
 - **Refactoring Engine**: Handles coordinated changes across multiple files and interfaces.

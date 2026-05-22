@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -50,7 +51,7 @@ func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, a
 	engramCtx := s.fetchEngramContext(ctx, "bugfix "+searchQuery)
 
 	// Delegate to TruthEngine
-	res, err := s.engine.Fix(ctx, args.ErrorLog, &healerMessenger{req: req, engramCtx: engramCtx})
+	res, err := s.engine.Fix(ctx, args.ErrorLog, &healerMessenger{server: s, req: req, engramCtx: engramCtx})
 	if err != nil {
 		return nil, nil, fmt.Errorf("self-heal failed: %w", err)
 	}
@@ -71,7 +72,7 @@ func (s *Server) handleRippleRefactor(ctx context.Context, req *mcp.CallToolRequ
 	defer s.mu.Unlock()
 
 	// Delegate to TruthEngine
-	res, err := s.engine.Propagate(ctx, args.SymbolName, args.Transformation, &mcpMessenger{req: req})
+	res, err := s.engine.Propagate(ctx, args.SymbolName, args.Transformation, &mcpMessenger{server: s, req: req})
 	if err != nil {
 		return nil, nil, fmt.Errorf("propagation failed: %w", err)
 	}
@@ -148,6 +149,9 @@ func (s *Server) handleEvolve(ctx context.Context, req *mcp.CallToolRequest, arg
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Log user prompt
+	s.AppendSessionMessage(memory.Message{Role: "user", Content: args.Proposal})
+
 	// 1. Sampling: Request Genome Mutation
 	samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
 		SystemPrompt: GEPSystemPrompt,
@@ -164,6 +168,9 @@ func (s *Server) handleEvolve(ctx context.Context, req *mcp.CallToolRequest, arg
 	if !ok {
 		return nil, nil, fmt.Errorf("unexpected sampling response type")
 	}
+
+	// Log assistant response
+	s.AppendSessionMessage(memory.Message{Role: "assistant", Content: txt.Text})
 
 	// 2. Parse JSON Mutations
 	var mutations []struct {

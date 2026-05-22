@@ -81,12 +81,16 @@ skill-arena/
 arena/
 cmd/*-study/
 *.skill
+debug_dsn.go
 
 # Temporary backups
 *gemini.md
 sdd_*.md
 scouter_exports/
 .atl/
+bench_output.txt
+bench_result.txt
+output_bench.txt
 
 # SDD & OpenSpec
 openspec/

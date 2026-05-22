@@ -88,11 +88,14 @@ func (s *Server) postToolHook(req *mcp.CallToolRequest, impact bool) {
 }
 
 // GetTranscript attempts to retrieve the current session transcript.
-// In a real MCP implementation, this would query the session history.
-// For now, we return a placeholder or empty slice as the SDK doesn't expose this directly yet.
 func (s *Server) GetTranscript(req *mcp.CallToolRequest) []memory.Message {
-	// TODO: Integrate with a real history provider if available
-	return []memory.Message{}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Return a copy to avoid race conditions with the original slice
+	history := make([]memory.Message, len(s.sessionHistory))
+	copy(history, s.sessionHistory)
+	return history
 }
 
 func (s *Server) handleKnowledgeGraph(ctx context.Context, req *mcp.CallToolRequest, args KnowledgeGraphParams) (*mcp.CallToolResult, any, error) {
