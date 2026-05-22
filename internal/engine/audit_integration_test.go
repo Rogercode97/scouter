@@ -61,7 +61,7 @@ func BadFunction() {
 	}
 
 	// Index the file (this should trigger the audit)
-	_, err = engine.indexFile(ctx, violationFile)
+	err = engine.Index(ctx, violationFile)
 	if err != nil {
 		t.Fatalf("Failed to index file: %v", err)
 	}

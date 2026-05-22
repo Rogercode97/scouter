@@ -705,3 +705,51 @@ func TestDirectoryHashes(t *testing.T) {
 		t.Errorf("Expected mtime 2000, got %d", mtime)
 	}
 }
+
+func TestSaveFileIndexBatch(t *testing.T) {
+	ctx := t.Context()
+	dbPath := "test_batch_insert.db"
+	defer os.Remove(dbPath)
+
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	var batch []BatchItem
+	for i := 0; i < 100; i++ {
+		path := fmt.Sprintf("file_%d.go", i)
+		batch = append(batch, BatchItem{
+			Index: &FileIndex{
+				Path:    path,
+				Mtime:   int64(1000 + i),
+				Hash:    fmt.Sprintf("hash%d", i),
+				ASTJSON: "{}",
+				Project: "batch_test",
+			},
+			Symbols: []Symbol{
+				{Name: fmt.Sprintf("Func%d", i), Type: "function", Path: path, StartLine: 1, EndLine: 10},
+			},
+			Calls: []Call{
+				{CallerName: fmt.Sprintf("Func%d", i), CalleeName: "fmt.Println", Path: path, Line: 5},
+			},
+		})
+	}
+
+	if err := s.SaveFileIndexBatch(ctx, batch); err != nil {
+		t.Fatalf("SaveFileIndexBatch failed: %v", err)
+	}
+
+	// Verify count
+	fc, sc, err := s.GetStats(ctx)
+	if err != nil {
+		t.Fatalf("GetStats failed: %v", err)
+	}
+	if fc != 100 {
+		t.Errorf("Expected 100 files, got %d", fc)
+	}
+	if sc != 100 {
+		t.Errorf("Expected 100 symbols, got %d", sc)
+	}
+}

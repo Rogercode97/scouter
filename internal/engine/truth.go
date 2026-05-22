@@ -6,9 +6,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
+	"golang.org/x/sync/errgroup"
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
@@ -16,6 +19,9 @@ import (
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
 )
+
+
+
 
 var (
 	BlockedDirs = map[string]bool{
@@ -102,6 +108,74 @@ func (e *TruthEngine) MemoryProvider() memory.MemoryProvider {
 }
 
 // Index parses, hashes and persists a file or directory to the store.
+
+type indexCollector struct {
+	items     []store.BatchItem
+	ch        chan store.BatchItem
+	ctx       context.Context
+	store     store.Repository
+	done      chan struct{}
+	err       error
+	batchSize int
+}
+
+func calculateBatchSize() int {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	if m.Alloc > 1024*1024*1024 { // > 1GB
+		return 100
+	}
+	if m.Alloc > 512*1024*1024 { // > 512MB
+		return 250
+	}
+	return 500
+}
+
+func newIndexCollector(ctx context.Context, s store.Repository) *indexCollector {
+	bs := calculateBatchSize()
+	c := &indexCollector{
+		items:     make([]store.BatchItem, 0, bs),
+		ch:        make(chan store.BatchItem, 100),
+		ctx:       ctx,
+		store:     s,
+		done:      make(chan struct{}),
+		batchSize: bs,
+	}
+	go c.run()
+	return c
+}
+
+func (c *indexCollector) run() {
+	defer close(c.done)
+	for item := range c.ch {
+		c.items = append(c.items, item)
+		if len(c.items) >= c.batchSize {
+			if err := c.flush(); err != nil && c.err == nil {
+				c.err = err
+			}
+		}
+	}
+	if len(c.items) > 0 {
+		if err := c.flush(); err != nil && c.err == nil {
+			c.err = err
+		}
+	}
+}
+
+func (c *indexCollector) flush() error {
+	if len(c.items) == 0 {
+		return nil
+	}
+	err := c.store.SaveFileIndexBatch(c.ctx, c.items)
+	c.items = c.items[:0]
+	return err
+}
+
+func (c *indexCollector) Wait() error {
+	<-c.done
+	return c.err
+}
+
 func (e *TruthEngine) Index(ctx context.Context, path string) error {
 	if e.store == nil {
 		return fmt.Errorf("store not initialized")
@@ -117,24 +191,43 @@ func (e *TruthEngine) Index(ctx context.Context, path string) error {
 		return fmt.Errorf("error stating path: %w", err)
 	}
 
+	collector := newIndexCollector(ctx, e.store)
+
+	// Limitamos a 4 workers para evitar que el OS (ej. MIUI) mate el proceso por exceso de hilos
+	maxWorkers := 4
+	if runtime.NumCPU() < 4 {
+		maxWorkers = runtime.NumCPU()
+	}
+	workerSem := make(chan struct{}, maxWorkers)
+
 	if fi.IsDir() {
-		_, err = e.indexDirectory(ctx, validatedPath)
-		return err
+		_, err = e.indexDirectory(ctx, validatedPath, workerSem, collector)
+	} else {
+		_, err = e.indexFile(ctx, validatedPath, workerSem, collector)
 	}
 
-	_, err = e.indexFile(ctx, validatedPath)
+	close(collector.ch)
+	if errColl := collector.Wait(); errColl != nil {
+		return fmt.Errorf("collector failed: %w", errColl)
+	}
+	
+	if err == nil && e.analyzer != nil {
+		if aErr := e.analyzer.ResolveInterfaces(ctx); aErr != nil {
+			e.logger.Error("failed to resolve interfaces", "error", aErr)
+		}
+		if aErr := e.analyzer.ResolveCentrality(ctx); aErr != nil {
+			e.logger.Error("failed to resolve centrality", "error", aErr)
+		}
+	}
+
 	return err
 }
 
-func (e *TruthEngine) indexDirectory(ctx context.Context, dir string) (string, error) {
+
+func (e *TruthEngine) indexDirectory(ctx context.Context, dir string, workerSem chan struct{}, collector *indexCollector) (string, error) {
 	storedHash, _, err := e.store.GetDirectoryHash(ctx, dir)
-	// Zero-Latency Oracle: Directory-level bypass
-	// Note: We intentionally don't check mtime here because in many filesystems, 
-	// a directory's mtime doesn't change when a file's content changes.
-	// The Merkle Tree (aggregated child hashes) is our primary source of truth.
 	if err == nil && storedHash != "" {
-		// In a full implementation, we'd need a way to verify if we can trust 
-		// this hash without walking. For now, let's keep it robust.
+		// Cache hit logic
 	}
 
 	entries, err := os.ReadDir(dir)
@@ -142,7 +235,10 @@ func (e *TruthEngine) indexDirectory(ctx context.Context, dir string) (string, e
 		return "", fmt.Errorf("error reading directory: %w", err)
 	}
 
+	var mu sync.Mutex
 	var hashes []string
+	var g errgroup.Group
+
 	for _, entry := range entries {
 		select {
 		case <-ctx.Done():
@@ -151,40 +247,55 @@ func (e *TruthEngine) indexDirectory(ctx context.Context, dir string) (string, e
 		}
 
 		path := filepath.Join(dir, entry.Name())
+		entry := entry
 
 		if entry.IsDir() {
 			if BlockedDirs[entry.Name()] {
 				continue
 			}
-			childHash, err := e.indexDirectory(ctx, path)
-			if err != nil {
-				e.logger.Error("failed to index directory", "path", path, "error", err)
-				continue
-			}
-			if childHash != "" {
-				hashes = append(hashes, childHash)
-			}
+			g.Go(func() error {
+				childHash, err := e.indexDirectory(ctx, path, workerSem, collector)
+				if err != nil {
+					e.logger.Error("failed to index directory", "path", path, "error", err)
+					return nil
+				}
+				if childHash != "" {
+					mu.Lock()
+					hashes = append(hashes, childHash)
+					mu.Unlock()
+				}
+				return nil
+			})
 		} else {
 			ext := filepath.Ext(path)
 			if !SupportedExts[ext] {
 				continue
 			}
-			childHash, err := e.indexFile(ctx, path)
-			if err != nil {
-				e.logger.Error("failed to index file", "path", path, "error", err)
-				continue
-			}
-			if childHash != "" {
-				hashes = append(hashes, childHash)
-			}
+			g.Go(func() error {
+				childHash, err := e.indexFile(ctx, path, workerSem, collector)
+				if err != nil {
+					e.logger.Error("failed to index file", "path", path, "error", err)
+					return nil
+				}
+				if childHash != "" {
+					mu.Lock()
+					hashes = append(hashes, childHash)
+					mu.Unlock()
+				}
+				return nil
+			})
 		}
+	}
+
+	if err := g.Wait(); err != nil {
+		return "", err
 	}
 
 	sort.Strings(hashes)
 	dirHash := utils.StringHash(strings.Join(hashes, ""))
 
 	if storedHash == dirHash {
-		return storedHash, nil // Recursive Bypass
+		return storedHash, nil
 	}
 
 	err = e.store.SaveDirectoryHash(ctx, dir, dirHash, 0)
@@ -195,7 +306,7 @@ func (e *TruthEngine) indexDirectory(ctx context.Context, dir string) (string, e
 	return dirHash, nil
 }
 
-func (e *TruthEngine) indexFile(ctx context.Context, path string) (string, error) {
+func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan struct{}, collector *indexCollector) (string, error) {
 	fi, err := os.Stat(path)
 	if err != nil {
 		return "", fmt.Errorf("error stating file: %w", err)
@@ -223,6 +334,10 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string) (string, error
 		return hash, nil
 	}
 
+	// Wait for worker slot
+	workerSem <- struct{}{}
+	defer func() { <-workerSem }()
+
 	e.logger.Info("indexing file", "path", path)
 
 	itPointers, itCalls, err := StreamSymbols(ctx, path)
@@ -230,94 +345,66 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string) (string, error
 		return "", err
 	}
 
-	err = e.store.WithTransaction(ctx, func(ctx context.Context, tx store.Repository) error {
-		err := tx.SaveFileIndex(ctx, &store.FileIndex{
+	batchItem := store.BatchItem{
+		Index: &store.FileIndex{
 			Path:    path,
 			Mtime:   mtime,
 			Hash:    hash,
 			ASTJSON: "{}",
 			Project: utils.GetRepoName(ctx),
+		},
+		Symbols:    []store.Symbol{},
+		Calls:      []store.Call{},
+		Violations: []store.Violation{},
+	}
+
+	for ptr := range itPointers {
+		batchItem.Symbols = append(batchItem.Symbols, store.Symbol{
+			Name:           ptr.Name,
+			Type:           ptr.Type,
+			PackagePath:    ptr.PackagePath,
+			ReceiverType:   ptr.ReceiverType,
+			Signature:      ptr.Signature,
+			Doc:            ptr.Doc,
+			Path:           path,
+			StartByte:      ptr.Range.Start,
+			EndByte:        ptr.Range.End,
+			StartLine:      ptr.StartLine,
+			StartCol:       ptr.StartCol,
+			EndLine:        ptr.EndLine,
+			StructuralHash: ptr.StructuralHash,
 		})
-		if err != nil {
-			return err
-		}
+	}
 
-		err = tx.ClearSymbols(ctx, path)
-		if err != nil {
-			return err
-		}
-		err = tx.ClearCalls(ctx, path)
-		if err != nil {
-			return err
-		}
-
-		for ptr := range itPointers {
-			if err := tx.SaveSymbol(ctx, &store.Symbol{
-				Name:           ptr.Name,
-				Type:           ptr.Type,
-				PackagePath:    ptr.PackagePath,
-				ReceiverType:   ptr.ReceiverType,
-				Signature:      ptr.Signature,
-				Doc:            ptr.Doc,
-				Path:           path,
-				StartByte:      ptr.Range.Start,
-				EndByte:        ptr.Range.End,
-				StartLine:      ptr.StartLine,
-				StartCol:       ptr.StartCol,
-				EndLine:        ptr.EndLine,
-				StructuralHash: ptr.StructuralHash,
-			}); err != nil {
-				return err
-			}
-		}
-
-		for c := range itCalls {
-			if err := tx.SaveCall(ctx, store.Call{
-				CallerName: c.CallerName,
-				CalleeName: c.CalleeName,
-				CalleePath: c.CalleePath,
-				LinkType:   c.LinkType,
-				Path:       path,
-				Line:       c.Line,
-			}); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		return "", fmt.Errorf("failed to save index for %s: %w", path, err)
+	for c := range itCalls {
+		batchItem.Calls = append(batchItem.Calls, store.Call{
+			CallerName: c.CallerName,
+			CalleeName: c.CalleeName,
+			CalleePath: c.CalleePath,
+			LinkType:   c.LinkType,
+			Path:       path,
+			Line:       c.Line,
+		})
 	}
 
 	if e.astRules != nil {
 		violations, err := e.astRules.Audit(ctx, path)
 		if err == nil && len(violations) > 0 {
-			err = e.store.WithTransaction(ctx, func(ctx context.Context, tx store.Repository) error {
-				for _, v := range violations {
-					if err := tx.SaveViolation(ctx, &v); err != nil {
-						return err
-					}
-				}
-				return nil
-			})
-			if err != nil {
-				return "", fmt.Errorf("failed to save violations: %w", err)
+			for _, v := range violations {
+				batchItem.Violations = append(batchItem.Violations, store.Violation{
+					RuleID:    v.RuleID,
+					FilePath:  v.File,
+					Message:   v.Message,
+					Severity:  v.Severity,
+					StartLine: v.Range.Start.Line,
+					StartCol:  v.Range.Start.Column,
+					Text:      v.Text,
+				})
 			}
 		}
 	}
 
-	if e.analyzer != nil {
-		err = e.analyzer.ResolveInterfaces(ctx)
-		if err != nil {
-			return "", fmt.Errorf("failed to resolve interfaces: %w", err)
-		}
-		err = e.analyzer.ResolveCentrality(ctx)
-		if err != nil {
-			return "", fmt.Errorf("failed to resolve centrality: %w", err)
-		}
-	}
-
+	collector.ch <- batchItem
 	return hash, nil
 }
 

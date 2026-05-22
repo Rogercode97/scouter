@@ -68,6 +68,13 @@ type SovereignDelta struct {
 	Calls   []Call   `json:"calls"`
 }
 
+type BatchItem struct {
+	Index      *FileIndex
+	Symbols    []Symbol
+	Calls      []Call
+	Violations []Violation
+}
+
 type Violation struct {
 	ID        int    `json:"id"`
 	RuleID    string `json:"rule_id"`
@@ -83,6 +90,7 @@ type Violation struct {
 type Repository interface {
 	GetFileIndex(ctx context.Context, path string) (*FileIndex, error)
 	SaveFileIndex(ctx context.Context, idx *FileIndex) error
+	SaveFileIndexBatch(ctx context.Context, items []BatchItem) error
 	GetDirectoryHash(ctx context.Context, path string) (string, int64, error)
 	SaveDirectoryHash(ctx context.Context, path string, hash string, mtime int64) error
 	ClearSymbols(ctx context.Context, path string) error
@@ -136,7 +144,12 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	dsn := fmt.Sprintf("%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)", dbPath)
+	// Optimized SQLite parameters for high-performance bulk indexing
+	separator := "?"
+	if strings.Contains(dbPath, "?") {
+		separator = "&"
+	}
+	dsn := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)", dbPath, separator)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -442,6 +455,55 @@ func (s *Store) SaveFileIndex(ctx context.Context, idx *FileIndex) error {
 		return fmt.Errorf("failed to save file index: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) SaveFileIndexBatch(ctx context.Context, items []BatchItem) error {
+	return s.WithTransaction(ctx, func(txCtx context.Context, tx Repository) error {
+		for _, item := range items {
+			if item.Index != nil {
+				if err := tx.SaveFileIndex(txCtx, item.Index); err != nil {
+					return fmt.Errorf("failed to save index for %s: %w", item.Index.Path, err)
+				}
+				if err := tx.ClearSymbols(txCtx, item.Index.Path); err != nil {
+					return fmt.Errorf("failed to clear symbols for %s: %w", item.Index.Path, err)
+				}
+				if err := tx.ClearCalls(txCtx, item.Index.Path); err != nil {
+					return fmt.Errorf("failed to clear calls for %s: %w", item.Index.Path, err)
+				}
+			}
+			for _, sym := range item.Symbols {
+				symCopy := sym
+				if err := tx.SaveSymbol(txCtx, &symCopy); err != nil {
+					return fmt.Errorf("failed to save symbol %s: %w", symCopy.Name, err)
+				}
+			}
+			for _, call := range item.Calls {
+				if err := tx.SaveCall(txCtx, call); err != nil {
+					return fmt.Errorf("failed to save call from %s to %s: %w", call.CallerName, call.CalleeName, err)
+				}
+			}
+			for _, violation := range item.Violations {
+				vCopy := violation // Create copy to take pointer
+				astMatch := &types.ASTRuleMatch{
+					RuleID:   vCopy.RuleID,
+					File:     vCopy.FilePath,
+					Message:  vCopy.Message,
+					Severity: vCopy.Severity,
+					Range: types.ASTRange{
+						Start: types.ASTPos{
+							Line:   vCopy.StartLine,
+							Column: vCopy.StartCol,
+						},
+					},
+					Text:     vCopy.Text,
+				}
+				if err := tx.SaveViolation(txCtx, astMatch); err != nil {
+					return fmt.Errorf("failed to save violation for %s: %w", vCopy.FilePath, err)
+				}
+			}
+		}
+		return nil
+	})
 }
 
 func (s *Store) GetDirectoryHash(ctx context.Context, p string) (string, int64, error) {

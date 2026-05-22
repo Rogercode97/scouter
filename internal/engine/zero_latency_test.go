@@ -48,7 +48,7 @@ func TestZeroLatencyBypass(t *testing.T) {
 
 	// 2. First Index (Cold)
 	start := time.Now()
-	_, err = engine.indexDirectory(ctx, tmpDir)
+	err = engine.Index(ctx, tmpDir)
 	if err != nil {
 		t.Fatalf("Cold index failed: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestZeroLatencyBypass(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	
 	start = time.Now()
-	_, err = engine.indexDirectory(ctx, tmpDir)
+	err = engine.Index(ctx, tmpDir)
 	if err != nil {
 		t.Fatalf("Hot index failed: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestZeroLatencyBypass(t *testing.T) {
 	}
 
 	start = time.Now()
-	_, err = engine.indexDirectory(ctx, tmpDir)
+	err = engine.Index(ctx, tmpDir)
 	if err != nil {
 		t.Fatalf("Modified index failed: %v", err)
 	}
