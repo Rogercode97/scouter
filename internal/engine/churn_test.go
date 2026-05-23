@@ -18,6 +18,23 @@ func TestAnalyzeChurn(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
+	tmpDir, err = filepath.EvalSymlinks(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to eval symlinks: %v", err)
+	}
+
+	// Workaround for go-billy v6 / Go 1.25 os.Root.Name() relative path bug in Chroot
+	oldCWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get CWD: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir to tmpDir: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(oldCWD)
+	}()
+
 	runCmd := func(args ...string) {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = tmpDir

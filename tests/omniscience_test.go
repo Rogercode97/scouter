@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -56,6 +57,14 @@ func TestOmniscienceCallHierarchy(t *testing.T) {
 	}
 
 	// 2. Initialize LSP Manager
+	// Skip if gopls is not found in PATH or ~/go/bin/gopls
+	if _, err := exec.LookPath("gopls"); err != nil {
+		home, _ := os.UserHomeDir()
+		if _, err := os.Stat(filepath.Join(home, "go", "bin", "gopls")); err != nil {
+			t.Skip("gopls not found, skipping TestOmniscienceCallHierarchy")
+		}
+	}
+
 	mgr := lsp.NewManager()
 	defer mgr.Close()
 
