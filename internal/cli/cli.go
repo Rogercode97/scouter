@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/Rogercode97/scouter/internal/config"
 	"github.com/Rogercode97/scouter/internal/display"
@@ -17,6 +18,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/mcp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/telemetry"
+	"github.com/Rogercode97/scouter/internal/utils"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -102,9 +104,18 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		analyzer := engine.NewAnalysisEngine(db)
 		te := engine.NewTruthEngine(db, nil, analyzer, lspMgr, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 		
+		start := time.Now()
 		if err := te.Index(ctx, path); err != nil {
 			fmt.Fprintf(stderr, "index error: %v\n", err)
 			return 1
+		}
+		duration := time.Since(start).Milliseconds()
+
+		fc, sc, err := db.GetStats(ctx)
+		if err == nil && tracker != nil {
+			// Each file saves reading context (~1500 tokens), each symbol saves AST search context (~100 tokens)
+			savedTokens := fc*1500 + sc*100
+			_ = tracker.Track(ctx, "scouter index "+path, "scouter index "+path, savedTokens, 5, duration)
 		}
 
 		fmt.Printf("✅ Indexed %s\n", path)
@@ -145,21 +156,33 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 
 		ie := engine.NewImpactEngine(db, nil, nil)
+		start := time.Now()
 		results, err := ie.PredictTests(ctx, diff)
 		if err != nil {
 			fmt.Fprintf(stderr, "prediction error: %v\n", err)
 			return 1
 		}
+		duration := time.Since(start).Milliseconds()
 
+		outputStr := ""
 		if len(results) == 0 {
-			fmt.Fprintln(stdout, "No affected tests identified.")
-			return 0
+			outputStr = "No affected tests identified.\n"
+		} else {
+			outputStr = "🎯 Affected Tests:\n"
+			for _, r := range results {
+				outputStr += fmt.Sprintf("- %s (%s)\n", r.Name, r.File)
+			}
 		}
 
-		fmt.Fprintln(stdout, "🎯 Affected Tests:")
-		for _, r := range results {
-			fmt.Fprintf(stdout, "- %s (%s)\n", r.Name, r.File)
+		if tracker != nil {
+			// predict saves the LLM from having to analyze the full call graph to connect diff with tests.
+			// Baseline saving is 4000 tokens plus 500 per affected test predicted.
+			savedTokens := 4000 + len(results)*500
+			outputTokens := utils.EstimateTokens(outputStr)
+			_ = tracker.Track(ctx, "scouter predict", "scouter predict", savedTokens, outputTokens, duration)
 		}
+
+		fmt.Fprint(stdout, outputStr)
 		return 0
 	
 	default:
