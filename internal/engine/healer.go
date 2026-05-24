@@ -131,6 +131,7 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 
 	candidates := make(chan candidate, 3)
 	var wg sync.WaitGroup
+	var valMu sync.Mutex
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -160,7 +161,21 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 				})
 				
 				validator := NewLSPValidator("")
+
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				valMu.Lock()
+				if ctx.Err() != nil {
+					valMu.Unlock()
+					return
+				}
 				valRes, _ := validator.Validate(ctx, tempLedger)
+				valMu.Unlock()
+
 				valid := valRes.Valid
 
 				candidates <- candidate{
