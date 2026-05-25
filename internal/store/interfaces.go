@@ -20,6 +20,7 @@ type SymbolRegistry interface {
 	GetSymbolsByStructuralHash(ctx context.Context, hash string) ([]Symbol, error)
 	SearchSymbolsWeighted(ctx context.Context, query string, symType string) iter.Seq2[Symbol, error]
 	GetSymbolsByRange(ctx context.Context, path string, startLine, endLine int) ([]Symbol, error)
+	GetSymbolsByPathPrefix(ctx context.Context, pathPrefix string) ([]Symbol, error)
 	GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error)
 	GetInterfaces(ctx context.Context) ([]Symbol, error)
 	GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error]

@@ -14,17 +14,14 @@ import (
 
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
-	tree_sitter "github.com/tree-sitter/go-tree-sitter"
-	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
-	tree_sitter_python "github.com/tree-sitter/tree-sitter-python/bindings/go"
-	tree_sitter_rust "github.com/tree-sitter/tree-sitter-rust/bindings/go"
-	tree_sitter_typescript "github.com/tree-sitter/tree-sitter-typescript/bindings/go"
+	"github.com/odvcencio/gotreesitter"
+	"github.com/odvcencio/gotreesitter/grammars"
 )
 
 type LanguageConfig struct {
-	Language  *tree_sitter.Language
-	Query     *tree_sitter.Query
-	CallQuery *tree_sitter.Query
+	Language  *gotreesitter.Language
+	Query     *gotreesitter.Query
+	CallQuery *gotreesitter.Query
 }
 
 var languageConfigs map[string]*LanguageConfig
@@ -32,15 +29,15 @@ var languageConfigs map[string]*LanguageConfig
 func init() {
 	languageConfigs = make(map[string]*LanguageConfig)
 
-	// Go Configuration: Native parser is preferred, TS is backup.
-	goLang := tree_sitter.NewLanguage(tree_sitter_go.Language())
+	// Go Configuration
+	goLang := grammars.GoLanguage()
 	registerLanguage(".go", goLang,
 		`(function_declaration name: (identifier) @name) @function 
          (method_declaration name: (field_identifier) @name) @method`,
 		`(call_expression function: (identifier) @callee) (call_expression function: (selector_expression field: (field_identifier) @callee))`)
 
-	// TS Configuration: Enriched to capture interface methods and MCP patterns
-	tsLang := tree_sitter.NewLanguage(tree_sitter_typescript.LanguageTypescript())
+	// TS Configuration
+	tsLang := grammars.TypescriptLanguage()
 	tsQuery := `(class_declaration name: (type_identifier) @name) @class 
          (function_declaration name: (identifier) @name) @function 
          (generator_function_declaration name: (identifier) @name) @function
@@ -57,21 +54,21 @@ func init() {
 
 	registerLanguage(".ts", tsLang, tsQuery, tsCallQuery)
 
-	// TSX/JSX Configuration: uses LanguageTSX
-	tsxLang := tree_sitter.NewLanguage(tree_sitter_typescript.LanguageTSX())
+	// TSX/JSX Configuration
+	tsxLang := grammars.TsxLanguage()
 	registerLanguage(".tsx", tsxLang, tsQuery, tsCallQuery)
 	registerLanguage(".jsx", tsxLang, tsQuery, tsCallQuery)
 	registerLanguage(".js", tsLang, tsQuery, tsCallQuery)
 
-	// Python Configuration: Class methods are the "interfaces" by convention
-	pyLang := tree_sitter.NewLanguage(tree_sitter_python.Language())
+	// Python Configuration
+	pyLang := grammars.PythonLanguage()
 	registerLanguage(".py", pyLang,
 		`(function_definition name: (identifier) @name) @function 
          (class_definition name: (identifier) @name) @class`,
 		`(call function: (identifier) @callee) (call function: (attribute attribute: (identifier) @callee))`)
 
-	// Rust Configuration: Support for functions, structs and traits
-	rustLang := tree_sitter.NewLanguage(tree_sitter_rust.Language())
+	// Rust Configuration
+	rustLang := grammars.RustLanguage()
 	registerLanguage(".rs", rustLang,
 		`(function_item name: (identifier) @name) @function
          (struct_item name: (type_identifier) @name) @class
@@ -81,12 +78,12 @@ func init() {
          (impl_item trait: (type_identifier) @trait_name type: (type_identifier) @type_name) @impl_block`)
 }
 
-func registerLanguage(ext string, lang *tree_sitter.Language, qSrc, cSrc string) {
-	q, err := tree_sitter.NewQuery(lang, qSrc)
+func registerLanguage(ext string, lang *gotreesitter.Language, qSrc, cSrc string) {
+	q, err := gotreesitter.NewQuery(qSrc, lang)
 	if err != nil {
 		slog.Error("failed to register symbol query", "ext", ext, "error", err)
 	}
-	cq, err := tree_sitter.NewQuery(lang, cSrc)
+	cq, err := gotreesitter.NewQuery(cSrc, lang)
 	if err != nil {
 		slog.Error("failed to register call query", "ext", ext, "error", err)
 	}
@@ -114,24 +111,29 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 		return nil, nil, err
 	}
 
-	safeInt := func(u uint) int {
-		i, err := utils.SafeUintToInt(u)
+	safeInt := func(u uint32) int {
+		i, err := utils.SafeUintToInt(uint(u))
 		if err != nil {
 			return math.MaxInt
 		}
 		return i
 	}
 
-	// Shared logic for parsing the tree once
-	parser := tree_sitter.NewParser()
-	parser.SetLanguage(config.Language)
-	tree := parser.Parse(content, nil)
+	lang := config.Language
+	parser := gotreesitter.NewParser(lang)
+	tree, _ := parser.Parse(content)
+	if tree == nil {
+		return func(yield func(types.ASTPointer) bool) {}, func(yield func(types.ASTCall) bool) {}, nil
+	}
 
 	pointerIter := func(yield func(types.ASTPointer) bool) {
-		cursor := tree_sitter.NewQueryCursor()
-		defer cursor.Close()
-		matches := cursor.Matches(config.Query, tree.RootNode(), content)
-		for match := matches.Next(); match != nil; match = matches.Next() {
+		cursor := config.Query.Exec(tree.RootNode(), lang, content)
+		for {
+			match, ok := cursor.NextMatch()
+			if !ok {
+				break
+			}
+
 			select {
 			case <-ctx.Done():
 				return
@@ -139,18 +141,18 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 			}
 
 			var name, symType, recv, mname, iname string
-			var symNode tree_sitter.Node
+			var symNode *gotreesitter.Node
 			for _, cap := range match.Captures {
-				nameN := config.Query.CaptureNames()[cap.Index]
+				nameN := cap.Name
 				switch nameN {
 				case "name":
-					name = cap.Node.Utf8Text(content)
+					name = cap.Node.Text(content)
 				case "recv":
-					recv = cap.Node.Utf8Text(content)
+					recv = cap.Node.Text(content)
 				case "mname":
-					mname = cap.Node.Utf8Text(content)
+					mname = cap.Node.Text(content)
 				case "iname":
-					iname = cap.Node.Utf8Text(content)
+					iname = cap.Node.Text(content)
 				default:
 					symType = nameN
 					symNode = cap.Node
@@ -158,23 +160,23 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 			}
 
 			// Handle normal symbols
-			if name != "" && symType != "interface_spec" {
+			if name != "" && symType != "interface_spec" && symNode != nil {
 				fullName := name
 				if recv != "" {
 					fullName = recv + "." + name
 				}
 
-				doc := extractDoc(symNode, content, ext)
+				doc := extractDoc(symNode, content, ext, lang)
 				h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s", symType, fullName)))
 				p := types.ASTPointer{
 					Type:           symType,
 					Name:           fullName,
 					Doc:            doc,
-					Range:          types.Range{Start: safeInt(symNode.StartByte()), End: safeInt(symNode.EndByte())},
-					StartLine:      safeInt(symNode.StartPosition().Row) + 1,
-					EndLine:        safeInt(symNode.EndPosition().Row) + 1,
+					Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
+					StartLine:      int(symNode.StartPoint().Row) + 1,
+					EndLine:        int(symNode.EndPoint().Row) + 1,
 					Hash:           hex.EncodeToString(h[:]),
-					StructuralHash: GetStructuralHash(&symNode, content),
+					StructuralHash: GetStructuralHash(symNode, content, lang),
 				}
 				if !yield(p) {
 					return
@@ -182,7 +184,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 			}
 
 			// Handle interface method specs
-			if mname != "" {
+			if mname != "" && symNode != nil {
 				parentInterface := name
 				if iname != "" {
 					parentInterface = iname
@@ -191,11 +193,11 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 				p := types.ASTPointer{
 					Type:           "interface_method",
 					Name:           fullMethodName,
-					Range:          types.Range{Start: safeInt(symNode.StartByte()), End: safeInt(symNode.EndByte())},
-					StartLine:      safeInt(symNode.StartPosition().Row) + 1,
-					EndLine:        safeInt(symNode.EndPosition().Row) + 1,
+					Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
+					StartLine:      int(symNode.StartPoint().Row) + 1,
+					EndLine:        int(symNode.EndPoint().Row) + 1,
 					Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
-					StructuralHash: GetStructuralHash(&symNode, content),
+					StructuralHash: GetStructuralHash(symNode, content, lang),
 				}
 				if !yield(p) {
 					return
@@ -205,11 +207,13 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 	}
 
 	callIter := func(yield func(types.ASTCall) bool) {
-		cursor := tree_sitter.NewQueryCursor()
-		defer cursor.Close()
+		cursor := config.CallQuery.Exec(tree.RootNode(), lang, content)
+		for {
+			match, ok := cursor.NextMatch()
+			if !ok {
+				break
+			}
 
-		callMatches := cursor.Matches(config.CallQuery, tree.RootNode(), content)
-		for match := callMatches.Next(); match != nil; match = callMatches.Next() {
 			select {
 			case <-ctx.Done():
 				return
@@ -217,47 +221,47 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 			}
 
 			var callee string
-			var callNode tree_sitter.Node
+			var callNode *gotreesitter.Node
 			var traitName, typeName string
 			for _, cap := range match.Captures {
-				name := config.CallQuery.CaptureNames()[cap.Index]
+				name := cap.Name
 				if name == "callee" {
-					callee = cap.Node.Utf8Text(content)
+					callee = cap.Node.Text(content)
 					callNode = cap.Node
 				} else if name == "trait_name" {
-					traitName = cap.Node.Utf8Text(content)
+					traitName = cap.Node.Text(content)
 				} else if name == "type_name" {
-					typeName = cap.Node.Utf8Text(content)
+					typeName = cap.Node.Text(content)
 					callNode = cap.Node
 				}
 			}
 
-			if traitName != "" && typeName != "" {
+			if traitName != "" && typeName != "" && callNode != nil {
 				c := types.ASTCall{
 					CallerName: typeName,
 					CalleeName: traitName,
 					LinkType:   "implements",
 					Path:       filePath,
-					Line:       safeInt(callNode.StartPosition().Row) + 1,
+					Line:       safeInt(callNode.StartPoint().Row) + 1,
 				}
 				if !yield(c) {
 					return
 				}
-			} else if callee != "" {
+			} else if callee != "" && callNode != nil {
 				calleePath := ""
-				if callNode.Parent() != nil && callNode.Parent().Kind() == "call_expression" {
-					if callNode.Kind() == "identifier" {
+				if callNode.Parent() != nil && callNode.Parent().Type(lang) == "call_expression" {
+					if callNode.Type(lang) == "identifier" {
 						calleePath = filePath
 					}
 				}
 
 				c := types.ASTCall{
-					CallerName: findTSCaller(callNode, content),
+					CallerName: findTSCaller(callNode, content, lang),
 					CalleeName: callee,
 					CalleePath: calleePath,
 					LinkType:   "call",
 					Path:       filePath,
-					Line:       safeInt(callNode.StartPosition().Row) + 1,
+					Line:       safeInt(callNode.StartPoint().Row) + 1,
 				}
 				if !yield(c) {
 					return
@@ -269,25 +273,25 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 	return pointerIter, callIter, nil
 }
 
-func findTSCaller(node tree_sitter_node, content []byte) string {
+func findTSCaller(node *gotreesitter.Node, content []byte, lang *gotreesitter.Language) string {
 	curr := node.Parent()
 	for curr != nil {
-		kind := curr.Kind()
+		kind := curr.Type(lang)
 		if kind == "function_definition" || kind == "function_declaration" || kind == "method_definition" || kind == "method_declaration" {
 			recvName := ""
 			parentClass := curr.Parent()
 			for parentClass != nil {
-				if parentClass.Kind() == "class_declaration" || parentClass.Kind() == "class_definition" {
-					if nameNode := parentClass.ChildByFieldName("name"); nameNode != nil {
-						recvName = nameNode.Utf8Text(content)
+				if parentClass.Type(lang) == "class_declaration" || parentClass.Type(lang) == "class_definition" {
+					if nameNode := parentClass.ChildByFieldName("name", lang); nameNode != nil {
+						recvName = nameNode.Text(content)
 						break
 					}
 				}
 				parentClass = parentClass.Parent()
 			}
 
-			if name := curr.ChildByFieldName("name"); name != nil {
-				methodName := name.Utf8Text(content)
+			if name := curr.ChildByFieldName("name", lang); name != nil {
+				methodName := name.Text(content)
 				if recvName != "" {
 					return recvName + "." + methodName
 				}
@@ -299,25 +303,23 @@ func findTSCaller(node tree_sitter_node, content []byte) string {
 	return "global"
 }
 
-type tree_sitter_node = tree_sitter.Node
-
-func extractDoc(node tree_sitter.Node, content []byte, ext string) string {
+func extractDoc(node *gotreesitter.Node, content []byte, ext string, lang *gotreesitter.Language) string {
 	declNode := node
-	for declNode.Kind() == "identifier" || declNode.Kind() == "property_identifier" || declNode.Kind() == "type_identifier" || declNode.Kind() == "field_identifier" {
+	for declNode.Type(lang) == "identifier" || declNode.Type(lang) == "property_identifier" || declNode.Type(lang) == "type_identifier" || declNode.Type(lang) == "field_identifier" {
 		parent := declNode.Parent()
 		if parent == nil {
 			break
 		}
-		declNode = *parent
+		declNode = parent
 	}
 
 	if ext == ".py" {
-		block := declNode.ChildByFieldName("body")
+		block := declNode.ChildByFieldName("body", lang)
 		if block == nil {
-			for i := uint32(0); i < uint32(declNode.ChildCount()); i++ { // #nosec G115 - ChildCount is safe to convert
-				child := declNode.Child(uint(i))
+			for i := uint32(0); i < uint32(declNode.ChildCount()); i++ {
+				child := declNode.Child(int(i))
 
-				if child.Kind() == "block" {
+				if child.Type(lang) == "block" {
 					block = child
 					break
 				}
@@ -326,10 +328,12 @@ func extractDoc(node tree_sitter.Node, content []byte, ext string) string {
 
 		if block != nil && block.ChildCount() > 0 {
 			first := block.Child(0)
-			if first.Kind() == "expression_statement" && first.ChildCount() > 0 {
+			if first.Type(lang) == "string" {
+				return utils.CleanComment(first.Text(content))
+			} else if first.Type(lang) == "expression_statement" && first.ChildCount() > 0 {
 				expr := first.Child(0)
-				if expr.Kind() == "string" {
-					return utils.CleanComment(expr.Utf8Text(content))
+				if expr.Type(lang) == "string" {
+					return utils.CleanComment(expr.Text(content))
 				}
 			}
 		}
@@ -338,11 +342,11 @@ func extractDoc(node tree_sitter.Node, content []byte, ext string) string {
 	var comments []string
 	curr := declNode.PrevSibling()
 	for curr != nil {
-		kind := curr.Kind()
+		kind := curr.Type(lang)
 		if kind == "comment" || kind == "line_comment" || kind == "block_comment" {
-			comments = append([]string{curr.Utf8Text(content)}, comments...)
+			comments = append([]string{curr.Text(content)}, comments...)
 			curr = curr.PrevSibling()
-		} else if strings.TrimSpace(curr.Utf8Text(content)) == "" {
+		} else if strings.TrimSpace(curr.Text(content)) == "" {
 			curr = curr.PrevSibling()
 		} else {
 			break

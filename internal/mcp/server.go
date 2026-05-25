@@ -302,9 +302,15 @@ func (s *Server) registerPrompts() {
 
 func (s *Server) registerCoreTools() {
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "map",
+		Description: "Map a file or directory to return its skeleton (Token Optimization - returns signatures without function bodies)",
+	}, s.handleMap)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "index",
 		Description: "Index a file or directory for AST symbols",
 	}, s.handleIndex)
+
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "search",
