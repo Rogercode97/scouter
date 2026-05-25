@@ -631,6 +631,32 @@ func (s *storeImpl) GetSymbolsByRange(ctx context.Context, path string, start, e
 	}
 	return res, nil
 }
+func (s *storeImpl) GetSymbolsByPathPrefix(ctx context.Context, pathPrefix string) ([]Symbol, error) {
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary
+            FROM symbols
+            WHERE path LIKE ? ORDER BY path ASC, start_line ASC`
+	
+	// Add % to match any file that starts with the prefix (e.g., directory or exact file)
+	likePattern := pathPrefix
+	if !strings.HasSuffix(likePattern, "%") {
+		likePattern += "%"
+	}
+
+	rows, err := s.query(ctx, sql, likePattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get symbols by path prefix: %w", err)
+	}
+	defer rows.Close()
+	var res []Symbol
+	for rows.Next() {
+		var sym Symbol
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.AISummary); err != nil {
+			return nil, fmt.Errorf("scan symbol by path prefix failed: %w", err)
+		}
+		res = append(res, sym)
+	}
+	return res, nil
+}
 
 func (s *storeImpl) GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error) {
 	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary

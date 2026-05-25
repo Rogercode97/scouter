@@ -21,6 +21,10 @@ type IndexParams struct {
 	FilePath string `json:"filePath" jsonschema:"The absolute or relative path to the file or directory to index"`
 }
 
+type MapParams struct {
+	Path string `json:"path" jsonschema:"The absolute or relative path to the file or directory to map (skeleton only)"`
+}
+
 type SearchParams struct {
 	Query  string `json:"query" jsonschema:"The search query (supports semantic or text search)"`
 	Type   string `json:"type,omitempty" jsonschema:"Optional: Filter by symbol type (e.g., function, method, struct)"`
@@ -59,6 +63,60 @@ type StructuralSearchParams struct {
 	Path    string `json:"path,omitempty" jsonschema:"Optional: Root path for the search (defaults to '.')"`
 	Limit   int    `json:"limit,omitempty" jsonschema:"Max results to return (default: 50, max: 100)"`
 	Offset  int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
+}
+
+func (s *Server) handleMap(ctx context.Context, req *mcp.CallToolRequest, args MapParams) (*mcp.CallToolResult, any, error) {
+	if args.Path == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "missing path"}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	path, err := utils.ValidatePath(args.Path)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	results, err := s.store.GetSymbolsByPathPrefix(ctx, path)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Map execution failed: %v", err)}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	if len(results) == 0 {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("No symbols found for path: %s", path)}},
+		}, nil, nil
+	}
+
+	// Group by file
+	fileMap := make(map[string][]string)
+	for _, sym := range results {
+		fileMap[sym.Path] = append(fileMap[sym.Path], fmt.Sprintf("[%s] %s (Line: %d)", sym.Type, sym.Signature, sym.StartLine))
+	}
+
+	var buf bytes.Buffer
+	for file, syms := range fileMap {
+		buf.WriteString(fmt.Sprintf("=== %s ===\n", file))
+		for _, sym := range syms {
+			buf.WriteString(sym + "\n")
+		}
+		buf.WriteString("\n")
+	}
+
+	thought := fmt.Sprintf("<thought>\nSovereign Map: Extracted skeleton for %s. Found %d symbols across %d files. Function bodies were excluded to save tokens.\n</thought>\n", args.Path, len(results), len(fileMap))
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: thought + buf.String()},
+		},
+	}, nil, nil
 }
 
 func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args IndexParams) (*mcp.CallToolResult, any, error) {
