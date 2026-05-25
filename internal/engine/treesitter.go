@@ -64,7 +64,8 @@ func init() {
 	pyLang := grammars.PythonLanguage()
 	registerLanguage(".py", pyLang,
 		`(function_definition name: (identifier) @name) @function 
-         (class_definition name: (identifier) @name) @class`,
+         (class_definition name: (identifier) @name) @class
+         (class_definition name: (identifier) @recv body: (block (function_definition name: (identifier) @name) @method))`,
 		`(call function: (identifier) @callee) (call function: (attribute attribute: (identifier) @callee))`)
 
 	// Rust Configuration
@@ -72,7 +73,9 @@ func init() {
 	registerLanguage(".rs", rustLang,
 		`(function_item name: (identifier) @name) @function
          (struct_item name: (type_identifier) @name) @class
-         (trait_item name: (type_identifier) @name) @interface`,
+         (trait_item name: (type_identifier) @name) @interface
+         (impl_item type: (type_identifier) @recv body: (declaration_list (function_item name: (identifier) @name) @method))
+         (trait_item name: (type_identifier) @iname body: (declaration_list (function_item name: (identifier) @mname))) @interface_spec`,
 		`(call_expression function: (identifier) @callee)
          (call_expression function: (field_expression field: (field_identifier) @callee))
          (impl_item trait: (type_identifier) @trait_name type: (type_identifier) @type_name) @impl_block`)
@@ -277,13 +280,18 @@ func findTSCaller(node *gotreesitter.Node, content []byte, lang *gotreesitter.La
 	curr := node.Parent()
 	for curr != nil {
 		kind := curr.Type(lang)
-		if kind == "function_definition" || kind == "function_declaration" || kind == "method_definition" || kind == "method_declaration" {
+		if kind == "function_definition" || kind == "function_declaration" || kind == "method_definition" || kind == "method_declaration" || kind == "function_item" {
 			recvName := ""
 			parentClass := curr.Parent()
 			for parentClass != nil {
 				if parentClass.Type(lang) == "class_declaration" || parentClass.Type(lang) == "class_definition" {
 					if nameNode := parentClass.ChildByFieldName("name", lang); nameNode != nil {
 						recvName = nameNode.Text(content)
+						break
+					}
+				} else if parentClass.Type(lang) == "impl_item" {
+					if typeNode := parentClass.ChildByFieldName("type", lang); typeNode != nil {
+						recvName = typeNode.Text(content)
 						break
 					}
 				}

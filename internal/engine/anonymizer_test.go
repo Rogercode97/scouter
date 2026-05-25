@@ -46,11 +46,11 @@ func TestStructuralHash(t *testing.T) {
 	}
 
 	// Different logic should have different hash
-	code3 := []byte(`func Process(data string) { return }`)
+	code3 := []byte(`func Process(data string, extra int) { return }`)
 	tree3, _ := parser.Parse(code3)
 	hash3 := GetStructuralHash(tree3.RootNode(), code3, lang)
 
 	if hash1 == hash3 {
-		t.Errorf("Different logic should yield different hashes.\n1: %s\n3: %s", hash1, hash3)
+		t.Errorf("Different signatures should yield different hashes.\n1: %s\n3: %s", hash1, hash3)
 	}
 }
