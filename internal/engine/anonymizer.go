@@ -6,17 +6,17 @@ import (
 	"fmt"
 	"strings"
 
-	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+	"github.com/odvcencio/gotreesitter"
 )
 
 // AnonymizeNode traverses the tree from the given node and returns an anonymized S-Expression.
 // It masks identifiers and literals to preserve only the structural logic.
-func AnonymizeNode(node *tree_sitter.Node, source []byte) string {
+func AnonymizeNode(node *gotreesitter.Node, source []byte, lang *gotreesitter.Language) string {
 	if node == nil {
 		return ""
 	}
 
-	kind := node.Kind()
+	kind := node.Type(lang)
 
 	// Masking Identifiers
 	if strings.Contains(kind, "identifier") {
@@ -37,9 +37,9 @@ func AnonymizeNode(node *tree_sitter.Node, source []byte) string {
 	// Recursive traversal for all children
 	var children []string
 	for i := 0; i < childCount; i++ {
-		child := node.Child(uint(i))
+		child := node.Child(int(i))
 		if child != nil {
-			anonymized := AnonymizeNode(child, source)
+			anonymized := AnonymizeNode(child, source, lang)
 			if anonymized != "" {
 				children = append(children, anonymized)
 			}
@@ -54,8 +54,8 @@ func AnonymizeNode(node *tree_sitter.Node, source []byte) string {
 }
 
 // GetStructuralHash generates a SHA-256 hash of the anonymized structural representation of a node.
-func GetStructuralHash(node *tree_sitter.Node, source []byte) string {
-	sExpr := AnonymizeNode(node, source)
+func GetStructuralHash(node *gotreesitter.Node, source []byte, lang *gotreesitter.Language) string {
+	sExpr := AnonymizeNode(node, source, lang)
 	hash := sha256.Sum256([]byte(sExpr))
 	return hex.EncodeToString(hash[:])
 }

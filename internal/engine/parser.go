@@ -18,8 +18,8 @@ import (
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
-	tree_sitter "github.com/tree-sitter/go-tree-sitter"
-	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
+	"github.com/odvcencio/gotreesitter"
+	"github.com/odvcencio/gotreesitter/grammars"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -125,19 +125,14 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 	fset = pkg.Fset
 
 	// For structural hashing consistency, we also parse with Tree-sitter for Go files
-	var tsTree *tree_sitter.Tree
+	var tsTree *gotreesitter.Tree
 	var tsContent []byte
 	tsContent, _ = os.ReadFile(validatedPath)
-	tsParser := tree_sitter.NewParser()
-	tsParser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_go.Language()))
-	tsTree = tsParser.Parse(tsContent, nil)
+	tsParser := gotreesitter.NewParser(grammars.GoLanguage())
+	tsTree, _ = tsParser.Parse(tsContent)
 
 	// We return closures that perform the AST inspection lazily
 	return func(yield func(types.ASTPointer) bool) {
-			defer tsParser.Close()
-			if tsTree != nil {
-				defer tsTree.Close()
-			}
 			select {
 			case <-ctx.Done():
 				return
@@ -200,8 +195,8 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 					var structuralHash string
 					if tsTree != nil {
 						root := tsTree.RootNode()
-						tsNode := root.NamedDescendantForByteRange(uint(startPos.Offset), uint(endPos.Offset))
-						structuralHash = GetStructuralHash(tsNode, tsContent)
+						tsNode := root.NamedDescendantForByteRange(uint32(startPos.Offset), uint32(endPos.Offset))
+						structuralHash = GetStructuralHash(tsNode, tsContent, grammars.GoLanguage())
 					}
 
 					p := types.ASTPointer{
@@ -251,8 +246,8 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 
 											var structuralHash string
 											if tsTree != nil {
-												tsNode := tsTree.RootNode().NamedDescendantForByteRange(uint(mStart.Offset), uint(mEnd.Offset))
-												structuralHash = GetStructuralHash(tsNode, tsContent)
+												tsNode := tsTree.RootNode().NamedDescendantForByteRange(uint32(mStart.Offset), uint32(mEnd.Offset))
+												structuralHash = GetStructuralHash(tsNode, tsContent, grammars.GoLanguage())
 											}
 
 											p := types.ASTPointer{
@@ -290,8 +285,8 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 
 							var structuralHash string
 							if tsTree != nil {
-								tsNode := tsTree.RootNode().NamedDescendantForByteRange(uint(startPos.Offset), uint(endPos.Offset))
-								structuralHash = GetStructuralHash(tsNode, tsContent)
+								tsNode := tsTree.RootNode().NamedDescendantForByteRange(uint32(startPos.Offset), uint32(endPos.Offset))
+								structuralHash = GetStructuralHash(tsNode, tsContent, grammars.GoLanguage())
 							}
 
 							p := types.ASTPointer{
