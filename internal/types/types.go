@@ -54,6 +54,14 @@ type ImpactResult struct {
 	RiskLevel string         `json:"risk_level"` // Low, Medium, High, Critical
 }
 
+type ExportDeclaration struct {
+	Symbol   string `json:"symbol"`
+	Source   string `json:"source"`
+	Alias    string `json:"alias"`
+	File     string `json:"file"`
+	IsAll    bool   `json:"is_all"`
+}
+
 type Dependency struct {
 	Name    string `json:"name" validate:"required"`
 	Version string `json:"version" validate:"required"`
