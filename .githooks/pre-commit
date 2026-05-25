@@ -1,0 +1,24 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# Pre-commit hook: Engram persistence reminder
+# Reminds the developer/agent to persist decisions to Engram before committing.
+
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+echo ""
+echo -e "${YELLOW}╔══════════════════════════════════════════════════╗${NC}"
+echo -e "${YELLOW}║  🧠 ENGRAM PERSISTENCE CHECK                    ║${NC}"
+echo -e "${YELLOW}╠══════════════════════════════════════════════════╣${NC}"
+echo -e "${YELLOW}║  ¿Llamaste mem_save para:                       ║${NC}"
+echo -e "${YELLOW}║    • Decisiones arquitectónicas?                 ║${NC}"
+echo -e "${YELLOW}║    • Descubrimientos técnicos?                   ║${NC}"
+echo -e "${YELLOW}║    • Patrones establecidos?                      ║${NC}"
+echo -e "${YELLOW}║    • Bug fixes + RCA?                            ║${NC}"
+echo -e "${YELLOW}╠══════════════════════════════════════════════════╣${NC}"
+echo -e "${CYAN}║  0 mem_save + >0 commits = PROTOCOL VIOLATION   ║${NC}"
+echo -e "${YELLOW}╚══════════════════════════════════════════════════╝${NC}"
+echo ""
+
+# Non-blocking: always allow the commit
+exit 0
