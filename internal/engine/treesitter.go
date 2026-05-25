@@ -15,6 +15,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/odvcencio/gotreesitter"
+	"github.com/Rogercode97/scouter/internal/engine/ast_types"
 	"github.com/odvcencio/gotreesitter/grammars"
 )
 
@@ -257,7 +258,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 				}
 			} else if callee != "" && callNode != nil {
 				calleePath := ""
-				if callNode.Parent() != nil && callNode.Parent().Type(lang) == "call_expression" {
+				if callNode.Parent() != nil && callNode.Parent().Type(lang) == ast_types.TypeGoCallExpression {
 					if callNode.Type(lang) == "identifier" {
 						calleePath = filePath
 					}
@@ -285,11 +286,11 @@ func findTSCaller(node *gotreesitter.Node, content []byte, lang *gotreesitter.La
 	curr := node.Parent()
 	for curr != nil {
 		kind := curr.Type(lang)
-		if kind == "function_definition" || kind == "function_declaration" || kind == "method_definition" || kind == "method_declaration" || kind == "function_item" {
+		if kind == ast_types.TypePythonFunctionDefinition || kind == ast_types.TypeGoFunctionDeclaration || kind == ast_types.TypeTypescriptMethodDefinition || kind == ast_types.TypeGoMethodDeclaration || kind == ast_types.TypeRustFunctionItem {
 			recvName := ""
 			parentClass := curr.Parent()
 			for parentClass != nil {
-				if parentClass.Type(lang) == "class_declaration" || parentClass.Type(lang) == "class_definition" {
+				if parentClass.Type(lang) == ast_types.TypeTypescriptClassDeclaration || parentClass.Type(lang) == ast_types.TypePythonClassDefinition {
 					if nameNode := parentClass.ChildByFieldName("name", lang); nameNode != nil {
 						recvName = nameNode.Text(content)
 						break
@@ -392,7 +393,7 @@ func computeSemanticMetrics(node *gotreesitter.Node, lang *gotreesitter.Language
 
 		// Cyclomatic Complexity factors
 		switch kind {
-		case "if_statement", "for_statement", "while_statement", "catch_clause", "except_clause",
+		case ast_types.TypeGoIfStatement, ast_types.TypeGoForStatement, ast_types.TypePythonWhileStatement, ast_types.TypeTypescriptCatchClause, ast_types.TypePythonExceptClause,
 			"match_arm", "case", "case_statement", "case_clause", "communication_case":
 			metrics.CyclomaticComplexity++
 		case "binary_expression", "boolean_operator":
@@ -406,12 +407,12 @@ func computeSemanticMetrics(node *gotreesitter.Node, lang *gotreesitter.Language
 		}
 
 		// Async
-		if kind == "async" || kind == "await_expression" || kind == "go_statement" {
+		if kind == "async" || kind == "await_expression" || kind == ast_types.TypeGoGoStatement {
 			metrics.IsAsync = true
 		}
 
 		// Error handling
-		if kind == "try_statement" || kind == "except_clause" || kind == "catch_clause" {
+		if kind == ast_types.TypeTypescriptTryStatement || kind == ast_types.TypePythonExceptClause || kind == ast_types.TypeTypescriptCatchClause {
 			metrics.HasErrorHandling = true
 		}
 		if kind == "binary_expression" {
@@ -430,10 +431,10 @@ func computeSemanticMetrics(node *gotreesitter.Node, lang *gotreesitter.Language
 		}
 
 		// Exceptions
-		if kind == "throw_statement" || kind == "raise_statement" || kind == "panic" || kind == "panic_statement" {
+		if kind == ast_types.TypeTypescriptThrowStatement || kind == "raise_statement" || kind == "panic" || kind == "panic_statement" {
 			metrics.HasExceptions = true
 		}
-		if kind == "call_expression" {
+		if kind == ast_types.TypeGoCallExpression {
 			callee := n.ChildByFieldName("function", lang)
 			if callee != nil && string(callee.Text(content)) == "panic" {
 				metrics.HasExceptions = true

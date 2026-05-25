@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/odvcencio/gotreesitter"
+	"github.com/Rogercode97/scouter/internal/engine/ast_types"
 )
 
 // AnonymizeNode traverses the tree from the given node and returns an anonymized S-Expression.
@@ -19,10 +20,10 @@ func AnonymizeNode(node *gotreesitter.Node, source []byte, lang *gotreesitter.La
 	kind := node.Type(lang)
 
 	// Normalize method and function declarations to match specs
-	if kind == "method_declaration" || kind == "method_spec" || kind == "method_signature" || kind == "method_definition" || strings.HasPrefix(kind, "method_") {
+	if kind == ast_types.TypeGoMethodDeclaration || kind == "method_spec" || kind == "method_signature" || kind == ast_types.TypeTypescriptMethodDefinition || strings.HasPrefix(kind, "method_") {
 		kind = "method"
 	}
-	if kind == "function_declaration" || kind == "function_definition" || kind == "function_item" || kind == "generator_function_declaration" {
+	if kind == ast_types.TypeGoFunctionDeclaration || kind == ast_types.TypePythonFunctionDefinition || kind == ast_types.TypeRustFunctionItem || kind == "generator_function_declaration" {
 		kind = "function"
 	}
 
