@@ -18,6 +18,7 @@ type ASTPointer struct {
 	EndLine        int    `json:"end_line" validate:"required,gtfield=StartLine"`
 	Hash           string `json:"hash" validate:"required,len=64"`
 	StructuralHash string `json:"structural_hash,omitempty" validate:"omitempty,len=64"`
+	Metrics        *SemanticMetrics `json:"metrics,omitempty"`
 }
 
 type ASTCall struct {
@@ -109,6 +110,14 @@ type Symbol struct {
 	StartLine      int      `json:"start_line"`
 	EndLine        int      `json:"end_line"`
 	LinkedInsights []string `json:"linked_insights,omitempty"`
+	Metrics        *SemanticMetrics `json:"metrics,omitempty"`
+}
+
+type SemanticMetrics struct {
+	CyclomaticComplexity int  `json:"cyclomatic_complexity"`
+	IsAsync              bool `json:"is_async"`
+	HasErrorHandling     bool `json:"has_error_handling"`
+	HasExceptions        bool `json:"has_exceptions"`
 }
 
 type CompactionResult struct {
