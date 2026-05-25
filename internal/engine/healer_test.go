@@ -87,8 +87,8 @@ func TestHealerEngine_Fix_DeepRCA(t *testing.T) {
 	p := capturedPrompt
 	mu.RUnlock()
 
-	// Line 50 in log -> Line 49 in LSP
-	expectedHover1 := "Docs for symbol at 49"
+	// Line 52 in log -> Line 51 in LSP
+	expectedHover1 := "Docs for symbol at 51"
 	// Line 120 in log -> Line 119 in LSP
 	expectedHover2 := "Docs for symbol at 119"
 	
