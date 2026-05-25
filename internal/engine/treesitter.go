@@ -181,6 +181,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 					EndLine:        int(symNode.EndPoint().Row) + 1,
 					Hash:           hex.EncodeToString(h[:]),
 					StructuralHash: GetStructuralHash(symNode, content, lang),
+					Metrics:        computeSemanticMetrics(symNode, lang, content),
 				}
 				if !yield(p) {
 					return
@@ -202,6 +203,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 					EndLine:        int(symNode.EndPoint().Row) + 1,
 					Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
 					StructuralHash: GetStructuralHash(symNode, content, lang),
+					Metrics:        computeSemanticMetrics(symNode, lang, content),
 				}
 				if !yield(p) {
 					return
@@ -367,4 +369,80 @@ func extractDoc(node *gotreesitter.Node, content []byte, ext string, lang *gotre
 	}
 
 	return ""
+}
+
+func computeSemanticMetrics(node *gotreesitter.Node, lang *gotreesitter.Language, content []byte) *types.SemanticMetrics {
+	metrics := &types.SemanticMetrics{
+		CyclomaticComplexity: 1, // Base complexity is 1
+	}
+
+	if node == nil {
+		return metrics
+	}
+
+	var traverse func(n *gotreesitter.Node)
+	traverse = func(n *gotreesitter.Node) {
+		if n == nil {
+			return
+		}
+
+		kind := n.Type(lang)
+
+		// Cyclomatic Complexity factors
+		switch kind {
+		case "if_statement", "for_statement", "while_statement", "catch_clause", "except_clause",
+			"match_arm", "case", "case_statement", "case_clause", "communication_case":
+			metrics.CyclomaticComplexity++
+		case "binary_expression", "boolean_operator":
+			operator := n.ChildByFieldName("operator", lang)
+			if operator != nil {
+				opText := string(operator.Text(content))
+				if opText == "&&" || opText == "||" || opText == "and" || opText == "or" {
+					metrics.CyclomaticComplexity++
+				}
+			}
+		}
+
+		// Async
+		if kind == "async" || kind == "await_expression" || kind == "go_statement" {
+			metrics.IsAsync = true
+		}
+
+		// Error handling
+		if kind == "try_statement" || kind == "except_clause" || kind == "catch_clause" {
+			metrics.HasErrorHandling = true
+		}
+		if kind == "binary_expression" {
+			op := n.ChildByFieldName("operator", lang)
+			if op != nil && string(op.Text(content)) == "!=" {
+				left := n.ChildByFieldName("left", lang)
+				right := n.ChildByFieldName("right", lang)
+				if left != nil && right != nil {
+					lt := string(left.Text(content))
+					rt := string(right.Text(content))
+					if (lt == "err" && rt == "nil") || (lt == "nil" && rt == "err") {
+						metrics.HasErrorHandling = true
+					}
+				}
+			}
+		}
+
+		// Exceptions
+		if kind == "throw_statement" || kind == "raise_statement" || kind == "panic" || kind == "panic_statement" {
+			metrics.HasExceptions = true
+		}
+		if kind == "call_expression" {
+			callee := n.ChildByFieldName("function", lang)
+			if callee != nil && string(callee.Text(content)) == "panic" {
+				metrics.HasExceptions = true
+			}
+		}
+
+		for i := 0; i < n.ChildCount(); i++ {
+			traverse(n.Child(i))
+		}
+	}
+
+	traverse(node)
+	return metrics
 }

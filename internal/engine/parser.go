@@ -193,10 +193,15 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 					h := sha256.Sum256([]byte(content))
 
 					var structuralHash string
+					var metrics *types.SemanticMetrics
 					if tsTree != nil {
 						root := tsTree.RootNode()
 						tsNode := root.NamedDescendantForByteRange(uint32(startPos.Offset), uint32(endPos.Offset))
 						structuralHash = GetStructuralHash(tsNode, tsContent, grammars.GoLanguage())
+						// Metrics are computed separately in treesitter.go for tsNode if used from there, but we compute them native if treesitter not used? No, actually treesitter_metrics is better. But let's compute Go metrics:
+						metrics = computeGoMetrics(fn)
+					} else {
+						metrics = computeGoMetrics(fn)
 					}
 
 					p := types.ASTPointer{
@@ -212,6 +217,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 						EndLine:        endPos.Line,
 						Hash:           hex.EncodeToString(h[:]),
 						StructuralHash: structuralHash,
+						Metrics:        metrics,
 					}
 					if !yield(p) {
 						stopped = true
@@ -651,4 +657,48 @@ func exprToString(expr ast.Expr) string {
 	default:
 		return "unknown"
 	}
+}
+
+func computeGoMetrics(node ast.Node) *types.SemanticMetrics {
+	if node == nil {
+		return nil
+	}
+	metrics := &types.SemanticMetrics{
+		CyclomaticComplexity: 1,
+	}
+
+	ast.Inspect(node, func(n ast.Node) bool {
+		if n == nil {
+			return true
+		}
+		switch x := n.(type) {
+		case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.SelectStmt:
+			metrics.CyclomaticComplexity++
+		case *ast.CaseClause:
+			metrics.CyclomaticComplexity++
+		case *ast.CommClause:
+			metrics.CyclomaticComplexity++
+		case *ast.BinaryExpr:
+			if x.Op == token.LAND || x.Op == token.LOR {
+				metrics.CyclomaticComplexity++
+			}
+			// check for err != nil
+			if x.Op == token.NEQ {
+				if id, ok := x.X.(*ast.Ident); ok && id.Name == "err" {
+					metrics.HasErrorHandling = true
+				} else if id, ok := x.Y.(*ast.Ident); ok && id.Name == "err" {
+					metrics.HasErrorHandling = true
+				}
+			}
+		case *ast.GoStmt:
+			metrics.IsAsync = true
+		case *ast.CallExpr:
+			if id, ok := x.Fun.(*ast.Ident); ok && id.Name == "panic" {
+				metrics.HasExceptions = true
+			}
+		}
+		return true
+	})
+
+	return metrics
 }
