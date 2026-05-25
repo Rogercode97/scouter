@@ -12,10 +12,10 @@ import (
 
 // PointerResolver handles the resolution of MCP pointers to physical file ranges.
 type PointerResolver struct {
-	store store.Repository
+	store store.SymbolRegistry
 }
 
-func NewPointerResolver(st store.Repository) *PointerResolver {
+func NewPointerResolver(st store.SymbolRegistry) *PointerResolver {
 	return &PointerResolver{store: st}
 }
 

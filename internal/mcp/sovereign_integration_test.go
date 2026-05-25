@@ -11,7 +11,7 @@ import (
 )
 
 type mockStore struct {
-	store.Repository
+	store.Store
 	symbols []store.Symbol
 	calls   []store.Call
 }

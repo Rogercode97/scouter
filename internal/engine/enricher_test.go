@@ -10,7 +10,7 @@ import (
 )
 
 type mockStore struct {
-	store.Repository
+	store.Store
 	methods         []store.Symbol
 	symbolsByRange  []store.Symbol
 	savedCalls      []store.Call
@@ -29,7 +29,7 @@ func (m *mockStore) SaveCall(ctx context.Context, c store.Call) error {
 	return nil
 }
 
-func (m *mockStore) WithTransaction(ctx context.Context, fn func(context.Context, store.Repository) error) error {
+func (m *mockStore) WithTransaction(ctx context.Context, fn func(context.Context, store.Store) error) error {
 	return fn(ctx, m)
 }
 

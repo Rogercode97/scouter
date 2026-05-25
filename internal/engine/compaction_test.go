@@ -3,13 +3,16 @@ package engine
 import (
 	"context"
 	"os"
+	"github.com/Rogercode97/scouter/internal/store"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// MockStore implements store.Repository for testing.
-type MockStore struct{}
+// MockStore implements store.Store for testing.
+type MockStore struct {
+	store.Store
+}
 
 func (m *MockStore) GetFileIndex(ctx context.Context, path string) (*any, error) { return nil, nil }
 // Implementing the minimum required to satisfy the interface if needed, 

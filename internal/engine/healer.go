@@ -18,10 +18,17 @@ import (
 	"github.com/Rogercode97/scouter/internal/utils"
 	)
 
+	// HealerStore defines the data requirements for the HealerEngine.
+	type HealerStore interface {
+		store.SymbolRegistry
+		store.StructuralGraph
+		store.TransactionManager
+	}
+
 	// HealerEngine manages the autonomous RCA -> Fix -> Verify loop using the Shinigami Protocol.
 	type HealerEngine struct {
 
-	store    store.Repository
+	store    HealerStore
 	analyzer *AnalysisEngine
 	impact   *ImpactEngine
 	lspMgr   *lsp.Manager
@@ -31,7 +38,7 @@ import (
 	DoFixRequest func(ctx context.Context, prompt string) (string, error)
 }
 
-func NewHealerEngine(s store.Repository, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine) *HealerEngine {
+func NewHealerEngine(s HealerStore, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine) *HealerEngine {
 	return &HealerEngine{
 		store:    s,
 		lspMgr:   l,
@@ -256,7 +263,7 @@ func (e *HealerEngine) Index(ctx context.Context, path string) error {
 		mtime = fi.ModTime().UnixNano()
 	}
 
-	return e.store.WithTransaction(ctx, func(ctx context.Context, tx store.Repository) error {
+	return e.store.WithTransaction(ctx, func(ctx context.Context, tx store.Store) error {
 		tx.SaveFileIndex(ctx, &store.FileIndex{
 			Path:    path,
 			Mtime:   mtime,

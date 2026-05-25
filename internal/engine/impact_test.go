@@ -10,7 +10,7 @@ import (
 )
 
 type mockImpactStore struct {
-	store.Repository
+	ImpactStore
 	symbolsByRange map[string][]store.Symbol
 	affectedTests  map[string][]store.Symbol
 }

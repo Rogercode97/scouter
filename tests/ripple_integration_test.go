@@ -19,7 +19,7 @@ func (t *mockTruthTransformer) Transform(ctx context.Context, file, symbol, tran
 }
 
 type mockRippleStore struct {
-	store.Repository
+	store.Store
 	callers []store.Call
 	callees []store.Call
 	symbols []store.Symbol

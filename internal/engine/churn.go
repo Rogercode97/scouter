@@ -9,12 +9,18 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
-// ChurnEngine analyzes the git history to identify tectonic plates (co-changing files).
-type ChurnEngine struct {
-	store store.Repository
+// ChurnStore defines the data requirements for the ChurnEngine.
+type ChurnStore interface {
+	store.SymbolRegistry
+	store.TransactionManager
 }
 
-func NewChurnEngine(s store.Repository) *ChurnEngine {
+// ChurnEngine analyzes the git history to identify tectonic plates (co-changing files).
+type ChurnEngine struct {
+	store ChurnStore
+}
+
+func NewChurnEngine(s ChurnStore) *ChurnEngine {
 	return &ChurnEngine{store: s}
 }
 
@@ -95,7 +101,7 @@ func (e *ChurnEngine) AnalyzeChurn(ctx context.Context, repoPath string, commitL
 		return nil
 	}
 
-	return e.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Repository) error {
+	return e.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Store) error {
 		for path, churn := range fileChurn {
 			// Find max co-change for this file
 			maxCo := 0

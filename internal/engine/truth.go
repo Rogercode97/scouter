@@ -50,7 +50,7 @@ type Messenger interface {
 // It decouples the MCP handlers from the core logic and manages the coordination
 // between different specialized engines.
 type TruthEngine struct {
-	store      store.Repository
+	store      store.Store
 	memory     memory.MemoryProvider
 	analyzer   *AnalysisEngine
 	lspMgr     *lsp.Manager
@@ -69,7 +69,7 @@ type TruthEngine struct {
 
 // NewTruthEngine initializes a new TruthEngine with its dependencies.
 func NewTruthEngine(
-	store store.Repository,
+	store store.Store,
 	memory memory.MemoryProvider,
 	analyzer *AnalysisEngine,
 	lspMgr *lsp.Manager,
@@ -113,7 +113,7 @@ type indexCollector struct {
 	items     []store.BatchItem
 	ch        chan store.BatchItem
 	ctx       context.Context
-	store     store.Repository
+	store     store.Store
 	done      chan struct{}
 	err       error
 	batchSize int
@@ -131,7 +131,7 @@ func calculateBatchSize() int {
 	return 500
 }
 
-func newIndexCollector(ctx context.Context, s store.Repository) *indexCollector {
+func newIndexCollector(ctx context.Context, s store.Store) *indexCollector {
 	bs := calculateBatchSize()
 	c := &indexCollector{
 		items:     make([]store.BatchItem, 0, bs),

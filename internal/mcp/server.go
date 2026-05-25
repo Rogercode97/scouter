@@ -21,7 +21,7 @@ const MaxSessionHistory = 100
 // Server wraps the official MCP SDK server to provide Scouter-specific domain logic.
 type Server struct {
 	mcpServer      *mcp.Server
-	store          store.Repository
+	store          store.Store
 	resolver       *PointerResolver
 	lspMgr         *lsp.Manager
 	engine         *engine.TruthEngine
@@ -33,7 +33,7 @@ type Server struct {
 }
 
 // NewServer initializes a sovereign, SDK-based MCP server.
-func NewServer(st store.Repository, logger *slog.Logger) *Server {
+func NewServer(st store.Store, logger *slog.Logger) *Server {
 	implementation := &mcp.Implementation{
 		Name:    "scouter",
 		Version: "12.0.0-ascension",

@@ -33,7 +33,7 @@ func TestIntegration_PredictiveTesting(t *testing.T) {
 			t.Fatalf("ParseFile failed for %s: %v", path, err)
 		}
 
-		err = s.WithTransaction(ctx, func(ctx context.Context, tx store.Repository) error {
+		err = s.WithTransaction(ctx, func(ctx context.Context, tx store.Store) error {
 			tx.SaveFileIndex(ctx, &store.FileIndex{
 				Path: path,
 				Hash: "hash-" + filepath.Base(path),

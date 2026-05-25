@@ -349,7 +349,7 @@ func TestStore_HasColumn(t *testing.T) {
 	}
 	defer s.Close()
 
-	storeImpl := s.(*Store)
+	storeImpl := s.(*storeImpl)
 	tx, _ := storeImpl.db.BeginTx(ctx, nil)
 	defer tx.Rollback()
 
@@ -437,7 +437,7 @@ func TestStore_TransactionSafety(t *testing.T) {
 	}
 
 	// Try a transaction that fails halfway
-	err = s.WithTransaction(ctx, func(txCtx context.Context, tx Repository) error {
+	err = s.WithTransaction(ctx, func(txCtx context.Context, tx Store) error {
 		sym := &Symbol{Name: "PartiallySaved", Type: "func", Path: "store.go"}
 		if err := tx.SaveSymbol(txCtx, sym); err != nil {
 			return err
@@ -637,7 +637,7 @@ func TestStore_Migration(t *testing.T) {
 	defer s.Close()
 
 	// 3. Verify columns exist
-	storeImpl := s.(*Store)
+	storeImpl := s.(*storeImpl)
 	tx, _ := storeImpl.db.BeginTx(ctx, nil)
 	defer tx.Rollback()
 

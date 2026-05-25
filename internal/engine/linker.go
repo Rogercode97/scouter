@@ -11,7 +11,7 @@ import (
 
 // LinkInterfaces performs semantic linking between interfaces and their implementations
 // using the LSP 'textDocument/implementation' request.
-func LinkInterfaces(ctx context.Context, repo store.Repository, lspMgr *lsp.Manager) error {
+func LinkInterfaces(ctx context.Context, repo store.Store, lspMgr *lsp.Manager) error {
 	interfaces, err := repo.GetInterfaces(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get interfaces: %w", err)

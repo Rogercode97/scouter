@@ -86,60 +86,15 @@ type Violation struct {
 	Text      string `json:"text"`
 }
 
-// Repository defines the interface for the Scouter database operations.
-type Repository interface {
-	GetFileIndex(ctx context.Context, path string) (*FileIndex, error)
-	SaveFileIndex(ctx context.Context, idx *FileIndex) error
-	SaveFileIndexBatch(ctx context.Context, items []BatchItem) error
-	GetDirectoryHash(ctx context.Context, path string) (string, int64, error)
-	SaveDirectoryHash(ctx context.Context, path string, hash string, mtime int64) error
-	ClearSymbols(ctx context.Context, path string) error
-	SaveSymbol(ctx context.Context, sym *Symbol) error
-	SearchSymbols(ctx context.Context, query string, symType string, limit, offset int) ([]Symbol, error)
-	GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]Symbol, error)
-	GetSymbolsByStructuralHash(ctx context.Context, hash string) ([]Symbol, error)
-	SearchSymbolsWeighted(ctx context.Context, query string, symType string) iter.Seq2[Symbol, error]
-	GetSymbolsByRange(ctx context.Context, path string, startLine, endLine int) ([]Symbol, error)
-	GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error)
-	GetInterfaces(ctx context.Context) ([]Symbol, error)
-	GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error]
-	GetAllCalls(ctx context.Context) iter.Seq2[Call, error]
-	GetAllFailedTests(ctx context.Context) iter.Seq2[types.TestResult, error]
-	UpdateSymbolCentrality(ctx context.Context, name, path string, centrality int) error
-	UpdateSymbolChurn(ctx context.Context, path string, score float64) error
-	UpdateSymbolPageRank(ctx context.Context, name, path string, score float64) error
-	ExportDelta(ctx context.Context, syncDir string) error
-	ImportDelta(ctx context.Context, syncDir string) error
-	SaveCall(ctx context.Context, call Call) error
-	GetCallers(ctx context.Context, calleeName string, limit, offset int) ([]Call, error)
-	GetCallees(ctx context.Context, callerName string) ([]Call, error)
-	GetCallersRecursive(ctx context.Context, name, path string, maxDepth int) ([]Call, error)
-	GetAffectedTestsRecursive(ctx context.Context, name, path string) ([]Symbol, error)
-	ClearCalls(ctx context.Context, path string) error
-	GetStats(ctx context.Context) (int, int, error)
-	GetAllFilePaths(ctx context.Context) ([]string, error)
-	DeleteFileIndex(ctx context.Context, path string) error
-	SaveDependency(ctx context.Context, dep *types.Dependency) error
-	GetDependencies(ctx context.Context) ([]types.Dependency, error)
-	ClearDependencies(ctx context.Context) error
-	GetUnusedSymbols(ctx context.Context, includeExported bool) ([]Symbol, error)
-	SaveTestResult(ctx context.Context, res *types.TestResult) error
-	GetHealthReport(ctx context.Context, symbol string, failuresOnly bool) iter.Seq2[types.TestResult, error]
-	ClearTestResults(ctx context.Context) error
-	SaveViolation(ctx context.Context, v *types.ASTRuleMatch) error
-	GetViolationsByFile(ctx context.Context, path string) ([]Violation, error)
-	WithTransaction(ctx context.Context, fn func(context.Context, Repository) error) error
-	Close() error
-}
 
-type Store struct {
+type storeImpl struct {
 	db *sql.DB
 	tx *sql.Tx
 }
 
-var _ Repository = (*Store)(nil)
+var _ Store = (*storeImpl)(nil)
 
-func New(ctx context.Context, dbPath string) (Repository, error) {
+func New(ctx context.Context, dbPath string) (Store, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
@@ -170,7 +125,7 @@ func New(ctx context.Context, dbPath string) (Repository, error) {
 		return nil, fmt.Errorf("failed to commit migration: %w", err)
 	}
 
-	s := &Store{
+	s := &storeImpl{
 		db: db,
 	}
 
@@ -411,28 +366,28 @@ func hasColumn(ctx context.Context, tx *sql.Tx, table, column string) (bool, err
 	return false, fmt.Errorf("querying pragma_table_info for %s: %w", table, err)
 }
 
-func (s *Store) exec(ctx context.Context, q string, a ...any) (sql.Result, error) {
+func (s *storeImpl) exec(ctx context.Context, q string, a ...any) (sql.Result, error) {
 	if s.tx != nil {
 		return s.tx.ExecContext(ctx, q, a...)
 	}
 	return s.db.ExecContext(ctx, q, a...)
 }
 
-func (s *Store) queryRow(ctx context.Context, q string, a ...any) *sql.Row {
+func (s *storeImpl) queryRow(ctx context.Context, q string, a ...any) *sql.Row {
 	if s.tx != nil {
 		return s.tx.QueryRowContext(ctx, q, a...)
 	}
 	return s.db.QueryRowContext(ctx, q, a...)
 }
 
-func (s *Store) query(ctx context.Context, q string, a ...any) (*sql.Rows, error) {
+func (s *storeImpl) query(ctx context.Context, q string, a ...any) (*sql.Rows, error) {
 	if s.tx != nil {
 		return s.tx.QueryContext(ctx, q, a...)
 	}
 	return s.db.QueryContext(ctx, q, a...)
 }
 
-func (s *Store) GetFileIndex(ctx context.Context, p string) (*FileIndex, error) {
+func (s *storeImpl) GetFileIndex(ctx context.Context, p string) (*FileIndex, error) {
 	var idx FileIndex
 	err := s.queryRow(ctx, "SELECT path, mtime, hash, ast_json, project, freshness FROM file_index WHERE path = ?", p).Scan(&idx.Path, &idx.Mtime, &idx.Hash, &idx.ASTJSON, &idx.Project, &idx.Freshness)
 	if err != nil {
@@ -441,7 +396,7 @@ func (s *Store) GetFileIndex(ctx context.Context, p string) (*FileIndex, error) 
 	return &idx, nil
 }
 
-func (s *Store) SaveFileIndex(ctx context.Context, idx *FileIndex) error {
+func (s *storeImpl) SaveFileIndex(ctx context.Context, idx *FileIndex) error {
 	query := `INSERT INTO file_index (path, mtime, hash, ast_json, project, freshness)
               VALUES (?, ?, ?, ?, ?, ?)
               ON CONFLICT(path) DO UPDATE SET
@@ -457,8 +412,8 @@ func (s *Store) SaveFileIndex(ctx context.Context, idx *FileIndex) error {
 	return nil
 }
 
-func (s *Store) SaveFileIndexBatch(ctx context.Context, items []BatchItem) error {
-	return s.WithTransaction(ctx, func(txCtx context.Context, tx Repository) error {
+func (s *storeImpl) SaveFileIndexBatch(ctx context.Context, items []BatchItem) error {
+	return s.WithTransaction(ctx, func(txCtx context.Context, tx Store) error {
 		for _, item := range items {
 			if item.Index != nil {
 				if err := tx.SaveFileIndex(txCtx, item.Index); err != nil {
@@ -506,7 +461,7 @@ func (s *Store) SaveFileIndexBatch(ctx context.Context, items []BatchItem) error
 	})
 }
 
-func (s *Store) GetDirectoryHash(ctx context.Context, p string) (string, int64, error) {
+func (s *storeImpl) GetDirectoryHash(ctx context.Context, p string) (string, int64, error) {
 	var hash string
 	var mtime int64
 	err := s.queryRow(ctx, "SELECT hash, mtime FROM directory_hashes WHERE path = ?", p).Scan(&hash, &mtime)
@@ -519,7 +474,7 @@ func (s *Store) GetDirectoryHash(ctx context.Context, p string) (string, int64, 
 	return hash, mtime, nil
 }
 
-func (s *Store) SaveDirectoryHash(ctx context.Context, p string, hash string, mtime int64) error {
+func (s *storeImpl) SaveDirectoryHash(ctx context.Context, p string, hash string, mtime int64) error {
 	query := `INSERT INTO directory_hashes (path, hash, mtime)
               VALUES (?, ?, ?)
               ON CONFLICT(path) DO UPDATE SET
@@ -532,7 +487,7 @@ func (s *Store) SaveDirectoryHash(ctx context.Context, p string, hash string, mt
 	return nil
 }
 
-func (s *Store) ClearSymbols(ctx context.Context, p string) error {
+func (s *storeImpl) ClearSymbols(ctx context.Context, p string) error {
 	_, err := s.exec(ctx, "DELETE FROM symbols WHERE path = ?", p)
 	if err != nil {
 		return fmt.Errorf("failed to clear symbols: %w", err)
@@ -540,7 +495,7 @@ func (s *Store) ClearSymbols(ctx context.Context, p string) error {
 	return nil
 }
 
-func (s *Store) SaveSymbol(ctx context.Context, sym *Symbol) error {
+func (s *storeImpl) SaveSymbol(ctx context.Context, sym *Symbol) error {
 	_, err := s.exec(ctx, "INSERT INTO symbols (name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, pagerank, churn_score, ai_summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", sym.Name, sym.Type, sym.PackagePath, sym.ReceiverType, sym.Signature, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.StartCol, sym.EndLine, sym.StructuralHash, sym.PageRank, sym.ChurnScore, sym.AISummary)
 	if err != nil {
 		return fmt.Errorf("failed to save symbol: %w", err)
@@ -548,7 +503,7 @@ func (s *Store) SaveSymbol(ctx context.Context, sym *Symbol) error {
 	return nil
 }
 
-func (s *Store) SearchSymbols(ctx context.Context, q, t string, limit, offset int) ([]Symbol, error) {
+func (s *storeImpl) SearchSymbols(ctx context.Context, q, t string, limit, offset int) ([]Symbol, error) {
 	safe := utils.SanitizeFTS(q)
 	if safe == "" {
 		return nil, nil
@@ -582,7 +537,7 @@ func (s *Store) SearchSymbols(ctx context.Context, q, t string, limit, offset in
 	return res, nil
 }
 
-func (s *Store) GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]Symbol, error) {
+func (s *storeImpl) GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]Symbol, error) {
 	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary
             FROM symbols
             WHERE name = ? AND path = ?`
@@ -602,7 +557,7 @@ func (s *Store) GetSymbolsByNameInFile(ctx context.Context, name, path string) (
 	return res, nil
 }
 
-func (s *Store) GetSymbolsByStructuralHash(ctx context.Context, hash string) ([]Symbol, error) {
+func (s *storeImpl) GetSymbolsByStructuralHash(ctx context.Context, hash string) ([]Symbol, error) {
 	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary
             FROM symbols
             WHERE structural_hash = ?`
@@ -621,7 +576,7 @@ func (s *Store) GetSymbolsByStructuralHash(ctx context.Context, hash string) ([]
 	}
 	return res, nil
 }
-func (s *Store) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq2[Symbol, error] {
+func (s *storeImpl) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq2[Symbol, error] {
 	return func(yield func(Symbol, error) bool) {
 		safe := utils.SanitizeFTS(q)
 		if safe == "" {
@@ -657,7 +612,7 @@ func (s *Store) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq
 	}
 }
 
-func (s *Store) GetSymbolsByRange(ctx context.Context, path string, start, end int) ([]Symbol, error) {
+func (s *storeImpl) GetSymbolsByRange(ctx context.Context, path string, start, end int) ([]Symbol, error) {
 	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary
             FROM symbols
             WHERE path = ? AND NOT (start_line > ? OR end_line < ?)`
@@ -677,7 +632,7 @@ func (s *Store) GetSymbolsByRange(ctx context.Context, path string, start, end i
 	return res, nil
 }
 
-func (s *Store) GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error) {
+func (s *storeImpl) GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error) {
 	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary
             FROM symbols
             WHERE type = ?`
@@ -697,11 +652,11 @@ func (s *Store) GetSymbolsByType(ctx context.Context, symType string) ([]Symbol,
 	return res, nil
 }
 
-func (s *Store) GetInterfaces(ctx context.Context) ([]Symbol, error) {
+func (s *storeImpl) GetInterfaces(ctx context.Context) ([]Symbol, error) {
 	return s.GetSymbolsByType(ctx, "interface")
 }
 
-func (s *Store) GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error] {
+func (s *storeImpl) GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error] {
 	return func(yield func(Symbol, error) bool) {
 		rows, err := s.query(ctx, "SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary FROM symbols")
 		if err != nil {
@@ -723,7 +678,7 @@ func (s *Store) GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error] {
 		}
 	}
 }
-func (s *Store) GetAllCalls(ctx context.Context) iter.Seq2[Call, error] {
+func (s *storeImpl) GetAllCalls(ctx context.Context) iter.Seq2[Call, error] {
 	return func(yield func(Call, error) bool) {
 		rows, err := s.query(ctx, "SELECT caller_name, callee_name, path, line, callee_path, link_type FROM calls")
 		if err != nil {
@@ -746,7 +701,7 @@ func (s *Store) GetAllCalls(ctx context.Context) iter.Seq2[Call, error] {
 	}
 }
 
-func (s *Store) GetAllFailedTests(ctx context.Context) iter.Seq2[types.TestResult, error] {
+func (s *storeImpl) GetAllFailedTests(ctx context.Context) iter.Seq2[types.TestResult, error] {
 	return func(yield func(types.TestResult, error) bool) {
 		rows, err := s.query(ctx, "SELECT test_name, status, error_message, stack_trace, target_symbol, duration_ms, project FROM test_results WHERE status = 'fail'")
 		if err != nil {
@@ -769,7 +724,7 @@ func (s *Store) GetAllFailedTests(ctx context.Context) iter.Seq2[types.TestResul
 	}
 }
 
-func (s *Store) UpdateSymbolCentrality(ctx context.Context, name, path string, centrality int) error {
+func (s *storeImpl) UpdateSymbolCentrality(ctx context.Context, name, path string, centrality int) error {
 	_, err := s.exec(ctx, "UPDATE symbols SET indegree = ? WHERE (name = ? OR (package_path || '.' || name) = ?) AND (path = ? OR ? = '')", centrality, name, name, path, path)
 	if err != nil {
 		return fmt.Errorf("failed to update centrality: %w", err)
@@ -777,7 +732,7 @@ func (s *Store) UpdateSymbolCentrality(ctx context.Context, name, path string, c
 	return nil
 }
 
-func (s *Store) UpdateSymbolChurn(ctx context.Context, path string, score float64) error {
+func (s *storeImpl) UpdateSymbolChurn(ctx context.Context, path string, score float64) error {
 	_, err := s.exec(ctx, "UPDATE symbols SET churn_score = ? WHERE path = ?", score, path)
 	if err != nil {
 		return fmt.Errorf("failed to update churn score: %w", err)
@@ -785,7 +740,7 @@ func (s *Store) UpdateSymbolChurn(ctx context.Context, path string, score float6
 	return nil
 }
 
-func (s *Store) UpdateSymbolPageRank(ctx context.Context, name, path string, score float64) error {
+func (s *storeImpl) UpdateSymbolPageRank(ctx context.Context, name, path string, score float64) error {
 	_, err := s.exec(ctx, "UPDATE symbols SET pagerank = ? WHERE (name = ? OR (package_path || '.' || name) = ?) AND (path = ? OR ? = '')", score, name, name, path, path)
 	if err != nil {
 		return fmt.Errorf("failed to update pagerank: %w", err)
@@ -793,7 +748,7 @@ func (s *Store) UpdateSymbolPageRank(ctx context.Context, name, path string, sco
 	return nil
 }
 
-func (s *Store) ExportDelta(ctx context.Context, syncDir string) error {
+func (s *storeImpl) ExportDelta(ctx context.Context, syncDir string) error {
 	if err := os.MkdirAll(syncDir, 0755); err != nil {
 		return err
 	}
@@ -838,8 +793,8 @@ func (s *Store) ExportDelta(ctx context.Context, syncDir string) error {
 	return nil
 }
 
-func (s *Store) ImportDelta(ctx context.Context, syncDir string) error {
-	return s.WithTransaction(ctx, func(txCtx context.Context, tx Repository) error {
+func (s *storeImpl) ImportDelta(ctx context.Context, syncDir string) error {
+	return s.WithTransaction(ctx, func(txCtx context.Context, tx Store) error {
 		var walk func(string) error
 		walk = func(dir string) error {
 			entries, err := os.ReadDir(dir)
@@ -896,7 +851,7 @@ func (s *Store) ImportDelta(ctx context.Context, syncDir string) error {
 	})
 }
 
-func (s *Store) SaveCall(ctx context.Context, c Call) error {
+func (s *storeImpl) SaveCall(ctx context.Context, c Call) error {
 	if c.LinkType == "" {
 		c.LinkType = "call"
 	}
@@ -916,7 +871,7 @@ func (s *Store) SaveCall(ctx context.Context, c Call) error {
 }
 
 
-func (s *Store) GetCallers(ctx context.Context, callee string, limit, offset int) ([]Call, error) {
+func (s *storeImpl) GetCallers(ctx context.Context, callee string, limit, offset int) ([]Call, error) {
 	if limit == 0 {
 		limit = 500
 	}
@@ -936,7 +891,7 @@ func (s *Store) GetCallers(ctx context.Context, callee string, limit, offset int
 	return res, nil
 }
 
-func (s *Store) GetCallees(ctx context.Context, caller string) ([]Call, error) {
+func (s *storeImpl) GetCallees(ctx context.Context, caller string) ([]Call, error) {
 	rows, err := s.query(ctx, "SELECT caller_name, callee_name, path, line, callee_path, link_type FROM calls WHERE caller_name = ? LIMIT 500", caller)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get callees: %w", err)
@@ -953,7 +908,7 @@ func (s *Store) GetCallees(ctx context.Context, caller string) ([]Call, error) {
 	return res, nil
 }
 
-func (s *Store) GetCallersRecursive(ctx context.Context, symbol string, path string, maxDepth int) ([]Call, error) {
+func (s *storeImpl) GetCallersRecursive(ctx context.Context, symbol string, path string, maxDepth int) ([]Call, error) {
 	if maxDepth <= 0 {
 		maxDepth = 3
 	}
@@ -996,7 +951,7 @@ func (s *Store) GetCallersRecursive(ctx context.Context, symbol string, path str
 	return res, nil
 }
 
-func (s *Store) GetAffectedTestsRecursive(ctx context.Context, symbol, path string) ([]Symbol, error) {
+func (s *storeImpl) GetAffectedTestsRecursive(ctx context.Context, symbol, path string) ([]Symbol, error) {
 	query := `
 	WITH RECURSIVE affected(name, path, distance) AS (
 		SELECT CASE WHEN package_path != '' THEN package_path || '.' || name ELSE name END, path, 0
@@ -1033,7 +988,7 @@ func (s *Store) GetAffectedTestsRecursive(ctx context.Context, symbol, path stri
 	return res, nil
 }
 
-func (s *Store) ClearCalls(ctx context.Context, p string) error {
+func (s *storeImpl) ClearCalls(ctx context.Context, p string) error {
 	_, err := s.exec(ctx, "DELETE FROM calls WHERE path = ?", p)
 	if err != nil {
 		return fmt.Errorf("failed to clear calls: %w", err)
@@ -1041,7 +996,7 @@ func (s *Store) ClearCalls(ctx context.Context, p string) error {
 	return nil
 }
 
-func (s *Store) SaveDependency(ctx context.Context, d *types.Dependency) error {
+func (s *storeImpl) SaveDependency(ctx context.Context, d *types.Dependency) error {
 	dir := 0
 	if d.Direct {
 		dir = 1
@@ -1053,7 +1008,7 @@ func (s *Store) SaveDependency(ctx context.Context, d *types.Dependency) error {
 	return nil
 }
 
-func (s *Store) GetDependencies(ctx context.Context) ([]types.Dependency, error) {
+func (s *storeImpl) GetDependencies(ctx context.Context) ([]types.Dependency, error) {
 	rows, err := s.query(ctx, "SELECT name, version, type, project, direct FROM dependencies ORDER BY name")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get dependencies: %w", err)
@@ -1072,7 +1027,7 @@ func (s *Store) GetDependencies(ctx context.Context) ([]types.Dependency, error)
 	return res, nil
 }
 
-func (s *Store) ClearDependencies(ctx context.Context) error {
+func (s *storeImpl) ClearDependencies(ctx context.Context) error {
 	_, err := s.exec(ctx, "DELETE FROM dependencies")
 	if err != nil {
 		return fmt.Errorf("failed to clear dependencies: %w", err)
@@ -1080,7 +1035,7 @@ func (s *Store) ClearDependencies(ctx context.Context) error {
 	return nil
 }
 
-func (s *Store) GetUnusedSymbols(ctx context.Context, exp bool) ([]Symbol, error) {
+func (s *storeImpl) GetUnusedSymbols(ctx context.Context, exp bool) ([]Symbol, error) {
 	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, end_line 
             FROM symbols 
             WHERE NOT EXISTS (SELECT 1 FROM calls WHERE callee_name = symbols.name) 
@@ -1109,7 +1064,7 @@ func (s *Store) GetUnusedSymbols(ctx context.Context, exp bool) ([]Symbol, error
 	return res, nil
 }
 
-func (s *Store) SaveTestResult(ctx context.Context, r *types.TestResult) error {
+func (s *storeImpl) SaveTestResult(ctx context.Context, r *types.TestResult) error {
 	_, err := s.exec(ctx, "INSERT INTO test_results (test_name, status, error_message, stack_trace, target_symbol, duration_ms, project) VALUES (?, ?, ?, ?, ?, ?, ?)", r.TestName, r.Status, r.ErrorMessage, r.StackTrace, r.TargetSymbol, r.DurationMS, r.Project)
 	if err != nil {
 		return fmt.Errorf("failed to save test result: %w", err)
@@ -1117,7 +1072,7 @@ func (s *Store) SaveTestResult(ctx context.Context, r *types.TestResult) error {
 	return nil
 }
 
-func (s *Store) GetHealthReport(ctx context.Context, sym string, fails bool) iter.Seq2[types.TestResult, error] {
+func (s *storeImpl) GetHealthReport(ctx context.Context, sym string, fails bool) iter.Seq2[types.TestResult, error] {
 	return func(yield func(types.TestResult, error) bool) {
 		sql := "SELECT test_name, status, error_message, stack_trace, target_symbol, duration_ms, project FROM test_results WHERE 1=1"
 		var args []any
@@ -1147,7 +1102,7 @@ func (s *Store) GetHealthReport(ctx context.Context, sym string, fails bool) ite
 	}
 }
 
-func (s *Store) ClearTestResults(ctx context.Context) error {
+func (s *storeImpl) ClearTestResults(ctx context.Context) error {
 	_, err := s.exec(ctx, "DELETE FROM test_results")
 	if err != nil {
 		return fmt.Errorf("failed to clear test results: %w", err)
@@ -1155,7 +1110,7 @@ func (s *Store) ClearTestResults(ctx context.Context) error {
 	return nil
 }
 
-func (s *Store) GetStats(ctx context.Context) (int, int, error) {
+func (s *storeImpl) GetStats(ctx context.Context) (int, int, error) {
 	var fc, sc int
 	if err := s.queryRow(ctx, "SELECT COUNT(*) FROM file_index").Scan(&fc); err != nil {
 		return 0, 0, fmt.Errorf("failed to get file count: %w", err)
@@ -1166,7 +1121,7 @@ func (s *Store) GetStats(ctx context.Context) (int, int, error) {
 	return fc, sc, nil
 }
 
-func (s *Store) GetAllFilePaths(ctx context.Context) ([]string, error) {
+func (s *storeImpl) GetAllFilePaths(ctx context.Context) ([]string, error) {
 	rows, err := s.query(ctx, "SELECT path FROM file_index")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all file paths: %w", err)
@@ -1183,7 +1138,7 @@ func (s *Store) GetAllFilePaths(ctx context.Context) ([]string, error) {
 	return res, nil
 }
 
-func (s *Store) DeleteFileIndex(ctx context.Context, p string) error {
+func (s *storeImpl) DeleteFileIndex(ctx context.Context, p string) error {
 	_, err := s.exec(ctx, "DELETE FROM file_index WHERE path = ?", p)
 	if err != nil {
 		return fmt.Errorf("failed to delete file index: %w", err)
@@ -1191,7 +1146,7 @@ func (s *Store) DeleteFileIndex(ctx context.Context, p string) error {
 	return nil
 }
 
-func (s *Store) SaveViolation(ctx context.Context, v *types.ASTRuleMatch) error {
+func (s *storeImpl) SaveViolation(ctx context.Context, v *types.ASTRuleMatch) error {
 	query := `INSERT INTO violations (rule_id, file_path, message, severity, start_line, start_col, text) 
               VALUES (?, ?, ?, ?, ?, ?, ?)`
 	_, err := s.exec(ctx, query, v.RuleID, v.File, v.Message, v.Severity, v.Range.Start.Line, v.Range.Start.Column, v.Text)
@@ -1201,7 +1156,7 @@ func (s *Store) SaveViolation(ctx context.Context, v *types.ASTRuleMatch) error 
 	return nil
 }
 
-func (s *Store) GetViolationsByFile(ctx context.Context, path string) ([]Violation, error) {
+func (s *storeImpl) GetViolationsByFile(ctx context.Context, path string) ([]Violation, error) {
 	rows, err := s.query(ctx, "SELECT id, rule_id, file_path, message, severity, start_line, start_col, text FROM violations WHERE file_path = ?", path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get violations: %w", err)
@@ -1219,13 +1174,13 @@ func (s *Store) GetViolationsByFile(ctx context.Context, path string) ([]Violati
 	return res, nil
 }
 
-func (s *Store) WithTransaction(ctx context.Context, fn func(context.Context, Repository) error) error {
+func (s *storeImpl) WithTransaction(ctx context.Context, fn func(context.Context, Store) error) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
-	if err := fn(ctx, &Store{db: s.db, tx: tx}); err != nil {
+	if err := fn(ctx, &storeImpl{db: s.db, tx: tx}); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -1234,4 +1189,4 @@ func (s *Store) WithTransaction(ctx context.Context, fn func(context.Context, Re
 	return nil
 }
 
-func (s *Store) Close() error { return s.db.Close() }
+func (s *storeImpl) Close() error { return s.db.Close() }

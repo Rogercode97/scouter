@@ -79,7 +79,7 @@ func TestOmniscienceCallHierarchy(t *testing.T) {
 		TextDocumentPositionParams: lsp.TextDocumentPositionParams{
 			TextDocument: lsp.TextDocumentIdentifier{URI: "file://" + absPath},
 			Position: lsp.Position{
-				Line:      54, // 0-based
+				Line:      60, // 0-based
 				Character: 5,
 			},
 		},
