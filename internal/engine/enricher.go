@@ -18,13 +18,20 @@ type LSPProvider interface {
 	GetClient(ctx context.Context, filePath string) (lsp.LSPClient, error)
 }
 
+// EnricherStore defines the data requirements for the Enricher.
+type EnricherStore interface {
+	store.SymbolRegistry
+	store.StructuralGraph
+	store.TransactionManager
+}
+
 // Enricher coordinates semantic enrichment of the call graph using LSP.
 type Enricher struct {
-	store store.Repository
+	store EnricherStore
 	lsp   LSPProvider
 }
 
-func NewEnricher(s store.Repository, lp LSPProvider) *Enricher {
+func NewEnricher(s EnricherStore, lp LSPProvider) *Enricher {
 	return &Enricher{
 		store: s,
 		lsp:   lp,
@@ -159,7 +166,7 @@ func (e *Enricher) Enrich(ctx context.Context) error {
 	}()
 
 	// 2. Persist in a single transaction
-	return e.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Repository) error {
+	return e.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Store) error {
 		for link := range linksChan {
 			err := tx.SaveCall(txCtx, store.Call{
 				CallerName: link.interfaceMethod,

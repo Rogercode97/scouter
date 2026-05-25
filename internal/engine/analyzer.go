@@ -13,6 +13,15 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
+// AnalysisStore defines the data requirements for the AnalysisEngine.
+type AnalysisStore interface {
+	store.SymbolRegistry
+	store.StructuralGraph
+	store.DiagnosticStore
+	store.TransactionManager
+}
+
+
 func (a *AnalysisEngine) ResolvePageRank(ctx context.Context) error {
 	// 1. Create a weighted directed graph
 	g := graph.New(graph.StringHash, graph.Directed(), graph.Weighted())
@@ -93,7 +102,7 @@ func (a *AnalysisEngine) ResolvePageRank(ctx context.Context) error {
 	}
 
 	// 5. Update store
-	return a.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Repository) error {
+	return a.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Store) error {
 		for node, score := range ranks {
 			parts := strings.SplitN(node, ":", 2)
 			if len(parts) == 2 {
@@ -107,11 +116,11 @@ func (a *AnalysisEngine) ResolvePageRank(ctx context.Context) error {
 }
 
 type AnalysisEngine struct {
-	store       store.Repository
+	store       AnalysisStore
 	ProjectRoot string
 }
 
-func NewAnalysisEngine(store store.Repository) *AnalysisEngine {
+func NewAnalysisEngine(store AnalysisStore) *AnalysisEngine {
 	root, _ := filepath.Abs(".")
 	return &AnalysisEngine{
 		store:       store,
@@ -138,7 +147,7 @@ func (a *AnalysisEngine) BuildTypeUniverse() (map[string]*types.Package, error) 
 	return universe, nil
 }
 
-func (a *AnalysisEngine) saveImplementation(ctx context.Context, tx store.Repository, typeSym, ifaceSym store.Symbol, V types.Type, iface *types.Interface) {
+func (a *AnalysisEngine) saveImplementation(ctx context.Context, tx AnalysisStore, typeSym, ifaceSym store.Symbol, V types.Type, iface *types.Interface) {
 	// Task 4: Use fully qualified names for 'implements' and 'satisfies'
 	callerFQ := typeSym.PackagePath + "." + typeSym.Name
 	calleeFQ := ifaceSym.PackagePath + "." + ifaceSym.Name
@@ -189,7 +198,7 @@ func (a *AnalysisEngine) ResolveInterfaces(ctx context.Context) error {
 		}
 	}
 
-	return a.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Repository) error {
+	return a.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Store) error {
 		for _, ifaceSym := range interfaces {
 			pkg, ok := universe[ifaceSym.PackagePath]
 			if !ok {
@@ -286,7 +295,7 @@ func (a *AnalysisEngine) ResolveCentrality(ctx context.Context) error {
 		indegree[key]++
 	}
 
-	return a.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Repository) error {
+	return a.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Store) error {
 		for key, count := range indegree {
 			parts := strings.SplitN(key, ":", 2)
 			if len(parts) == 2 {

@@ -45,7 +45,7 @@ type DiagnosticProvider interface {
 
 // DiagnosticEngine implements DiagnosticProvider by orchestrating specialized engines.
 type DiagnosticEngine struct {
-	store    store.Repository
+	store    store.DiagnosticStore
 	analyzer *AnalysisEngine
 	impact   *ImpactEngine
 	healer   *HealerEngine
@@ -54,7 +54,7 @@ type DiagnosticEngine struct {
 }
 
 func NewDiagnosticEngine(
-	s store.Repository,
+	s store.DiagnosticStore,
 	a *AnalysisEngine,
 	i *ImpactEngine,
 	h *HealerEngine,

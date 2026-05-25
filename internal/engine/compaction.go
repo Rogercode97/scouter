@@ -14,11 +14,11 @@ import (
 
 // CompactionEngine handles context hygiene and latent memory anchoring.
 type CompactionEngine struct {
-	store  store.Repository
+	store  store.Store
 	Ledger *Ledger
 }
 
-func NewCompactionEngine(s store.Repository, l *Ledger) *CompactionEngine {
+func NewCompactionEngine(s store.Store, l *Ledger) *CompactionEngine {
 	return &CompactionEngine{
 		store:  s,
 		Ledger: l,

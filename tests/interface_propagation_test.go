@@ -45,7 +45,8 @@ func Welcome(g Greeter) {
 	g.Greet("Scouter")
 }
 `
-	cwd, _ := os.Getwd()
+	cwd := t.TempDir()
+	os.WriteFile(filepath.Join(cwd, "go.mod"), []byte("module repro\n\ngo 1.22\n"), 0644)
 	filePath := filepath.Join(cwd, "repro_omniscience.go")
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 		t.Fatalf("failed to write repro file: %v", err)

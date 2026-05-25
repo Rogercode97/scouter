@@ -233,7 +233,7 @@ func main() {
 			continue
 		}
 
-		err = s.WithTransaction(mainCtx, func(txCtx context.Context, tx store.Repository) error {
+		err = s.WithTransaction(mainCtx, func(txCtx context.Context, tx store.Store) error {
 			if err := tx.SaveFileIndex(txCtx, &store.FileIndex{
 				Path:  res.Path,
 				Mtime: res.Info.ModTime().UnixNano(),

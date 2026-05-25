@@ -75,7 +75,7 @@ func (v *mockValidator) Validate(ctx context.Context, ledger *Ledger) (Validatio
 }
 
 type rippleEngineMockStore struct {
-	store.Repository
+	RippleStore
 	callers map[string][]store.Call
 	callees map[string][]store.Call
 	symbols map[string][]store.Symbol

@@ -13,11 +13,11 @@ import (
 
 // SearchEngine unifies AST structural search with Engram historical insights.
 type SearchEngine struct {
-	store  store.Repository
+	store  store.SymbolRegistry
 	memory memory.MemoryProvider
 }
 
-func NewSearchEngine(s store.Repository, m memory.MemoryProvider) *SearchEngine {
+func NewSearchEngine(s store.SymbolRegistry, m memory.MemoryProvider) *SearchEngine {
 	return &SearchEngine{store: s, memory: m}
 }
 

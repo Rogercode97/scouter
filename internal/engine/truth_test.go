@@ -10,7 +10,7 @@ import (
 )
 
 func TestNewTruthEngine(t *testing.T) {
-	var s store.Repository
+	var s store.Store
 	l := lsp.NewManager()
 
 	engine := NewTruthEngine(s, nil, nil, l, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)

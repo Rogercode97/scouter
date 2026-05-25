@@ -43,16 +43,22 @@ type Transformer interface {
 	Transform(ctx context.Context, file string, symbolName string, transformation string) (string, error)
 }
 
+// RippleStore defines the data requirements for the RippleEngine.
+type RippleStore interface {
+	store.SymbolRegistry
+	store.StructuralGraph
+}
+
 // RippleEngine orchestrates multi-file symbolic refactoring.
 type RippleEngine struct {
-	store        store.Repository
+	store        RippleStore
 	Transformer  Transformer
 	ImpactEngine *ImpactEngine
 	Strategy     PropagationStrategy
 	Validators   []Validator
 }
 
-func NewRippleEngine(s store.Repository, t Transformer, ie *ImpactEngine) *RippleEngine {
+func NewRippleEngine(s RippleStore, t Transformer, ie *ImpactEngine) *RippleEngine {
 	return &RippleEngine{
 		store:        s,
 		Transformer:  t,
@@ -64,11 +70,11 @@ func NewRippleEngine(s store.Repository, t Transformer, ie *ImpactEngine) *Rippl
 
 // BFSPropagationStrategy implements PropagationStrategy using BFS traversal.
 type BFSPropagationStrategy struct {
-	store        store.Repository
+	store        RippleStore
 	impactEngine *ImpactEngine
 }
 
-func NewBFSPropagationStrategy(s store.Repository, ie *ImpactEngine) *BFSPropagationStrategy {
+func NewBFSPropagationStrategy(s RippleStore, ie *ImpactEngine) *BFSPropagationStrategy {
 	return &BFSPropagationStrategy{
 		store:        s,
 		impactEngine: ie,
@@ -376,12 +382,12 @@ func (e *RippleEngine) Propagate(ctx context.Context, symbolName string, transfo
 
 // MCPTransformer implements Transformer using MCP Sampling.
 type MCPTransformer struct {
-	store store.Repository
+	store RippleStore
 	// This will be bridged from the MCP handler
 	DoTransform func(ctx context.Context, file, symbol, transformation string) (string, error)
 }
 
-func NewMCPTransformer(s store.Repository, bridge func(context.Context, string, string, string) (string, error)) *MCPTransformer {
+func NewMCPTransformer(s RippleStore, bridge func(context.Context, string, string, string) (string, error)) *MCPTransformer {
 	return &MCPTransformer{
 		store:       s,
 		DoTransform: bridge,
