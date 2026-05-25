@@ -424,6 +424,21 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 		})
 	}
 
+	hybridTraces, errHybrid := ParseHybridTraces(ctx, path)
+	if errHybrid == nil && len(hybridTraces) > 0 {
+		for _, ht := range hybridTraces {
+			batchItem.Calls = append(batchItem.Calls, store.Call{
+				CallerName: ht.CallerName,
+				CalleeName: ht.CalleeName,
+				CalleePath: ht.CalleePath,
+				LinkType:   ht.LinkType,
+				Path:       path,
+				Line:       ht.Line,
+			})
+		}
+	}
+
+
 	if e.astRules != nil {
 		violations, err := e.astRules.Audit(ctx, path)
 		if err == nil && len(violations) > 0 {
