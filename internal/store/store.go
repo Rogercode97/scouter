@@ -75,6 +75,7 @@ type BatchItem struct {
 	Symbols    []Symbol
 	Calls      []Call
 	Violations []Violation
+	Exports    []types.ExportDeclaration
 }
 
 type Violation struct {
@@ -158,6 +159,8 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 		`CREATE INDEX IF NOT EXISTS idx_test_results_symbol ON test_results(target_symbol);`,
 		`CREATE TABLE IF NOT EXISTS violations (id INTEGER PRIMARY KEY AUTOINCREMENT, rule_id TEXT, file_path TEXT, message TEXT, severity TEXT, start_line INTEGER, start_col INTEGER, text TEXT, FOREIGN KEY(file_path) REFERENCES file_index(path) ON DELETE CASCADE);`,
 		`CREATE INDEX IF NOT EXISTS idx_violations_file ON violations(file_path);`,
+		`CREATE TABLE IF NOT EXISTS exports (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT, symbol TEXT, source TEXT, alias TEXT, is_all INTEGER, FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);`,
+		`CREATE INDEX IF NOT EXISTS idx_exports_path ON exports(path);`,
 	}
 
 	for _, q := range queries {
@@ -449,6 +452,10 @@ func (s *storeImpl) SaveFileIndexBatch(ctx context.Context, items []BatchItem) e
 				if err := tx.ClearCalls(txCtx, item.Index.Path); err != nil {
 					return fmt.Errorf("failed to clear calls for %s: %w", item.Index.Path, err)
 				}
+				// Also clear old exports
+				if _, err := tx.(*storeImpl).exec(txCtx, "DELETE FROM exports WHERE path = ?", item.Index.Path); err != nil {
+					// Not fatal if it fails during migration
+				}
 			}
 			for _, sym := range item.Symbols {
 				symCopy := sym
@@ -478,6 +485,21 @@ func (s *storeImpl) SaveFileIndexBatch(ctx context.Context, items []BatchItem) e
 				}
 				if err := tx.SaveViolation(txCtx, astMatch); err != nil {
 					return fmt.Errorf("failed to save violation for %s: %w", vCopy.FilePath, err)
+				}
+			}
+			
+			// Batch insert exports
+			if len(item.Exports) > 0 {
+				stmtExports, err := tx.(*storeImpl).db.PrepareContext(txCtx, "INSERT INTO exports (path, symbol, source, alias, is_all) VALUES (?, ?, ?, ?, ?)")
+				if err == nil {
+					defer stmtExports.Close()
+					for _, exp := range item.Exports {
+						isAllInt := 0
+						if exp.IsAll {
+							isAllInt = 1
+						}
+						stmtExports.ExecContext(txCtx, item.Index.Path, exp.Symbol, exp.Source, exp.Alias, isAllInt)
+					}
 				}
 			}
 		}

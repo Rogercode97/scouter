@@ -363,6 +363,12 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 		Symbols:    []store.Symbol{},
 		Calls:      []store.Call{},
 		Violations: []store.Violation{},
+		Exports:    []types.ExportDeclaration{},
+	}
+
+	exports, errExp := ParseExports(ctx, path)
+	if errExp == nil && len(exports) > 0 {
+		batchItem.Exports = exports
 	}
 
 	for ptr := range itPointers {
@@ -380,7 +386,31 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 			StartCol:       ptr.StartCol,
 			EndLine:        ptr.EndLine,
 			StructuralHash: ptr.StructuralHash,
+			Exported:       ptr.Exported,
 		})
+	}
+
+	// Apply Local Export Overrides (e.g. Python __all__)
+	if strings.HasSuffix(path, ".py") && len(batchItem.Exports) > 0 {
+		// check if we have __all__
+		hasAll := false
+		allowedSymbols := make(map[string]bool)
+		for _, e := range batchItem.Exports {
+			if e.IsAll {
+				hasAll = true
+			}
+			allowedSymbols[e.Symbol] = true
+		}
+		
+		if hasAll {
+			for i, sym := range batchItem.Symbols {
+				if allowedSymbols[sym.Name] {
+					batchItem.Symbols[i].Exported = true
+				} else {
+					batchItem.Symbols[i].Exported = false
+				}
+			}
+		}
 	}
 
 	for c := range itCalls {
