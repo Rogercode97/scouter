@@ -22,7 +22,7 @@ func AnonymizeNode(node *gotreesitter.Node, source []byte, lang *gotreesitter.La
 	if kind == "method_declaration" || kind == "method_spec" || kind == "method_signature" || kind == "method_definition" || strings.HasPrefix(kind, "method_") {
 		kind = "method"
 	}
-	if kind == "function_declaration" || kind == "function_definition" {
+	if kind == "function_declaration" || kind == "function_definition" || kind == "function_item" || kind == "generator_function_declaration" {
 		kind = "function"
 	}
 

@@ -54,3 +54,39 @@ func TestStructuralHash(t *testing.T) {
 		t.Errorf("Different signatures should yield different hashes.\n1: %s\n3: %s", hash1, hash3)
 	}
 }
+
+func TestStructuralHash_Python(t *testing.T) {
+	lang := grammars.PythonLanguage()
+	parser := gotreesitter.NewParser(lang)
+
+	code1 := []byte(`def hello(self, x): return x + 1`)
+	code2 := []byte(`def hello(self, x): pass`)
+
+	tree1, _ := parser.Parse(code1)
+	tree2, _ := parser.Parse(code2)
+
+	hash1 := GetStructuralHash(tree1.RootNode(), code1, lang)
+	hash2 := GetStructuralHash(tree2.RootNode(), code2, lang)
+
+	if hash1 != hash2 {
+		t.Errorf("Python structural hashes should be identical for identical signatures.\n1: %s\n2: %s", hash1, hash2)
+	}
+}
+
+func TestStructuralHash_Rust(t *testing.T) {
+	lang := grammars.RustLanguage()
+	parser := gotreesitter.NewParser(lang)
+
+	code1 := []byte(`fn process(&self, x: i32) { println!("{}", x); }`)
+	code2 := []byte(`fn process(&self, x: i32) {}`)
+
+	tree1, _ := parser.Parse(code1)
+	tree2, _ := parser.Parse(code2)
+
+	hash1 := GetStructuralHash(tree1.RootNode(), code1, lang)
+	hash2 := GetStructuralHash(tree2.RootNode(), code2, lang)
+
+	if hash1 != hash2 {
+		t.Errorf("Rust structural hashes should be identical for identical signatures.\n1: %s\n2: %s", hash1, hash2)
+	}
+}

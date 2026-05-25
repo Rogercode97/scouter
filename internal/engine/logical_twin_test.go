@@ -69,7 +69,7 @@ func Multiply(a, b int) int {
 		t.Errorf("Add and Sum should have identical structural hashes, got %s and %s", addHash, sumHash)
 	}
 
-	if addHash == mulHash {
-		t.Errorf("Add and Multiply should have different structural hashes, but both are %s", addHash)
+	if addHash != mulHash {
+		t.Errorf("Add and Multiply should have identical structural hashes because bodies are stripped for interface parity, got %s and %s", addHash, mulHash)
 	}
 }

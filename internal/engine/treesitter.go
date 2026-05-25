@@ -44,7 +44,7 @@ func init() {
          (variable_declarator name: (identifier) @name value: (arrow_function)) @function
          (method_definition name: (property_identifier) @name) @method 
          (interface_declaration name: (type_identifier) @name) @interface
-         (interface_declaration name: (type_identifier) @iname body: (interface_body (method_signature (property_identifier) @mname))) @interface_spec
+         (interface_declaration name: (type_identifier) @iname body: (interface_body (method_signature name: (property_identifier) @mname) @interface_spec))
          (call_expression 
            function: (member_expression property: (property_identifier) @pname (#match? @pname "^(registerTool|registerResource|registerPrompt|tool|resource|prompt)$"))
            arguments: (arguments (string (string_fragment) @name))) @mcp_entry`
@@ -65,7 +65,8 @@ func init() {
 	registerLanguage(".py", pyLang,
 		`(function_definition name: (identifier) @name) @function 
          (class_definition name: (identifier) @name) @class
-         (class_definition name: (identifier) @recv body: (block (function_definition name: (identifier) @name) @method))`,
+         (class_definition name: (identifier) @recv body: (block (function_definition name: (identifier) @name) @method))
+         (class_definition name: (identifier) @recv body: (block (decorated_definition (function_definition name: (identifier) @name) @method)))`,
 		`(call function: (identifier) @callee) (call function: (attribute attribute: (identifier) @callee))`)
 
 	// Rust Configuration
@@ -75,7 +76,7 @@ func init() {
          (struct_item name: (type_identifier) @name) @class
          (trait_item name: (type_identifier) @name) @interface
          (impl_item type: (type_identifier) @recv body: (declaration_list (function_item name: (identifier) @name) @method))
-         (trait_item name: (type_identifier) @iname body: (declaration_list (function_item name: (identifier) @mname))) @interface_spec`,
+         (trait_item name: (type_identifier) @iname body: (declaration_list (function_item name: (identifier) @mname) @interface_spec))`,
 		`(call_expression function: (identifier) @callee)
          (call_expression function: (field_expression field: (field_identifier) @callee))
          (impl_item trait: (type_identifier) @trait_name type: (type_identifier) @type_name) @impl_block`)
