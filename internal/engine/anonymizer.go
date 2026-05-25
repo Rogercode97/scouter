@@ -22,7 +22,7 @@ func AnonymizeNode(node *gotreesitter.Node, source []byte, lang *gotreesitter.La
 	if kind == "method_declaration" || kind == "method_spec" || kind == "method_signature" || kind == "method_definition" || strings.HasPrefix(kind, "method_") {
 		kind = "method"
 	}
-	if kind == "function_declaration" || kind == "function_definition" {
+	if kind == "function_declaration" || kind == "function_definition" || kind == "function_item" || kind == "generator_function_declaration" {
 		kind = "function"
 	}
 
@@ -53,13 +53,13 @@ func AnonymizeNode(node *gotreesitter.Node, source []byte, lang *gotreesitter.La
 			// Normalize method and function definitions by stripping receiver and body.
 			// This makes struct methods structurally match interface methods.
 			if kind == "method" || kind == "function" {
-				if childKind == "block" || childKind == "func" {
+				if childKind == "block" || childKind == "statement_block" || childKind == "func" {
 					continue // Ignore function body
 				}
-				if childKind == "field_identifier" || childKind == "identifier" {
+				if childKind == "field_identifier" || childKind == "identifier" || childKind == "property_identifier" {
 					seenName = true
 				}
-				// Skip parameter_list if we haven't seen the name yet (this is the receiver)
+				// Go-specific: Skip parameter_list if we haven't seen the name yet (this is the receiver)
 				if childKind == "parameter_list" && !seenName {
 					continue
 				}

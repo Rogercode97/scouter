@@ -200,3 +200,71 @@ func TestStreamWithTreeSitter_RustImpl(t *testing.T) {
 	}
 }
 
+func TestStreamWithTreeSitter_PythonMethods(t *testing.T) {
+	content := []byte(`
+class Calculator:
+    def add(self, a, b):
+        return a + b
+	`)
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "test.py")
+	os.WriteFile(filePath, content, 0644)
+
+	ctx := t.Context()
+	pointersIt, _, err := StreamWithTreeSitter(ctx, filePath)
+	if err != nil {
+		t.Fatalf("StreamWithTreeSitter failed: %v", err)
+	}
+
+	var pointers []types.ASTPointer
+	for p := range pointersIt {
+		pointers = append(pointers, p)
+	}
+
+	foundMethod := false
+	for _, p := range pointers {
+		if p.Name == "Calculator.add" && p.Type == "method" {
+			foundMethod = true
+		}
+	}
+
+	if !foundMethod {
+		t.Errorf("Expected method 'Calculator.add', got: %v", pointers)
+	}
+}
+
+func TestStreamWithTreeSitter_RustMethods(t *testing.T) {
+	content := []byte(`
+struct Calculator;
+impl Calculator {
+    fn add(&self, a: i32, b: i32) -> i32 {
+        a + b
+    }
+}
+	`)
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "test.rs")
+	os.WriteFile(filePath, content, 0644)
+
+	ctx := t.Context()
+	pointersIt, _, err := StreamWithTreeSitter(ctx, filePath)
+	if err != nil {
+		t.Fatalf("StreamWithTreeSitter failed: %v", err)
+	}
+
+	var pointers []types.ASTPointer
+	for p := range pointersIt {
+		pointers = append(pointers, p)
+	}
+
+	foundMethod := false
+	for _, p := range pointers {
+		if p.Name == "Calculator.add" && p.Type == "method" {
+			foundMethod = true
+		}
+	}
+
+	if !foundMethod {
+		t.Errorf("Expected method 'Calculator.add', got: %v", pointers)
+	}
+}
