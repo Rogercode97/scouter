@@ -42,6 +42,7 @@ func ComplexFunc(err error) {
 	assert.True(t, complexFunc.Metrics.HasErrorHandling)
 	assert.True(t, complexFunc.Metrics.HasExceptions)
 	assert.True(t, complexFunc.Metrics.IsAsync)
+	assert.True(t, complexFunc.Exported)
 }
 
 func TestSemanticMetrics_Python(t *testing.T) {
@@ -74,11 +75,12 @@ async def process_data(data):
 	assert.True(t, fn.Metrics.IsAsync)
 	assert.True(t, fn.Metrics.HasErrorHandling)
 	assert.True(t, fn.Metrics.HasExceptions)
+	assert.True(t, fn.Exported)
 }
 
 func TestSemanticMetrics_TypeScript(t *testing.T) {
 	content := `
-async function fetchData(url: string) {
+export async function fetchData(url: string) {
     try {
         if (!url) {
             throw new Error("Invalid URL");
@@ -110,4 +112,5 @@ async function fetchData(url: string) {
 	assert.True(t, fn.Metrics.IsAsync)
 	assert.True(t, fn.Metrics.HasErrorHandling)
 	assert.True(t, fn.Metrics.HasExceptions)
+	assert.True(t, fn.Exported)
 }

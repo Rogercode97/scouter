@@ -19,6 +19,7 @@ type ASTPointer struct {
 	Hash           string `json:"hash" validate:"required,len=64"`
 	StructuralHash string `json:"structural_hash,omitempty" validate:"omitempty,len=64"`
 	Metrics        *SemanticMetrics `json:"metrics,omitempty"`
+	Exported       bool   `json:"exported"`
 }
 
 type ASTCall struct {
@@ -111,6 +112,7 @@ type Symbol struct {
 	EndLine        int      `json:"end_line"`
 	LinkedInsights []string `json:"linked_insights,omitempty"`
 	Metrics        *SemanticMetrics `json:"metrics,omitempty"`
+	Exported       bool     `json:"exported"`
 }
 
 type SemanticMetrics struct {

@@ -182,6 +182,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 					Hash:           hex.EncodeToString(h[:]),
 					StructuralHash: GetStructuralHash(symNode, content, lang),
 					Metrics:        computeSemanticMetrics(symNode, lang, content),
+					Exported:       isExported(symNode, name, ext, lang),
 				}
 				if !yield(p) {
 					return
@@ -204,6 +205,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 					Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
 					StructuralHash: GetStructuralHash(symNode, content, lang),
 					Metrics:        computeSemanticMetrics(symNode, lang, content),
+					Exported:       isExported(symNode, mname, ext, lang),
 				}
 				if !yield(p) {
 					return
@@ -445,4 +447,33 @@ func computeSemanticMetrics(node *gotreesitter.Node, lang *gotreesitter.Language
 
 	traverse(node)
 	return metrics
+}
+
+func isExported(n *gotreesitter.Node, name string, ext string, lang *gotreesitter.Language) bool {
+	if name == "" {
+		return false
+	}
+	// Fallback logic
+	switch ext {
+	case ".go":
+		return name[0] >= 'A' && name[0] <= 'Z'
+	case ".py":
+		return name[0] != '_'
+	case ".rs":
+		for i := 0; i < int(n.ChildCount()); i++ {
+			if n.Child(i).Type(lang) == "visibility_modifier" {
+				return true
+			}
+		}
+		return false
+	case ".ts", ".js", ".tsx", ".jsx":
+		parent := n.Parent()
+		if parent != nil && parent.Type(lang) == "export_statement" {
+			return true
+		}
+		// sometimes export_statement is higher up, let's just check parent for now
+		return false
+	default:
+		return true
+	}
 }

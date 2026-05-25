@@ -218,6 +218,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 						Hash:           hex.EncodeToString(h[:]),
 						StructuralHash: structuralHash,
 						Metrics:        metrics,
+						Exported:       ast.IsExported(fn.Name.Name),
 					}
 					if !yield(p) {
 						stopped = true
@@ -267,6 +268,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 												EndLine:        mEnd.Line,
 												Hash:           utils.HashString(fmt.Sprintf("spec:%s:%s", fullMethodName, sig)),
 												StructuralHash: structuralHash,
+												Exported:       ast.IsExported(methodName),
 											}
 											if !yield(p) {
 												stopped = true
@@ -306,6 +308,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 								EndLine:        endPos.Line,
 								Hash:           hex.EncodeToString(h[:]),
 								StructuralHash: structuralHash,
+								Exported:       ast.IsExported(ts.Name.Name),
 							}
 							if !yield(p) {
 								stopped = true
