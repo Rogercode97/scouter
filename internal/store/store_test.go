@@ -753,3 +753,83 @@ func TestSaveFileIndexBatch(t *testing.T) {
 		t.Errorf("Expected 100 symbols, got %d", sc)
 	}
 }
+func TestStore_RecordSymbolUsage(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "scouter_test.db")
+	s, err := New(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+
+	// 1. Insert a mock symbol
+	idx := &FileIndex{Path: "test.go", Hash: "hash123"}
+	if err := s.SaveFileIndex(ctx, idx); err != nil {
+		t.Fatalf("failed to save file index: %v", err)
+	}
+	sym := &Symbol{
+		Name: "TestFunction",
+		Path: "test.go",
+		Type: "function",
+	}
+	if err := s.SaveSymbol(ctx, sym); err != nil {
+		t.Fatalf("failed to save symbol: %v", err)
+	}
+
+	// 2. Record usage
+	usages := []UsageRecord{
+		{
+			SymbolName: "TestFunction",
+			SymbolPath: "test.go",
+			HitCount:   5,
+			LastUsed:   1000,
+		},
+		{
+			SymbolName: "NonExistent",
+			SymbolPath: "test.go",
+			HitCount:   1,
+			LastUsed:   1000,
+		},
+	}
+	if err := s.RecordSymbolUsage(ctx, "prod", usages); err != nil {
+		t.Fatalf("failed to record usage: %v", err)
+	}
+
+	// 3. Verify it was recorded properly
+	impl := s.(*storeImpl)
+	var hitCount int
+	var lastUsed int64
+	err = impl.db.QueryRowContext(ctx, "SELECT hit_count, last_used FROM symbol_usage WHERE environment = 'prod'").Scan(&hitCount, &lastUsed)
+	if err != nil {
+		t.Fatalf("failed to query symbol_usage: %v", err)
+	}
+	if hitCount != 5 {
+		t.Errorf("expected hit count 5, got %d", hitCount)
+	}
+	if lastUsed != 1000 {
+		t.Errorf("expected last used 1000, got %d", lastUsed)
+	}
+
+	// 4. Update usage
+	usages2 := []UsageRecord{
+		{
+			SymbolName: "TestFunction",
+			SymbolPath: "test.go",
+			HitCount:   3,
+			LastUsed:   2000,
+		},
+	}
+	if err := s.RecordSymbolUsage(ctx, "prod", usages2); err != nil {
+		t.Fatalf("failed to update usage: %v", err)
+	}
+
+	err = impl.db.QueryRowContext(ctx, "SELECT hit_count, last_used FROM symbol_usage WHERE environment = 'prod'").Scan(&hitCount, &lastUsed)
+	if err != nil {
+		t.Fatalf("failed to query symbol_usage: %v", err)
+	}
+	if hitCount != 8 {
+		t.Errorf("expected updated hit count 8, got %d", hitCount)
+	}
+	if lastUsed != 2000 {
+		t.Errorf("expected updated last used 2000, got %d", lastUsed)
+	}
+}

@@ -7,6 +7,13 @@ import (
 	"github.com/Rogercode97/scouter/internal/types"
 )
 
+type UsageRecord struct {
+	SymbolName string `json:"symbol_name"`
+	SymbolPath string `json:"symbol_path"`
+	HitCount   int    `json:"hit_count"`
+	LastUsed   int64  `json:"last_used"`
+}
+
 type SymbolRegistry interface {
 	GetFileIndex(ctx context.Context, path string) (*FileIndex, error)
 	SaveFileIndex(ctx context.Context, idx *FileIndex) error
@@ -28,6 +35,7 @@ type SymbolRegistry interface {
 	UpdateSymbolChurn(ctx context.Context, path string, score float64) error
 	UpdateSymbolPageRank(ctx context.Context, name, path string, score float64) error
 	UpdateSymbolRuntimeHits(ctx context.Context, name, path string, hits int) error
+	RecordSymbolUsage(ctx context.Context, env string, usages []UsageRecord) error
 	GetStats(ctx context.Context) (int, int, error)
 	GetAllFilePaths(ctx context.Context) ([]string, error)
 	DeleteFileIndex(ctx context.Context, path string) error
