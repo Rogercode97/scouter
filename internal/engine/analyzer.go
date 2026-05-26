@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"go/types"
+	"math"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/dominikbraun/graph"
@@ -65,45 +68,123 @@ func (a *AnalysisEngine) ResolvePageRank(ctx context.Context) error {
 	// so we implement it using the graph structure.
 	
 	adjacency, _ := g.AdjacencyMap()
-	nodes := make([]string, 0, len(adjacency))
+	N := len(adjacency)
+	if N == 0 {
+		return nil
+	}
+
+	nodes := make([]string, 0, N)
+	nodeIndices := make(map[string]int, N)
+
 	for node := range adjacency {
+		nodeIndices[node] = len(nodes)
 		nodes = append(nodes, node)
 	}
 
-	ranks := make(map[string]float64)
-	initialRank := 1.0 / float64(len(nodes))
-	for _, node := range nodes {
-		ranks[node] = initialRank
+	// Inverse adjacency for easier rank propagation
+	incoming := make([][]int, N)
+	outdegree := make([]int, N)
+	for src, targets := range adjacency {
+		srcIdx := nodeIndices[src]
+		outdegree[srcIdx] = len(targets)
+		for dest := range targets {
+			destIdx := nodeIndices[dest]
+			incoming[destIdx] = append(incoming[destIdx], srcIdx)
+		}
+	}
+
+	currentRanks := make([]float64, N)
+	nextRanks := make([]float64, N)
+	initialRank := 1.0 / float64(N)
+	for i := 0; i < N; i++ {
+		currentRanks[i] = initialRank
 	}
 
 	damping := 0.85
-	iterations := 10
-	
-	// Inverse adjacency for easier rank propagation
-	incoming := make(map[string][]string)
-	outdegree := make(map[string]int)
-	for src, targets := range adjacency {
-		outdegree[src] = len(targets)
-		for dest := range targets {
-			incoming[dest] = append(incoming[dest], src)
+	epsilon := 1e-6
+	maxIterations := 100
+
+	// Pre-calculate inverse out-degrees for optimization
+	invOutdegree := make([]float64, N)
+	for i, d := range outdegree {
+		if d > 0 {
+			invOutdegree[i] = 1.0 / float64(d)
 		}
 	}
 
-	for i := 0; i < iterations; i++ {
-		newRanks := make(map[string]float64)
-		for _, node := range nodes {
-			rankSum := 0.0
-			for _, neighbor := range incoming[node] {
-				rankSum += ranks[neighbor] / float64(outdegree[neighbor])
+	numWorkers := runtime.GOMAXPROCS(0)
+	if numWorkers > N {
+		numWorkers = N
+	}
+	if numWorkers == 0 {
+		numWorkers = 1
+	}
+
+	for iter := 0; iter < maxIterations; iter++ {
+		danglingSum := 0.0
+		for i := 0; i < N; i++ {
+			if outdegree[i] == 0 {
+				danglingSum += currentRanks[i]
 			}
-			newRanks[node] = (1.0-damping)/float64(len(nodes)) + damping*rankSum
 		}
-		ranks = newRanks
+
+		var wg sync.WaitGroup
+		diffs := make([]float64, numWorkers)
+		chunkSize := (N + numWorkers - 1) / numWorkers
+
+		for w := 0; w < numWorkers; w++ {
+			start := w * chunkSize
+			if start >= N {
+				continue
+			}
+			end := start + chunkSize
+			if end > N {
+				end = N
+			}
+
+			wg.Add(1)
+			go func(workerID, startIdx, endIdx int) {
+				defer wg.Done()
+				localMaxDiff := 0.0
+				danglingRedist := danglingSum / float64(N)
+
+				for i := startIdx; i < endIdx; i++ {
+					rankSum := 0.0
+					for _, neighborIdx := range incoming[i] {
+						rankSum += currentRanks[neighborIdx] * invOutdegree[neighborIdx]
+					}
+
+					nextRanks[i] = (1.0-damping)/float64(N) + damping*(rankSum+danglingRedist)
+
+					diff := math.Abs(nextRanks[i] - currentRanks[i])
+					if diff > localMaxDiff {
+						localMaxDiff = diff
+					}
+				}
+				diffs[workerID] = localMaxDiff
+			}(w, start, end)
+		}
+		wg.Wait()
+
+		maxDiff := 0.0
+		for _, d := range diffs {
+			if d > maxDiff {
+				maxDiff = d
+			}
+		}
+
+		// Swap slices
+		currentRanks, nextRanks = nextRanks, currentRanks
+
+		if maxDiff < epsilon {
+			break
+		}
 	}
 
 	// 5. Update store
 	return a.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Store) error {
-		for node, score := range ranks {
+		for i, node := range nodes {
+			score := currentRanks[i]
 			parts := strings.SplitN(node, ":", 2)
 			if len(parts) == 2 {
 				if err := tx.UpdateSymbolPageRank(txCtx, parts[0], parts[1], score); err != nil {

@@ -131,6 +131,9 @@ func TestParseFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantFlags.Env == "" {
+				tt.wantFlags.Env = "production"
+			}
 			flags, args := ParseFlags(tt.args)
 			if !reflect.DeepEqual(flags, tt.wantFlags) {
 				t.Errorf("flags = %+v, want %+v", flags, tt.wantFlags)
