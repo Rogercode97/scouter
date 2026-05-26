@@ -53,6 +53,7 @@ go install github.com/Rogercode97/scouter/cmd/scouter@latest
 ```bash
 scouter index .             # Map the codebase
 scouter predict             # Predict affected tests from git diff
+cat telemetry.jsonl | scouter ingest --env production # Map runtime telemetry to AST symbols
 ```
 
 ## 🛠️ MCP Tools

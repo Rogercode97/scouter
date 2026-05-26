@@ -18,6 +18,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/mcp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/telemetry"
+	"github.com/Rogercode97/scouter/internal/telemetry/ingest"
 	"github.com/Rogercode97/scouter/internal/utils"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -119,6 +120,20 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 
 		fmt.Printf("✅ Indexed %s\n", path)
+		return 0
+
+	case "ingest":
+		db, err := store.New(ctx, cfg.Tracking.DBPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "error opening database: %v\n", err)
+			return 1
+		}
+		defer db.Close()
+
+		if err := ingest.Ingest(ctx, os.Stdin, flags.Env, db); err != nil {
+			fmt.Fprintf(stderr, "ingest error: %v\n", err)
+			return 1
+		}
 		return 0
 
 	case "gain":
