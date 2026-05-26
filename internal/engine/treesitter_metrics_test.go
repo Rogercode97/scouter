@@ -39,6 +39,7 @@ func ComplexFunc(err error) {
 	assert.Equal(t, "ComplexFunc", complexFunc.Name)
 	assert.NotNil(t, complexFunc.Metrics)
 	assert.Equal(t, 4, complexFunc.Metrics.CyclomaticComplexity)
+	assert.Equal(t, 4, complexFunc.Metrics.CognitiveComplexity)
 	assert.True(t, complexFunc.Metrics.HasErrorHandling)
 	assert.True(t, complexFunc.Metrics.HasExceptions)
 	assert.True(t, complexFunc.Metrics.IsAsync)
@@ -71,6 +72,7 @@ async def process_data(data):
 	assert.NotNil(t, fn.Metrics)
 	// Base (1) + if (1) + and (1) + except (1) = 4
 	assert.Equal(t, 4, fn.Metrics.CyclomaticComplexity)
+	assert.Equal(t, 3, fn.Metrics.CognitiveComplexity) // if (1) + and (1) + except (1) = 3
 	assert.True(t, fn.Metrics.IsAsync)
 	assert.True(t, fn.Metrics.HasErrorHandling)
 	assert.True(t, fn.Metrics.HasExceptions)
@@ -107,7 +109,42 @@ async function fetchData(url: string) {
 	assert.NotNil(t, fn.Metrics)
 	// Base (1) + try/catch (1) + if (1) = 3
 	assert.Equal(t, 3, fn.Metrics.CyclomaticComplexity)
+	assert.Equal(t, 2, fn.Metrics.CognitiveComplexity) // if (1) + catch (1) = 2
 	assert.True(t, fn.Metrics.IsAsync)
 	assert.True(t, fn.Metrics.HasErrorHandling)
 	assert.True(t, fn.Metrics.HasExceptions)
+}
+
+func TestCognitiveComplexity_Nesting(t *testing.T) {
+	content := `package test
+func NestedFunc(score int) string {
+	if score >= 60 { // +1 (nesting: 0)
+		if score >= 70 { // +2 (nesting: 1)
+			if score >= 80 { // +3 (nesting: 2)
+				if score >= 90 { // +4 (nesting: 3)
+					return "A"
+				}
+				return "B"
+			}
+			return "C"
+		}
+		return "D"
+	}
+	return "F"
+}`
+	tmpFile := filepath.Join(t.TempDir(), "test.go")
+	os.WriteFile(tmpFile, []byte(content), 0644)
+
+	pointersIter, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
+	assert.NoError(t, err)
+
+	var ptrs []types.ASTPointer
+	pointersIter(func(p types.ASTPointer) bool {
+		ptrs = append(ptrs, p)
+		return true
+	})
+
+	assert.Len(t, ptrs, 1)
+	fn := ptrs[0]
+	assert.Equal(t, 10, fn.Metrics.CognitiveComplexity) // 1 + 2 + 3 + 4 = 10
 }

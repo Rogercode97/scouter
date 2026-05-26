@@ -117,6 +117,7 @@ type Symbol struct {
 
 type SemanticMetrics struct {
 	CyclomaticComplexity int  `json:"cyclomatic_complexity"`
+	CognitiveComplexity  int  `json:"cognitive_complexity"`
 	IsAsync              bool `json:"is_async"`
 	HasErrorHandling     bool `json:"has_error_handling"`
 	HasExceptions        bool `json:"has_exceptions"`

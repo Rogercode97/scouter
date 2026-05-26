@@ -134,14 +134,46 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 	}
 	res.Mermaid = mermaid
 
-	// 4. Risk Score
-	cScore := math.Min(1.0, math.Log1p(centrality)/math.Log1p(100.0))
+	// 4. Risk Score (6-Signal Model)
+	// Signal 1: Blast Radius (25%)
 	bScore := math.Min(1.0, math.Log1p(float64(blastRadius))/math.Log1p(500.0))
-	hScore := math.Min(0.2, float64(res.Target.Metrics.HistoricalBugfixes)*0.05)
-	eScore := 0.0
-	if isExported { eScore = 0.2 }
 
-	res.Target.RiskScore = (cScore * 0.4) + (bScore * 0.4) + hScore + eScore
+	// Signal 2: Complexity (20%)
+	cogComplexity := 0
+	if len(targetSymbols) > 0 && targetSymbols[0].Metrics != nil {
+		cogComplexity = targetSymbols[0].Metrics.CognitiveComplexity
+	}
+	cogScore := math.Min(1.0, float64(cogComplexity)/30.0)
+
+	// Signal 3: Churn (20%)
+	churnScore := 0.0
+	if len(targetSymbols) > 0 {
+		churnScore = targetSymbols[0].ChurnScore
+	}
+
+	// Signal 4: Test Gaps (15%)
+	testGap := 1.0
+	testPath := strings.Replace(path, ".go", "_test.go", 1)
+	if strings.HasSuffix(path, ".py") {
+		testPath = strings.Replace(path, ".py", "_test.py", 1)
+	} else if strings.HasSuffix(path, ".ts") {
+		testPath = strings.Replace(path, ".ts", ".test.ts", 1)
+	}
+	if _, err := os.Stat(testPath); err == nil {
+		testGap = 0.0
+	}
+
+	// Signal 5: Volume (10%)
+	volumeLines := 0
+	if len(targetSymbols) > 0 {
+		volumeLines = targetSymbols[0].EndLine - targetSymbols[0].StartLine
+	}
+	volumeScore := math.Min(1.0, float64(volumeLines)/500.0)
+
+	// Signal 6: Runtime/Centrality (10%)
+	runtimeScore := centrality
+
+	res.Target.RiskScore = (bScore * 0.25) + (cogScore * 0.20) + (churnScore * 0.20) + (testGap * 0.15) + (volumeScore * 0.10) + (runtimeScore * 0.10)
 	res.Target.RiskScore = math.Min(1.0, res.Target.RiskScore)
 
 	switch {

@@ -382,6 +382,8 @@ func computeSemanticMetrics(node *gotreesitter.Node, lang *gotreesitter.Language
 		return metrics
 	}
 
+	metrics.CognitiveComplexity = computeCognitiveComplexity(node, lang, content)
+
 	var traverse func(n *gotreesitter.Node)
 	traverse = func(n *gotreesitter.Node) {
 		if n == nil {
@@ -447,4 +449,48 @@ func computeSemanticMetrics(node *gotreesitter.Node, lang *gotreesitter.Language
 
 	traverse(node)
 	return metrics
+}
+
+func computeCognitiveComplexity(node *gotreesitter.Node, lang *gotreesitter.Language, content []byte) int {
+	var traverse func(n *gotreesitter.Node, nesting int) int
+	traverse = func(n *gotreesitter.Node, nesting int) int {
+		if n == nil {
+			return 0
+		}
+		kind := n.Type(lang)
+		score := 0
+		isNestingStructure := false
+
+		switch kind {
+		case "if_statement", "for_statement", "while_statement", "catch_clause", "except_clause", "conditional_expression":
+			score += 1 + nesting
+			isNestingStructure = true
+		case "switch_statement":
+			score += 1
+			isNestingStructure = true
+		case "break_statement", "continue_statement":
+			if n.ChildCount() > 1 {
+				score += 1
+			}
+		case "binary_expression", "boolean_operator":
+			operator := n.ChildByFieldName("operator", lang)
+			if operator != nil {
+				opText := string(operator.Text(content))
+				if opText == "&&" || opText == "||" || opText == "and" || opText == "or" {
+					score += 1
+				}
+			}
+		}
+
+		nextNesting := nesting
+		if isNestingStructure {
+			nextNesting++
+		}
+
+		for i := 0; i < int(n.ChildCount()); i++ {
+			score += traverse(n.Child(i), nextNesting)
+		}
+		return score
+	}
+	return traverse(node, 0)
 }
