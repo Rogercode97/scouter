@@ -22,21 +22,19 @@ import (
 var hunkRegex = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@`)
 var engramIDRegex = regexp.MustCompile(`\[\d+\] #\d+`)
 
-// ImpactStore defines the data requirements for the ImpactEngine.
-type ImpactStore interface {
-	store.SymbolRegistry
-	store.StructuralGraph
-}
-
-// ImpactEngine consolidates all impact analysis, predictive testing,
-// and deterministic call graph logic.
 type ImpactEngine struct {
-	store      ImpactStore
+	store interface {
+		store.SymbolRegistry
+		store.StructuralGraph
+	}
 	LSPManager *lsp.Manager
 	memory     memory.MemoryProvider
 }
 
-func NewImpactEngine(s ImpactStore, lm *lsp.Manager, mem memory.MemoryProvider) *ImpactEngine {
+func NewImpactEngine(s interface {
+	store.SymbolRegistry
+	store.StructuralGraph
+}, lm *lsp.Manager, mem memory.MemoryProvider) *ImpactEngine {
 	return &ImpactEngine{
 		store:      s,
 		LSPManager: lm,
@@ -353,7 +351,10 @@ func parseDiff(diff string) ([]diffRange, error) {
 	return ranges, nil
 }
 
-func findTestsForSymbols(ctx context.Context, db ImpactStore, symbols []store.Symbol) ([]types.TestTarget, error) {
+func findTestsForSymbols(ctx context.Context, db interface {
+	store.SymbolRegistry
+	store.StructuralGraph
+}, symbols []store.Symbol) ([]types.TestTarget, error) {
 	uniqueTests := make(map[string]types.TestTarget)
 	for _, sym := range symbols {
 		affectedTests, err := db.GetAffectedTestsRecursive(ctx, sym.Name, sym.Path)

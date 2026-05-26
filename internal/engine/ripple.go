@@ -43,22 +43,21 @@ type Transformer interface {
 	Transform(ctx context.Context, file string, symbolName string, transformation string) (string, error)
 }
 
-// RippleStore defines the data requirements for the RippleEngine.
-type RippleStore interface {
-	store.SymbolRegistry
-	store.StructuralGraph
-}
-
-// RippleEngine orchestrates multi-file symbolic refactoring.
 type RippleEngine struct {
-	store        RippleStore
+	store interface {
+		store.SymbolRegistry
+		store.StructuralGraph
+	}
 	Transformer  Transformer
 	ImpactEngine *ImpactEngine
 	Strategy     PropagationStrategy
 	Validators   []Validator
 }
 
-func NewRippleEngine(s RippleStore, t Transformer, ie *ImpactEngine) *RippleEngine {
+func NewRippleEngine(s interface {
+	store.SymbolRegistry
+	store.StructuralGraph
+}, t Transformer, ie *ImpactEngine) *RippleEngine {
 	return &RippleEngine{
 		store:        s,
 		Transformer:  t,
@@ -70,14 +69,21 @@ func NewRippleEngine(s RippleStore, t Transformer, ie *ImpactEngine) *RippleEngi
 
 // BFSPropagationStrategy implements PropagationStrategy using BFS traversal.
 type BFSPropagationStrategy struct {
-	store        RippleStore
-	impactEngine *ImpactEngine
+	store interface {
+		store.SymbolRegistry
+		store.StructuralGraph
+	}
+	ImpactEngine *ImpactEngine
 }
 
-func NewBFSPropagationStrategy(s RippleStore, ie *ImpactEngine) *BFSPropagationStrategy {
+// NewBFSPropagationStrategy creates a new breadth-first propagation strategy.
+func NewBFSPropagationStrategy(s interface {
+	store.SymbolRegistry
+	store.StructuralGraph
+}, ie *ImpactEngine) *BFSPropagationStrategy {
 	return &BFSPropagationStrategy{
 		store:        s,
-		impactEngine: ie,
+		ImpactEngine: ie,
 	}
 }
 
@@ -108,7 +114,7 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 				// 1. Trace callers (Upward / Standard Calls)
 				if depth < maxDepth {
 					var callers []store.Call
-					deterministic, err := s.impactEngine.GetDeterministicCallers(ctx, currentSym)
+					deterministic, err := s.ImpactEngine.GetDeterministicCallers(ctx, currentSym)
 					if err == nil && len(deterministic) > 0 {
 						callers = deterministic
 					} else {
@@ -382,12 +388,17 @@ func (e *RippleEngine) Propagate(ctx context.Context, symbolName string, transfo
 
 // MCPTransformer implements Transformer using MCP Sampling.
 type MCPTransformer struct {
-	store RippleStore
-	// This will be bridged from the MCP handler
+	store interface {
+		store.SymbolRegistry
+		store.StructuralGraph
+	}
 	DoTransform func(ctx context.Context, file, symbol, transformation string) (string, error)
 }
 
-func NewMCPTransformer(s RippleStore, bridge func(context.Context, string, string, string) (string, error)) *MCPTransformer {
+func NewMCPTransformer(s interface {
+	store.SymbolRegistry
+	store.StructuralGraph
+}, bridge func(context.Context, string, string, string) (string, error)) *MCPTransformer {
 	return &MCPTransformer{
 		store:       s,
 		DoTransform: bridge,

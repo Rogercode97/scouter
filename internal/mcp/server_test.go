@@ -19,7 +19,15 @@ func setupTestServer(ctx context.Context) (*Server, *mcp.ClientSession, func()) 
 
 	go server.Start(ctx, serverTransport)
 
-	client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, &mcp.ClientOptions{
+		CreateMessageHandler: func(_ context.Context, req *mcp.CreateMessageRequest) (*mcp.CreateMessageResult, error) {
+			return &mcp.CreateMessageResult{
+				Content: &mcp.TextContent{
+					Text: "```go\n// Mocked code fix by simulated LLM\n```",
+				},
+			}, nil
+		},
+	})
 	session, _ := client.Connect(ctx, clientTransport, nil)
 
 	// Unlock heavy arsenal for tests

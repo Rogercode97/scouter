@@ -9,7 +9,8 @@ import (
 )
 
 type rippleMockStore struct {
-	RippleStore
+	store.SymbolRegistry
+	store.StructuralGraph
 	callers map[string][]store.Call
 	callees map[string][]store.Call
 	symbols map[string][]store.Symbol

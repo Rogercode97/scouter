@@ -18,6 +18,11 @@ func NewMCPMessenger(session *mcp.ServerSession) *MCPMessenger {
 
 // Ask sends a sampling request to the MCP client.
 func (m *MCPMessenger) Ask(ctx context.Context, systemPrompt string, userPrompt string) (string, error) {
+	initParams := m.session.InitializeParams()
+	if initParams == nil || initParams.Capabilities == nil || initParams.Capabilities.Sampling == nil {
+		return "", fmt.Errorf("client does not support sampling capabilities")
+	}
+
 	res, err := m.session.CreateMessage(ctx, &mcp.CreateMessageParams{
 		Messages: []*mcp.SamplingMessage{
 			{

@@ -10,23 +10,29 @@ import (
 )
 
 type mockImpactStore struct {
-	ImpactStore
 	symbolsByRange map[string][]store.Symbol
 	affectedTests  map[string][]store.Symbol
 }
 
-func (m *mockImpactStore) GetCallersRecursive(ctx context.Context, symbol string, path string, maxDepth int) ([]store.Call, error) {
-	return []store.Call{}, nil
+// store.SymbolRegistry methods
+func (m *mockImpactStore) SaveSymbol(ctx context.Context, sym store.Symbol) error { return nil }
+func (m *mockImpactStore) SearchSymbols(ctx context.Context, query, fileType string, limit, offset int) ([]store.Symbol, error) { return nil, nil }
+func (m *mockImpactStore) DeleteSymbolsByFile(ctx context.Context, path string) error { return nil }
+func (m *mockImpactStore) GetSymbolsByRange(ctx context.Context, path string, start, end int) ([]store.Symbol, error) {
+	return m.symbolsByRange[path], nil
 }
-
 func (m *mockImpactStore) GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]store.Symbol, error) {
 	return []store.Symbol{{Name: name, Path: path}}, nil
 }
 
-func (m *mockImpactStore) GetSymbolsByRange(ctx context.Context, path string, start, end int) ([]store.Symbol, error) {
-	return m.symbolsByRange[path], nil
+// store.StructuralGraph methods
+func (m *mockImpactStore) SaveCall(ctx context.Context, call store.Call) error { return nil }
+func (m *mockImpactStore) SaveImplementation(ctx context.Context, impl store.Implementation) error { return nil }
+func (m *mockImpactStore) DeleteCallsByFile(ctx context.Context, path string) error { return nil }
+func (m *mockImpactStore) DeleteImplementationsByFile(ctx context.Context, path string) error { return nil }
+func (m *mockImpactStore) GetCallersRecursive(ctx context.Context, symbol string, path string, maxDepth int) ([]store.Call, error) {
+	return []store.Call{}, nil
 }
-
 func (m *mockImpactStore) GetAffectedTestsRecursive(ctx context.Context, symbol, path string) ([]store.Symbol, error) {
 	return m.affectedTests[symbol+":"+path], nil
 }
