@@ -23,18 +23,12 @@ var hunkRegex = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@`)
 var engramIDRegex = regexp.MustCompile(`\[\d+\] #\d+`)
 
 type ImpactEngine struct {
-	store interface {
-		store.SymbolRegistry
-		store.StructuralGraph
-	}
+	store      GraphStore
 	LSPManager *lsp.Manager
 	memory     memory.MemoryProvider
 }
 
-func NewImpactEngine(s interface {
-	store.SymbolRegistry
-	store.StructuralGraph
-}, lm *lsp.Manager, mem memory.MemoryProvider) *ImpactEngine {
+func NewImpactEngine(s GraphStore, lm *lsp.Manager, mem memory.MemoryProvider) *ImpactEngine {
 	return &ImpactEngine{
 		store:      s,
 		LSPManager: lm,
@@ -351,10 +345,7 @@ func parseDiff(diff string) ([]diffRange, error) {
 	return ranges, nil
 }
 
-func findTestsForSymbols(ctx context.Context, db interface {
-	store.SymbolRegistry
-	store.StructuralGraph
-}, symbols []store.Symbol) ([]types.TestTarget, error) {
+func findTestsForSymbols(ctx context.Context, db GraphStore, symbols []store.Symbol) ([]types.TestTarget, error) {
 	uniqueTests := make(map[string]types.TestTarget)
 	for _, sym := range symbols {
 		affectedTests, err := db.GetAffectedTestsRecursive(ctx, sym.Name, sym.Path)

@@ -20,12 +20,7 @@ import (
 
 	// HealerEngine manages the autonomous RCA -> Fix -> Verify loop using the Shinigami Protocol.
 	type HealerEngine struct {
-	store interface {
-		store.SymbolRegistry
-		store.StructuralGraph
-		store.DiagnosticStore
-		store.TransactionManager
-	}
+	store    TransactionalStore
 	analyzer *AnalysisEngine
 	impact   *ImpactEngine
 	lspMgr   *lsp.Manager
@@ -35,12 +30,7 @@ import (
 	DoFixRequest func(ctx context.Context, prompt string) (string, error)
 }
 
-func NewHealerEngine(s interface {
-		store.SymbolRegistry
-		store.StructuralGraph
-		store.DiagnosticStore
-		store.TransactionManager
-	}, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine) *HealerEngine {
+func NewHealerEngine(s TransactionalStore, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine) *HealerEngine {
 	return &HealerEngine{
 		store:    s,
 		lspMgr:   l,

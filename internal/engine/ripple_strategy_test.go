@@ -9,8 +9,7 @@ import (
 )
 
 type rippleMockStore struct {
-	store.SymbolRegistry
-	store.StructuralGraph
+	GraphStore
 	callers map[string][]store.Call
 	callees map[string][]store.Call
 	symbols map[string][]store.Symbol
@@ -63,7 +62,7 @@ func TestBFSPropagationStrategy_Discover(t *testing.T) {
 
 	strategy := &BFSPropagationStrategy{
 		store:        ms,
-		impactEngine: mie,
+		ImpactEngine: mie,
 	}
 
 	ctx := context.Background()
