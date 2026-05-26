@@ -18,18 +18,24 @@ import (
 
 const MaxSessionHistory = 100
 
+const MaxSnapshots = 20
+
 // Server wraps the official MCP SDK server to provide Scouter-specific domain logic.
 type Server struct {
-	mcpServer      *mcp.Server
-	store          store.Store
-	resolver       *PointerResolver
-	lspMgr         *lsp.Manager
-	engine         *engine.TruthEngine
-	appService     *memory.AppService
-	logger         *slog.Logger
-	mu             sync.RWMutex
-	sessionHistory []memory.Message
+	mcpServer       *mcp.Server
+	store           store.Store
+	resolver        *PointerResolver
+	lspMgr          *lsp.Manager
+	engine          *engine.TruthEngine
+	appService      *memory.AppService
+	logger          *slog.Logger
+	mu              sync.RWMutex
+	sessionHistory  []memory.Message
 	arsenalUnlocked bool
+	chronos         *engine.ChronosEngine
+	snapshotsMu     sync.RWMutex
+	snapshots       map[string]*engine.ChronosSnapshot
+	snapshotOrder   []string // insertion order for LRU eviction
 }
 
 // NewServer initializes a sovereign, SDK-based MCP server.
@@ -48,8 +54,10 @@ func NewServer(st store.Store, logger *slog.Logger) *Server {
 		mcpServer: mcp.NewServer(implementation, opts),
 		store:    st,
 		resolver: NewPointerResolver(st),
-		lspMgr:   lsp.NewManager(),
-		logger:   logger,
+		lspMgr:    lsp.NewManager(),
+		logger:    logger,
+		chronos:   engine.NewChronosEngine(),
+		snapshots: make(map[string]*engine.ChronosSnapshot),
 	}
 
 	// [Dream Ascension] Initialize Memory Service
@@ -310,6 +318,16 @@ func (s *Server) registerCoreTools() {
 		Name:        "index",
 		Description: "Index a file or directory for AST symbols",
 	}, s.handleIndex)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_snapshot_ast",
+		Description: "Take an AST snapshot of a file before editing to guarantee structural integrity",
+	}, s.handleSnapshotAST)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_verify_ast",
+		Description: "Verify a file against an existing AST snapshot to detect missing or mangled symbols",
+	}, s.handleVerifyAST)
 
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{

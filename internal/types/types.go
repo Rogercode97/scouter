@@ -18,6 +18,7 @@ type ASTPointer struct {
 	EndLine        int              `json:"end_line" validate:"required,gtfield=StartLine"`
 	Hash           string           `json:"hash" validate:"required,len=64"`
 	StructuralHash string           `json:"structural_hash,omitempty" validate:"omitempty,len=64"`
+	LogicHash      string           `json:"logic_hash,omitempty" validate:"omitempty,len=64"`
 	Metrics        *SemanticMetrics `json:"metrics,omitempty"`
 }
 
@@ -43,6 +44,7 @@ type ImpactEntity struct {
 	Distance  int         `json:"distance"`
 	RiskScore float64     `json:"risk_score"`
 	LinkType  string      `json:"link_type"`
+	Body      string      `json:"body,omitempty"`
 	Metrics   RiskMetrics `json:"metrics"`
 }
 

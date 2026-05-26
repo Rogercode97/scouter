@@ -181,6 +181,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 					EndLine:        int(symNode.EndPoint().Row) + 1,
 					Hash:           hex.EncodeToString(h[:]),
 					StructuralHash: GetStructuralHash(symNode, content, lang),
+					LogicHash:      GetLogicHash(symNode, content, lang),
 					Metrics:        computeSemanticMetrics(symNode, lang, content),
 				}
 				if !yield(p) {
@@ -203,6 +204,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 					EndLine:        int(symNode.EndPoint().Row) + 1,
 					Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
 					StructuralHash: GetStructuralHash(symNode, content, lang),
+					LogicHash:      GetLogicHash(symNode, content, lang),
 					Metrics:        computeSemanticMetrics(symNode, lang, content),
 				}
 				if !yield(p) {

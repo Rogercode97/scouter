@@ -42,6 +42,7 @@ type Symbol struct {
 	Relevance      float64 `json:"relevance,omitempty"`
 	PageRank       float64 `json:"pagerank,omitempty"`
 	ChurnScore     float64 `json:"churn_score,omitempty"`
+	RuntimeHits    int     `json:"runtime_hits,omitempty"`
 	AISummary      string  `json:"ai_summary,omitempty"`
 	Metrics        *types.SemanticMetrics `json:"metrics,omitempty"`
 }
@@ -59,6 +60,7 @@ type Call struct {
 	LinkType   string `json:"link_type"`
 	Path       string `json:"path"`
 	Line       int    `json:"line"`
+	Body       string `json:"body,omitempty"`
 }
 
 // SovereignDelta represents the index data for a single file, stable for Git.
@@ -329,6 +331,17 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 
+	// Dynamic column check for 'runtime_hits'
+	hasRuntimeHits, err := hasColumn(ctx, tx, "symbols", "runtime_hits")
+	if err != nil {
+		return fmt.Errorf("failed to check column symbols.runtime_hits: %w", err)
+	}
+	if !hasRuntimeHits {
+		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN runtime_hits INTEGER DEFAULT 0;"); err != nil {
+			return fmt.Errorf("failed to alter table symbols (runtime_hits): %w", err)
+		}
+	}
+
 	// Dynamic column check for 'metrics_json'
 	hasMetrics, err := hasColumn(ctx, tx, "symbols", "metrics_json")
 	if err != nil {
@@ -558,7 +571,7 @@ func (s *storeImpl) SearchSymbols(ctx context.Context, q, t string, limit, offse
 }
 
 func (s *storeImpl) GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary, metrics_json
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
             FROM symbols
             WHERE name = ? AND path = ?`
 	rows, err := s.query(ctx, sql, name, path)
@@ -578,8 +591,17 @@ func (s *storeImpl) GetSymbolsByNameInFile(ctx context.Context, name, path strin
 	return res, nil
 }
 
+func (s *storeImpl) UpdateSymbolRuntimeHits(ctx context.Context, name, path string, hits int) error {
+	sql := `UPDATE symbols SET runtime_hits = ? WHERE name = ? AND path = ?`
+	_, err := s.exec(ctx, sql, hits, name, path)
+	if err != nil {
+		return fmt.Errorf("update symbol runtime hits failed: %w", err)
+	}
+	return nil
+}
+
 func (s *storeImpl) GetSymbolsByStructuralHash(ctx context.Context, hash string) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary, metrics_json
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
             FROM symbols
             WHERE structural_hash = ?`
 	rows, err := s.query(ctx, sql, hash)
@@ -636,7 +658,7 @@ func (s *storeImpl) SearchSymbolsWeighted(ctx context.Context, q, t string) iter
 }
 
 func (s *storeImpl) GetSymbolsByRange(ctx context.Context, path string, start, end int) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary, metrics_json
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
             FROM symbols
             WHERE path = ? AND NOT (start_line > ? OR end_line < ?)`
 	rows, err := s.query(ctx, sql, path, end, start)
@@ -656,7 +678,7 @@ func (s *storeImpl) GetSymbolsByRange(ctx context.Context, path string, start, e
 	return res, nil
 }
 func (s *storeImpl) GetSymbolsByPathPrefix(ctx context.Context, pathPrefix string) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary, metrics_json
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
             FROM symbols
             WHERE path LIKE ? ORDER BY path ASC, start_line ASC`
 	
@@ -684,7 +706,7 @@ func (s *storeImpl) GetSymbolsByPathPrefix(ctx context.Context, pathPrefix strin
 }
 
 func (s *storeImpl) GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary, metrics_json
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
             FROM symbols
             WHERE type = ?`
 	rows, err := s.query(ctx, sql, symType)
@@ -710,7 +732,7 @@ func (s *storeImpl) GetInterfaces(ctx context.Context) ([]Symbol, error) {
 
 func (s *storeImpl) GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error] {
 	return func(yield func(Symbol, error) bool) {
-		rows, err := s.query(ctx, "SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, ai_summary, metrics_json FROM symbols")
+		rows, err := s.query(ctx, "SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, runtime_hits, ai_summary, metrics_json FROM symbols")
 		if err != nil {
 			yield(Symbol{}, err)
 			return
@@ -797,6 +819,14 @@ func (s *storeImpl) UpdateSymbolPageRank(ctx context.Context, name, path string,
 	_, err := s.exec(ctx, "UPDATE symbols SET pagerank = ? WHERE (name = ? OR (package_path || '.' || name) = ?) AND (path = ? OR ? = '')", score, name, name, path, path)
 	if err != nil {
 		return fmt.Errorf("failed to update pagerank: %w", err)
+	}
+	return nil
+}
+
+func (s *storeImpl) UpdateSymbolRuntimeHits(ctx context.Context, name, path string, hits int) error {
+	_, err := s.exec(ctx, "UPDATE symbols SET runtime_hits = runtime_hits + ? WHERE (name = ? OR (package_path || '.' || name) = ?) AND (path = ? OR ? = '')", hits, name, name, path, path)
+	if err != nil {
+		return fmt.Errorf("failed to update runtime hits: %w", err)
 	}
 	return nil
 }

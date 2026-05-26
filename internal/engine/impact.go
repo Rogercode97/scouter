@@ -57,11 +57,16 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 	var centrality float64
 	var isExported bool
 	var signature string
+	var body string
 	if err == nil && len(targetSymbols) > 0 {
 		sym := targetSymbols[0]
 		isExported = strings.Contains("ABCDEFGHIJKLMNOPQRSTUVWXYZ", string(sym.Name[0]))
 		signature = sym.Signature
 		centrality = sym.PageRank
+		
+		if bodyExtracted, err := utils.ExtractLines(sym.Path, sym.StartLine, sym.EndLine); err == nil {
+			body = strings.TrimSpace(bodyExtracted)
+		}
 	}
 
 	symbolID := utils.SymbolSignatureHash(symbol, path, signature)
@@ -75,6 +80,7 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 				PublicExport:       isExported,
 				HistoricalBugfixes: e.getHistoricalRisk(ctx, symbol, path, symbolID),
 			},
+			Body: body,
 		},
 		Callers: []types.ImpactEntity{},
 	}
@@ -85,11 +91,21 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 	edges := make(map[string]bool)
 
 	for _, c := range callers {
+		var callerBody string
+		callerSymbols, err := e.store.GetSymbolsByNameInFile(ctx, c.CallerName, c.Path)
+		if err == nil && len(callerSymbols) > 0 {
+			sym := callerSymbols[0]
+			if bodyExtracted, err := utils.ExtractLines(sym.Path, sym.StartLine, sym.EndLine); err == nil {
+				callerBody = strings.TrimSpace(bodyExtracted)
+			}
+		}
+
 		r := types.ImpactEntity{
 			Symbol:   c.CallerName,
 			File:     c.Path,
 			Distance: c.Line, // We stored distance in Line field in GetCallersRecursive
 			LinkType: c.LinkType,
+			Body:     callerBody,
 		}
 		res.Callers = append(res.Callers, r)
 		blastRadius++

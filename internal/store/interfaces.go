@@ -27,6 +27,7 @@ type SymbolRegistry interface {
 	UpdateSymbolCentrality(ctx context.Context, name, path string, centrality int) error
 	UpdateSymbolChurn(ctx context.Context, path string, score float64) error
 	UpdateSymbolPageRank(ctx context.Context, name, path string, score float64) error
+	UpdateSymbolRuntimeHits(ctx context.Context, name, path string, hits int) error
 	GetStats(ctx context.Context) (int, int, error)
 	GetAllFilePaths(ctx context.Context) ([]string, error)
 	DeleteFileIndex(ctx context.Context, path string) error

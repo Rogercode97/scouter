@@ -11,7 +11,9 @@ import (
 
 // AnonymizeNode traverses the tree from the given node and returns an anonymized S-Expression.
 // It masks identifiers and literals to preserve only the structural logic.
-func AnonymizeNode(node *gotreesitter.Node, source []byte, lang *gotreesitter.Language) string {
+// When includeBody is false, function/method bodies are skipped (signature-only hash).
+// When includeBody is true, bodies are included (full logic hash).
+func AnonymizeNode(node *gotreesitter.Node, source []byte, lang *gotreesitter.Language, includeBody bool) string {
 	if node == nil {
 		return ""
 	}
@@ -50,11 +52,11 @@ func AnonymizeNode(node *gotreesitter.Node, source []byte, lang *gotreesitter.La
 		if child != nil {
 			childKind := child.Type(lang)
 
-			// Normalize method and function definitions by stripping receiver and body.
-			// This makes struct methods structurally match interface methods.
+			// Normalize method and function definitions by stripping receiver and optionally body.
+			// When includeBody is false, this makes struct methods structurally match interface methods.
 			if kind == "method" || kind == "function" {
-				if childKind == "block" || childKind == "statement_block" || childKind == "func" {
-					continue // Ignore function body
+				if !includeBody && (childKind == "block" || childKind == "statement_block" || childKind == "func") {
+					continue // Skip function body for structural hash
 				}
 				if childKind == "field_identifier" || childKind == "identifier" || childKind == "property_identifier" {
 					seenName = true
@@ -65,7 +67,7 @@ func AnonymizeNode(node *gotreesitter.Node, source []byte, lang *gotreesitter.La
 				}
 			}
 
-			anonymized := AnonymizeNode(child, source, lang)
+			anonymized := AnonymizeNode(child, source, lang, includeBody)
 			if anonymized != "" {
 				children = append(children, anonymized)
 			}
@@ -79,9 +81,16 @@ func AnonymizeNode(node *gotreesitter.Node, source []byte, lang *gotreesitter.La
 	return fmt.Sprintf("(%s %s)", kind, strings.Join(children, " "))
 }
 
-// GetStructuralHash generates a SHA-256 hash of the anonymized structural representation of a node.
+// GetStructuralHash generates a SHA-256 hash of the anonymized structural representation (signature only).
 func GetStructuralHash(node *gotreesitter.Node, source []byte, lang *gotreesitter.Language) string {
-	sExpr := AnonymizeNode(node, source, lang)
+	sExpr := AnonymizeNode(node, source, lang, false)
+	hash := sha256.Sum256([]byte(sExpr))
+	return hex.EncodeToString(hash[:])
+}
+
+// GetLogicHash generates a SHA-256 hash including the function body for detecting internal logic changes.
+func GetLogicHash(node *gotreesitter.Node, source []byte, lang *gotreesitter.Language) string {
+	sExpr := AnonymizeNode(node, source, lang, true)
 	hash := sha256.Sum256([]byte(sExpr))
 	return hex.EncodeToString(hash[:])
 }

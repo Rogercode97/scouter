@@ -24,6 +24,16 @@ func (m *mockStore) GetCallers(ctx context.Context, calleeName string, limit, of
 	return m.calls, nil
 }
 
+func (m *mockStore) GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]store.Symbol, error) {
+	var result []store.Symbol
+	for _, sym := range m.symbols {
+		if sym.Name == name && sym.Path == path {
+			result = append(result, sym)
+		}
+	}
+	return result, nil
+}
+
 func TestSovereignMCPIntegration(t *testing.T) {
 	st := &mockStore{
 		symbols: []store.Symbol{

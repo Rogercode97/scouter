@@ -20,8 +20,8 @@ func TestAnonymizer(t *testing.T) {
 	root1 := tree1.RootNode()
 	root2 := tree2.RootNode()
 
-	sExpr1 := AnonymizeNode(root1, code1, lang)
-	sExpr2 := AnonymizeNode(root2, code2, lang)
+	sExpr1 := AnonymizeNode(root1, code1, lang, false)
+	sExpr2 := AnonymizeNode(root2, code2, lang, false)
 
 	if sExpr1 != sExpr2 {
 		t.Errorf("Anonymized S-Expressions should be identical.\n1: %s\n2: %s", sExpr1, sExpr2)

@@ -13,6 +13,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"bytes"
+	"strings"
 )
 
 
@@ -279,6 +280,16 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 			IsError: true,
 		},
 		nil, nil
+	}
+
+	for i := range results {
+		callerSymbols, err := s.store.GetSymbolsByNameInFile(ctx, results[i].CallerName, results[i].Path)
+		if err == nil && len(callerSymbols) > 0 {
+			sym := callerSymbols[0]
+			if bodyExtracted, err := utils.ExtractLines(sym.Path, sym.StartLine, sym.EndLine); err == nil {
+				results[i].Body = strings.TrimSpace(bodyExtracted)
+			}
+		}
 	}
 
 	var outStr string
