@@ -6,18 +6,19 @@ type Range struct {
 }
 
 type ASTPointer struct {
-	Type           string `json:"type" validate:"required,oneof=function class method variable interface method_spec"`
-	Name           string `json:"name" validate:"required"`
-	PackagePath    string `json:"package_path"`
-	ReceiverType   string `json:"receiver_type"`
-	Signature      string `json:"signature,omitempty"`
-	Doc            string `json:"doc"`
-	Range          Range  `json:"range" validate:"required"`
-	StartLine      int    `json:"start_line" validate:"required,gte=1"`
-	StartCol       int    `json:"start_col" validate:"required,gte=1"`
-	EndLine        int    `json:"end_line" validate:"required,gtfield=StartLine"`
-	Hash           string `json:"hash" validate:"required,len=64"`
-	StructuralHash string `json:"structural_hash,omitempty" validate:"omitempty,len=64"`
+	Type           string           `json:"type" validate:"required,oneof=function class method variable interface method_spec"`
+	Name           string           `json:"name" validate:"required"`
+	PackagePath    string           `json:"package_path"`
+	ReceiverType   string           `json:"receiver_type"`
+	Signature      string           `json:"signature,omitempty"`
+	Doc            string           `json:"doc"`
+	Range          Range            `json:"range" validate:"required"`
+	StartLine      int              `json:"start_line" validate:"required,gte=1"`
+	StartCol       int              `json:"start_col" validate:"required,gte=1"`
+	EndLine        int              `json:"end_line" validate:"required,gtfield=StartLine"`
+	Hash           string           `json:"hash" validate:"required,len=64"`
+	StructuralHash string           `json:"structural_hash,omitempty" validate:"omitempty,len=64"`
+	Metrics        *SemanticMetrics `json:"metrics,omitempty"`
 }
 
 type ASTCall struct {
@@ -99,16 +100,24 @@ type TestTarget struct {
 }
 
 type Symbol struct {
-	Name           string   `json:"name"`
-	Type           string   `json:"type"`
-	PackagePath    string   `json:"package_path"`  // Fully qualified package path
-	ReceiverType   string   `json:"receiver_type"` // pointer, value, or empty
-	Signature      string   `json:"signature,omitempty"`
-	Doc            string   `json:"doc"`
-	Path           string   `json:"path"`
-	StartLine      int      `json:"start_line"`
-	EndLine        int      `json:"end_line"`
-	LinkedInsights []string `json:"linked_insights,omitempty"`
+	Name           string           `json:"name"`
+	Type           string           `json:"type"`
+	PackagePath    string           `json:"package_path"`  // Fully qualified package path
+	ReceiverType   string           `json:"receiver_type"` // pointer, value, or empty
+	Signature      string           `json:"signature,omitempty"`
+	Doc            string           `json:"doc"`
+	Path           string           `json:"path"`
+	StartLine      int              `json:"start_line"`
+	EndLine        int              `json:"end_line"`
+	LinkedInsights []string         `json:"linked_insights,omitempty"`
+	Metrics        *SemanticMetrics `json:"metrics,omitempty"`
+}
+
+type SemanticMetrics struct {
+	CyclomaticComplexity int  `json:"cyclomatic_complexity"`
+	IsAsync              bool `json:"is_async"`
+	HasErrorHandling     bool `json:"has_error_handling"`
+	HasExceptions        bool `json:"has_exceptions"`
 }
 
 type CompactionResult struct {
