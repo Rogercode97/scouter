@@ -127,7 +127,7 @@ func TestHealerEngine_Shinigami(t *testing.T) {
 
 	errorLog := `
 --- FAIL: TestShinigami (0.00s)
-    internal/engine/healer.go:32: some error
+    internal/engine/healer.go:35: some error
 `
 
 	res, err := h.Fix(ctx, errorLog)
@@ -174,7 +174,7 @@ func TestHealerEngine_Cancellation(t *testing.T) {
 
 	errorLog := `
 --- FAIL: TestCancel (0.00s)
-    internal/engine/healer.go:32: some error
+    internal/engine/healer.go:35: some error
 `
 
 	res, err := h.Fix(ctx, errorLog)

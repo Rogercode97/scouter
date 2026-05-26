@@ -75,7 +75,7 @@ func (v *mockValidator) Validate(ctx context.Context, ledger *Ledger) (Validatio
 }
 
 type rippleEngineMockStore struct {
-	RippleStore
+	GraphStore
 	callers map[string][]store.Call
 	callees map[string][]store.Call
 	symbols map[string][]store.Symbol
@@ -122,7 +122,7 @@ func TestRippleEngine_Propagate(t *testing.T) {
 		},
 	}
 
-	strategy := &BFSPropagationStrategy{store: ms, impactEngine: ie}
+	strategy := &BFSPropagationStrategy{store: ms, ImpactEngine: ie}
 	
 	engine := &RippleEngine{
 		store:        ms,

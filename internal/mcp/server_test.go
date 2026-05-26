@@ -19,7 +19,31 @@ func setupTestServer(ctx context.Context) (*Server, *mcp.ClientSession, func()) 
 
 	go server.Start(ctx, serverTransport)
 
-	client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, &mcp.ClientOptions{
+		CreateMessageHandler: func(_ context.Context, req *mcp.CreateMessageRequest) (*mcp.CreateMessageResult, error) {
+			// Dynamic Router based on request
+			prompt := ""
+			if len(req.Params.Messages) > 0 {
+				if txt, ok := req.Params.Messages[0].Content.(*mcp.TextContent); ok {
+					prompt = txt.Text
+				}
+			}
+
+			// Simulated LLM logic
+			var response string
+			if prompt == "empty" {
+				response = "[]"
+			} else {
+				response = "```go\n// Mocked code fix by simulated LLM\n```"
+			}
+
+			return &mcp.CreateMessageResult{
+				Content: &mcp.TextContent{
+					Text: response,
+				},
+			}, nil
+		},
+	})
 	session, _ := client.Connect(ctx, clientTransport, nil)
 
 	// Unlock heavy arsenal for tests
@@ -88,10 +112,8 @@ func TestServer_Handlers(t *testing.T) {
 			if err != nil {
 				t.Fatalf("tool %s failed: %v", tt.name, err)
 			}
-			textContent := res.Content[0].(*mcp.TextContent).Text
-			if textContent == "null" {
-				textContent = "[]" // SDK normalization for empty results in some cases
-			}
+			_ = res.Content[0].(*mcp.TextContent).Text
+			// No null workaround needed, backend should return []
 		})
 	}
 }

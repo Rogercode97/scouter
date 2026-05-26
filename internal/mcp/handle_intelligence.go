@@ -52,6 +52,9 @@ func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, arg
 		nil, nil
 	}
 	out, err := json.Marshal(res)
+	if string(out) == "null" {
+		out = []byte("[]")
+	}
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal impact result: %v", err)}},
@@ -102,6 +105,9 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 		outStr = buf.String()
 	} else {
 		out, _ := json.Marshal(results)
+	if string(out) == "null" {
+		out = []byte("[]")
+	}
 		outStr = string(out)
 	}
 
@@ -203,6 +209,9 @@ func (s *Server) handlePredict(ctx context.Context, req *mcp.CallToolRequest, ar
 	}
 
 	out, err := json.Marshal(results)
+	if string(out) == "null" {
+		out = []byte("[]")
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -229,6 +238,9 @@ func (s *Server) handleFindLogicalTwin(ctx context.Context, req *mcp.CallToolReq
         }
 
         out, _ := json.Marshal(results)
+	if string(out) == "null" {
+		out = []byte("[]")
+	}
         thought := fmt.Sprintf("<thought>\nStructural Analysis: Identifying symbols with identical logical signatures to '%s'. Found %d twins.\n</thought>\n", args.SymbolName, len(results))
 
         return &mcp.CallToolResult{

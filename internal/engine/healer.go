@@ -18,17 +18,9 @@ import (
 	"github.com/Rogercode97/scouter/internal/utils"
 	)
 
-	// HealerStore defines the data requirements for the HealerEngine.
-	type HealerStore interface {
-		store.SymbolRegistry
-		store.StructuralGraph
-		store.TransactionManager
-	}
-
 	// HealerEngine manages the autonomous RCA -> Fix -> Verify loop using the Shinigami Protocol.
 	type HealerEngine struct {
-
-	store    HealerStore
+	store    TransactionalStore
 	analyzer *AnalysisEngine
 	impact   *ImpactEngine
 	lspMgr   *lsp.Manager
@@ -38,7 +30,7 @@ import (
 	DoFixRequest func(ctx context.Context, prompt string) (string, error)
 }
 
-func NewHealerEngine(s HealerStore, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine) *HealerEngine {
+func NewHealerEngine(s TransactionalStore, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine) *HealerEngine {
 	return &HealerEngine{
 		store:    s,
 		lspMgr:   l,

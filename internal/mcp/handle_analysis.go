@@ -181,6 +181,9 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 		outStr = buf.String()
 	} else {
 		out, _ := json.Marshal(results)
+	if string(out) == "null" {
+		out = []byte("[]")
+	}
 		outStr = string(out)
 	}
 
@@ -294,6 +297,9 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 		outStr = buf.String()
 	} else {
 		out, _ := json.Marshal(results)
+	if string(out) == "null" {
+		out = []byte("[]")
+	}
 		outStr = string(out)
 	}
 
@@ -340,6 +346,9 @@ func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequ
 	}
 
 	out, _ := json.Marshal(result)
+	if string(out) == "null" {
+		out = []byte("[]")
+	}
 	thought := fmt.Sprintf("<thought>\nLSP Navigation: Finding definition at %s:%d:%d.\n</thought>\n", args.FilePath, args.Line, args.Character)
 
 	return &mcp.CallToolResult{
@@ -381,6 +390,9 @@ func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequ
 	        nil, nil
 	}
 	out, _ := json.Marshal(result)
+	if string(out) == "null" {
+		out = []byte("[]")
+	}
 	thought := fmt.Sprintf("<thought>\nLSP Inspection: Extracting type information/hover docs at %s:%d:%d.\n</thought>\n", args.FilePath, args.Line, args.Character)
 
 	return &mcp.CallToolResult{
@@ -497,6 +509,9 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 	}
 
 	out, err := json.Marshal(results)
+	if string(out) == "null" {
+		out = []byte("[]")
+	}
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal structural search results: %v", err)}},

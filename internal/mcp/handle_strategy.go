@@ -148,6 +148,9 @@ func (s *Server) handleExploreSDD(ctx context.Context, req *mcp.CallToolRequest,
 	}
 
 	out, _ := json.Marshal(result)
+	if string(out) == "null" {
+		out = []byte("[]")
+	}
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: string(out)},

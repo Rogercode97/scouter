@@ -84,6 +84,9 @@ func (s *Server) handleHybridSearch(ctx context.Context, req *mcp.CallToolReques
 		nil, nil
 	}
 	out, err := json.Marshal(res)
+	if string(out) == "null" {
+		out = []byte("[]")
+	}
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal hybrid search results: %v", err)}},
