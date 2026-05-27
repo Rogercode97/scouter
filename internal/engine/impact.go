@@ -168,14 +168,14 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 	}
 	bScore := math.Min(1.0, math.Log1p(float64(blastRadius))/math.Log1p(500.0))
 
-	// Signal 2: Complexity (20%)
+	// Signal 2: Complexity (35%)
 	cogComplexity := 0
 	if len(targetSymbols) > 0 && targetSymbols[0].Metrics != nil {
 		cogComplexity = targetSymbols[0].Metrics.CognitiveComplexity
 	}
-	cogScore := math.Min(1.0, float64(cogComplexity)/30.0)
+	cogScore := math.Min(1.0, float64(cogComplexity)/100.0)
 
-	// Signal 3: Churn (20%)
+	// Signal 3: Churn (15%)
 	churnScore := 0.0
 	if len(targetSymbols) > 0 {
 		churnScore = targetSymbols[0].ChurnScore
@@ -193,7 +193,7 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 		testGap = 0.0
 	}
 
-	// Signal 5: Volume (10%)
+	// Signal 5: Volume (5%)
 	volumeLines := 0
 	if len(targetSymbols) > 0 {
 		volumeLines = targetSymbols[0].EndLine - targetSymbols[0].StartLine
@@ -203,7 +203,7 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 	// Signal 6: Runtime/Centrality (10%)
 	runtimeScore := centrality
 
-	res.Target.RiskScore = (bScore * 0.25) + (cogScore * 0.20) + (churnScore * 0.20) + (testGap * 0.15) + (volumeScore * 0.10) + (runtimeScore * 0.10)
+	res.Target.RiskScore = (bScore * 0.20) + (cogScore * 0.35) + (churnScore * 0.15) + (testGap * 0.15) + (volumeScore * 0.05) + (runtimeScore * 0.10)
 	res.Target.RiskScore = math.Min(1.0, res.Target.RiskScore)
 
 	switch {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"math"
 	"path/filepath"
 	"testing"
 
@@ -51,6 +52,103 @@ func TestImpactEngine_Analyze(t *testing.T) {
 	if res.Target.Symbol != "MySymbol" {
 		t.Errorf("expected symbol MySymbol, got %s", res.Target.Symbol)
 	}
+
+	// We expect risk score to be updated using new formula
+	// bScore = log(1+0)/log(1+500) = 0
+	// cogComplexity = 0 -> cogScore = 0
+	// churnScore = 0
+	// testGap = 1.0 (since no main_test.go exists)
+	// volumeScore = 0
+	// runtimeScore = 0
+	// New Formula: (bScore*0.20) + (cogScore*0.35) + (churnScore*0.15) + (testGap*0.15) + (volumeScore*0.05) + (runtimeScore*0.10)
+	// RiskScore should be exactly 0.15.
+	if res.Target.RiskScore != 0.15 {
+		t.Errorf("expected RiskScore 0.15, got %f", res.Target.RiskScore)
+	}
+}
+
+func TestImpactEngine_RiskScoreFormula(t *testing.T) {
+	ctx := context.Background()
+	
+	// Create mock that returns specific metadata for formula
+	db := &mockImpactStore{
+		affectedTests: make(map[string][]store.Symbol),
+	}
+	// We override the GetSymbolsByNameInFile behavior via a custom mock wrapper or just hardcode if needed
+	// Actually, the current mock returns an empty symbol with just Name and Path.
+	// We'll create a custom store locally.
+	
+	engine := &ImpactEngine{
+		store: &mockSpecificImpactStore{mockImpactStore: db},
+	}
+	
+	res, err := engine.Analyze(ctx, "TestSym", "file.go", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	
+	// expected scores:
+	// Blast radius: 1 caller -> bScore = log(2)/log(501) = 0.693147 / 6.216606 = 0.111499
+	// cogScore: 50 / 100.0 = 0.5 (New)
+	// churnScore: 0.8
+	// testGap: 1.0
+	// volumeScore: 100 / 500.0 = 0.2
+	// runtimeScore: 0.5
+	
+	// expected RiskScore: 
+	// (0.111499 * 0.20) = 0.0222998
+	// (0.5 * 0.35)      = 0.175
+	// (0.8 * 0.15)      = 0.12
+	// (1.0 * 0.15)      = 0.15
+	// (0.2 * 0.05)      = 0.01
+	// (0.5 * 0.10)      = 0.05
+	// Total: 0.0222998 + 0.175 + 0.12 + 0.15 + 0.01 + 0.05 = 0.5272998
+	
+	// If it used the OLD formula:
+	// cogScore: min(1.0, 50/30.0) = 1.0
+	// (0.111499 * 0.25) = 0.02787
+	// (1.0 * 0.20)      = 0.20
+	// (0.8 * 0.20)      = 0.16
+	// (1.0 * 0.15)      = 0.15
+	// (0.2 * 0.10)      = 0.02
+	// (0.5 * 0.10)      = 0.05
+	// Total old: 0.60787
+
+	if math.Abs(res.Target.RiskScore - 0.5273) > 0.001 {
+		t.Errorf("expected RiskScore ~0.5273, got %f", res.Target.RiskScore)
+	}
+}
+
+type mockSpecificImpactStore struct {
+	*mockImpactStore
+}
+
+func (m *mockSpecificImpactStore) GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]store.Symbol, error) {
+	if name == "TestSym" {
+		return []store.Symbol{
+			{
+				Name: "TestSym", 
+				Path: path,
+				StartLine: 0,
+				EndLine: 100,
+				ChurnScore: 0.8,
+				PageRank: 0.5,
+				Metrics: &types.SemanticMetrics{
+					CognitiveComplexity: 50,
+				},
+			},
+		}, nil
+	}
+	return nil, nil
+}
+
+func (m *mockSpecificImpactStore) GetCallersRecursive(ctx context.Context, symbol string, path string, maxDepth int) ([]store.Call, error) {
+	if symbol == "TestSym" {
+		return []store.Call{
+			{CallerName: "Caller1", Path: path, Line: 1},
+		}, nil
+	}
+	return nil, nil
 }
 
 func TestImpactEngine_PredictTests(t *testing.T) {

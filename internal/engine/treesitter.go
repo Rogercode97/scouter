@@ -463,10 +463,14 @@ func computeCognitiveComplexity(node *gotreesitter.Node, lang *gotreesitter.Lang
 
 		switch kind {
 		case "if_statement", "for_statement", "while_statement", "catch_clause", "except_clause", "conditional_expression":
-			score += 1 + nesting
+			score += 1 + (nesting * nesting)
 			isNestingStructure = true
 		case "switch_statement":
 			score += 1
+			isNestingStructure = true
+		case "goto_statement", "labeled_statement":
+			score += 1 + nesting
+		case "func_literal", "arrow_function", "lambda":
 			isNestingStructure = true
 		case "break_statement", "continue_statement":
 			if n.ChildCount() > 1 {

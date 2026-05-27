@@ -119,9 +119,9 @@ func TestCognitiveComplexity_Nesting(t *testing.T) {
 	content := `package test
 func NestedFunc(score int) string {
 	if score >= 60 { // +1 (nesting: 0)
-		if score >= 70 { // +2 (nesting: 1)
-			if score >= 80 { // +3 (nesting: 2)
-				if score >= 90 { // +4 (nesting: 3)
+		if score >= 70 { // +2 (1+(1*1)) (nesting: 1)
+			if score >= 80 { // +5 (1+(2*2)) (nesting: 2)
+				if score >= 90 { // +10 (1+(3*3)) (nesting: 3)
 					return "A"
 				}
 				return "B"
@@ -146,5 +146,80 @@ func NestedFunc(score int) string {
 
 	assert.Len(t, ptrs, 1)
 	fn := ptrs[0]
-	assert.Equal(t, 10, fn.Metrics.CognitiveComplexity) // 1 + 2 + 3 + 4 = 10
+	// 1 + 2 + 5 + 10 = 18
+	assert.Equal(t, 18, fn.Metrics.CognitiveComplexity) 
+}
+
+func TestCognitiveComplexity_Goto(t *testing.T) {
+	content := `package test
+func GotoFunc(n int) {
+	if n < 0 {
+		goto end
+	}
+	for i := 0; i < n; i++ {
+		if i == 5 {
+			goto skip
+		}
+	skip:
+		continue
+	}
+end:
+	return
+}`
+	tmpFile := filepath.Join(t.TempDir(), "test.go")
+	os.WriteFile(tmpFile, []byte(content), 0644)
+
+	pointersIter, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
+	assert.NoError(t, err)
+
+	var ptrs []types.ASTPointer
+	pointersIter(func(p types.ASTPointer) bool {
+		ptrs = append(ptrs, p)
+		return true
+	})
+
+	assert.Len(t, ptrs, 1)
+	fn := ptrs[0]
+	// if (1) + goto (1) + for (1) + if (2) + goto (3) + labeled_statement skip: (3) + labeled_statement end: (1) = 12
+	// wait, nesting logic for goto:
+	// if n < 0 (nest 0) = 1
+	//   goto end (nest 1) = 1+1=2
+	// for i := 0 (nest 0) = 1
+	//   if i == 5 (nest 1) = 1+1=2
+	//     goto skip (nest 2) = 1+2=3
+	//   skip: (nest 1) = 1+1=2
+	// end: (nest 0) = 1+0=1
+	// Total: 1+2+1+2+3+2+1 = 12
+	assert.Equal(t, 12, fn.Metrics.CognitiveComplexity)
+}
+
+func TestCognitiveComplexity_Closure(t *testing.T) {
+	content := `package test
+func ClosureFunc() {
+	op := func() {
+		if true {
+			// nesting 1 inside closure because closure increments nesting
+			println("test")
+		}
+	}
+	op()
+}`
+	tmpFile := filepath.Join(t.TempDir(), "test.go")
+	os.WriteFile(tmpFile, []byte(content), 0644)
+
+	pointersIter, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
+	assert.NoError(t, err)
+
+	var ptrs []types.ASTPointer
+	pointersIter(func(p types.ASTPointer) bool {
+		ptrs = append(ptrs, p)
+		return true
+	})
+
+	assert.Len(t, ptrs, 1)
+	fn := ptrs[0]
+	// The func_literal increments nesting. 
+	// Inside func, if true -> base 1 + nesting(1) = 2.
+	// Total should be 2.
+	assert.Equal(t, 2, fn.Metrics.CognitiveComplexity)
 }
