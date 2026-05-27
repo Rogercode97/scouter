@@ -36,17 +36,9 @@ func TestSDDExplorer(t *testing.T) {
 	_, session, cleanup := setupTestServer(ctx)
 	defer cleanup()
 
-	// Unlock heavy arsenal to access explore_sdd
-	_, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "unlock_heavy_arsenal",
-	})
-	if err != nil {
-		t.Fatalf("failed to unlock arsenal: %v", err)
-	}
-
 	t.Run("Explore roadmap", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
-			Name: "explore_sdd",
+			Name: "scouter_sdd",
 			Arguments: map[string]any{
 				"type": "roadmap",
 			},
@@ -77,7 +69,7 @@ func TestSDDExplorer(t *testing.T) {
 
 	t.Run("Explore tasks", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
-			Name: "explore_sdd",
+			Name: "scouter_sdd",
 			Arguments: map[string]any{
 				"type": "tasks",
 			},
@@ -101,7 +93,7 @@ func TestSDDExplorer(t *testing.T) {
 
 	t.Run("Explore specs", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
-			Name: "explore_sdd",
+			Name: "scouter_sdd",
 			Arguments: map[string]any{
 				"type":  "specs",
 				"query": "test",

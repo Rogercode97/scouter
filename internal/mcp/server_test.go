@@ -46,11 +46,6 @@ func setupTestServer(ctx context.Context) (*Server, *mcp.ClientSession, func()) 
 	})
 	session, _ := client.Connect(ctx, clientTransport, nil)
 
-	// Unlock heavy arsenal for tests
-	_, _ = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "unlock_heavy_arsenal",
-	})
-
 	return server, session, func() {
 		session.Close()
 		st.Close()
@@ -69,8 +64,8 @@ func TestServer_Lifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(tools.Tools) != 28 {
-		t.Errorf("expected 28 tools, got %d", len(tools.Tools))
+	if len(tools.Tools) != 12 {
+		t.Errorf("expected 12 tools, got %d", len(tools.Tools))
 	}
 }
 
@@ -87,18 +82,18 @@ func TestServer_Handlers(t *testing.T) {
 		wantSub   string
 	}{
 		{
-			name:      "search",
-			arguments: map[string]any{"query": "test"},
+			name:      "scouter_search",
+			arguments: map[string]any{"mode": "hybrid", "query": "test"},
 			wantSub:   "[]",
 		},
 		{
-			name:      "pure_signal",
-			arguments: map[string]any{"text": "line1\nline2", "level": "light"},
+			name:      "scouter_context",
+			arguments: map[string]any{"action": "filter_signal", "text": "line1\nline2", "level": "light"},
 			wantSub:   "line1",
 		},
 		{
-			name:      "critical_code",
-			arguments: map[string]any{"limit": 5},
+			name:      "scouter_radar",
+			arguments: map[string]any{"action": "risk_audit", "limit": 5},
 			wantSub:   "[]",
 		},
 	}
@@ -125,28 +120,29 @@ func TestServer_ErrorHandling(t *testing.T) {
 	_, session, cleanup := setupTestServer(ctx)
 	defer cleanup()
 
-	// Test missing arguments for index (should fail validation)
+	// Test missing arguments for search index (should fail validation inside mode)
 	res, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "index",
-		Arguments: map[string]any{},
+		Name:      "scouter_search",
+		Arguments: map[string]any{"mode": "index"},
 	})
 	if err != nil {
-		t.Fatalf("call to index failed: %v", err)
+		t.Fatalf("call to scouter_search failed: %v", err)
 	}
 	if !res.IsError {
 		t.Error("expected IsError to be true for missing arguments")
 	}
 
-	// Test invalid path for read
+	// Test invalid path for inspect read
 	res, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "read",
+		Name: "scouter_inspect",
 		Arguments: map[string]any{
+			"mode":     "fragment",
 			"filePath": "/invalid/path",
 			"pointer":  "main",
 		},
 	})
 	if err != nil {
-		t.Fatalf("call to scouter_read failed: %v", err)
+		t.Fatalf("call to scouter_inspect failed: %v", err)
 	}
 	if !res.IsError {
 		t.Error("expected IsError to be true for invalid path")

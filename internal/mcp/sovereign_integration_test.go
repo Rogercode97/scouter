@@ -51,12 +51,13 @@ func TestSovereignMCPIntegration(t *testing.T) {
 
 	t.Run("handleSearch returns Sovereign header", func(t *testing.T) {
 		req := &mcp.CallToolRequest{}
-		args := SearchParams{
+		args := SearchArgs{
+			Mode:   "text",
 			Query:  "Test",
 			Format: "hakai",
 		}
 
-		res, _, err := s.handleSearch(context.Background(), req, args)
+		res, _, err := s.HandleSearch(context.Background(), req, args)
 		if err != nil {
 			t.Fatalf("handleSearch failed: %v", err)
 		}
@@ -73,20 +74,22 @@ func TestSovereignMCPIntegration(t *testing.T) {
 
 		t.Run("handleCallers returns Sovereign header", func(t *testing.T) {
 		req := &mcp.CallToolRequest{}
+		calls := make([]store.Call, 21)
+		for i := 0; i < 21; i++ {
+			calls[i] = store.Call{CallerName: "Main", Path: "main.go"}
+		}
 		st := &mockStore{
-			calls: []store.Call{
-				{CallerName: "Main", Path: "main.go"},
-			},
+			calls: calls,
 		}
 		s := &Server{
 			store: st,
 		}
-		args := CallersParams{
-			CalleeName: "TestFunc",
-			Format:     "hakai",
+		args := InspectArgs{
+			Mode:   "callers",
+			Symbol: "TestFunc",
 		}
 
-		res, _, err := s.handleCallers(context.Background(), req, args)
+		res, _, err := s.HandleInspect(context.Background(), req, args)
 		if err != nil {
 			t.Fatalf("handleCallers failed: %v", err)
 		}

@@ -309,178 +309,69 @@ func (s *Server) registerPrompts() {
 }
 
 func (s *Server) registerCoreTools() {
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "map",
-		Description: "Map a file or directory to return its skeleton (Token Optimization - returns signatures without function bodies)",
-	}, s.handleMap)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "index",
-		Description: "Index a file or directory for AST symbols",
-	}, s.handleIndex)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "scouter_snapshot_ast",
-		Description: "Take an AST snapshot of a file before editing to guarantee structural integrity",
-	}, s.handleSnapshotAST)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "scouter_verify_ast",
-		Description: "Verify a file against an existing AST snapshot to detect missing or mangled symbols",
-	}, s.handleVerifyAST)
-
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "search",
-		Description: "Search for symbols using semantic or text search",
-	}, s.handleSearch)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "read",
-		Description: "Read a specific symbol or fragment from a file",
-	}, s.handleRead)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "callers",
-		Description: "Find all callers of a given function or method",
-	}, s.handleCallers)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "goto_definition",
-		Description: "Find the definition of the symbol at the given position using LSP",
-	}, s.handleGotoDefinition)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "type_info",
-		Description: "Get type information and hover documentation for the symbol at the given position",
-	}, s.handleTypeInfo)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "impact",
-		Description: "Calculate the impact (blast radius) of changing a symbol",
-	}, s.handleImpact)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "unlock_heavy_arsenal",
-		Description: "Unlock specialized architectural evolution and healing tools",
-	}, s.handleUnlockArsenal)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "scouter_commit",
-		Description: "Commit all staged changes in the Ledger to disk",
-	}, s.handleCommit)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "scouter_rollback",
-		Description: "Rollback and clear all staged changes in the Ledger",
-	}, s.handleRollback)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "scouter_diff",
-		Description: "Preview all staged changes and mission budget status",
-	}, s.handleDiff)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "scouter_diagnose",
-		Description: "Generate a Diagnostic HUD (ZON format) for a given error log, including X-Ray, Radar, and Thermal Vision",
-	}, s.handleDiagnose)
-}
-
-func (s *Server) registerSpecializedTools() {
 	trueVal := true
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "critical_code",
-		Description: "Identify high-risk symbols (high centrality and fragility)",
-	}, s.handleCritical)
+		Name:        "scouter_inspect",
+		Description: "Inspect structural AST elements (skeleton, read, callers, definition, type_info).",
+	}, s.HandleInspect)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "structural_search",
-		Description: "Search for code using structural patterns (ast-grep style)",
-	}, s.handleStructuralSearch)
+		Name:        "scouter_search",
+		Description: "Search for symbols using text, structural, or index mode.",
+	}, s.HandleSearch)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "pure_signal",
-		Description: "Extract Pure Signal from text using RTK synergy",
-	}, s.handlePureSignal)
+		Name:        "scouter_radar",
+		Description: "Calculate impact, critical code, and test prediction.",
+	}, s.HandleRadar)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "obsidian_export",
-		Description: "Export impact analysis as an Obsidian-ready markdown note",
-	}, s.handleObsidianExport)
+		Name:        "scouter_ledger",
+		Description: "Stage, commit, diff, or rollback structural refactoring transactions.",
+	}, s.HandleLedger)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "save_anchor",
-		Description: "Save a technical session summary directly into Engram memory",
-	}, s.handleSaveAnchor)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "self_heal",
-		Description: "Execute an autonomous RCA -> Fix -> Verify loop for Go test failures",
+		Name:        "scouter_apply",
+		Description: "Apply a multi-file structural refactoring (ripple or evolve).",
 		Annotations: &mcp.ToolAnnotations{DestructiveHint: &trueVal},
-	}, s.handleSelfHeal)
+	}, s.HandleApply)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "ripple_refactor",
-		Description: "Propagate architectural changes (rename, signature change) across the entire codebase",
+		Name:        "scouter_memory",
+		Description: "Memory operations: dream distillation and save anchor.",
+	}, s.HandleMemory)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_context",
+		Description: "Context window operations (compact, pure_signal).",
+	}, s.HandleContext)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_guard",
+		Description: "AST snapshot and verification for structural integrity.",
+	}, s.HandleGuard)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_diagnose",
+		Description: "Generate a Diagnostic HUD (ZON format) for a given error log, including X-Ray, Radar, and Thermal Vision.",
+	}, s.handleDiagnose)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_heal",
+		Description: "Execute an autonomous RCA -> Fix -> Verify loop for Go test failures.",
 		Annotations: &mcp.ToolAnnotations{DestructiveHint: &trueVal},
-	}, s.handleRippleRefactor)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "evolve",
-		Description: "Apply a multi-file architectural evolution proposal with atomic rollback and safe evaluation",
-		Annotations: &mcp.ToolAnnotations{DestructiveHint: &trueVal},
-	}, s.handleEvolve)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "predict",
-		Description: "Identify tests affected by current changes using the Global Call Graph",
-	}, s.handlePredict)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "compact_context",
-		Description: "Trigger a self-summarization loop to reduce context window noise",
-	}, s.handleCompactContext)
+	}, s.executeSelfHeal)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "scouter_judge",
-		Description: "Execute an adversarial review of a code change or proposal using parallel sampling",
+		Description: "Execute an adversarial review of a code change or proposal using parallel sampling.",
 	}, s.handleJudge)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "dream",
-		Description: "Runs the memory distillation loop for a project to generate ADRs and Pattern summaries",
-	}, s.handleDream)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "explore_sdd",
-		Description: "Search and explore SDD artifacts (roadmap, tasks, specs)",
+		Name:        "scouter_sdd",
+		Description: "Search and explore SDD artifacts (roadmap, tasks, specs).",
 	}, s.handleExploreSDD)
 }
-
-type UnlockArsenalParams struct{}
-
-func (s *Server) handleUnlockArsenal(ctx context.Context, req *mcp.CallToolRequest, args UnlockArsenalParams) (*mcp.CallToolResult, any, error) {
-        s.mu.Lock()
-        defer s.mu.Unlock()
-
-        if s.arsenalUnlocked {
-                return &mcp.CallToolResult{
-                        Content: []mcp.Content{
-                                &mcp.TextContent{Text: "Arsenal is already unlocked."},
-                        },
-                }, nil, nil
-        }
-
-        s.registerSpecializedTools()
-        s.arsenalUnlocked = true
-
-        return &mcp.CallToolResult{
-                Content: []mcp.Content{
-                        &mcp.TextContent{Text: "Specialized Arsenal unlocked. New tools are now available for discovery."},
-                },
-        }, nil, nil
-}
-
 
 var execCommand = exec.Command

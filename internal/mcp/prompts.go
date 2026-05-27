@@ -63,6 +63,6 @@ WORKFLOW:
 3. TRANSFORM: Use 'ripple_refactor' or 'evolve' to apply structural changes.
 4. VERIFY: Use 'predict' and 'self_heal' to ensure structural integrity and fix failures.
 
-Call 'unlock_heavy_arsenal' to expose specialized architectural and distillation tools.
+Call 'scouter_sdd' to expose specialized architectural and distillation tools.
 Focus on intent, technical rationale, and "Pure Signal". No slop.`
 

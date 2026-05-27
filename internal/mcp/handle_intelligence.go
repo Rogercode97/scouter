@@ -15,6 +15,17 @@ import (
 	"bytes"
 )
 
+type RadarArgs struct {
+	Action       string `json:"action" jsonschema:"The action to perform (impact|critical_code|predict)"`
+	Symbol       string `json:"symbol,omitempty" jsonschema:"Optional: The name of the symbol to analyze or export"`
+	Target       string `json:"target,omitempty" jsonschema:"Optional: Path to the file, directory, or vault"`
+	ExportFormat string `json:"exportFormat,omitempty" jsonschema:"Optional: Response format (json|markdown|obsidian)"`
+	MaxDepth     int    `json:"maxDepth,omitempty" jsonschema:"Optional: Maximum recursion depth for impact analysis"`
+	Verbose      bool   `json:"verbose,omitempty" jsonschema:"Optional: Include detailed metrics and Mermaid graph"`
+	Limit        int    `json:"limit,omitempty" jsonschema:"Optional: Max critical symbols to return"`
+	Diff         string `json:"diff,omitempty" jsonschema:"Optional: Git diff to analyze (defaults to uncommitted changes)"`
+}
+
 type ImpactParams struct {
 	SymbolName string `json:"symbolName" jsonschema:"The name of the symbol to analyze"`
 	FilePath   string `json:"filePath" jsonschema:"Path to the file containing the symbol"`
@@ -38,7 +49,30 @@ type PredictParams struct {
 }
 
 
-func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, args ImpactParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) HandleRadar(ctx context.Context, req *mcp.CallToolRequest, args RadarArgs) (*mcp.CallToolResult, any, error) {
+	if args.ExportFormat == "obsidian" {
+		if args.Symbol == "" || args.Target == "" {
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "symbol and target (filePath) required for obsidian export"}}, IsError: true}, nil, nil
+		}
+		return s.executeObsidianExport(ctx, req, ObsidianExportParams{SymbolName: args.Symbol, FilePath: args.Target})
+	}
+
+	switch args.Action {
+	case "impact":
+		if args.Symbol == "" || args.Target == "" {
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "symbol and target (filePath) required for impact action"}}, IsError: true}, nil, nil
+		}
+		return s.executeImpact(ctx, req, ImpactParams{SymbolName: args.Symbol, FilePath: args.Target, MaxDepth: args.MaxDepth, Verbose: args.Verbose})
+	case "critical_code":
+		return s.executeCritical(ctx, req, CriticalParams{Limit: args.Limit, Format: args.ExportFormat})
+	case "predict":
+		return s.executePredict(ctx, req, PredictParams{Diff: args.Diff})
+	default:
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "invalid action for radar"}}, IsError: true}, nil, nil
+	}
+}
+
+func (s *Server) executeImpact(ctx context.Context, req *mcp.CallToolRequest, args ImpactParams) (*mcp.CallToolResult, any, error) {
 	// [Sovereignty Upgrade] Route through TruthEngine
 	res, err := s.engine.AnalyzeImpact(ctx, args.SymbolName, args.FilePath, args.Verbose, &mcpMessenger{server: s, req: req})
 	if err != nil {
@@ -69,7 +103,7 @@ func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, arg
 	}, nil, nil
 }
 
-func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, args CriticalParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) executeCritical(ctx context.Context, req *mcp.CallToolRequest, args CriticalParams) (*mcp.CallToolResult, any, error) {
 	limit := args.Limit
 	if limit <= 0 || limit > 50 {
 		limit = 10
@@ -118,7 +152,7 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 	}, nil, nil
 }
 
-func (s *Server) handleObsidianExport(ctx context.Context, req *mcp.CallToolRequest, args ObsidianExportParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) executeObsidianExport(ctx context.Context, req *mcp.CallToolRequest, args ObsidianExportParams) (*mcp.CallToolResult, any, error) {
 	if args.SymbolName == "" || args.FilePath == "" {
 		return nil, nil, fmt.Errorf("missing symbolName or filePath")
 	}
@@ -191,7 +225,7 @@ date: %s
 	}, nil, nil
 }
 
-func (s *Server) handlePredict(ctx context.Context, req *mcp.CallToolRequest, args PredictParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) executePredict(ctx context.Context, req *mcp.CallToolRequest, args PredictParams) (*mcp.CallToolResult, any, error) {
 	diff := args.Diff
 	if diff == "" {
 		out, err := exec.CommandContext(ctx, "git", "diff", "HEAD", "--unified=0").Output()

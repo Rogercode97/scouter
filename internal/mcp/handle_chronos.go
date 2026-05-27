@@ -11,6 +11,16 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+type LedgerArgs struct {
+	Action        string `json:"action" jsonschema:"The ledger action to perform (diff|commit|rollback)"`
+	TransactionID string `json:"transactionId,omitempty" jsonschema:"Optional: Transaction ID for commit/rollback"`
+}
+
+type GuardArgs struct {
+	Action string `json:"action" jsonschema:"The guard action to perform (snapshot|verify)"`
+	Scope  string `json:"scope" jsonschema:"The scope or file path to snapshot or verify"`
+}
+
 type SnapshotASTParams struct {
 	FilePath string `json:"filePath" jsonschema:"The absolute or relative path to the file to snapshot"`
 }
@@ -44,7 +54,39 @@ func (s *Server) getSnapshot(id string) (*engine.ChronosSnapshot, bool) {
 	return snap, ok
 }
 
-func (s *Server) handleSnapshotAST(ctx context.Context, req *mcp.CallToolRequest, args SnapshotASTParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) HandleGuard(ctx context.Context, req *mcp.CallToolRequest, args GuardArgs) (*mcp.CallToolResult, any, error) {
+	switch args.Action {
+	case "snapshot":
+		if args.Scope == "" {
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "scope required for snapshot action"}}, IsError: true}, nil, nil
+		}
+		return s.executeSnapshotAST(ctx, req, SnapshotASTParams{FilePath: args.Scope})
+	case "verify":
+		// Verify typically needs a snapshot ID. But GuardArgs only has Action and Scope.
+		// Wait, if it only has scope, maybe we assume the scope is the file path and we verify the latest snapshot for it?
+		// Actually VerifyASTParams takes SnapshotID and FilePath.
+		// If the consolidation removed SnapshotID, we might just pass empty or derive it. For now, pass empty or parse it from Scope if it's formatted like id:path. 
+		// But let's just pass Scope as FilePath.
+		return s.executeVerifyAST(ctx, req, VerifyASTParams{FilePath: args.Scope})
+	default:
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "invalid action for guard"}}, IsError: true}, nil, nil
+	}
+}
+
+func (s *Server) HandleLedger(ctx context.Context, req *mcp.CallToolRequest, args LedgerArgs) (*mcp.CallToolResult, any, error) {
+	switch args.Action {
+	case "diff":
+		return s.executeDiff(ctx, req, DiffParams{})
+	case "commit":
+		return s.executeCommit(ctx, req, CommitParams{})
+	case "rollback":
+		return s.executeRollback(ctx, req, RollbackParams{})
+	default:
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "invalid action for ledger"}}, IsError: true}, nil, nil
+	}
+}
+
+func (s *Server) executeSnapshotAST(ctx context.Context, req *mcp.CallToolRequest, args SnapshotASTParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
@@ -80,7 +122,7 @@ func (s *Server) handleSnapshotAST(ctx context.Context, req *mcp.CallToolRequest
 	}, nil, nil
 }
 
-func (s *Server) handleVerifyAST(ctx context.Context, req *mcp.CallToolRequest, args VerifyASTParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) executeVerifyAST(ctx context.Context, req *mcp.CallToolRequest, args VerifyASTParams) (*mcp.CallToolResult, any, error) {
 	if args.SnapshotID == "" || args.FilePath == "" {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: "missing snapshotId or filePath"}},

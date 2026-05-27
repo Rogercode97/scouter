@@ -17,7 +17,25 @@ import (
 	"strings"
 )
 
+type InspectArgs struct {
+	Mode     string        `json:"mode" jsonschema:"The mode of inspection (skeleton|read|callers|definition|type_info)"`
+	FilePath string        `json:"filePath" jsonschema:"The absolute or relative path to the file or directory to inspect"`
+	Symbol   string        `json:"symbol,omitempty" jsonschema:"Optional: The symbol to inspect (for read/definition/type_info/callers)"`
+	Position *lsp.Position `json:"position,omitempty" jsonschema:"Optional: The LSP position to inspect (mutually exclusive with symbol)"`
+}
 
+type SearchArgs struct {
+	Mode         string `json:"mode" jsonschema:"The mode of search (text|structural|index)"`
+	Query        string `json:"query,omitempty" jsonschema:"The search query (required for text/structural)"`
+	Directory    string `json:"directory,omitempty" jsonschema:"The directory to index (required for index)"`
+	Type         string `json:"type,omitempty" jsonschema:"Optional: Filter by symbol type"`
+	Limit        int    `json:"limit,omitempty" jsonschema:"Max results to return"`
+	Offset       int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
+	Format       string `json:"format,omitempty" jsonschema:"Optional: Response format ('text' or 'hakai')"`
+	TargetSymbol string `json:"targetSymbol,omitempty" jsonschema:"Optional: Target symbol for structural search"`
+	Ext          string `json:"ext,omitempty" jsonschema:"Optional: File extension for structural search"`
+	Path         string `json:"path,omitempty" jsonschema:"Optional: Root path for structural search"`
+}
 
 type IndexParams struct {
 	FilePath string `json:"filePath" jsonschema:"The absolute or relative path to the file or directory to index"`
@@ -72,7 +90,62 @@ type DiagnoseParams struct {
 	ErrorLog string `json:"errorLog" jsonschema:"The error log output containing the file and line number of the failure"`
 }
 
-func (s *Server) handleMap(ctx context.Context, req *mcp.CallToolRequest, args MapParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) HandleInspect(ctx context.Context, req *mcp.CallToolRequest, args InspectArgs) (*mcp.CallToolResult, any, error) {
+	switch args.Mode {
+	case "skeleton":
+		return s.executeMap(ctx, req, MapParams{Path: args.FilePath})
+	case "read":
+		if args.Symbol == "" && args.Position == nil {
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "symbol or position required for read mode"}}, IsError: true}, nil, nil
+		}
+		pointer := args.Symbol
+		if pointer == "" && args.Position != nil {
+			pointer = fmt.Sprintf("position:%d:%d", args.Position.Line, args.Position.Character)
+		}
+		return s.executeRead(ctx, req, ReadParams{FilePath: args.FilePath, Pointer: pointer})
+	case "callers":
+		if args.Symbol == "" && args.Position == nil {
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "symbol or position required for callers mode"}}, IsError: true}, nil, nil
+		}
+		return s.executeCallers(ctx, req, CallersParams{CalleeName: args.Symbol})
+	case "definition":
+		if args.Position == nil {
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "position required for definition mode"}}, IsError: true}, nil, nil
+		}
+		return s.executeDefinition(ctx, req, DefinitionParams{FilePath: args.FilePath, Line: args.Position.Line, Character: args.Position.Character})
+	case "type_info":
+		if args.Position == nil {
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "position required for type_info mode"}}, IsError: true}, nil, nil
+		}
+		return s.executeTypeInfo(ctx, req, TypeInfoParams{FilePath: args.FilePath, Line: args.Position.Line, Character: args.Position.Character})
+	default:
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "invalid mode for inspect"}}, IsError: true}, nil, nil
+	}
+}
+
+func (s *Server) HandleSearch(ctx context.Context, req *mcp.CallToolRequest, args SearchArgs) (*mcp.CallToolResult, any, error) {
+	switch args.Mode {
+	case "text":
+		if args.Query == "" {
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "query required for text search"}}, IsError: true}, nil, nil
+		}
+		return s.executeSearch(ctx, req, SearchParams{Query: args.Query, Type: args.Type, Limit: args.Limit, Offset: args.Offset, Format: args.Format})
+	case "structural":
+		if args.Query == "" && args.TargetSymbol == "" {
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "query or targetSymbol required for structural search"}}, IsError: true}, nil, nil
+		}
+		return s.executeStructuralSearch(ctx, req, StructuralSearchParams{Pattern: args.Query, TargetSymbol: args.TargetSymbol, Ext: args.Ext, Path: args.Path, Limit: args.Limit, Offset: args.Offset})
+	case "index":
+		if args.Directory == "" {
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "directory required for index mode"}}, IsError: true}, nil, nil
+		}
+		return s.executeIndex(ctx, req, IndexParams{FilePath: args.Directory})
+	default:
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "invalid mode for search"}}, IsError: true}, nil, nil
+	}
+}
+
+func (s *Server) executeMap(ctx context.Context, req *mcp.CallToolRequest, args MapParams) (*mcp.CallToolResult, any, error) {
 	if args.Path == "" {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: "missing path"}},
@@ -126,7 +199,7 @@ func (s *Server) handleMap(ctx context.Context, req *mcp.CallToolRequest, args M
 	}, nil, nil
 }
 
-func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args IndexParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) executeIndex(ctx context.Context, req *mcp.CallToolRequest, args IndexParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
@@ -151,7 +224,7 @@ func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args
 	}, nil, nil
 }
 
-func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, args SearchParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) executeSearch(ctx context.Context, req *mcp.CallToolRequest, args SearchParams) (*mcp.CallToolResult, any, error) {
 	limit := args.Limit
 	if limit <= 0 || limit > 100 {
 		limit = 50 // Sovereign Limit
@@ -216,7 +289,7 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 	}, nil, nil
 }
 
-func (s *Server) handleRead(ctx context.Context, req *mcp.CallToolRequest, args ReadParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) executeRead(ctx context.Context, req *mcp.CallToolRequest, args ReadParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" || args.Pointer == "" {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath or pointer"}},
@@ -277,7 +350,7 @@ func (s *Server) handleRead(ctx context.Context, req *mcp.CallToolRequest, args 
 	}, nil, nil
 }
 
-func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, args CallersParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) executeCallers(ctx context.Context, req *mcp.CallToolRequest, args CallersParams) (*mcp.CallToolResult, any, error) {
 	if args.CalleeName == "" {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: "missing calleeName"}},
@@ -349,7 +422,7 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 	}, nil, nil
 }
 
-func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequest, args DefinitionParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) executeDefinition(ctx context.Context, req *mcp.CallToolRequest, args DefinitionParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
@@ -394,7 +467,7 @@ func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequ
 	}, nil, nil
 	}
 
-	func (s *Server) handleTypeInfo(ctx context.Context, req *mcp.CallToolRequest, args TypeInfoParams) (*mcp.CallToolResult, any, error) {
+	func (s *Server) executeTypeInfo(ctx context.Context, req *mcp.CallToolRequest, args TypeInfoParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
 	        return &mcp.CallToolResult{
 	                Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
@@ -438,7 +511,7 @@ func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequ
 	}, nil, nil
 }
 
-func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRequest, args StructuralSearchParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) executeStructuralSearch(ctx context.Context, req *mcp.CallToolRequest, args StructuralSearchParams) (*mcp.CallToolResult, any, error) {
 	if args.Pattern == "" && args.TargetSymbol == "" {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: "missing pattern or targetSymbol"}},

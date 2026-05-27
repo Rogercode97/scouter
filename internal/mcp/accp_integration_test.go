@@ -36,12 +36,13 @@ func TestACCPStateTransitionIntegration(t *testing.T) {
 
 	t.Run("handleSearch transitions to WARM when token count increases", func(t *testing.T) {
 		req := &mcp.CallToolRequest{}
-		args := SearchParams{
+		args := SearchArgs{
+			Mode:   "text",
 			Query:  "Func",
 			Format: "hakai",
 		}
 
-		res, _, err := s.handleSearch(context.Background(), req, args)
+		res, _, err := s.HandleSearch(context.Background(), req, args)
 		if err != nil {
 			t.Fatalf("handleSearch failed: %v", err)
 		}
@@ -63,12 +64,12 @@ func TestACCPStateTransitionIntegration(t *testing.T) {
 		st.calls = calls
 
 		req := &mcp.CallToolRequest{}
-		args := CallersParams{
-			CalleeName: "TestFunc",
-			Format:     "hakai",
+		args := InspectArgs{
+			Mode:   "callers",
+			Symbol: "TestFunc",
 		}
 
-		res, _, err := s.handleCallers(context.Background(), req, args)
+		res, _, err := s.HandleInspect(context.Background(), req, args)
 		if err != nil {
 			t.Fatalf("handleCallers failed: %v", err)
 		}
