@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/store"
+	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -26,8 +27,11 @@ func TestACCPStateTransitionIntegration(t *testing.T) {
 	st := &mockStore{
 		symbols: symbols,
 	}
+	searchEngine := engine.NewSearchEngine(st, nil)
+	truthEngine := engine.NewTruthEngine(st, nil, nil, nil, nil, searchEngine, nil, nil, nil, nil, nil, nil, nil, nil)
 	s := &Server{
-		store: st,
+		store:  st,
+		engine: truthEngine,
 	}
 
 	t.Run("handleSearch transitions to WARM when token count increases", func(t *testing.T) {

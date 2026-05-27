@@ -10,6 +10,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/filter"
+	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"bytes"
@@ -59,11 +60,16 @@ type TypeInfoParams struct {
 }
 
 type StructuralSearchParams struct {
-	Pattern string `json:"pattern" jsonschema:"The structural search pattern (supports $VAR and $$$ wildcards)"`
-	Ext     string `json:"ext" jsonschema:"The file extension to search in (e.g., '.go', '.ts')"`
-	Path    string `json:"path,omitempty" jsonschema:"Optional: Root path for the search (defaults to '.')"`
-	Limit   int    `json:"limit,omitempty" jsonschema:"Max results to return (default: 50, max: 100)"`
-	Offset  int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
+	Pattern      string `json:"pattern,omitempty" jsonschema:"Optional: The structural search pattern (supports $VAR and $$$ wildcards)"`
+	TargetSymbol string `json:"targetSymbol,omitempty" jsonschema:"Optional: An existing symbol to use as the template pattern (Find Logical Twins)"`
+	Ext          string `json:"ext,omitempty" jsonschema:"Optional: The file extension to search in (e.g., '.go', '.ts')"`
+	Path         string `json:"path,omitempty" jsonschema:"Optional: Root path for the search (defaults to '.')"`
+	Limit        int    `json:"limit,omitempty" jsonschema:"Max results to return (default: 50, max: 100)"`
+	Offset       int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
+}
+
+type DiagnoseParams struct {
+	ErrorLog string `json:"errorLog" jsonschema:"The error log output containing the file and line number of the failure"`
 }
 
 func (s *Server) handleMap(ctx context.Context, req *mcp.CallToolRequest, args MapParams) (*mcp.CallToolResult, any, error) {
@@ -151,7 +157,7 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 		limit = 50 // Sovereign Limit
 	}
 
-	results, err := s.store.SearchSymbols(ctx, args.Query, args.Type, limit, args.Offset)
+	searchRes, err := s.engine.HybridSearch(ctx, args.Query, limit, args.Offset)
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Search execution failed: %v", err)}},
@@ -161,7 +167,7 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 	}
 
 	var outStr string
-	useHakai := args.Format == "hakai" || (args.Format == "" && len(results) > 20)
+	useHakai := args.Format == "hakai" || (args.Format == "" && len(searchRes.Symbols) > 20)
 
 	if useHakai {
 		var buf bytes.Buffer
@@ -169,34 +175,39 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 		// Initialize ACCP with centralized thresholds
 		sw.SetACCP(display.NewACCP(display.DefaultThresholdWarm, display.DefaultThresholdCold))
 		sw.WriteHeader()
-		for _, sym := range results {
-			sw.EmitSymbol(sym)
-			if sym.PageRank > 0 {
-				sw.EmitRank(sym.Path, sym.PageRank)
+		for _, sym := range searchRes.Symbols {
+			sSym := store.Symbol{
+				Name: sym.Name,
+				Type: sym.Type,
+				Signature: sym.Signature,
+				Path: sym.Path,
+				StartLine: sym.StartLine,
+				EndLine: sym.EndLine,
+				Doc: sym.Doc,
 			}
-			if sym.ChurnScore > 0 {
-				sw.EmitChurn(sym.Path, sym.ChurnScore)
-			}
+			sw.EmitSymbol(sSym)
 		}
 		sw.Flush()
 		outStr = buf.String()
 	} else {
 		if args.Format == "zon" || args.Format == "" {
-			outStr, _ = engine.EncodeZON(results)
+			zonSyms, _ := engine.EncodeZON(searchRes.Symbols)
+			zonInsights, _ := engine.EncodeZON(searchRes.Insights)
+			outStr = zonSyms + "\nInsights:\n" + zonInsights
 			if len(outStr) > 4096 {
 				outStr = outStr[:4000] + "\n... [TRUNCATED BY SOVEREIGN GUARD (4KB LIMIT)]"
 			}
 		} else {
-			out, _ := json.Marshal(results)
+			out, _ := json.Marshal(searchRes)
 			if string(out) == "null" {
-				out = []byte("[]")
+				out = []byte("{}")
 			}
 			outStr = string(out)
 		}
 	}
 
-	thought := fmt.Sprintf("<thought>\nSovereign Search: Querying AST for '%s' (%s). Pagination: [Limit:%d Offset:%d]. Found %d matches. Format: %s.\n</thought>\n",
-		args.Query, args.Type, limit, args.Offset, len(results), map[bool]string{true: "hakai", false: "json"}[useHakai])
+	thought := fmt.Sprintf("<thought>\nSovereign Search: Querying AST+Engram for '%s' (%s). Pagination: [Limit:%d Offset:%d]. Found %d matches & %d insights. Format: %s.\n</thought>\n",
+		args.Query, args.Type, limit, args.Offset, len(searchRes.Symbols), len(searchRes.Insights), map[bool]string{true: "hakai", false: "json"}[useHakai])
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -428,12 +439,11 @@ func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequ
 }
 
 func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRequest, args StructuralSearchParams) (*mcp.CallToolResult, any, error) {
-	if args.Pattern == "" || args.Ext == "" {
+	if args.Pattern == "" && args.TargetSymbol == "" {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "missing pattern or ext"}},
+			Content: []mcp.Content{&mcp.TextContent{Text: "missing pattern or targetSymbol"}},
 			IsError: true,
-		},
-		nil, nil
+		}, nil, nil
 	}
 
 	searchPath := args.Path
@@ -446,8 +456,48 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
 			IsError: true,
-		},
-		nil, nil
+		}, nil, nil
+	}
+
+	limit := args.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	offset := args.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	if args.TargetSymbol != "" {
+		results, err := s.engine.FindLogicalTwins(ctx, args.TargetSymbol, path)
+		if err != nil {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to find logical twins: %v", err)}},
+				IsError: true,
+			}, nil, nil
+		}
+		total := len(results)
+		if offset >= total {
+			results = nil
+		} else {
+			end := offset + limit
+			if end > total {
+				end = total
+			}
+			results = results[offset:end]
+		}
+		
+		outStr, _ := engine.EncodeZON(results)
+		if len(outStr) > 4096 {
+			outStr = outStr[:4000] + "\n... [TRUNCATED BY SOVEREIGN GUARD (4KB LIMIT)]"
+		}
+		thought := fmt.Sprintf("<thought>\nStructural Analysis: Identifying symbols with identical logical signatures to '%s' in '%s'. Pagination: [Limit:%d Offset:%d]. Found %d matches (Total: %d).\n</thought>\n", args.TargetSymbol, path, limit, offset, len(results), total)
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: thought + outStr},
+			},
+		}, nil, nil
 	}
 
 	action, ok := filter.GetAction("ast_grep")
@@ -513,15 +563,6 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 	}
 
 	total := len(results)
-	limit := args.Limit
-	if limit <= 0 || limit > 100 {
-		limit = 50
-	}
-
-	offset := args.Offset
-	if offset < 0 {
-		offset = 0
-	}
 
 	if offset >= total {
 		results = []engine.StructuralMatch{}
@@ -545,6 +586,31 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: thought + outStr},
+		},
+	}, nil, nil
+}
+
+func (s *Server) handleDiagnose(ctx context.Context, req *mcp.CallToolRequest, args DiagnoseParams) (*mcp.CallToolResult, any, error) {
+	if args.ErrorLog == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "missing errorLog"}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	hudOutput, err := s.engine.Healer().DiagnoseHUD(ctx, args.ErrorLog)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Diagnose failed: %v", err)}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	thought := "<thought>\nExecuting Diagnostic Vision (Fase 8). Fused Git Provenance, X-Ray AST, Radar Impact, and Thermal Similarity into HUD.\n</thought>\n"
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: thought + hudOutput},
 		},
 	}, nil, nil
 }

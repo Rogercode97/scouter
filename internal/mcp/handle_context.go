@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -14,11 +13,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-type HybridSearchParams struct {
-	Query  string `json:"query"`
-	Limit  int    `json:"limit,omitempty"`
-	Offset int    `json:"offset,omitempty"`
-}
+
 
 type PureSignalParams struct {
 	Text  string `json:"text"`
@@ -61,48 +56,7 @@ func (s *Server) handlePureSignal(ctx context.Context, req *mcp.CallToolRequest,
 	}, nil, nil
 }
 
-func (s *Server) handleHybridSearch(ctx context.Context, req *mcp.CallToolRequest, args HybridSearchParams) (*mcp.CallToolResult, any, error) {
-	if args.Query == "" {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "missing query"}},
-			IsError: true,
-		},
-		nil, nil
-	}
 
-	limit := args.Limit
-	if limit == 0 {
-		limit = 20
-	}
-
-	res, err := s.engine.HybridSearch(ctx, args.Query, limit, args.Offset)
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Hybrid search failed: %v", err)}},
-			IsError: true,
-		},
-		nil, nil
-	}
-	out, err := json.Marshal(res)
-	if string(out) == "null" {
-		out = []byte("[]")
-	}
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal hybrid search results: %v", err)}},
-			IsError: true,
-		},
-		nil, nil
-	}
-
-	tthought := fmt.Sprintf("<thought>\nExecuted hybrid search for '%s'. Found %d AST symbols and %d Engram insights (limit: %d, offset: %d).\n</thought>\n", args.Query, len(res.Symbols), len(res.Insights), limit, args.Offset)
-
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: tthought + string(out)},
-		},
-	}, nil, nil
-}
 
 func (s *Server) handleCompactContext(ctx context.Context, req *mcp.CallToolRequest, args CompactContextParams) (*mcp.CallToolResult, any, error) {
 	// [Strike 5] Predictive Context: Identify critical hotspots for high-fidelity summary

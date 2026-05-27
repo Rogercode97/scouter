@@ -70,8 +70,8 @@ func NewServer(st store.Store, logger *slog.Logger) *Server {
 	analyzer := engine.NewAnalysisEngine(st)
 	ripple := engine.NewRippleEngine(st, nil, impact)
 	ripple.Validators = append(ripple.Validators, engine.NewLSPValidator(analyzer.ProjectRoot))
-	healer := engine.NewHealerEngine(st, s.lspMgr, analyzer, impact)
 	search := engine.NewSearchEngine(st, memoryProvider)
+	healer := engine.NewHealerEngine(st, s.lspMgr, analyzer, impact, search)
 	compact := engine.NewCompactionEngine(st, ledger)
 	diagnostic := engine.NewDiagnosticEngine(st, analyzer, impact, healer, s.lspMgr)
 	sdd := engine.NewSDDEngine(".")
@@ -379,6 +379,11 @@ func (s *Server) registerCoreTools() {
 		Name:        "scouter_diff",
 		Description: "Preview all staged changes and mission budget status",
 	}, s.handleDiff)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "scouter_diagnose",
+		Description: "Generate a Diagnostic HUD (ZON format) for a given error log, including X-Ray, Radar, and Thermal Vision",
+	}, s.handleDiagnose)
 }
 
 func (s *Server) registerSpecializedTools() {
@@ -403,11 +408,6 @@ func (s *Server) registerSpecializedTools() {
 		Name:        "obsidian_export",
 		Description: "Export impact analysis as an Obsidian-ready markdown note",
 	}, s.handleObsidianExport)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "hybrid_search",
-		Description: "Unify AST symbols with Engram technical wisdom for context-aware search",
-	}, s.handleHybridSearch)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "save_anchor",
@@ -438,11 +438,6 @@ func (s *Server) registerSpecializedTools() {
 	}, s.handlePredict)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "find_logical_twin",
-		Description: "Find structurally identical symbols across the codebase",
-	}, s.handleFindLogicalTwin)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "compact_context",
 		Description: "Trigger a self-summarization loop to reduce context window noise",
 	}, s.handleCompactContext)
@@ -456,11 +451,6 @@ func (s *Server) registerSpecializedTools() {
 		Name:        "dream",
 		Description: "Runs the memory distillation loop for a project to generate ADRs and Pattern summaries",
 	}, s.handleDream)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "knowledge_graph",
-		Description: "Queries Engram for ADRs that specifically mention or affect the given AST symbol",
-	}, s.handleKnowledgeGraph)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "explore_sdd",

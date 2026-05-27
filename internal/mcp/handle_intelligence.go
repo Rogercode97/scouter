@@ -37,10 +37,7 @@ type PredictParams struct {
         Diff string `json:"diff,omitempty" jsonschema:"Optional: Git diff to analyze (defaults to uncommitted changes)"`
 }
 
-type FindLogicalTwinParams struct {
-        SymbolName string `json:"symbolName" jsonschema:"The name of the symbol to find twins for"`
-        FilePath   string `json:"filePath" jsonschema:"Path to the file containing the symbol"`
-}
+
 func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, args ImpactParams) (*mcp.CallToolResult, any, error) {
 	// [Sovereignty Upgrade] Route through TruthEngine
 	res, err := s.engine.AnalyzeImpact(ctx, args.SymbolName, args.FilePath, args.Verbose, &mcpMessenger{server: s, req: req})
@@ -224,28 +221,4 @@ func (s *Server) handlePredict(ctx context.Context, req *mcp.CallToolRequest, ar
 }
 
 
-func (s *Server) handleFindLogicalTwin(ctx context.Context, req *mcp.CallToolRequest, args FindLogicalTwinParams) (*mcp.CallToolResult, any, error) {
-        if args.SymbolName == "" || args.FilePath == "" {
-                return nil, nil, fmt.Errorf("missing symbolName or filePath")
-        }
 
-        results, err := s.engine.FindLogicalTwins(ctx, args.SymbolName, args.FilePath)
-        if err != nil {
-                return &mcp.CallToolResult{
-                        Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to find logical twins: %v", err)}},
-                        IsError: true,
-                }, nil, nil
-        }
-
-        out, _ := json.Marshal(results)
-	if string(out) == "null" {
-		out = []byte("[]")
-	}
-        thought := fmt.Sprintf("<thought>\nStructural Analysis: Identifying symbols with identical logical signatures to '%s'. Found %d twins.\n</thought>\n", args.SymbolName, len(results))
-
-        return &mcp.CallToolResult{
-                Content: []mcp.Content{
-                        &mcp.TextContent{Text: thought + string(out)},
-                },
-        }, nil, nil
-}

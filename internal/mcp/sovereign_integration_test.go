@@ -7,6 +7,7 @@ import (
 
 	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/Rogercode97/scouter/internal/store"
+	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -35,13 +36,17 @@ func (m *mockStore) GetSymbolsByNameInFile(ctx context.Context, name, path strin
 }
 
 func TestSovereignMCPIntegration(t *testing.T) {
-	st := &mockStore{
-		symbols: []store.Symbol{
-			{Name: "TestFunc", Path: "main.go", Type: "function", StartLine: 10},
-		},
+	symbols := []store.Symbol{
+		{Name: "TestFunc", Path: "main.go", Type: "function", StartLine: 10},
 	}
+	st := &mockStore{
+		symbols: symbols,
+	}
+	searchEngine := engine.NewSearchEngine(st, nil)
+	truthEngine := engine.NewTruthEngine(st, nil, nil, nil, nil, searchEngine, nil, nil, nil, nil, nil, nil, nil, nil)
 	s := &Server{
-		store: st,
+		store:  st,
+		engine: truthEngine,
 	}
 
 	t.Run("handleSearch returns Sovereign header", func(t *testing.T) {

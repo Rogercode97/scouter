@@ -469,6 +469,14 @@ func (e *TruthEngine) HybridSearch(ctx context.Context, query string, limit, off
 	return e.search.HybridSearch(ctx, query, limit, offset)
 }
 
+func (e *TruthEngine) Compact() *CompactionEngine {
+	return e.compact
+}
+
+func (e *TruthEngine) Healer() *HealerEngine {
+	return e.healer
+}
+
 func (e *TruthEngine) CompactSession(ctx context.Context, log string) (*types.CompactionResult, error) {
 	return e.compact.CompactSession(ctx, log)
 }

@@ -28,14 +28,17 @@ import (
 
 	// Bridge to MCP sampling
 	DoFixRequest func(ctx context.Context, prompt string) (string, error)
+	
+	Search *SearchEngine
 }
 
-func NewHealerEngine(s TransactionalStore, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine) *HealerEngine {
+func NewHealerEngine(s TransactionalStore, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine, search *SearchEngine) *HealerEngine {
 	return &HealerEngine{
 		store:    s,
 		lspMgr:   l,
 		analyzer: a,
 		impact:   i,
+		Search:   search,
 		Ledger:   NewLedger(),
 	}
 }
@@ -293,4 +296,112 @@ func (e *HealerEngine) Index(ctx context.Context, path string) error {
 		}
 		return nil
 	})
+}
+
+// DiagnosticHUD representa la visión térmica/estructural del motor de diagnóstico.
+type DiagnosticHUD struct {
+	FailingSymbol      string
+	LastCommit         string
+	RiskLevel          string
+	BlastRadius        int
+	SimilarPatternPath string
+}
+
+// DiagnoseHUD ejecuta la visión de diagnóstico combinando Git, AST, Impacto y Bleve.
+// Retorna la representación del HUD en formato ZON.
+func (e *HealerEngine) DiagnoseHUD(ctx context.Context, errorLog string) (string, error) {
+	if errorLog == "" {
+		return "", fmt.Errorf("empty error log")
+	}
+
+	// 1. Parseo: Extraer archivo y línea
+	re := regexp.MustCompile("(?m)" + filter.GoTestFailureRegex.String())
+	allMatches := re.FindAllStringSubmatch(errorLog, -1)
+	if len(allMatches) == 0 {
+		return "", fmt.Errorf("could not identify failing file:line in log")
+	}
+
+	primaryMatch := allMatches[0]
+	failingFileRaw := primaryMatch[1]
+	lineNum, _ := strconv.Atoi(primaryMatch[2])
+
+	failingFile, err := utils.ValidatePath(failingFileRaw)
+	if err != nil {
+		return "", err
+	}
+
+	// 2. Visión de Tiempo (Provenance)
+	var lastCommit string
+	// Intentamos obtener la procedencia usando el root del proyecto.
+	repoRoot := "." // Idealmente utils.GetRepoName(ctx) o similar, pero usamos "." como fallback
+	provenance, err := GetFileProvenance(ctx, repoRoot, failingFile)
+	if err == nil && len(provenance) >= lineNum && lineNum > 0 {
+		// La línea es 1-indexed, el array también lo hacemos 1-indexed en la lógica o verificamos
+		// GetFileProvenance devuelve slice, así que el índice sería lineNum - 1
+		idx := lineNum - 1
+		if idx < len(provenance) {
+			lastCommit = provenance[idx].Commit + " (" + provenance[idx].EngineeringEra + ")"
+		}
+	} else {
+		lastCommit = "Unknown"
+	}
+
+	// 3. Visión de Rayos X (AST)
+	itPointers, _, err := StreamSymbols(ctx, failingFile)
+	if err != nil {
+		return "", err
+	}
+
+	var symbol string
+	for p := range itPointers {
+		if lineNum >= p.StartLine && lineNum <= p.EndLine {
+			symbol = p.Name
+			break
+		}
+	}
+	if symbol == "" {
+		symbol = "Unknown"
+	}
+
+	// 4. Visión de Radar (Impacto)
+	riskLevel := "Unknown"
+	blastRadius := 0
+	if symbol != "Unknown" {
+		impact, err := e.impact.Analyze(ctx, symbol, failingFile, 1)
+		if err == nil && impact != nil {
+			riskLevel = impact.RiskLevel
+			blastRadius = len(impact.Callers)
+		}
+	}
+
+	// 5. Visión Térmica (Similitud)
+	similarPath := "None"
+	if symbol != "Unknown" && e.Search != nil {
+		// Usamos HybridSearch para encontrar Logical Twins
+		searchRes, err := e.Search.HybridSearch(ctx, symbol, 10, 0)
+		if err == nil && searchRes != nil {
+			for _, sym := range searchRes.Symbols {
+				if sym.Path != failingFile {
+					similarPath = sym.Path
+					break
+				}
+			}
+		}
+	}
+
+	hud := DiagnosticHUD{
+		FailingSymbol:      symbol,
+		LastCommit:         lastCommit,
+		RiskLevel:          riskLevel,
+		BlastRadius:        blastRadius,
+		SimilarPatternPath: similarPath,
+	}
+
+	// Generamos el output en formato ZON
+	zonStr, err := EncodeZON([]DiagnosticHUD{hud})
+	if err != nil {
+		return "", err
+	}
+
+	return zonStr, nil
 }

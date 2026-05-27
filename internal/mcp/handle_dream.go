@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/Rogercode97/scouter/internal/adapters/llm"
@@ -17,9 +16,7 @@ type DreamParams struct {
 	Hours   int    `json:"hours,omitempty"`
 }
 
-type KnowledgeGraphParams struct {
-	SymbolName string `json:"symbolName"`
-}
+
 
 func (s *Server) handleDream(ctx context.Context, req *mcp.CallToolRequest, args DreamParams) (*mcp.CallToolResult, any, error) {
 	project := args.Project
@@ -96,43 +93,4 @@ func (s *Server) GetTranscript(req *mcp.CallToolRequest) []memory.Message {
 	history := make([]memory.Message, len(s.sessionHistory))
 	copy(history, s.sessionHistory)
 	return history
-}
-
-func (s *Server) handleKnowledgeGraph(ctx context.Context, req *mcp.CallToolRequest, args KnowledgeGraphParams) (*mcp.CallToolResult, any, error) {
-	if args.SymbolName == "" {
-		return nil, nil, fmt.Errorf("missing symbolName")
-	}
-
-	// [Sinergia Upgrade] Direct SQLite Search
-	insights, err := s.engine.MemoryProvider().SearchInsights(ctx, args.SymbolName, 5)
-	if err != nil {
-		return nil, nil, fmt.Errorf("knowledge graph query failed: %w", err)
-	}
-
-	if len(insights) == 0 {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: fmt.Sprintf("No relevant memories found for symbol: %s", args.SymbolName)},
-			},
-		}, nil, nil
-	}
-
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("### Knowledge Graph: %s\n\n", args.SymbolName))
-	for _, in := range insights {
-		sb.WriteString(fmt.Sprintf("[%s] #%s: %s\n", in.Type, in.ID, in.Title))
-		if in.Why != "" {
-			sb.WriteString(fmt.Sprintf("- **Why**: %s\n", in.Why))
-		}
-		if in.Learned != "" {
-			sb.WriteString(fmt.Sprintf("- **Learned**: %s\n", in.Learned))
-		}
-		sb.WriteString("\n")
-	}
-
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: sb.String()},
-		},
-	}, nil, nil
 }
