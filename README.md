@@ -11,6 +11,7 @@
   <a href="#-quick-start">Quick Start</a> &bull;
   <a href="docs/INSTALLATION.md">Installation</a> &bull;
   <a href="docs/AGENT-SETUP.md">Agent Setup</a> &bull;
+  <a href="docs/MCP-REFERENCE.md">MCP Reference</a> &bull;
   <a href="docs/ARCHITECTURE.md">Architecture</a> &bull;
   <a href="docs/CODEBASE-GUIDE.md">Codebase Guide</a> &bull;
   <a href="CONTRIBUTING.md">Contributing</a>
@@ -80,6 +81,7 @@ Scouter exposes its intelligence via **27 specialized tools** for agents:
 
 | Resource | Description |
 | :--- | :--- |
+| [MCP Reference](./docs/MCP-REFERENCE.md) | Technical reference for MCP tools and Engram integration. |
 | [Architecture](./docs/ARCHITECTURE.md) | Deep dive into the Engine, Store, and MCP layers. |
 | [Codebase Guide](./docs/CODEBASE-GUIDE.md) | Landmarks, domain boundaries, and logic maps. |
 | [Security Policy](./SECURITY.md) | Staging ledger and safe mutation protocols. |
