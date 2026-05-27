@@ -519,6 +519,13 @@ func (e *TruthEngine) IdentifyCriticalContext(ctx context.Context, diff string) 
 	return e.impact.IdentifyCriticalContext(ctx, diff)
 }
 
+func (e *TruthEngine) GetNeighborhood(ctx context.Context, filePath string) (string, error) {
+	if e.analyzer == nil {
+		return "", fmt.Errorf("analysis engine not initialized")
+	}
+	return e.analyzer.GetNeighborhood(ctx, filePath)
+}
+
 func (e *TruthEngine) FindLogicalTwins(ctx context.Context, symbolName, path string) ([]types.Symbol, error) {
 	if e.store == nil {
 		return nil, fmt.Errorf("store not initialized")

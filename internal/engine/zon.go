@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/Rogercode97/scouter/internal/store"
 )
 
 // EncodeZON implements a minimal ZON (Zero Overhead Notation) table encoder.
@@ -49,4 +51,36 @@ func EncodeZON(slice interface{}) (string, error) {
 	}
 
 	return sb.String(), nil
+}
+
+// EncodeZONNeighborhood formats a 1-hop structural neighborhood (imports, exports, calls) into ZON format.
+func EncodeZONNeighborhood(filePath string, imports []string, exports []store.Symbol, calls []store.Call) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("[ZON Neighborhood: %s]\n", filePath))
+
+	if len(imports) > 0 {
+		for _, imp := range imports {
+			sb.WriteString(fmt.Sprintf("IMP | %s\n", imp))
+		}
+	} else {
+		sb.WriteString("IMP | (none)\n")
+	}
+
+	if len(exports) > 0 {
+		for _, exp := range exports {
+			sb.WriteString(fmt.Sprintf("EXP | %s | %s\n", exp.Type, exp.Name))
+		}
+	} else {
+		sb.WriteString("EXP | (none)\n")
+	}
+
+	if len(calls) > 0 {
+		for _, call := range calls {
+			sb.WriteString(fmt.Sprintf("CALL | %s -> %s\n", call.CallerName, call.CalleeName))
+		}
+	} else {
+		sb.WriteString("CALL | (none)\n")
+	}
+
+	return sb.String()
 }

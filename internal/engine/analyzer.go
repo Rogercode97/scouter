@@ -515,3 +515,27 @@ func (a *AnalysisEngine) GetCriticalSymbols(ctx context.Context, limit int) ([]s
 
 	return results, nil
 }
+
+func (a *AnalysisEngine) GetNeighborhood(ctx context.Context, filePath string) (string, error) {
+	imports, err := ExtractImports(ctx, filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract imports: %w", err)
+	}
+
+	exports, err := a.store.GetSymbolsByRange(ctx, filePath, 0, 999999)
+	if err != nil {
+		return "", fmt.Errorf("failed to get exports: %w", err)
+	}
+
+	var calls []store.Call
+	for call, err := range a.store.GetAllCalls(ctx) {
+		if err != nil {
+			return "", fmt.Errorf("failed to get calls: %w", err)
+		}
+		if call.Path == filePath {
+			calls = append(calls, call)
+		}
+	}
+
+	return EncodeZONNeighborhood(filePath, imports, exports, calls), nil
+}

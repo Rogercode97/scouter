@@ -72,6 +72,10 @@ type DiagnoseParams struct {
 	ErrorLog string `json:"errorLog" jsonschema:"REQUIRED. The error log output containing the file and line number of the failure"`
 }
 
+type NeighborhoodParams struct {
+	FilePath string `json:"filePath" jsonschema:"REQUIRED. The absolute or relative path to the file to extract the neighborhood from"`
+}
+
 func (s *Server) handleMap(ctx context.Context, req *mcp.CallToolRequest, args MapParams) (*mcp.CallToolResult, any, error) {
 	if args.Path == "" {
 		return &mcp.CallToolResult{
@@ -611,6 +615,39 @@ func (s *Server) handleDiagnose(ctx context.Context, req *mcp.CallToolRequest, a
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{Text: thought + hudOutput},
+		},
+	}, nil, nil
+}
+
+func (s *Server) handleNeighborhood(ctx context.Context, req *mcp.CallToolRequest, args NeighborhoodParams) (*mcp.CallToolResult, any, error) {
+	if args.FilePath == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	path, err := utils.ValidatePath(args.FilePath)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	neighborhood, err := s.engine.GetNeighborhood(ctx, path)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get neighborhood: %v", err)}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	thought := fmt.Sprintf("<thought>\nZON Neighborhood: Extracted 1-hop structural context for %s.\n</thought>\n", args.FilePath)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: thought + neighborhood},
 		},
 	}, nil, nil
 }

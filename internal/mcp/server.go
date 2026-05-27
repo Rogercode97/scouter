@@ -354,6 +354,11 @@ func (s *Server) registerCoreTools() {
 	}, s.handleTypeInfo)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "ast_neighborhood",
+		Description: "MANDATORY FOR ARCHITECTURAL AWARENESS: Get the 1-hop structural neighborhood (imports, exports, calls) in ultra-compact ZON format.",
+	}, s.handleNeighborhood)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "risk_impact",
 		Description: "CRITICAL: Calculate blast radius of a change. Mandatory before any staged commit.",
 	}, s.handleImpact)

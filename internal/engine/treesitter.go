@@ -19,9 +19,10 @@ import (
 )
 
 type LanguageConfig struct {
-	Language  *gotreesitter.Language
-	Query     *gotreesitter.Query
-	CallQuery *gotreesitter.Query
+	Language    *gotreesitter.Language
+	Query       *gotreesitter.Query
+	CallQuery   *gotreesitter.Query
+	ImportQuery *gotreesitter.Query
 }
 
 var languageConfigs map[string]*LanguageConfig
@@ -34,7 +35,8 @@ func init() {
 	registerLanguage(".go", goLang,
 		`(function_declaration name: (identifier) @name) @function 
          (method_declaration name: (field_identifier) @name) @method`,
-		`(call_expression function: (identifier) @callee) (call_expression function: (selector_expression field: (field_identifier) @callee))`)
+		`(call_expression function: (identifier) @callee) (call_expression function: (selector_expression field: (field_identifier) @callee))`,
+		`(import_spec path: (string_literal) @import)`)
 
 	// TS Configuration
 	tsLang := grammars.TypescriptLanguage()
@@ -51,14 +53,15 @@ func init() {
 	tsCallQuery := `(call_expression function: (identifier) @callee) 
                     (call_expression function: (member_expression property: (property_identifier) @callee))
                     (call_expression function: (member_expression object: (identifier) @obj property: (property_identifier) @callee))`
+	tsImportQuery := `(import_statement source: (string) @import)`
 
-	registerLanguage(".ts", tsLang, tsQuery, tsCallQuery)
+	registerLanguage(".ts", tsLang, tsQuery, tsCallQuery, tsImportQuery)
 
 	// TSX/JSX Configuration
 	tsxLang := grammars.TsxLanguage()
-	registerLanguage(".tsx", tsxLang, tsQuery, tsCallQuery)
-	registerLanguage(".jsx", tsxLang, tsQuery, tsCallQuery)
-	registerLanguage(".js", tsLang, tsQuery, tsCallQuery)
+	registerLanguage(".tsx", tsxLang, tsQuery, tsCallQuery, tsImportQuery)
+	registerLanguage(".jsx", tsxLang, tsQuery, tsCallQuery, tsImportQuery)
+	registerLanguage(".js", tsLang, tsQuery, tsCallQuery, tsImportQuery)
 
 	// Python Configuration
 	pyLang := grammars.PythonLanguage()
@@ -67,7 +70,8 @@ func init() {
          (class_definition name: (identifier) @name) @class
          (class_definition name: (identifier) @recv body: (block (function_definition name: (identifier) @name) @method))
          (class_definition name: (identifier) @recv body: (block (decorated_definition (function_definition name: (identifier) @name) @method)))`,
-		`(call function: (identifier) @callee) (call function: (attribute attribute: (identifier) @callee))`)
+		`(call function: (identifier) @callee) (call function: (attribute attribute: (identifier) @callee))`,
+		`(import_statement name: (dotted_name) @import) (import_from_statement module_name: (dotted_name) @import)`)
 
 	// Rust Configuration
 	rustLang := grammars.RustLanguage()
@@ -79,10 +83,11 @@ func init() {
          (trait_item name: (type_identifier) @iname body: (declaration_list (function_item name: (identifier) @mname) @interface_spec))`,
 		`(call_expression function: (identifier) @callee)
          (call_expression function: (field_expression field: (field_identifier) @callee))
-         (impl_item trait: (type_identifier) @trait_name type: (type_identifier) @type_name) @impl_block`)
+         (impl_item trait: (type_identifier) @trait_name type: (type_identifier) @type_name) @impl_block`,
+		`(use_declaration argument: (_) @import)`)
 }
 
-func registerLanguage(ext string, lang *gotreesitter.Language, qSrc, cSrc string) {
+func registerLanguage(ext string, lang *gotreesitter.Language, qSrc, cSrc, iSrc string) {
 	q, err := gotreesitter.NewQuery(qSrc, lang)
 	if err != nil {
 		slog.Error("failed to register symbol query", "ext", ext, "error", err)
@@ -91,7 +96,11 @@ func registerLanguage(ext string, lang *gotreesitter.Language, qSrc, cSrc string
 	if err != nil {
 		slog.Error("failed to register call query", "ext", ext, "error", err)
 	}
-	languageConfigs[ext] = &LanguageConfig{Language: lang, Query: q, CallQuery: cq}
+	iq, err := gotreesitter.NewQuery(iSrc, lang)
+	if err != nil {
+		slog.Error("failed to register import query", "ext", ext, "error", err)
+	}
+	languageConfigs[ext] = &LanguageConfig{Language: lang, Query: q, CallQuery: cq, ImportQuery: iq}
 }
 
 func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.ASTPointer], iter.Seq[types.ASTCall], error) {
@@ -497,4 +506,67 @@ func computeCognitiveComplexity(node *gotreesitter.Node, lang *gotreesitter.Lang
 		return score
 	}
 	return traverse(node, 0)
+}
+
+func ExtractImports(ctx context.Context, filePath string) ([]string, error) {
+	filePath, err := utils.ValidatePath(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	ext := filepath.Ext(filePath)
+	config, ok := languageConfigs[ext]
+	if !ok {
+		return nil, nil
+	}
+
+	if config.ImportQuery == nil {
+		return nil, fmt.Errorf("import query not initialized for %s", ext)
+	}
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	lang := config.Language
+	parser := gotreesitter.NewParser(lang)
+	tree, _ := parser.Parse(content)
+	if tree == nil {
+		return nil, nil
+	}
+
+	var imports []string
+	cursor := config.ImportQuery.Exec(tree.RootNode(), lang, content)
+	for {
+		match, ok := cursor.NextMatch()
+		if !ok {
+			break
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		for _, cap := range match.Captures {
+			if cap.Name == "import" {
+				text := cap.Node.Text(content)
+				text = strings.Trim(text, "\"'`")
+				imports = append(imports, text)
+			}
+		}
+	}
+
+	seen := make(map[string]bool)
+	var uniqueImports []string
+	for _, imp := range imports {
+		if !seen[imp] {
+			seen[imp] = true
+			uniqueImports = append(uniqueImports, imp)
+		}
+	}
+
+	return uniqueImports, nil
 }
