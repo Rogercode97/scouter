@@ -58,11 +58,11 @@ CORE MANDATES:
 4. EVOLUTIONARY ATOMISM: Changes must be staged in the 'Ledger' before being committed to disk.
 
 WORKFLOW:
-1. SCOUT: Use 'search', 'index', and 'read' to map the territory.
-2. ANALYZE: Use 'impact' and 'critical_code' to identify blast radius and hotspots.
-3. TRANSFORM: Use 'ripple_refactor' or 'evolve' to apply structural changes.
-4. VERIFY: Use 'predict' and 'self_heal' to ensure structural integrity and fix failures.
+1. SCOUT: Use 'ast_search', 'ast_index', and 'ast_read' to map the territory.
+2. ANALYZE: Use 'risk_impact' and 'risk_critical_code' to identify blast radius and hotspots.
+3. TRANSFORM: Use 'ledger_ripple' or 'ledger_evolve' to apply structural changes.
+4. VERIFY: Use 'risk_predict' and 'scouter_heal' to ensure structural integrity and fix failures.
 
-Call 'unlock_heavy_arsenal' to expose specialized architectural and distillation tools.
+Call 'scouter_unlock' to expose specialized architectural and distillation tools.
 Focus on intent, technical rationale, and "Pure Signal". No slop.`
 

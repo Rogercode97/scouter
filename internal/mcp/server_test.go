@@ -48,7 +48,7 @@ func setupTestServer(ctx context.Context) (*Server, *mcp.ClientSession, func()) 
 
 	// Unlock heavy arsenal for tests
 	_, _ = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "unlock_heavy_arsenal",
+		Name: "scouter_unlock",
 	})
 
 	return server, session, func() {
@@ -87,17 +87,17 @@ func TestServer_Handlers(t *testing.T) {
 		wantSub   string
 	}{
 		{
-			name:      "search",
+			name:      "ast_search",
 			arguments: map[string]any{"query": "test"},
 			wantSub:   "[]",
 		},
 		{
-			name:      "pure_signal",
+			name:      "cognitive_signal",
 			arguments: map[string]any{"text": "line1\nline2", "level": "light"},
 			wantSub:   "line1",
 		},
 		{
-			name:      "critical_code",
+			name:      "risk_critical_code",
 			arguments: map[string]any{"limit": 5},
 			wantSub:   "[]",
 		},
@@ -127,7 +127,7 @@ func TestServer_ErrorHandling(t *testing.T) {
 
 	// Test missing arguments for index (should fail validation)
 	res, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "index",
+		Name:      "ast_index",
 		Arguments: map[string]any{},
 	})
 	if err != nil {
@@ -139,7 +139,7 @@ func TestServer_ErrorHandling(t *testing.T) {
 
 	// Test invalid path for read
 	res, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "read",
+		Name: "ast_read",
 		Arguments: map[string]any{
 			"filePath": "/invalid/path",
 			"pointer":  "main",

@@ -240,7 +240,7 @@ func (s *Server) fetchEngramContext(ctx context.Context, query string) string {
 
 func (s *Server) registerPrompts() {
 	s.mcpServer.AddPrompt(&mcp.Prompt{
-		Name:        "self_heal",
+		Name:        "scouter_heal",
 		Description: "System prompt for the Atomic Self-Healing engine",
 	}, func(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 		return &mcp.GetPromptResult{
@@ -274,7 +274,7 @@ func (s *Server) registerPrompts() {
 	})
 
 	s.mcpServer.AddPrompt(&mcp.Prompt{
-		Name:        "compact_context",
+		Name:        "cognitive_compact",
 		Description: "System prompt for the Compaction Engine",
 	}, func(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 		return &mcp.GetPromptResult{
@@ -310,73 +310,73 @@ func (s *Server) registerPrompts() {
 
 func (s *Server) registerCoreTools() {
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "map",
+		Name:        "ast_map",
 		Description: "Map a file or directory to return its skeleton (Token Optimization - returns signatures without function bodies)",
 	}, s.handleMap)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "index",
+		Name:        "ast_index",
 		Description: "Index a file or directory for AST symbols",
 	}, s.handleIndex)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "scouter_snapshot_ast",
+		Name:        "ast_snapshot",
 		Description: "Take an AST snapshot of a file before editing to guarantee structural integrity",
 	}, s.handleSnapshotAST)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "scouter_verify_ast",
+		Name:        "ast_verify",
 		Description: "Verify a file against an existing AST snapshot to detect missing or mangled symbols",
 	}, s.handleVerifyAST)
 
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "search",
+		Name:        "ast_search",
 		Description: "Search for symbols using semantic or text search",
 	}, s.handleSearch)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "read",
+		Name:        "ast_read",
 		Description: "Read a specific symbol or fragment from a file",
 	}, s.handleRead)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "callers",
+		Name:        "ast_callers",
 		Description: "Find all callers of a given function or method",
 	}, s.handleCallers)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "goto_definition",
+		Name:        "ast_definition",
 		Description: "Find the definition of the symbol at the given position using LSP",
 	}, s.handleGotoDefinition)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "type_info",
+		Name:        "ast_type_info",
 		Description: "Get type information and hover documentation for the symbol at the given position",
 	}, s.handleTypeInfo)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "impact",
+		Name:        "risk_impact",
 		Description: "Calculate the impact (blast radius) of changing a symbol",
 	}, s.handleImpact)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "unlock_heavy_arsenal",
+		Name:        "scouter_unlock",
 		Description: "Unlock specialized architectural evolution and healing tools",
 	}, s.handleUnlockArsenal)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "scouter_commit",
+		Name:        "ledger_commit",
 		Description: "Commit all staged changes in the Ledger to disk",
 	}, s.handleCommit)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "scouter_rollback",
+		Name:        "ledger_rollback",
 		Description: "Rollback and clear all staged changes in the Ledger",
 	}, s.handleRollback)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "scouter_diff",
+		Name:        "ledger_diff",
 		Description: "Preview all staged changes and mission budget status",
 	}, s.handleDiff)
 
@@ -390,55 +390,55 @@ func (s *Server) registerSpecializedTools() {
 	trueVal := true
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "critical_code",
+		Name:        "risk_critical_code",
 		Description: "Identify high-risk symbols (high centrality and fragility)",
 	}, s.handleCritical)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "structural_search",
+		Name:        "ast_structural_search",
 		Description: "Search for code using structural patterns (ast-grep style)",
 	}, s.handleStructuralSearch)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "pure_signal",
+		Name:        "cognitive_signal",
 		Description: "Extract Pure Signal from text using RTK synergy",
 	}, s.handlePureSignal)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "obsidian_export",
+		Name:        "cognitive_obsidian",
 		Description: "Export impact analysis as an Obsidian-ready markdown note",
 	}, s.handleObsidianExport)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "save_anchor",
+		Name:        "cognitive_anchor",
 		Description: "Save a technical session summary directly into Engram memory",
 	}, s.handleSaveAnchor)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "self_heal",
+		Name:        "scouter_heal",
 		Description: "Execute an autonomous RCA -> Fix -> Verify loop for Go test failures",
 		Annotations: &mcp.ToolAnnotations{DestructiveHint: &trueVal},
 	}, s.handleSelfHeal)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "ripple_refactor",
+		Name:        "ledger_ripple",
 		Description: "Propagate architectural changes (rename, signature change) across the entire codebase",
 		Annotations: &mcp.ToolAnnotations{DestructiveHint: &trueVal},
 	}, s.handleRippleRefactor)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "evolve",
+		Name:        "ledger_evolve",
 		Description: "Apply a multi-file architectural evolution proposal with atomic rollback and safe evaluation",
 		Annotations: &mcp.ToolAnnotations{DestructiveHint: &trueVal},
 	}, s.handleEvolve)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "predict",
+		Name:        "risk_predict",
 		Description: "Identify tests affected by current changes using the Global Call Graph",
 	}, s.handlePredict)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "compact_context",
+		Name:        "cognitive_compact",
 		Description: "Trigger a self-summarization loop to reduce context window noise",
 	}, s.handleCompactContext)
 
@@ -448,12 +448,12 @@ func (s *Server) registerSpecializedTools() {
 	}, s.handleJudge)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "dream",
+		Name:        "cognitive_dream",
 		Description: "Runs the memory distillation loop for a project to generate ADRs and Pattern summaries",
 	}, s.handleDream)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "explore_sdd",
+		Name:        "scouter_sdd",
 		Description: "Search and explore SDD artifacts (roadmap, tasks, specs)",
 	}, s.handleExploreSDD)
 }

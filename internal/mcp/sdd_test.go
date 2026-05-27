@@ -36,9 +36,9 @@ func TestSDDExplorer(t *testing.T) {
 	_, session, cleanup := setupTestServer(ctx)
 	defer cleanup()
 
-	// Unlock heavy arsenal to access explore_sdd
+	// Unlock heavy arsenal to access scouter_sdd
 	_, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "unlock_heavy_arsenal",
+		Name: "scouter_unlock",
 	})
 	if err != nil {
 		t.Fatalf("failed to unlock arsenal: %v", err)
@@ -46,13 +46,13 @@ func TestSDDExplorer(t *testing.T) {
 
 	t.Run("Explore roadmap", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
-			Name: "explore_sdd",
+			Name: "scouter_sdd",
 			Arguments: map[string]any{
 				"type": "roadmap",
 			},
 		})
 		if err != nil {
-			t.Fatalf("explore_sdd roadmap failed: %v", err)
+			t.Fatalf("scouter_sdd roadmap failed: %v", err)
 		}
 		if res.IsError {
 			t.Fatalf("expected no error, got error content: %v", res.Content[0].(*mcp.TextContent).Text)
@@ -77,13 +77,13 @@ func TestSDDExplorer(t *testing.T) {
 
 	t.Run("Explore tasks", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
-			Name: "explore_sdd",
+			Name: "scouter_sdd",
 			Arguments: map[string]any{
 				"type": "tasks",
 			},
 		})
 		if err != nil {
-			t.Fatalf("explore_sdd tasks failed: %v", err)
+			t.Fatalf("scouter_sdd tasks failed: %v", err)
 		}
 		text := res.Content[0].(*mcp.TextContent).Text
 		jsonIdx := strings.Index(text, "[")
@@ -101,14 +101,14 @@ func TestSDDExplorer(t *testing.T) {
 
 	t.Run("Explore specs", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
-			Name: "explore_sdd",
+			Name: "scouter_sdd",
 			Arguments: map[string]any{
 				"type":  "specs",
 				"query": "test",
 			},
 		})
 		if err != nil {
-			t.Fatalf("explore_sdd specs failed: %v", err)
+			t.Fatalf("scouter_sdd specs failed: %v", err)
 		}
 		text := res.Content[0].(*mcp.TextContent).Text
 		jsonIdx := strings.Index(text, "[")
