@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -19,10 +18,6 @@ type PureSignalParams struct {
 	Text  string `json:"text" jsonschema:"REQUIRED. The raw text to filter and extract pure signal from"`
 	Mode  string `json:"mode,omitempty" jsonschema:"Optional: Filtering mode (e.g., 'compact', 'verbose')"`
 	Level string `json:"level,omitempty" jsonschema:"Optional: Filtering aggressiveness (e.g., 'aggressive', 'balanced')"`
-}
-
-type CompactContextParams struct {
-	Force bool `json:"force,omitempty" jsonschema:"Optional: Force compaction even if window limits aren't reached"`
 }
 
 type SaveAnchorParams struct {
@@ -56,63 +51,6 @@ func (s *Server) handlePureSignal(ctx context.Context, req *mcp.CallToolRequest,
 	}, nil, nil
 }
 
-
-
-func (s *Server) handleCompactContext(ctx context.Context, req *mcp.CallToolRequest, args CompactContextParams) (*mcp.CallToolResult, any, error) {
-	// [Strike 5] Predictive Context: Identify critical hotspots for high-fidelity summary
-	systemPrompt := CompactContextSystemPrompt
-	diffOut, err := exec.CommandContext(ctx, "git", "diff", "HEAD", "--unified=0").Output()
-	if err == nil && len(diffOut) > 0 {
-		diff := string(diffOut)
-		critical, _ := s.engine.IdentifyCriticalContext(ctx, diff)
-		if len(critical) > 0 {
-			var sb strings.Builder
-			sb.WriteString(systemPrompt)
-			sb.WriteString("\n\nCRITICAL SYMBOLS INVOLVED:\n")
-			for _, c := range critical {
-				sb.WriteString(fmt.Sprintf("- %s (File: %s, Risk: %.2f)\n", c.Symbol, c.File, c.RiskScore))
-			}
-			sb.WriteString("Please ensure these are documented with high fidelity.")
-			systemPrompt = sb.String()
-		}
-	}
-
-	// Log user prompt (the request for compaction)
-	s.AppendSessionMessage(memory.Message{Role: "user", Content: "Requesting context compaction."})
-
-	// 1. Sampling Request (Self-Summarization Loop)
-	samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
-		SystemPrompt: systemPrompt,
-		Messages: []*mcp.SamplingMessage{
-			{Role: "user", Content: &mcp.TextContent{Text: "Please provide the high-density technical summary for compaction."}},
-		},
-		MaxTokens: 2048,
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("sampling for compaction failed: %w", err)
-	}
-
-	txt, ok := samplingRes.Content.(*mcp.TextContent)
-	if !ok {
-		return nil, nil, fmt.Errorf("unexpected sampling response type: %T", samplingRes.Content)
-	}
-
-	// Log assistant response
-	s.AppendSessionMessage(memory.Message{Role: "assistant", Content: txt.Text})
-
-	// 2. Delegate to TruthEngine for compaction
-	res, err := s.engine.CompactSession(ctx, txt.Text)
-	if err != nil {
-		return nil, nil, fmt.Errorf("compaction failed: %w", err)
-	}
-
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: res.Message},
-		},
-	}, nil, nil
-}
-
 func (s *Server) handleSaveAnchor(ctx context.Context, req *mcp.CallToolRequest, args SaveAnchorParams) (*mcp.CallToolResult, any, error) {
 	if args.Summary == "" {
 		return nil, nil, fmt.Errorf("missing summary")
@@ -142,4 +80,4 @@ func (s *Server) handleSaveAnchor(ctx context.Context, req *mcp.CallToolRequest,
 			&mcp.TextContent{Text: fmt.Sprintf("Session state anchored successfully in Engram: %s", title)},
 		},
 	}, nil, nil
-	}
+}

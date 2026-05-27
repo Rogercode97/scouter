@@ -436,11 +436,6 @@ func (s *Server) registerSpecializedTools() {
 	}, s.handlePredict)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "cognitive_compact",
-		Description: "CONTEXT MANAGEMENT: Trigger self-summarization to reduce window noise and optimize reasoning efficiency.",
-	}, s.handleCompactContext)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "cognitive_dream",
 		Description: "ARCHITECTURAL ALIGNMENT: Distill ADRs and Pattern summaries from project history memory.",
 	}, s.handleDream)
