@@ -12,6 +12,10 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/tools/go/packages"
+	"golang.org/x/tools/go/ssa"
+	"golang.org/x/tools/go/ssa/ssautil"
+
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
@@ -36,8 +40,28 @@ func NewImpactEngine(s GraphStore, lm *lsp.Manager, mem memory.MemoryProvider) *
 	}
 }
 
+type AnalyzeOptions struct {
+	UseSSA       bool
+	SSATargetPkg string
+	SSAVarName   string
+}
+
+type AnalyzeOption func(*AnalyzeOptions)
+
+func WithSSA(targetPkg, varName string) AnalyzeOption {
+	return func(o *AnalyzeOptions) {
+		o.UseSSA = true
+		o.SSATargetPkg = targetPkg
+		o.SSAVarName = varName
+	}
+}
+
 // Analyze performs a deep impact analysis for a given symbol.
-func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, maxDepth int) (*types.ImpactResult, error) {
+func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, maxDepth int, opts ...AnalyzeOption) (*types.ImpactResult, error) {
+	options := AnalyzeOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
 	if maxDepth <= 0 {
 		maxDepth = 3
 	}
@@ -136,6 +160,12 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 
 	// 4. Risk Score (6-Signal Model)
 	// Signal 1: Blast Radius (25%)
+	if options.UseSSA {
+		ssaRadius, err := e.computeVariableBlastRadiusSSA(options.SSATargetPkg, symbol, options.SSAVarName)
+		if err == nil && ssaRadius > blastRadius {
+			blastRadius = ssaRadius
+		}
+	}
 	bScore := math.Min(1.0, math.Log1p(float64(blastRadius))/math.Log1p(500.0))
 
 	// Signal 2: Complexity (20%)
@@ -414,4 +444,103 @@ func findTestsForSymbols(ctx context.Context, db GraphStore, symbols []store.Sym
 		result = append(result, t)
 	}
 	return result, nil
+}
+
+func (e *ImpactEngine) computeVariableBlastRadiusSSA(targetPkg, funcName, varName string) (int, error) {
+	cfg := &packages.Config{
+		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo,
+	}
+	initial, err := packages.Load(cfg, targetPkg)
+	if err != nil {
+		return 0, err
+	}
+	if packages.PrintErrors(initial) > 0 {
+		return 0, fmt.Errorf("packages contain errors")
+	}
+
+	prog, _ := ssautil.AllPackages(initial, 0)
+
+	var targetFunc *ssa.Function
+	for _, pkg := range prog.AllPackages() {
+		if pkg != nil && pkg.Pkg.Path() == targetPkg {
+			pkg.Build()
+			targetFunc = pkg.Func(funcName)
+			if targetFunc == nil {
+				for _, mem := range pkg.Members {
+					if typ, ok := mem.(*ssa.Type); ok {
+						mset := prog.MethodSets.MethodSet(typ.Type())
+						for i := 0; i < mset.Len(); i++ {
+							if mset.At(i).Obj().Name() == funcName {
+								targetFunc = prog.MethodValue(mset.At(i))
+							}
+						}
+					}
+				}
+			}
+			break
+		}
+	}
+
+	if targetFunc == nil {
+		return 0, fmt.Errorf("function %s not found in package %s", funcName, targetPkg)
+	}
+
+	var startValue ssa.Value
+	for _, b := range targetFunc.Blocks {
+		for _, instr := range b.Instrs {
+			if alloc, ok := instr.(*ssa.Alloc); ok && alloc.Comment == varName {
+				startValue = alloc
+				break
+			}
+		}
+	}
+
+	if startValue == nil {
+		for _, param := range targetFunc.Params {
+			if param.Name() == varName {
+				startValue = param
+				break
+			}
+		}
+	}
+
+	if startValue == nil {
+		return 0, fmt.Errorf("variable %s not found in function %s", varName, funcName)
+	}
+
+	visited := make(map[ssa.Value]bool)
+	affectedFuncs := make(map[*ssa.Function]bool)
+
+	var traverse func(v ssa.Value)
+	traverse = func(v ssa.Value) {
+		if visited[v] {
+			return
+		}
+		visited[v] = true
+
+		if instr, ok := v.(ssa.Instruction); ok && instr.Parent() != nil {
+			affectedFuncs[instr.Parent()] = true
+		}
+
+		if v.Referrers() != nil {
+			for _, ref := range *v.Referrers() {
+				switch refVal := ref.(type) {
+				case *ssa.Call:
+					affectedFuncs[refVal.Parent()] = true
+					if refVal.Call.StaticCallee() != nil {
+						affectedFuncs[refVal.Call.StaticCallee()] = true
+					}
+					traverse(refVal)
+				case *ssa.Store:
+					affectedFuncs[refVal.Parent()] = true
+					traverse(refVal.Addr)
+				case ssa.Value:
+					traverse(refVal)
+				}
+			}
+		}
+	}
+
+	traverse(startValue)
+	return len(affectedFuncs), nil
 }

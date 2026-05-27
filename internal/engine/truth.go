@@ -381,6 +381,15 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 			EndLine:        ptr.EndLine,
 			StructuralHash: ptr.StructuralHash,
 		})
+
+		if e.search != nil && e.search.Bleve != nil {
+			docID := path + ":" + ptr.Name
+			_ = e.search.Bleve.IndexSymbol(docID, map[string]interface{}{
+				"name": ptr.Name,
+				"doc":  ptr.Doc,
+				"path": path,
+			})
+		}
 	}
 
 	for c := range itCalls {

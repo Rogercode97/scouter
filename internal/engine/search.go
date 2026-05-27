@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"sync"
 
 	"github.com/Rogercode97/scouter/internal/domain/memory"
@@ -15,13 +16,15 @@ import (
 type SearchEngine struct {
 	store  store.SymbolRegistry
 	memory memory.MemoryProvider
+	Bleve  *HybridSearcher
 }
 
 func NewSearchEngine(s store.SymbolRegistry, m memory.MemoryProvider) *SearchEngine {
-	return &SearchEngine{store: s, memory: m}
+	hs, _ := NewHybridSearcher()
+	return &SearchEngine{store: s, memory: m, Bleve: hs}
 }
 
-// HybridSearch executes parallel lookups in the AST and Engram databases.
+// HybridSearch executes parallel lookups in the AST, Bleve, and Engram databases.
 func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, offset int) (*types.HybridSearchResult, error) {
 	if query == "" {
 		return nil, fmt.Errorf("missing query")
@@ -36,15 +39,21 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 		err      error
 	}
 
+	type textRes struct {
+		hits map[string]int
+		err  error
+	}
+
 	symChan := make(chan symRes, 1)
 	insChan := make(chan insRes, 1)
+	txtChan := make(chan textRes, 1)
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
 
 	go func() {
 		defer wg.Done()
-		res, err := e.store.SearchSymbols(ctx, query, "", limit, offset)
+		res, err := e.store.SearchSymbols(ctx, query, "", limit*2, offset)
 		symChan <- symRes{res, err}
 	}()
 
@@ -58,9 +67,28 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 		insChan <- insRes{res, err}
 	}()
 
+	go func() {
+		defer wg.Done()
+		if e.Bleve == nil {
+			txtChan <- textRes{nil, nil}
+			return
+		}
+		res, err := e.Bleve.SearchBM25(query, limit*2)
+		if err != nil {
+			txtChan <- textRes{nil, err}
+			return
+		}
+		hits := make(map[string]int)
+		for i, hit := range res.Hits {
+			hits[hit.ID] = i + 1
+		}
+		txtChan <- textRes{hits, nil}
+	}()
+
 	wg.Wait()
 	close(symChan)
 	close(insChan)
+	close(txtChan)
 
 	sRes := <-symChan
 	if sRes.err != nil {
@@ -72,9 +100,48 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 		return nil, fmt.Errorf("Engram search failed: %w", iRes.err)
 	}
 
-	// Map store.Symbol to types.Symbol (Sovereign Mapping)
+	tRes := <-txtChan
+	if tRes.err != nil {
+		tRes.hits = nil
+	}
+
+	const K = 60.0
+	type scoredSymbol struct {
+		sym   store.Symbol
+		score float64
+	}
+	var rrfResults []scoredSymbol
+
+	for i, s := range sRes.symbols {
+		id := s.Path + ":" + s.Name
+		astRank := float64(i + 1)
+		astScore := 1.0 / (K + astRank)
+
+		txtScore := 0.0
+		if tRes.hits != nil {
+			if txtRank, ok := tRes.hits[id]; ok {
+				txtScore = 1.0 / (K + float64(txtRank))
+			}
+		}
+
+		rrfResults = append(rrfResults, scoredSymbol{
+			sym:   s,
+			score: astScore + txtScore,
+		})
+	}
+
+	sort.SliceStable(rrfResults, func(i, j int) bool {
+		return rrfResults[i].score > rrfResults[j].score
+	})
+
 	var symbols []types.Symbol
-	for _, s := range sRes.symbols {
+	end := limit
+	if end > len(rrfResults) {
+		end = len(rrfResults)
+	}
+
+	for i := 0; i < end; i++ {
+		s := rrfResults[i].sym
 		symbols = append(symbols, types.Symbol{
 			Name:         s.Name,
 			Type:         s.Type,

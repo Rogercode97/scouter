@@ -25,7 +25,23 @@ type AnalysisStore interface {
 }
 
 
-func (a *AnalysisEngine) ResolvePageRank(ctx context.Context) error {
+type PageRankOptions struct {
+	TaskSeeds []string
+}
+
+type PageRankOption func(*PageRankOptions)
+
+func WithTaskSeeds(seeds []string) PageRankOption {
+	return func(o *PageRankOptions) {
+		o.TaskSeeds = seeds
+	}
+}
+
+func (a *AnalysisEngine) ResolvePageRank(ctx context.Context, opts ...PageRankOption) error {
+	options := PageRankOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
 	// 1. Create a weighted directed graph
 	g := graph.New(graph.StringHash, graph.Directed(), graph.Weighted())
 
@@ -81,36 +97,58 @@ func (a *AnalysisEngine) ResolvePageRank(ctx context.Context) error {
 		nodes = append(nodes, node)
 	}
 
-	// Inverse adjacency for easier rank propagation
-	incoming := make([][]int, N)
-	outdegree := make([]int, N)
+	isSeed := make([]bool, N)
+	numSeeds := 0
+	if len(options.TaskSeeds) > 0 {
+		for _, seed := range options.TaskSeeds {
+			if idx, ok := nodeIndices[seed]; ok {
+				if !isSeed[idx] {
+					isSeed[idx] = true
+					numSeeds++
+				}
+			}
+		}
+	}
+
+	type EdgeProp struct {
+		SrcIdx int
+		Weight float64
+	}
+	incoming := make([][]EdgeProp, N)
+	outdegreeWeight := make([]float64, N)
+
 	for src, targets := range adjacency {
 		srcIdx := nodeIndices[src]
-		outdegree[srcIdx] = len(targets)
-		for dest := range targets {
+		for dest, edge := range targets {
 			destIdx := nodeIndices[dest]
-			incoming[destIdx] = append(incoming[destIdx], srcIdx)
+			w := float64(edge.Properties.Weight)
+			if w == 0 {
+				w = 1.0
+			}
+			outdegreeWeight[srcIdx] += w
+			incoming[destIdx] = append(incoming[destIdx], EdgeProp{SrcIdx: srcIdx, Weight: w})
 		}
 	}
 
 	currentRanks := make([]float64, N)
 	nextRanks := make([]float64, N)
-	initialRank := 1.0 / float64(N)
-	for i := 0; i < N; i++ {
-		currentRanks[i] = initialRank
+	if numSeeds > 0 {
+		initialRank := 1.0 / float64(numSeeds)
+		for i := 0; i < N; i++ {
+			if isSeed[i] {
+				currentRanks[i] = initialRank
+			}
+		}
+	} else {
+		initialRank := 1.0 / float64(N)
+		for i := 0; i < N; i++ {
+			currentRanks[i] = initialRank
+		}
 	}
 
 	damping := 0.85
 	epsilon := 1e-6
 	maxIterations := 100
-
-	// Pre-calculate inverse out-degrees for optimization
-	invOutdegree := make([]float64, N)
-	for i, d := range outdegree {
-		if d > 0 {
-			invOutdegree[i] = 1.0 / float64(d)
-		}
-	}
 
 	numWorkers := runtime.GOMAXPROCS(0)
 	if numWorkers > N {
@@ -123,7 +161,7 @@ func (a *AnalysisEngine) ResolvePageRank(ctx context.Context) error {
 	for iter := 0; iter < maxIterations; iter++ {
 		danglingSum := 0.0
 		for i := 0; i < N; i++ {
-			if outdegree[i] == 0 {
+			if outdegreeWeight[i] == 0 {
 				danglingSum += currentRanks[i]
 			}
 		}
@@ -146,15 +184,41 @@ func (a *AnalysisEngine) ResolvePageRank(ctx context.Context) error {
 			go func(workerID, startIdx, endIdx int) {
 				defer wg.Done()
 				localMaxDiff := 0.0
-				danglingRedist := danglingSum / float64(N)
+
+				danglingRedist := danglingSum
+				if numSeeds > 0 {
+					danglingRedist /= float64(numSeeds)
+				} else {
+					danglingRedist /= float64(N)
+				}
 
 				for i := startIdx; i < endIdx; i++ {
 					rankSum := 0.0
-					for _, neighborIdx := range incoming[i] {
-						rankSum += currentRanks[neighborIdx] * invOutdegree[neighborIdx]
+					for _, edge := range incoming[i] {
+						rankSum += currentRanks[edge.SrcIdx] * (edge.Weight / outdegreeWeight[edge.SrcIdx])
 					}
 
-					nextRanks[i] = (1.0-damping)/float64(N) + damping*(rankSum+danglingRedist)
+					var teleportRank float64
+					if numSeeds > 0 {
+						if isSeed[i] {
+							teleportRank = (1.0 - damping) / float64(numSeeds)
+						}
+					} else {
+						teleportRank = (1.0 - damping) / float64(N)
+					}
+
+					var val float64
+					if numSeeds > 0 {
+						if isSeed[i] {
+							val = teleportRank + damping*(rankSum+danglingRedist)
+						} else {
+							val = teleportRank + damping*rankSum
+						}
+					} else {
+						val = teleportRank + damping*(rankSum+danglingRedist)
+					}
+
+					nextRanks[i] = val
 
 					diff := math.Abs(nextRanks[i] - currentRanks[i])
 					if diff > localMaxDiff {
@@ -173,7 +237,6 @@ func (a *AnalysisEngine) ResolvePageRank(ctx context.Context) error {
 			}
 		}
 
-		// Swap slices
 		currentRanks, nextRanks = nextRanks, currentRanks
 
 		if maxDiff < epsilon {

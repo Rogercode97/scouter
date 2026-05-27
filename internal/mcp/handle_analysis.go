@@ -181,11 +181,18 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 		sw.Flush()
 		outStr = buf.String()
 	} else {
-		out, _ := json.Marshal(results)
-	if string(out) == "null" {
-		out = []byte("[]")
-	}
-		outStr = string(out)
+		if args.Format == "zon" || args.Format == "" {
+			outStr, _ = engine.EncodeZON(results)
+			if len(outStr) > 4096 {
+				outStr = outStr[:4000] + "\n... [TRUNCATED BY SOVEREIGN GUARD (4KB LIMIT)]"
+			}
+		} else {
+			out, _ := json.Marshal(results)
+			if string(out) == "null" {
+				out = []byte("[]")
+			}
+			outStr = string(out)
+		}
 	}
 
 	thought := fmt.Sprintf("<thought>\nSovereign Search: Querying AST for '%s' (%s). Pagination: [Limit:%d Offset:%d]. Found %d matches. Format: %s.\n</thought>\n",
@@ -307,11 +314,18 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 		sw.Flush()
 		outStr = buf.String()
 	} else {
-		out, _ := json.Marshal(results)
-	if string(out) == "null" {
-		out = []byte("[]")
-	}
-		outStr = string(out)
+		if args.Format == "zon" || args.Format == "" {
+			outStr, _ = engine.EncodeZON(results)
+			if len(outStr) > 4096 {
+				outStr = outStr[:4000] + "\n... [TRUNCATED BY SOVEREIGN GUARD (4KB LIMIT)]"
+			}
+		} else {
+			out, _ := json.Marshal(results)
+			if string(out) == "null" {
+				out = []byte("[]")
+			}
+			outStr = string(out)
+		}
 	}
 
 	thought := fmt.Sprintf("<thought>\nCall Graph Analysis: Finding all callers of '%s'. Pagination: [Limit:%d Offset:%d]. Found %d callers. Format: %s.\n</thought>\n",
@@ -519,16 +533,10 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 		results = results[offset:end]
 	}
 
-	out, err := json.Marshal(results)
-	if string(out) == "null" {
-		out = []byte("[]")
-	}
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal structural search results: %v", err)}},
-			IsError: true,
-		},
-		nil, nil
+	var outStr string
+	outStr, _ = engine.EncodeZON(results)
+	if len(outStr) > 4096 {
+		outStr = outStr[:4000] + "\n... [TRUNCATED BY SOVEREIGN GUARD (4KB LIMIT)]"
 	}
 
 	thought := fmt.Sprintf("<thought>\nExecuted structural search for pattern '%s' in '%s'. Pagination: [Limit:%d Offset:%d]. Found %d matches (Total: %d).\n</thought>\n",
@@ -536,7 +544,7 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + string(out)},
+			&mcp.TextContent{Text: thought + outStr},
 		},
 	}, nil, nil
 }
