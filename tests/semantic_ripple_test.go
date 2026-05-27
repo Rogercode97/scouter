@@ -54,7 +54,7 @@ func TestSemanticRipple_CrossPackage(t *testing.T) {
 	lspMgr := lsp.NewManager()
 	defer lspMgr.Close()
 	
-	te := engine.NewTruthEngine(db, nil, analyzer, lspMgr, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer), engine.WithLSP(lspMgr))
 	
 	if err := te.Index(ctx, fixtureDir); err != nil {
 		t.Fatalf("Index failed: %v", err)

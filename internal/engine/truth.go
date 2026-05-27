@@ -67,40 +67,71 @@ type TruthEngine struct {
 	logger     *slog.Logger
 }
 
+// TruthOption defines a functional option for configuring a TruthEngine.
+type TruthOption func(*TruthEngine)
+
+func WithMemory(m memory.MemoryProvider) TruthOption {
+	return func(te *TruthEngine) { te.memory = m }
+}
+
+func WithAnalyzer(a *AnalysisEngine) TruthOption {
+	return func(te *TruthEngine) { te.analyzer = a }
+}
+
+func WithLSP(l *lsp.Manager) TruthOption {
+	return func(te *TruthEngine) { te.lspMgr = l }
+}
+
+func WithImpact(i *ImpactEngine) TruthOption {
+	return func(te *TruthEngine) { te.impact = i }
+}
+
+func WithSearch(s *SearchEngine) TruthOption {
+	return func(te *TruthEngine) { te.search = s }
+}
+
+func WithCompact(c *CompactionEngine) TruthOption {
+	return func(te *TruthEngine) { te.compact = c }
+}
+
+func WithHealer(h *HealerEngine) TruthOption {
+	return func(te *TruthEngine) { te.healer = h }
+}
+
+func WithDiagnostic(d *DiagnosticEngine) TruthOption {
+	return func(te *TruthEngine) { te.diagnostic = d }
+}
+
+func WithRipple(r *RippleEngine) TruthOption {
+	return func(te *TruthEngine) { te.ripple = r }
+}
+
+func WithSDD(s *SDDEngine) TruthOption {
+	return func(te *TruthEngine) { te.sdd = s }
+}
+
+func WithLedger(l *Ledger) TruthOption {
+	return func(te *TruthEngine) { te.ledger = l }
+}
+
+func WithASTRules(a *ASTRuleEngine) TruthOption {
+	return func(te *TruthEngine) { te.astRules = a }
+}
+
+func WithMessenger(m Messenger) TruthOption {
+	return func(te *TruthEngine) { te.messenger = m }
+}
+
 // NewTruthEngine initializes a new TruthEngine with its dependencies.
-func NewTruthEngine(
-	store store.Store,
-	memory memory.MemoryProvider,
-	analyzer *AnalysisEngine,
-	lspMgr *lsp.Manager,
-	impact *ImpactEngine,
-	search *SearchEngine,
-	compact *CompactionEngine,
-	healer *HealerEngine,
-	diagnostic *DiagnosticEngine,
-	ripple *RippleEngine,
-	sdd *SDDEngine,
-	ledger *Ledger,
-	astRules *ASTRuleEngine,
-	messenger Messenger,
-) *TruthEngine {
-	return &TruthEngine{
-		store:      store,
-		memory:     memory,
-		analyzer:   analyzer,
-		lspMgr:     lspMgr,
-		impact:     impact,
-		search:     search,
-		compact:    compact,
-		healer:     healer,
-		diagnostic: diagnostic,
-		ripple:     ripple,
-		sdd:        sdd,
-		ledger:     ledger,
-		astRules:   astRules,
-		messenger:  messenger,
-		logger:     slog.Default(),
+func NewTruthEngine(store store.Store, opts ...TruthOption) *TruthEngine {
+	te := &TruthEngine{
+		store:  store,
+		logger: slog.Default(),
 	}
+	for _, opt := range opts {
+		opt(te)
+	}
+	return te
 }
 
 func (e *TruthEngine) MemoryProvider() memory.MemoryProvider {

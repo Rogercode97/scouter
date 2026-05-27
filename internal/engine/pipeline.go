@@ -182,7 +182,7 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 		p.mu.Unlock()
 
 		analyzer := NewAnalysisEngine(db)
-		truthEng := NewTruthEngine(db, nil, analyzer, p.LSPManager, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		truthEng := NewTruthEngine(db, WithAnalyzer(analyzer), WithLSP(p.LSPManager))
 		err = truthEng.Index(ctx, absPath)
 
 		if err == nil {

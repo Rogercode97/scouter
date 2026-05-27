@@ -48,7 +48,7 @@ func DoSomething() {}`
 	defer db.Close()
 
 	astEngine := NewASTRuleEngine(rulesDir)
-	truth := NewTruthEngine(db, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, astEngine, nil)
+	truth := NewTruthEngine(db, WithASTRules(astEngine))
 
 	// 3. Action: Index the violating file
 	err = truth.Index(ctx, violatingFile)

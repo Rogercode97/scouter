@@ -78,19 +78,17 @@ func NewServer(st store.Store, logger *slog.Logger) *Server {
 
 	s.engine = engine.NewTruthEngine(
 		st,
-		memoryProvider,
-		analyzer,
-		s.lspMgr,
-		impact,
-		search,
-		compact,
-		healer,
-		diagnostic,
-		ripple,
-		sdd,
-		ledger,
-		nil, // astRules
-		nil, // Messenger will be injected per-request if needed
+		engine.WithMemory(memoryProvider),
+		engine.WithAnalyzer(analyzer),
+		engine.WithLSP(s.lspMgr),
+		engine.WithImpact(impact),
+		engine.WithSearch(search),
+		engine.WithCompact(compact),
+		engine.WithHealer(healer),
+		engine.WithDiagnostic(diagnostic),
+		engine.WithRipple(ripple),
+		engine.WithSDD(sdd),
+		engine.WithLedger(ledger),
 	)
 
 	s.appService = memory.NewAppService(memoryProvider, nil)

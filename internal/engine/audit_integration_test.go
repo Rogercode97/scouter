@@ -31,22 +31,7 @@ func TestArchitecturalAuditIntegration(t *testing.T) {
 	ruleEngine := NewASTRuleEngine(rulesDir)
 
 	// Setup TruthEngine with RuleEngine
-	engine := NewTruthEngine(
-		repo,
-		nil, // memory
-		nil, // analyzer
-		nil, // lsp
-		nil, // impact
-		nil, // search
-		nil, // compact
-		nil, // healer
-		nil, // diagnostic
-		nil, // ripple
-		nil, // sdd
-		nil, // ledger
-		ruleEngine,
-		nil, // messenger
-	)
+	engine := NewTruthEngine(repo, WithASTRules(ruleEngine))
 
 	// Create a file that violates domain isolation
 	violationFile := filepath.Join(tmpDir, "domain_violation.go")

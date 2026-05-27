@@ -43,7 +43,7 @@ func TestSovereignMCPIntegration(t *testing.T) {
 		symbols: symbols,
 	}
 	searchEngine := engine.NewSearchEngine(st, nil)
-	truthEngine := engine.NewTruthEngine(st, nil, nil, nil, nil, searchEngine, nil, nil, nil, nil, nil, nil, nil, nil)
+	truthEngine := engine.NewTruthEngine(st, engine.WithSearch(searchEngine))
 	s := &Server{
 		store:  st,
 		engine: truthEngine,

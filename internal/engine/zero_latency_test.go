@@ -25,7 +25,7 @@ func TestZeroLatencyBypass(t *testing.T) {
 	}
 	defer repo.Close()
 
-	engine := NewTruthEngine(repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	engine := NewTruthEngine(repo)
 
 	// 1. Create a "large" structure
 	subDir := filepath.Join(tmpDir, "pkg", "core")

@@ -103,7 +103,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		defer lspMgr.Close()
 		
 		analyzer := engine.NewAnalysisEngine(db)
-		te := engine.NewTruthEngine(db, nil, analyzer, lspMgr, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer), engine.WithLSP(lspMgr))
 		
 		start := time.Now()
 		if err := te.Index(ctx, path); err != nil {

@@ -13,7 +13,7 @@ func TestNewTruthEngine(t *testing.T) {
 	var s store.Store
 	l := lsp.NewManager()
 
-	engine := NewTruthEngine(s, nil, nil, l, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	engine := NewTruthEngine(s, WithLSP(l))
 
 	if engine == nil {
 		t.Fatal("expected NewTruthEngine to return a non-nil engine")
@@ -26,11 +26,15 @@ func TestNewTruthEngine(t *testing.T) {
 	if engine.lspMgr != l {
 		t.Errorf("expected engine.lspMgr to be %v, got %v", l, engine.lspMgr)
 	}
+	
+	if engine.logger == nil {
+		t.Error("expected default logger to be initialized")
+	}
 }
 
 func TestIndex(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		engine := NewTruthEngine(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		engine := NewTruthEngine(nil)
 		err := engine.Index(context.Background(), "test.go")
 		if err == nil {
 			t.Error("expected error for nil store, but got nil")

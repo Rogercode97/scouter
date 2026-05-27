@@ -61,7 +61,7 @@ func Function_%d() {
 	defer s.Close()
 
 	// Initialize TruthEngine
-	engine := NewTruthEngine(s, &mockMemoryProvider{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	engine := NewTruthEngine(s, WithMemory(&mockMemoryProvider{}))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
