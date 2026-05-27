@@ -441,19 +441,9 @@ func (s *Server) registerSpecializedTools() {
 	}, s.handleCompactContext)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "scouter_judge",
-		Description: "ADVERSARIAL REVIEW: Subject a code change or proposal to a cynical 360° audit using parallel sampling.",
-	}, s.handleJudge)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "cognitive_dream",
 		Description: "ARCHITECTURAL ALIGNMENT: Distill ADRs and Pattern summaries from project history memory.",
 	}, s.handleDream)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "scouter_sdd",
-		Description: "SDD RADAR: Search and explore SDD artifacts (roadmap, tasks, specs) to maintain intent alignment.",
-	}, s.handleExploreSDD)
 }
 
 type UnlockArsenalParams struct{}
