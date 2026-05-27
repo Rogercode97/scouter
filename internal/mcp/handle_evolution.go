@@ -13,14 +13,6 @@ import (
 
 // Evolution Param structs
 
-type ApplyArgs struct {
-	Action       string `json:"action" jsonschema:"The action to perform (ripple|evolve)"`
-	FilePath     string `json:"filePath,omitempty" jsonschema:"Optional: Path to the file containing the target symbol"`
-	TargetSymbol string `json:"targetSymbol,omitempty" jsonschema:"Optional: The target symbol to refactor (for ripple)"`
-	Instructions string `json:"instructions,omitempty" jsonschema:"The multi-file evolution proposal or transformation instructions"`
-	Force        bool   `json:"force,omitempty" jsonschema:"Optional: Bypass safety guardrails for core file modifications"`
-}
-
 type SelfHealParams struct {
 	ErrorLog string `json:"errorLog" jsonschema:"The raw error log or test failure output"`
 }
@@ -43,24 +35,7 @@ type DiffParams struct{}
 
 // Handlers
 
-func (s *Server) HandleApply(ctx context.Context, req *mcp.CallToolRequest, args ApplyArgs) (*mcp.CallToolResult, any, error) {
-	switch args.Action {
-	case "ripple":
-		if args.TargetSymbol == "" || args.Instructions == "" {
-			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "targetSymbol and instructions (transformation) required for ripple"}}, IsError: true}, nil, nil
-		}
-		return s.executeRippleRefactor(ctx, req, RippleRefactorParams{SymbolName: args.TargetSymbol, Transformation: args.Instructions})
-	case "evolve":
-		if args.Instructions == "" {
-			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "instructions (proposal) required for evolve"}}, IsError: true}, nil, nil
-		}
-		return s.executeEvolve(ctx, req, EvolveParams{Proposal: args.Instructions, Force: args.Force})
-	default:
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "invalid action for apply"}}, IsError: true}, nil, nil
-	}
-}
-
-func (s *Server) executeSelfHeal(ctx context.Context, req *mcp.CallToolRequest, args SelfHealParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, args SelfHealParams) (*mcp.CallToolResult, any, error) {
 	if args.ErrorLog == "" {
 		return nil, nil, fmt.Errorf("missing errorLog")
 	}
@@ -88,7 +63,7 @@ func (s *Server) executeSelfHeal(ctx context.Context, req *mcp.CallToolRequest, 
 	}, nil, nil
 }
 
-func (s *Server) executeRippleRefactor(ctx context.Context, req *mcp.CallToolRequest, args RippleRefactorParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) handleRippleRefactor(ctx context.Context, req *mcp.CallToolRequest, args RippleRefactorParams) (*mcp.CallToolResult, any, error) {
 	if args.SymbolName == "" || args.Transformation == "" {
 		return nil, nil, fmt.Errorf("missing symbolName or transformation")
 	}
@@ -109,7 +84,7 @@ func (s *Server) executeRippleRefactor(ctx context.Context, req *mcp.CallToolReq
 	}, nil, nil
 }
 
-func (s *Server) executeCommit(ctx context.Context, req *mcp.CallToolRequest, args CommitParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) handleCommit(ctx context.Context, req *mcp.CallToolRequest, args CommitParams) (*mcp.CallToolResult, any, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -127,7 +102,7 @@ func (s *Server) executeCommit(ctx context.Context, req *mcp.CallToolRequest, ar
 	}, nil, nil
 }
 
-func (s *Server) executeRollback(ctx context.Context, req *mcp.CallToolRequest, args RollbackParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) handleRollback(ctx context.Context, req *mcp.CallToolRequest, args RollbackParams) (*mcp.CallToolResult, any, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -144,7 +119,7 @@ func (s *Server) executeRollback(ctx context.Context, req *mcp.CallToolRequest, 
 	}, nil, nil
 }
 
-func (s *Server) executeDiff(ctx context.Context, req *mcp.CallToolRequest, args DiffParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) handleDiff(ctx context.Context, req *mcp.CallToolRequest, args DiffParams) (*mcp.CallToolResult, any, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -166,7 +141,7 @@ func (s *Server) executeDiff(ctx context.Context, req *mcp.CallToolRequest, args
 	}, nil, nil
 }
 
-func (s *Server) executeEvolve(ctx context.Context, req *mcp.CallToolRequest, args EvolveParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) handleEvolve(ctx context.Context, req *mcp.CallToolRequest, args EvolveParams) (*mcp.CallToolResult, any, error) {
 	if args.Proposal == "" {
 		return nil, nil, fmt.Errorf("missing proposal")
 	}
