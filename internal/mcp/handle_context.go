@@ -16,17 +16,17 @@ import (
 
 
 type PureSignalParams struct {
-	Text  string `json:"text"`
-	Mode  string `json:"mode,omitempty"`
-	Level string `json:"level,omitempty"`
+	Text  string `json:"text" jsonschema:"REQUIRED. The raw text to filter and extract pure signal from"`
+	Mode  string `json:"mode,omitempty" jsonschema:"Optional: Filtering mode (e.g., 'compact', 'verbose')"`
+	Level string `json:"level,omitempty" jsonschema:"Optional: Filtering aggressiveness (e.g., 'aggressive', 'balanced')"`
 }
 
 type CompactContextParams struct {
-	Force bool `json:"force,omitempty"`
+	Force bool `json:"force,omitempty" jsonschema:"Optional: Force compaction even if window limits aren't reached"`
 }
 
 type SaveAnchorParams struct {
-	Summary string `json:"summary"`
+	Summary string `json:"summary" jsonschema:"REQUIRED. The technical summary of the session to anchor in Engram"`
 }
 
 func (s *Server) handlePureSignal(ctx context.Context, req *mcp.CallToolRequest, args PureSignalParams) (*mcp.CallToolResult, any, error) {

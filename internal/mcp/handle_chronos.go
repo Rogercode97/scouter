@@ -12,12 +12,12 @@ import (
 )
 
 type SnapshotASTParams struct {
-	FilePath string `json:"filePath" jsonschema:"The absolute or relative path to the file to snapshot"`
+	FilePath string `json:"filePath" jsonschema:"REQUIRED. The absolute or relative path to the file to snapshot"`
 }
 
 type VerifyASTParams struct {
-	SnapshotID string `json:"snapshotId" jsonschema:"The ID of the snapshot to verify against"`
-	FilePath   string `json:"filePath" jsonschema:"The absolute or relative path to the edited file to verify"`
+	SnapshotID string `json:"snapshotId" jsonschema:"REQUIRED. The ID of the snapshot to verify against"`
+	FilePath   string `json:"filePath" jsonschema:"REQUIRED. The absolute or relative path to the edited file to verify"`
 }
 
 // storeSnapshot saves a snapshot with LRU eviction when MaxSnapshots is reached.

@@ -14,15 +14,15 @@ import (
 // Strategy Param structs
 
 type JudgeParams struct {
-	Diff     string `json:"diff,omitempty"`
-	Proposal string `json:"proposal,omitempty"`
+	Diff     string `json:"diff,omitempty" jsonschema:"Optional: Git diff of the changes to judge"`
+	Proposal string `json:"proposal,omitempty" jsonschema:"REQUIRED (if diff is empty). The architectural proposal or intent to audit"`
 }
 
 type ExploreSDDParams struct {
-	Query  string `json:"query,omitempty"`
-	Type   string `json:"type,omitempty"` // roadmap, tasks, specs
-	Limit  int    `json:"limit,omitempty"`
-	Offset int    `json:"offset,omitempty"`
+	Query  string `json:"query,omitempty" jsonschema:"Optional: Search query to filter SDD artifacts"`
+	Type   string `json:"type,omitempty" jsonschema:"Optional: Filter by SDD type ('roadmap', 'tasks', 'specs')"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"Optional: Max results to return (default: 10)"`
+	Offset int    `json:"offset,omitempty" jsonschema:"Optional: Number of results to skip for pagination"`
 }
 
 // Handlers

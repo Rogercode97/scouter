@@ -12,8 +12,8 @@ import (
 )
 
 type DreamParams struct {
-	Project string `json:"project,omitempty"`
-	Hours   int    `json:"hours,omitempty"`
+	Project string `json:"project,omitempty" jsonschema:"Optional: The name of the project to distill (defaults to current repo)"`
+	Hours   int    `json:"hours,omitempty" jsonschema:"Optional: Time window in hours for memory extraction (default: 24)"`
 }
 
 

@@ -14,16 +14,16 @@ import (
 // Evolution Param structs
 
 type SelfHealParams struct {
-	ErrorLog string `json:"errorLog" jsonschema:"The raw error log or test failure output"`
+	ErrorLog string `json:"errorLog" jsonschema:"REQUIRED. The raw error log or test failure output containing the failure context"`
 }
 
 type RippleRefactorParams struct {
-	SymbolName     string `json:"symbolName" jsonschema:"The name of the symbol to refactor"`
-	Transformation string `json:"transformation" jsonschema:"The structural transformation to apply (e.g., 'rename:NewName')"`
+	SymbolName     string `json:"symbolName" jsonschema:"REQUIRED. The name of the symbol to refactor"`
+	Transformation string `json:"transformation" jsonschema:"REQUIRED. The structural transformation to apply (e.g., 'rename:NewName')"`
 }
 
 type EvolveParams struct {
-	Proposal string `json:"proposal" jsonschema:"The multi-file evolution proposal in natural language"`
+	Proposal string `json:"proposal" jsonschema:"REQUIRED. The multi-file evolution proposal in natural language detailing the desired architecture change"`
 	Force    bool   `json:"force,omitempty" jsonschema:"Optional: Bypass safety guardrails for core file modifications"`
 }
 

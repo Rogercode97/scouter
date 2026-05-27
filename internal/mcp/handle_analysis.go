@@ -20,43 +20,43 @@ import (
 
 
 type IndexParams struct {
-	FilePath string `json:"filePath" jsonschema:"The absolute or relative path to the file or directory to index"`
+	FilePath string `json:"filePath" jsonschema:"REQUIRED. The absolute or relative path to the file or directory to index"`
 }
 
 type MapParams struct {
-	Path string `json:"path" jsonschema:"The absolute or relative path to the file or directory to map (skeleton only)"`
+	Path string `json:"path" jsonschema:"REQUIRED. The absolute or relative path to the file or directory to map (skeleton only)"`
 }
 
 type SearchParams struct {
-	Query  string `json:"query" jsonschema:"The search query (supports semantic or text search)"`
+	Query  string `json:"query" jsonschema:"REQUIRED. The search query (supports semantic or text search)"`
 	Type   string `json:"type,omitempty" jsonschema:"Optional: Filter by symbol type (e.g., function, method, struct)"`
-	Limit  int    `json:"limit,omitempty" jsonschema:"Max results to return (default: 50, max: 100)"`
-	Offset int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"Optional: Max results to return (default: 50, max: 100)"`
+	Offset int    `json:"offset,omitempty" jsonschema:"Optional: Number of results to skip for pagination"`
 	Format string `json:"format,omitempty" jsonschema:"Optional: Response format ('text' or 'hakai')"`
 }
 
 type ReadParams struct {
-	FilePath string `json:"filePath" jsonschema:"Path to the file to read"`
-	Pointer  string `json:"pointer" jsonschema:"AST pointer or fragment identifier to read (e.g., 'symbol:MyFunc')"`
+	FilePath string `json:"filePath" jsonschema:"REQUIRED. Path to the file to read"`
+	Pointer  string `json:"pointer" jsonschema:"REQUIRED. AST pointer or fragment identifier to read (e.g., 'symbol:MyFunc')"`
 }
 
 type CallersParams struct {
-	CalleeName string `json:"calleeName" jsonschema:"The name of the function or method to find callers for"`
-	Limit      int    `json:"limit,omitempty" jsonschema:"Max results to return (default: 50, max: 100)"`
-	Offset     int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
+	CalleeName string `json:"calleeName" jsonschema:"REQUIRED. The name of the function or method to find callers for"`
+	Limit      int    `json:"limit,omitempty" jsonschema:"Optional: Max results to return (default: 50, max: 100)"`
+	Offset     int    `json:"offset,omitempty" jsonschema:"Optional: Number of results to skip for pagination"`
 	Format     string `json:"format,omitempty" jsonschema:"Optional: Response format ('text' or 'hakai')"`
 }
 
 type DefinitionParams struct {
-	FilePath  string `json:"filePath" jsonschema:"Path to the file containing the symbol"`
-	Line      int    `json:"line" jsonschema:"1-based line number"`
-	Character int    `json:"character" jsonschema:"1-based character position"`
+	FilePath  string `json:"filePath" jsonschema:"REQUIRED. Path to the file containing the symbol"`
+	Line      int    `json:"line" jsonschema:"REQUIRED. 1-based line number"`
+	Character int    `json:"character" jsonschema:"REQUIRED. 1-based character position"`
 }
 
 type TypeInfoParams struct {
-	FilePath  string `json:"filePath" jsonschema:"Path to the file containing the symbol"`
-	Line      int    `json:"line" jsonschema:"1-based line number"`
-	Character int    `json:"character" jsonschema:"1-based character position"`
+	FilePath  string `json:"filePath" jsonschema:"REQUIRED. Path to the file containing the symbol"`
+	Line      int    `json:"line" jsonschema:"REQUIRED. 1-based line number"`
+	Character int    `json:"character" jsonschema:"REQUIRED. 1-based character position"`
 }
 
 type StructuralSearchParams struct {
@@ -64,12 +64,12 @@ type StructuralSearchParams struct {
 	TargetSymbol string `json:"targetSymbol,omitempty" jsonschema:"Optional: An existing symbol to use as the template pattern (Find Logical Twins)"`
 	Ext          string `json:"ext,omitempty" jsonschema:"Optional: The file extension to search in (e.g., '.go', '.ts')"`
 	Path         string `json:"path,omitempty" jsonschema:"Optional: Root path for the search (defaults to '.')"`
-	Limit        int    `json:"limit,omitempty" jsonschema:"Max results to return (default: 50, max: 100)"`
-	Offset       int    `json:"offset,omitempty" jsonschema:"Number of results to skip for pagination"`
+	Limit        int    `json:"limit,omitempty" jsonschema:"Optional: Max results to return (default: 50, max: 100)"`
+	Offset       int    `json:"offset,omitempty" jsonschema:"Optional: Number of results to skip for pagination"`
 }
 
 type DiagnoseParams struct {
-	ErrorLog string `json:"errorLog" jsonschema:"The error log output containing the file and line number of the failure"`
+	ErrorLog string `json:"errorLog" jsonschema:"REQUIRED. The error log output containing the file and line number of the failure"`
 }
 
 func (s *Server) handleMap(ctx context.Context, req *mcp.CallToolRequest, args MapParams) (*mcp.CallToolResult, any, error) {

@@ -303,6 +303,7 @@ type DiagnosticHUD struct {
 	FailingSymbol      string
 	LastCommit         string
 	RiskLevel          string
+	RiskScore          float64
 	BlastRadius        int
 	SimilarPatternPath string
 }
@@ -365,11 +366,13 @@ func (e *HealerEngine) DiagnoseHUD(ctx context.Context, errorLog string) (string
 
 	// 4. Visión de Radar (Impacto)
 	riskLevel := "Unknown"
+	riskScore := 0.0
 	blastRadius := 0
 	if symbol != "Unknown" {
 		impact, err := e.impact.Analyze(ctx, symbol, failingFile, 1)
 		if err == nil && impact != nil {
 			riskLevel = impact.RiskLevel
+			riskScore = impact.Target.RiskScore
 			blastRadius = len(impact.Callers)
 		}
 	}
@@ -393,6 +396,7 @@ func (e *HealerEngine) DiagnoseHUD(ctx context.Context, errorLog string) (string
 		FailingSymbol:      symbol,
 		LastCommit:         lastCommit,
 		RiskLevel:          riskLevel,
+		RiskScore:          riskScore,
 		BlastRadius:        blastRadius,
 		SimilarPatternPath: similarPath,
 	}
