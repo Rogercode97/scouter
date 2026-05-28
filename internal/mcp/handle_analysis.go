@@ -194,24 +194,16 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 		sw.Flush()
 		outStr = buf.String()
 	} else {
-		if args.Format == "zon" || args.Format == "" {
-			zonSyms, _ := engine.EncodeZON(searchRes.Symbols)
-			zonInsights, _ := engine.EncodeZON(searchRes.Insights)
-			outStr = zonSyms + "\nInsights:\n" + zonInsights
-			if len(outStr) > 4096 {
-				outStr = outStr[:4000] + "\n... [TRUNCATED BY SOVEREIGN GUARD (4KB LIMIT)]"
-			}
-		} else {
-			out, _ := json.Marshal(searchRes)
-			if string(out) == "null" {
-				out = []byte("{}")
-			}
-			outStr = string(out)
+		zonSyms, _ := engine.EncodeZON(searchRes.Symbols)
+		zonInsights, _ := engine.EncodeZON(searchRes.Insights)
+		outStr = zonSyms + "\nInsights:\n" + zonInsights
+		if len(outStr) > 4096 {
+			outStr = outStr[:4000] + "\n... [TRUNCATED BY SOVEREIGN GUARD (4KB LIMIT)]"
 		}
 	}
 
 	thought := fmt.Sprintf("<thought>\nSovereign Search: Querying AST+Engram for '%s' (%s). Pagination: [Limit:%d Offset:%d]. Found %d matches & %d insights. Format: %s.\n</thought>\n",
-		args.Query, args.Type, limit, args.Offset, len(searchRes.Symbols), len(searchRes.Insights), map[bool]string{true: "hakai", false: "json"}[useHakai])
+		args.Query, args.Type, limit, args.Offset, len(searchRes.Symbols), len(searchRes.Insights), map[bool]string{true: "hakai", false: "zon"}[useHakai])
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -329,22 +321,14 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 		sw.Flush()
 		outStr = buf.String()
 	} else {
-		if args.Format == "zon" || args.Format == "" {
-			outStr, _ = engine.EncodeZON(results)
-			if len(outStr) > 4096 {
-				outStr = outStr[:4000] + "\n... [TRUNCATED BY SOVEREIGN GUARD (4KB LIMIT)]"
-			}
-		} else {
-			out, _ := json.Marshal(results)
-			if string(out) == "null" {
-				out = []byte("[]")
-			}
-			outStr = string(out)
+		outStr, _ = engine.EncodeZON(results)
+		if len(outStr) > 4096 {
+			outStr = outStr[:4000] + "\n... [TRUNCATED BY SOVEREIGN GUARD (4KB LIMIT)]"
 		}
 	}
 
 	thought := fmt.Sprintf("<thought>\nCall Graph Analysis: Finding all callers of '%s'. Pagination: [Limit:%d Offset:%d]. Found %d callers. Format: %s.\n</thought>\n",
-		args.CalleeName, limit, args.Offset, len(results), map[bool]string{true: "hakai", false: "json"}[useHakai])
+		args.CalleeName, limit, args.Offset, len(results), map[bool]string{true: "hakai", false: "zon"}[useHakai])
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -385,15 +369,19 @@ func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequ
 	        nil, nil
 	}
 
-	out, _ := json.Marshal(result)
-	if string(out) == "null" {
-		out = []byte("[]")
+	outStr, err := engine.EncodeZONLSPLocation(result)
+	if err != nil {
+	        return &mcp.CallToolResult{
+	                Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to encode location: %v", err)}},
+	                IsError: true,
+	        },
+	        nil, nil
 	}
 	thought := fmt.Sprintf("<thought>\nLSP Navigation: Finding definition at %s:%d:%d.\n</thought>\n", args.FilePath, args.Line, args.Character)
 
 	return &mcp.CallToolResult{
 	        Content: []mcp.Content{
-	                &mcp.TextContent{Text: thought + string(out)},
+	                &mcp.TextContent{Text: thought + outStr},
 	        },
 	}, nil, nil
 	}
@@ -429,15 +417,19 @@ func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequ
 	        },
 	        nil, nil
 	}
-	out, _ := json.Marshal(result)
-	if string(out) == "null" {
-		out = []byte("[]")
+	outStr, err := engine.EncodeZONLSPHover(result)
+	if err != nil {
+	        return &mcp.CallToolResult{
+	                Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to encode hover: %v", err)}},
+	                IsError: true,
+	        },
+	        nil, nil
 	}
 	thought := fmt.Sprintf("<thought>\nLSP Inspection: Extracting type information/hover docs at %s:%d:%d.\n</thought>\n", args.FilePath, args.Line, args.Character)
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + string(out)},
+			&mcp.TextContent{Text: thought + outStr},
 		},
 	}, nil, nil
 }
@@ -651,3 +643,4 @@ func (s *Server) handleNeighborhood(ctx context.Context, req *mcp.CallToolReques
 		},
 	}, nil, nil
 }
+

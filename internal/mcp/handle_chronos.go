@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 
@@ -75,7 +74,7 @@ func (s *Server) handleSnapshotAST(ctx context.Context, req *mcp.CallToolRequest
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + fmt.Sprintf(`{"snapshotId": "%s", "symbols": %d}`, snapshot.ID, len(snapshot.Symbols))},
+			&mcp.TextContent{Text: thought + fmt.Sprintf("[ZON Snapshot: %s]\nSYMBOLS | %d", snapshot.ID, len(snapshot.Symbols))},
 		},
 	}, nil, nil
 }
@@ -112,7 +111,7 @@ func (s *Server) handleVerifyAST(ctx context.Context, req *mcp.CallToolRequest, 
 		}, nil, nil
 	}
 
-	out, _ := json.Marshal(diff)
+	outStr := engine.EncodeZONVerify(diff)
 
 	status := "✅ Structurally Safe"
 	isError := false
@@ -127,7 +126,7 @@ func (s *Server) handleVerifyAST(ctx context.Context, req *mcp.CallToolRequest, 
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + string(out)},
+			&mcp.TextContent{Text: thought + outStr},
 		},
 		IsError: isError,
 	}, nil, nil

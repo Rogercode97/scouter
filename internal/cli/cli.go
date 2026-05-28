@@ -60,18 +60,27 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	// Database: Centralized initialization for commands that need it
+	openDB := func() (store.Store, func(), int) {
+		db, err := store.New(ctx, cfg.Tracking.DBPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "error opening database: %v\n", err)
+			return nil, nil, 1
+		}
+		return db, func() { db.Close() }, 0
+	}
+
 	// Telemetry: Lazy tracker to avoid SQLite locks on fast paths
 	tracker := telemetry.NewLazyTracker(cfg.Tracking.DBPath)
 	defer tracker.Close()
 
 	switch cmd {
 	case "mcp":
-		db, err := store.New(ctx, cfg.Tracking.DBPath)
-		if err != nil {
-			fmt.Fprintf(stderr, "error opening database: %v\n", err)
-			return 1
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
 		}
-		defer db.Close()
+		defer closeDB()
 
 		logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 		server := mcp.NewServer(db, logger)
@@ -84,21 +93,18 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 
 	case "index":
-		db, err := store.New(ctx, cfg.Tracking.DBPath)
-		if err != nil {
-			fmt.Fprintf(stderr, "error opening database: %v\n", err)
-			return 1
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
 		}
-		defer db.Close()
+		defer closeDB()
 
 		if len(cmdArgs) == 0 {
 			fmt.Fprintf(stderr, "usage: scouter index <path>\n")
 			return 1
 		}
 
-		// Use TruthEngine for unified indexing (Deepening)
 		path := cmdArgs[0]
-		
 		lspMgr := lsp.NewManager()
 		defer lspMgr.Close()
 		
@@ -114,7 +120,6 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 		fc, sc, err := db.GetStats(ctx)
 		if err == nil && tracker != nil {
-			// Each file saves reading context (~1500 tokens), each symbol saves AST search context (~100 tokens)
 			savedTokens := fc*1500 + sc*100
 			_ = tracker.Track(ctx, "scouter index "+path, "scouter index "+path, savedTokens, 5, duration)
 		}
@@ -123,12 +128,11 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 
 	case "ingest":
-		db, err := store.New(ctx, cfg.Tracking.DBPath)
-		if err != nil {
-			fmt.Fprintf(stderr, "error opening database: %v\n", err)
-			return 1
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
 		}
-		defer db.Close()
+		defer closeDB()
 
 		if err := ingest.Ingest(ctx, os.Stdin, flags.Env, db); err != nil {
 			fmt.Fprintf(stderr, "ingest error: %v\n", err)
@@ -151,12 +155,11 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 
 	case "predict":
-		db, err := store.New(ctx, cfg.Tracking.DBPath)
-		if err != nil {
-			fmt.Fprintf(stderr, "error opening database: %v\n", err)
-			return 1
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
 		}
-		defer db.Close()
+		defer closeDB()
 
 		diff := ""
 		if len(cmdArgs) > 0 {
@@ -190,8 +193,6 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 
 		if tracker != nil {
-			// predict saves the LLM from having to analyze the full call graph to connect diff with tests.
-			// Baseline saving is 4000 tokens plus 500 per affected test predicted.
 			savedTokens := 4000 + len(results)*500
 			outputTokens := utils.EstimateTokens(outputStr)
 			_ = tracker.Track(ctx, "scouter predict", "scouter predict", savedTokens, outputTokens, duration)

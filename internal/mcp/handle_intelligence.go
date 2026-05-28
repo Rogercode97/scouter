@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Rogercode97/scouter/internal/display"
+	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"bytes"
 )
@@ -48,23 +48,13 @@ func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, arg
 		},
 		nil, nil
 	}
-	out, err := json.Marshal(res)
-	if string(out) == "null" {
-		out = []byte("[]")
-	}
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to marshal impact result: %v", err)}},
-			IsError: true,
-		},
-		nil, nil
-	}
+	outStr := engine.EncodeZONImpact(res)
 
 	thought := fmt.Sprintf("<thought>\nCalculated blast radius for '%s'. Target risk score: %.4f (Level: %s). Found %d affected callers.\n</thought>\n", args.SymbolName, res.Target.RiskScore, res.RiskLevel, len(res.Callers))
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + string(out)},
+			&mcp.TextContent{Text: thought + outStr},
 		},
 	}, nil, nil
 }
@@ -101,15 +91,11 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 		}
 		outStr = buf.String()
 	} else {
-		out, _ := json.Marshal(results)
-	if string(out) == "null" {
-		out = []byte("[]")
-	}
-		outStr = string(out)
+		outStr, _ = engine.EncodeZON(results)
 	}
 
 	thought := fmt.Sprintf("<thought>\nRisk Analysis: Identifying high-risk symbols (high centrality and fragility). Found %d targets (limit: %d). Format: %s.\n</thought>\n",
-		len(results), limit, map[bool]string{true: "hakai", false: "json"}[useHakai])
+		len(results), limit, map[bool]string{true: "hakai", false: "zon"}[useHakai])
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -205,17 +191,11 @@ func (s *Server) handlePredict(ctx context.Context, req *mcp.CallToolRequest, ar
 		return nil, nil, err
 	}
 
-	out, err := json.Marshal(results)
-	if string(out) == "null" {
-		out = []byte("[]")
-	}
-	if err != nil {
-		return nil, nil, err
-	}
+	outStr := engine.EncodeZONPredict(results)
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(out)},
+			&mcp.TextContent{Text: outStr},
 		},
 	}, nil, nil
 }
