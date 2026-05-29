@@ -180,3 +180,10 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 		Insights: iRes.insights,
 	}, nil
 }
+
+func (e *SearchEngine) IndexSymbol(docID string, data map[string]interface{}) error {
+	if e.Bleve != nil {
+		return e.Bleve.IndexSymbol(docID, data)
+	}
+	return nil
+}

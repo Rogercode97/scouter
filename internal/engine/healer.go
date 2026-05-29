@@ -50,18 +50,7 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 	}
 
 	// 1. RCA: Extract File and Line
-	re := regexp.MustCompile("(?m)" + filter.GoTestFailureRegex.String())
-	allMatches := re.FindAllStringSubmatch(errorLog, -1)
-	if len(allMatches) == 0 {
-		return nil, fmt.Errorf("could not identify failing file:line in log")
-	}
-
-	// For Shinigami, we focus on the first frame for the fix, but use others for context
-	primaryMatch := allMatches[0]
-	failingFileRaw := primaryMatch[1]
-	lineNum, _ := strconv.Atoi(primaryMatch[2])
-
-	failingFile, err := utils.ValidatePath(failingFileRaw)
+	failingFile, lineNum, allMatches, err := extractRCA(errorLog)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +78,56 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 		return nil, err
 	}
 
-	// 3. Parallel Solvers (Shinigami Phase 1)
-	// Enriched context for DeepRCA
+	// 3. Build Prompt Context
+	prompt := e.buildHealerContext(ctx, target, failingFile, errorLog, allMatches, originalCode)
+
+	// 4. Parallel Solvers (Shinigami Phase 1 & 2)
+	bestCandidate, err := e.sampleParallelFixes(ctx, prompt, failingFile, originalCode, target)
+	if err != nil {
+		return nil, err
+	}
+
+	// 5. Stage in Ledger (Wave 12.0 Mandate)
+	fullContent, _ := os.ReadFile(failingFile)
+	err = e.Ledger.Stage(failingFile, Patch{
+		FilePath:   failingFile,
+		Original:   string(fullContent),
+		NewContent: bestCandidate.fullCode,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to stage fix: %w", err)
+	}
+
+	return &types.HealResult{
+		Status:    "STAGED",
+		FixedCode: bestCandidate.code,
+		Metadata: map[string]string{
+			"failingFile": failingFile,
+			"method": "shinigami-parallel-sampling",
+			"ledger_summary": e.Ledger.Summary(),
+		},
+	}, nil
+}
+
+func extractRCA(errorLog string) (string, int, [][]string, error) {
+	re := regexp.MustCompile("(?m)" + filter.GoTestFailureRegex.String())
+	allMatches := re.FindAllStringSubmatch(errorLog, -1)
+	if len(allMatches) == 0 {
+		return "", 0, nil, fmt.Errorf("could not identify failing file:line in log")
+	}
+
+	primaryMatch := allMatches[0]
+	failingFileRaw := primaryMatch[1]
+	lineNum, _ := strconv.Atoi(primaryMatch[2])
+
+	failingFile, err := utils.ValidatePath(failingFileRaw)
+	if err != nil {
+		return "", 0, nil, err
+	}
+	return failingFile, lineNum, allMatches, nil
+}
+
+func (e *HealerEngine) buildHealerContext(ctx context.Context, target *types.ASTPointer, failingFile, errorLog string, allMatches [][]string, originalCode string) string {
 	var contextBuilder strings.Builder
 	contextBuilder.WriteString(fmt.Sprintf("Failing File: %s\nTarget: %s\nError:\n%s\n\n", failingFile, target.Name, errorLog))
 	
@@ -115,23 +152,24 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 	}
 	contextBuilder.WriteString("\nCode:\n" + originalCode)
 	
-	// Add Impact Analysis for TruthEngine parity
 	risk, _ := e.impact.Analyze(ctx, target.Name, failingFile, 1)
 	if risk != nil {
 		contextBuilder.WriteString(fmt.Sprintf("\n\nCurrent Risk Score: %.2f (%s)", risk.Target.RiskScore, risk.RiskLevel))
 	}
 
-	prompt := contextBuilder.String()
+	return contextBuilder.String()
+}
 
-	type candidate struct {
-		id       int
-		code     string
-		score    float64
-		fullCode string
-		valid    bool
-	}
+type fixCandidate struct {
+	id       int
+	code     string
+	score    float64
+	fullCode string
+	valid    bool
+}
 
-	candidates := make(chan candidate, 3)
+func (e *HealerEngine) sampleParallelFixes(ctx context.Context, prompt string, failingFile string, originalCode string, target *types.ASTPointer) (*fixCandidate, error) {
+	candidates := make(chan fixCandidate, 3)
 	var wg sync.WaitGroup
 	var valMu sync.Mutex
 
@@ -180,7 +218,7 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 
 				valid := valRes.Valid
 
-				candidates <- candidate{
+				candidates <- fixCandidate{
 					id:       id,
 					code:     candidateCode,
 					fullCode: string(processedContent),
@@ -197,8 +235,7 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 	wg.Wait()
 	close(candidates)
 
-	// 4. Verification & Selection (Shinigami Phase 2)
-	var bestCandidate *candidate
+	var bestCandidate *fixCandidate
 	
 	for c := range candidates {
 		if !c.valid {
@@ -208,12 +245,10 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 		curr := c
 		curr.score = 1.0 
 		
-		// Penalty for overly long solutions (KISS principle)
 		if len(curr.code) > len(originalCode)*2 {
 			curr.score -= 0.3
 		}
 
-		// Deterministic tie-breaker: prefer lower ID if scores are equal
 		if bestCandidate == nil || curr.score > bestCandidate.score || (curr.score == bestCandidate.score && curr.id < bestCandidate.id) {
 			bestCandidate = &curr
 		}
@@ -223,25 +258,7 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 		return nil, fmt.Errorf("all candidates failed validation")
 	}
 
-	// 5. Stage in Ledger (Wave 12.0 Mandate)
-	err = e.Ledger.Stage(failingFile, Patch{
-		FilePath:   failingFile,
-		Original:   string(fullContent),
-		NewContent: bestCandidate.fullCode,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to stage fix: %w", err)
-	}
-
-	return &types.HealResult{
-		Status:    "STAGED",
-		FixedCode: bestCandidate.code,
-		Metadata: map[string]string{
-			"failingFile": failingFile,
-			"method": "shinigami-parallel-sampling",
-			"ledger_summary": e.Ledger.Summary(),
-		},
-	}, nil
+	return bestCandidate, nil
 }
 
 // Index parses and persists a file. (Internal helper for HealerEngine)
@@ -310,16 +327,16 @@ type DiagnosticHUD struct {
 
 // DiagnoseHUD ejecuta la visión de diagnóstico combinando Git, AST, Impacto y Bleve.
 // Retorna la representación del HUD en formato ZON.
-func (e *HealerEngine) DiagnoseHUD(ctx context.Context, errorLog string) (string, error) {
+func (e *HealerEngine) DiagnoseHUD(ctx context.Context, errorLog string) (*DiagnosticHUD, error) {
 	if errorLog == "" {
-		return "", fmt.Errorf("empty error log")
+		return nil, fmt.Errorf("empty error log")
 	}
 
 	// 1. Parseo: Extraer archivo y línea
 	re := regexp.MustCompile("(?m)" + filter.GoTestFailureRegex.String())
 	allMatches := re.FindAllStringSubmatch(errorLog, -1)
 	if len(allMatches) == 0 {
-		return "", fmt.Errorf("could not identify failing file:line in log")
+		return nil, fmt.Errorf("could not identify failing file:line in log")
 	}
 
 	primaryMatch := allMatches[0]
@@ -328,7 +345,7 @@ func (e *HealerEngine) DiagnoseHUD(ctx context.Context, errorLog string) (string
 
 	failingFile, err := utils.ValidatePath(failingFileRaw)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// 2. Visión de Tiempo (Provenance)
@@ -350,7 +367,7 @@ func (e *HealerEngine) DiagnoseHUD(ctx context.Context, errorLog string) (string
 	// 3. Visión de Rayos X (AST)
 	itPointers, _, err := StreamSymbols(ctx, failingFile)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var symbol string
@@ -401,11 +418,5 @@ func (e *HealerEngine) DiagnoseHUD(ctx context.Context, errorLog string) (string
 		SimilarPatternPath: similarPath,
 	}
 
-	// Generamos el output en formato ZON
-	zonStr, err := EncodeZON([]DiagnosticHUD{hud})
-	if err != nil {
-		return "", err
-	}
-
-	return zonStr, nil
+	return &hud, nil
 }

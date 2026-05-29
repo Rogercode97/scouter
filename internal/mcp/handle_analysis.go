@@ -594,10 +594,18 @@ func (s *Server) handleDiagnose(ctx context.Context, req *mcp.CallToolRequest, a
 		}, nil, nil
 	}
 
-	hudOutput, err := s.engine.Healer().DiagnoseHUD(ctx, args.ErrorLog)
+	hudStruct, err := s.engine.Healer().DiagnoseHUD(ctx, args.ErrorLog)
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Diagnose failed: %v", err)}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	hudOutput, err := engine.EncodeZON([]engine.DiagnosticHUD{*hudStruct})
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Encode failed: %v", err)}},
 			IsError: true,
 		}, nil, nil
 	}

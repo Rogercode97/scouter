@@ -235,7 +235,9 @@ func (e *TruthEngine) Index(ctx context.Context, path string) error {
 	if fi.IsDir() {
 		_, indexErr = e.indexDirectory(ctx, validatedPath, workerSem, collector)
 	} else {
+		workerSem <- struct{}{}
 		_, indexErr = e.indexFile(ctx, validatedPath, workerSem, collector)
+		<-workerSem
 	}
 
 	// CERRAMOS EL CANAL AQUÍ SOLO DESPUÉS DE QUE indexDirectory/indexFile (y todos sus sub-workers) HAYAN TERMINADO
@@ -310,6 +312,9 @@ func (e *TruthEngine) indexDirectory(ctx context.Context, dir string, workerSem 
 				continue
 			}
 			g.Go(func() error {
+				workerSem <- struct{}{}
+				defer func() { <-workerSem }()
+				
 				childHash, err := e.indexFile(ctx, path, workerSem, collector)
 				if err != nil {
 					e.logger.Error("failed to index file", "path", path, "error", err)
@@ -372,10 +377,6 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 		return hash, nil
 	}
 
-	// Wait for worker slot
-	workerSem <- struct{}{}
-	defer func() { <-workerSem }()
-
 	e.logger.Info("indexing file", "path", path)
 
 	itPointers, itCalls, err := StreamSymbols(ctx, path)
@@ -413,9 +414,9 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 			StructuralHash: ptr.StructuralHash,
 		})
 
-		if e.search != nil && e.search.Bleve != nil {
+		if e.search != nil {
 			docID := path + ":" + ptr.Name
-			_ = e.search.Bleve.IndexSymbol(docID, map[string]interface{}{
+			_ = e.search.IndexSymbol(docID, map[string]interface{}{
 				"name": ptr.Name,
 				"doc":  ptr.Doc,
 				"path": path,
@@ -538,13 +539,7 @@ func (e *TruthEngine) FindLogicalTwins(ctx context.Context, symbolName, path str
 
 	symbols, err := e.store.GetSymbolsByNameInFile(ctx, symbolName, cleanPath)
 	if err != nil || len(symbols) == 0 {
-		if err := e.Index(ctx, cleanPath); err == nil {
-			var errIdx error
-			symbols, errIdx = e.store.GetSymbolsByNameInFile(ctx, symbolName, cleanPath)
-			if errIdx != nil {
-				return nil, fmt.Errorf("failed to get symbols after indexing: %w", errIdx)
-			}
-		}
+		return nil, fmt.Errorf("symbol '%s' not found in %s (file not indexed or missing)", symbolName, path)
 	}
 
 	if len(symbols) == 0 {
