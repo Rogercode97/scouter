@@ -78,51 +78,11 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 		return nil, nil, fmt.Errorf("file too large to index (%d bytes), limit is %d bytes", fi.Size(), MaxParseSize)
 	}
 
-	var file *ast.File
-	var fset *token.FileSet
-	var pkgPath string
-
-	cfg := &packages.Config{
-		Mode:  packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
-		Tests: true,
-		Dir:   filepath.Dir(validatedPath),
+	file, fset, pkg, err := loadASTFile(validatedPath)
+	if err != nil {
+		return nil, nil, err
 	}
-	pkgs, err := packages.Load(cfg, "file="+validatedPath)
-	if err != nil || len(pkgs) == 0 {
-		// Fallback to loading the directory if file= fails (some environments/versions)
-		pkgs, err = packages.Load(cfg, ".")
-		if err != nil || len(pkgs) == 0 {
-			fmt.Fprintf(os.Stderr, "Go packages load failed for %s: %v\n", validatedPath, err)
-			return nil, nil, fmt.Errorf("failed to load package: %v", err)
-		}
-	}
-
-	var pkg *packages.Package
-	for _, p := range pkgs {
-		for _, syntax := range p.Syntax {
-			if p.Fset.Position(syntax.Pos()).Filename == validatedPath {
-				pkg = p
-				file = syntax
-				break
-			}
-		}
-		if pkg != nil {
-			break
-		}
-	}
-
-	if pkg == nil {
-		// If still not found, take the first one if we only loaded one file
-		if len(pkgs) == 1 && len(pkgs[0].Syntax) > 0 {
-			pkg = pkgs[0]
-			file = pkg.Syntax[0]
-		} else {
-			return nil, nil, fmt.Errorf("file %s not found in loaded packages", validatedPath)
-		}
-	}
-
-	pkgPath = pkg.PkgPath
-	fset = pkg.Fset
+	pkgPath := pkg.PkgPath
 
 	// For structural hashing consistency, we also parse with Tree-sitter for Go files
 	var tsTree *gotreesitter.Tree
@@ -167,22 +127,8 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 
 					if fn.Recv != nil && len(fn.Recv.List) > 0 {
 						symType = "method"
-						recvType := ""
-						switch r := fn.Recv.List[0].Type.(type) {
-						case *ast.Ident:
-							recvType = r.Name
-							receiverType = "value"
-						case *ast.StarExpr:
-							receiverType = "pointer"
-							if id, ok := r.X.(*ast.Ident); ok {
-								recvType = id.Name
-							} else if sel, ok := r.X.(*ast.SelectorExpr); ok {
-								recvType = sel.Sel.Name
-							}
-						case *ast.SelectorExpr:
-							recvType = r.Sel.Name
-							receiverType = "value"
-						}
+						recvType, rType := extractMethodReceiver(fn)
+						receiverType = rType
 						if recvType != "" {
 							fullName = recvType + "." + fn.Name.Name
 						}
@@ -351,19 +297,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 					fullName := fn.Name.Name
 
 					if fn.Recv != nil && len(fn.Recv.List) > 0 {
-						recvType := ""
-						switch r := fn.Recv.List[0].Type.(type) {
-						case *ast.Ident:
-							recvType = r.Name
-						case *ast.StarExpr:
-							if id, ok := r.X.(*ast.Ident); ok {
-								recvType = id.Name
-							} else if sel, ok := r.X.(*ast.SelectorExpr); ok {
-								recvType = sel.Sel.Name
-							}
-						case *ast.SelectorExpr:
-							recvType = r.Sel.Name
-						}
+						recvType, _ := extractMethodReceiver(fn)
 						if recvType != "" {
 							fullName = recvType + "." + fn.Name.Name
 						}
@@ -428,59 +362,7 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 					if callerName != "" {
 						calleeName, calleePath := resolveCallee(call.Fun, validatedPath)
 						
-						// [Omniscience] High-Fidelity Type Resolution using go/types
-						if pkg.TypesInfo != nil {
-							if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
-								if selection, ok := pkg.TypesInfo.Selections[sel]; ok {
-									if obj := selection.Obj(); obj != nil {
-										if objPkg := obj.Pkg(); objPkg != nil {
-											if selection.Kind() == gotypes.MethodVal {
-												if recv := selection.Recv(); recv != nil {
-													typeName := ""
-													if named, ok := recv.(*gotypes.Named); ok {
-														typeName = named.Obj().Name()
-													} else if ptr, ok := recv.(*gotypes.Pointer); ok {
-														if named, ok := ptr.Elem().(*gotypes.Named); ok {
-															typeName = named.Obj().Name()
-														}
-													}
-													if typeName != "" {
-														calleeName = objPkg.Path() + "." + typeName + "." + obj.Name()
-													}
-												}
-											} else {
-												calleeName = objPkg.Path() + "." + obj.Name()
-											}
-										}
-									}
-								} else if obj, ok := pkg.TypesInfo.Uses[sel.Sel]; ok {
-									if objPkg := obj.Pkg(); objPkg != nil {
-										calleeName = objPkg.Path() + "." + obj.Name()
-									}
-								}
-							} else if ident, ok := call.Fun.(*ast.Ident); ok {
-								if obj, ok := pkg.TypesInfo.Uses[ident]; ok {
-									if objPkg := obj.Pkg(); objPkg != nil {
-										calleeName = objPkg.Path() + "." + obj.Name()
-									}
-								}
-							}
-						}
-
-						// Fallback to heuristic resolution if TypesInfo didn't give a full path
-						if (!strings.Contains(calleeName, ".") || !strings.Contains(calleeName, "/")) && currentScope != nil {
-							if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
-								if x, ok := sel.X.(*ast.Ident); ok {
-									if tName, exists := currentScope[x.Name]; exists {
-										calleeName = tName + "." + sel.Sel.Name
-										// Prepend pkgPath for local types
-										if !strings.Contains(calleeName, "/") {
-											calleeName = pkgPath + "." + calleeName
-										}
-									}
-								}
-							}
-						}
+						calleeName = resolveTypeInfoCallee(call, pkg, currentScope, pkgPath, calleeName)
 
 						// If still a simple name or local selector, prepend pkgPath
 						if calleeName != "" && !strings.Contains(calleeName, "/") && !strings.HasPrefix(calleeName, pkgPath+".") {
@@ -701,4 +583,125 @@ func computeGoMetrics(node ast.Node) *types.SemanticMetrics {
 	})
 
 	return metrics
+}
+
+
+func loadASTFile(validatedPath string) (*ast.File, *token.FileSet, *packages.Package, error) {
+	cfg := &packages.Config{
+		Mode:  packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+		Tests: true,
+		Dir:   filepath.Dir(validatedPath),
+	}
+	pkgs, err := packages.Load(cfg, "file="+validatedPath)
+	if err != nil || len(pkgs) == 0 {
+		pkgs, err = packages.Load(cfg, ".")
+		if err != nil || len(pkgs) == 0 {
+			return nil, nil, nil, fmt.Errorf("failed to load package: %v", err)
+		}
+	}
+
+	var pkg *packages.Package
+	var file *ast.File
+	for _, p := range pkgs {
+		for _, syntax := range p.Syntax {
+			if p.Fset.Position(syntax.Pos()).Filename == validatedPath {
+				pkg = p
+				file = syntax
+				break
+			}
+		}
+		if pkg != nil {
+			break
+		}
+	}
+
+	if pkg == nil {
+		if len(pkgs) == 1 && len(pkgs[0].Syntax) > 0 {
+			pkg = pkgs[0]
+			file = pkg.Syntax[0]
+		} else {
+			return nil, nil, nil, fmt.Errorf("file %s not found in loaded packages", validatedPath)
+		}
+	}
+	return file, pkg.Fset, pkg, nil
+}
+
+func extractMethodReceiver(fn *ast.FuncDecl) (string, string) {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return "", ""
+	}
+	recvType := ""
+	receiverType := ""
+	switch r := fn.Recv.List[0].Type.(type) {
+	case *ast.Ident:
+		recvType = r.Name
+		receiverType = "value"
+	case *ast.StarExpr:
+		receiverType = "pointer"
+		if id, ok := r.X.(*ast.Ident); ok {
+			recvType = id.Name
+		} else if sel, ok := r.X.(*ast.SelectorExpr); ok {
+			recvType = sel.Sel.Name
+		}
+	case *ast.SelectorExpr:
+		recvType = r.Sel.Name
+		receiverType = "value"
+	}
+	return recvType, receiverType
+}
+
+func resolveTypeInfoCallee(call *ast.CallExpr, pkg *packages.Package, currentScope map[string]string, pkgPath string, fallbackName string) string {
+	calleeName := fallbackName
+	if pkg.TypesInfo != nil {
+		if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+			if selection, ok := pkg.TypesInfo.Selections[sel]; ok {
+				if obj := selection.Obj(); obj != nil {
+					if objPkg := obj.Pkg(); objPkg != nil {
+						if selection.Kind() == gotypes.MethodVal {
+							if recv := selection.Recv(); recv != nil {
+								typeName := ""
+								if named, ok := recv.(*gotypes.Named); ok {
+									typeName = named.Obj().Name()
+								} else if ptr, ok := recv.(*gotypes.Pointer); ok {
+									if named, ok := ptr.Elem().(*gotypes.Named); ok {
+										typeName = named.Obj().Name()
+									}
+								}
+								if typeName != "" {
+									calleeName = objPkg.Path() + "." + typeName + "." + obj.Name()
+								}
+							}
+						} else {
+							calleeName = objPkg.Path() + "." + obj.Name()
+						}
+					}
+				}
+			} else if obj, ok := pkg.TypesInfo.Uses[sel.Sel]; ok {
+				if objPkg := obj.Pkg(); objPkg != nil {
+					calleeName = objPkg.Path() + "." + obj.Name()
+				}
+			}
+		} else if ident, ok := call.Fun.(*ast.Ident); ok {
+			if obj, ok := pkg.TypesInfo.Uses[ident]; ok {
+				if objPkg := obj.Pkg(); objPkg != nil {
+					calleeName = objPkg.Path() + "." + obj.Name()
+				}
+			}
+		}
+	}
+
+	// Fallback to heuristic resolution if TypesInfo didn't give a full path
+	if (!strings.Contains(calleeName, ".") || !strings.Contains(calleeName, "/")) && currentScope != nil {
+		if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+			if x, ok := sel.X.(*ast.Ident); ok {
+				if tName, exists := currentScope[x.Name]; exists {
+					calleeName = tName + "." + sel.Sel.Name
+					if !strings.Contains(calleeName, "/") {
+						calleeName = pkgPath + "." + calleeName
+					}
+				}
+			}
+		}
+	}
+	return calleeName
 }

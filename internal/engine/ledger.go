@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -172,14 +173,53 @@ func (l *Ledger) StagedFiles() []string {
 	return files
 }
 
-// CommitStaged applies all staged changes to the filesystem.
+// CommitStaged applies all staged changes to the filesystem atomically using a two-phase commit.
 func (l *Ledger) CommitStaged(ctx context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	var tmpFiles []string
+
+	cleanup := func() error {
+		var cleanupErrs []error
+		for _, tmpPath := range tmpFiles {
+			if err := os.Remove(tmpPath); err != nil && !os.IsNotExist(err) {
+				cleanupErrs = append(cleanupErrs, fmt.Errorf("failed to clean up %s: %w", tmpPath, err))
+			}
+		}
+		if len(cleanupErrs) > 0 {
+			return errors.Join(cleanupErrs...)
+		}
+		return nil
+	}
+
+	// Phase 1: Preparation
 	for path, patch := range l.Staged {
-		if err := os.WriteFile(path, []byte(patch.NewContent), 0644); err != nil {
-			return fmt.Errorf("failed to commit %s: %w", path, err)
+		select {
+		case <-ctx.Done():
+			_ = cleanup()
+			return ctx.Err()
+		default:
+		}
+
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			cerr := cleanup()
+			return fmt.Errorf("failed to create directory for %s: %w (cleanup: %v)", path, err, cerr)
+		}
+
+		tmpPath := path + ".scouter.tmp"
+		if err := os.WriteFile(tmpPath, []byte(patch.NewContent), 0644); err != nil {
+			cerr := cleanup()
+			return fmt.Errorf("failed to write temp file for %s: %w (cleanup: %v)", path, err, cerr)
+		}
+		tmpFiles = append(tmpFiles, tmpPath)
+	}
+
+	// Phase 2: Atomic Commit
+	for path := range l.Staged {
+		tmpPath := path + ".scouter.tmp"
+		if err := os.Rename(tmpPath, path); err != nil {
+			return fmt.Errorf("CRITICAL: failed to rename %s to %s. State may be corrupted: %w", tmpPath, path, err)
 		}
 	}
 
