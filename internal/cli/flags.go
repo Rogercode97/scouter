@@ -10,6 +10,7 @@ type Flags struct {
 	Version      bool
 	Help         bool
 	Enrich       bool
+	Deep         bool
 	Env          string
 }
 
@@ -40,6 +41,8 @@ func ParseFlags(args []string) (Flags, []string) {
 			flags.UltraCompact = true
 		case arg == "--enrich":
 			flags.Enrich = true
+		case arg == "--deep":
+			flags.Deep = true
 		case arg == "--skip-env":
 			flags.SkipEnv = true
 		case arg == "--version":

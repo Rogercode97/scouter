@@ -1,7 +1,7 @@
 # 🚀 Scouter Roadmap & Tasks
 
 ## 🛡️ Deep AST Intelligence (Wave 15)
-- [ ] **SSA-based Call Graph (Go)**: Implement a `--deep` mode using `golang.org/x/tools/go/callgraph/cha` or `vta` for precise interface/pointer resolution.
+- [x] **SSA-based Call Graph (Go)**: Implement a `--deep` mode using `golang.org/x/tools/go/callgraph/cha` for precise interface/pointer resolution.
 - [ ] **Data Flow Analysis**: Add basic tracking of variable assignments to identify where values are coming from in large functions.
 - [ ] **Structural Refinement**: Ensure all languages supported by Tree-sitter follow the same hierarchical naming convention for closures.
 

@@ -14,6 +14,12 @@ El arranque de un servidor LSP (como `gopls`) toma ~3 segundos. En un flujo de h
 - **Implementación:** Scouter utiliza un **Auto-Daemon** persistente vía Unix Sockets (`scouter-gopls.sock`).
 - **Protocolo:** El `lsp.Manager` intenta conectar al socket primero. Si falla, arranca el daemon en segundo plano (detacheado) y reconecta. Esto reduce la latencia de análisis de segundos a milisegundos.
 
+### Mode Deep (SSA Analysis)
+El análisis basado en AST simple es limitado para lenguajes con interfaces dinámicas como Go.
+- **Implementación:** Scouter incorpora un motor de análisis SSA (Static Single Assignment) utilizando `CHA` (Class Hierarchy Analysis).
+- **Activación:** Se activa mediante el flag `--deep` durante la indexación.
+- **Ventaja:** Resuelve llamadas a través de interfaces y punteros con alta precisión, mapeando implementaciones concretas que el análisis sintético no puede detectar. Es fundamental para el "Impact Analysis" en sistemas desacoplados.
+
 ## 🏗️ Patrones de Diseño Core
 
 ### Hexagonal \u0026 Screaming Architecture

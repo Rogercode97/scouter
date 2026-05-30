@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/Rogercode97/scouter/internal/config"
@@ -37,7 +38,7 @@ Usage:
   scouter <command> [arguments]
 
 Core Commands:
-  index <path>    Index a file or directory for structural intelligence
+  index <path>    Index a file or directory for structural intelligence (--deep for Go SSA)
   search <query>   Search for symbols across AST and historical insights
   predict [diff]  Identify tests affected by current changes
   setup           Interactive environment configuration
@@ -116,7 +117,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		defer closeDB()
 
 		if len(cmdArgs) == 0 {
-			fmt.Fprintf(stderr, "usage: scouter index <path>\n")
+			fmt.Fprintf(stderr, "usage: scouter index <path> [--deep]\n")
 			return 1
 		}
 
@@ -132,6 +133,36 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "index error: %v\n", err)
 			return 1
 		}
+
+		// Mode Deep: High-Precision SSA Analysis (Go only)
+		if flags.Deep {
+			fmt.Fprintf(stdout, "🛡️  Running Mode Deep (SSA Analysis)...\n")
+			
+			// Ensure we have a directory for SSA loading
+			absPath, _ := filepath.Abs(path)
+			info, err := os.Stat(absPath)
+			if err == nil && !info.IsDir() {
+				absPath = filepath.Dir(absPath)
+			}
+			
+			ssaCalls, err := engine.SSACallGraph(ctx, absPath)
+			if err != nil {
+				fmt.Fprintf(stderr, "SSA analysis error: %v\n", err)
+				// Don't fail the whole index if SSA fails (it's a best-effort deep dive)
+			} else {
+				for _, c := range ssaCalls {
+					_ = db.SaveCall(ctx, store.Call{
+						CallerName: c.CallerName,
+						CalleeName: c.CalleeName,
+						LinkType:   c.LinkType,
+						Path:       c.Path,
+						Line:       c.Line,
+					})
+				}
+				fmt.Fprintf(stdout, "✨ Deep Analysis complete (%d high-precision calls found)\n", len(ssaCalls))
+			}
+		}
+
 		duration := time.Since(start).Milliseconds()
 
 		fc, sc, err := db.GetStats(ctx)

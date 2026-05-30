@@ -8,6 +8,7 @@ Guía rápida de navegación para agentes en el codebase de Scouter.
 - `internal/engine/`: Core de inteligencia estructural.
   - `treesitter.go`: Consultas multi-lenguaje (Go, TS, Py, Rs).
   - `parser.go`: Análisis profundo nativo de Go (AST + TypeInfo).
+  - `ssa.go`: Análisis de flujo de datos y resolución de interfaces (Mode Deep).
   - `lsp/`: Gestión de servidores de lenguaje y persistencia (Warp Speed).
   - `impact.go`: Análisis de blast radius y propagación.
 - `internal/mcp/`: Implementación del servidor Model Context Protocol.
