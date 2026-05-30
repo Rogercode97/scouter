@@ -40,6 +40,7 @@ Usage:
 Core Commands:
   index <path>    Index a file or directory for structural intelligence (--deep for Go SSA)
   search <query>   Search for symbols across AST and historical insights
+  graph [filter]   Export the Call Graph in Mermaid format
   predict [diff]  Identify tests affected by current changes
   setup           Interactive environment configuration
   gain [range]    Display token savings and ROI metrics
@@ -172,6 +173,52 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 
 		fmt.Printf("✅ Indexed %s\n", path)
+		return 0
+
+	case "graph":
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+
+		var calls []store.Call
+		filter := ""
+		if len(cmdArgs) > 0 {
+			filter = cmdArgs[0]
+			results, err := db.GetCallees(ctx, filter)
+			if err != nil {
+				fmt.Fprintf(stderr, "error fetching callees: %v\n", err)
+				return 1
+			}
+			calls = results
+
+			// Also get callers to show the immediate context
+			callers, _ := db.GetCallers(ctx, filter, 50, 0)
+			calls = append(calls, callers...)
+		} else {
+			// Get all calls (limited to prevent huge graphs)
+			seq := db.GetAllCalls(ctx)
+			count := 0
+			for call, err := range seq {
+				if err != nil {
+					break
+				}
+				calls = append(calls, call)
+				count++
+				if count > 500 { // Safety limit
+					break
+				}
+			}
+		}
+
+		title := "Scouter Call Graph"
+		if filter != "" {
+			title = fmt.Sprintf("Graph for %s", filter)
+		}
+
+		mermaid := display.ExportMermaid(calls, title)
+		fmt.Fprintln(stdout, mermaid)
 		return 0
 
 	case "search":
