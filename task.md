@@ -6,12 +6,12 @@
 - [x] **Structural Refinement**: Ensure all languages supported by Tree-sitter follow the same hierarchical naming convention for closures.
 
 ## 🛠️ Performance & Scalability
-- [ ] **Index Sharding**: Optimize the SQLite/Bleve index for extremely large codebases (>1M lines).
+- [x] **Index Sharding**: Optimized the storage for extremely large codebases using a horizontal sharding strategy by directory and a Meta-Index (internal/store/sharding.go).
 - [ ] **Zero-Latency LSP**: Further optimize the persistent `gopls` daemon to handle concurrent requests during bulk indexing.
 
 ## 📚 Documentation & UX
 - [ ] **Auto-SABIDURIA**: Implement an agent that automatically updates `SABIDURIA.md` based on significant architectural changes discovered in the AST.
-- [ ] **Visual Call Graph**: Export the Call Graph to Mermaid or Graphviz format directly from the CLI.
+- [x] **Visual Call Graph**: Export the Call Graph to Mermaid format directly from the CLI.
 
 ## 🧪 Testing & Validation
 - [ ] **Cross-Language Integration Tests**: Add more complex fixtures for Python/Rust inter-service calls.

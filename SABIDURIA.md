@@ -21,6 +21,12 @@ El análisis basado en AST simple es limitado para lenguajes con interfaces din�
 - **Activación:** Se activa mediante el flag `--deep` durante la indexación.
 - **Ventaja:** Resuelve llamadas a través de interfaces y punteros con alta precisión, mapeando implementaciones concretas que el análisis sintético no puede detectar. Es fundamental para el "Impact Analysis" en sistemas desacoplados.
 
+### Index Sharding (Enterprise Scale)
+Para manejar codebases de millones de líneas sin degradación de performance, Scouter utiliza un sistema de sharding horizontal.
+- **Estrategia:** Sharding por directorio raíz del proyecto o paquete (`shard-by-directory`).
+- **Meta-Index:** Existe una base de datos maestra (`meta.db`) que actúa como catálogo de shards y almacena información global de dependencias y grafos de llamadas inter-shard.
+- **Beneficio:** Permite paralelismo masivo en la indexación y evita que el índice FTS5 de SQLite crezca hasta volverse ineficiente.
+
 ## 🏗️ Patrones de Diseño Core
 
 ### Hexagonal \u0026 Screaming Architecture
