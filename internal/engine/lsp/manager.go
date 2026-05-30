@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"syscall"
+	"time"
 )
 
 type clientEntry struct {
@@ -28,6 +30,7 @@ type Manager struct {
 
 	// clientCreator allows mocking for tests
 	clientCreator func(ctx context.Context, dir string, binary string, args ...string) (LSPClient, error)
+	warpSpeed     bool
 }
 
 func NewManager() *Manager {
@@ -35,6 +38,7 @@ func NewManager() *Manager {
 	m := &Manager{
 		clients:       clients,
 		clientCreator: NewClient,
+		warpSpeed:     true,
 	}
 	// Go 1.25 native cleanup for the manager singleton
 	// We use the clients map as the anchor to avoid the "ptr is equal to arg" panic
@@ -59,6 +63,7 @@ func (m *Manager) SetClientCreatorForTest(fn func(ctx context.Context, dir strin
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.clientCreator = fn
+	m.warpSpeed = false
 }
 
 func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, error) {
@@ -86,6 +91,7 @@ func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, er
 		m.mu.RUnlock()
 		return nil, fmt.Errorf("lsp manager is closed")
 	}
+	warpSpeed := m.warpSpeed
 	entry, ok := m.clients[ext]
 	m.mu.RUnlock()
 
@@ -109,6 +115,45 @@ func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, er
 		// for the process lifecycle.
 		bgCtx := context.Background()
 		cwd, _ := os.Getwd()
+
+		if warpSpeed && binary == "gopls" {
+			// Persistent Daemon attempt: Try to connect via Unix Socket
+			socketPath := filepath.Join(os.TempDir(), "scouter-gopls.sock")
+			if runtime.GOOS == "android" {
+				// Android/Termux: use $TMPDIR if available for better permission handling
+				if tmp := os.Getenv("TMPDIR"); tmp != "" {
+					socketPath = filepath.Join(tmp, "scouter-gopls.sock")
+				}
+			}
+
+			client, err := NewSocketClient(bgCtx, "unix", socketPath)
+			if err == nil {
+				entry.client = client
+				return
+			}
+
+			// If connection failed, try to start the daemon
+			daemonCmd := exec.Command("gopls", "serve", "-listen=unix;"+socketPath)
+			// Detach from current process group so it persists
+			daemonCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+			if err := daemonCmd.Start(); err == nil {
+				// Give it a tiny moment to create the socket
+				for i := 0; i < 10; i++ {
+					client, err := NewSocketClient(bgCtx, "unix", socketPath)
+					if err == nil {
+						entry.client = client
+						return
+					}
+					select {
+					case <-bgCtx.Done():
+						break
+					default:
+						time.Sleep(100 * time.Millisecond)
+					}
+				}
+			}
+		}
+
 		entry.client, entry.err = m.clientCreator(bgCtx, cwd, binary, args...)
 	})
 

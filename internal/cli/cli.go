@@ -32,7 +32,23 @@ type App struct {
 
 func (app *App) printUsage() {
 	usage := `scouter v%s — CLI Token Killer & Oracle Engine
-... (usage text) ...
+
+Usage:
+  scouter <command> [arguments]
+
+Core Commands:
+  index <path>    Index a file or directory for structural intelligence
+  search <query>   Search for symbols across AST and historical insights
+  predict [diff]  Identify tests affected by current changes
+  setup           Interactive environment configuration
+  gain [range]    Display token savings and ROI metrics
+  mcp             Start the Model Context Protocol (MCP) server
+  ingest          Process external logs for passive health tracking
+
+Options:
+  -v, --verbose   Enable detailed logging
+  --ultra-compact Maximize context efficiency in output
+  --enrich        Enable deep AST enrichment for proxied commands
 `
 	fmt.Fprintf(app.Stdout, usage, version)
 }
@@ -125,6 +141,38 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 
 		fmt.Printf("✅ Indexed %s\n", path)
+		return 0
+
+	case "search":
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+
+		if len(cmdArgs) == 0 {
+			fmt.Fprintf(stderr, "usage: scouter search <query>\n")
+			return 1
+		}
+
+		query := cmdArgs[0]
+		search := engine.NewSearchEngine(db, nil)
+		
+		results, err := search.HybridSearch(ctx, query, 10, 0)
+		if err != nil {
+			fmt.Fprintf(stderr, "search error: %v\n", err)
+			return 1
+		}
+
+		if len(results.Symbols) == 0 {
+			fmt.Fprintf(stdout, "No results found for %q\n", query)
+			return 0
+		}
+
+		fmt.Fprintf(stdout, "🔍 Search results for %q:\n", query)
+		for _, sym := range results.Symbols {
+			fmt.Fprintf(stdout, "- [%s] %s (%s:%d)\n", sym.Type, sym.Name, sym.Path, sym.StartLine)
+		}
 		return 0
 
 	case "ingest":

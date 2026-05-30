@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"strconv"
@@ -30,11 +31,10 @@ type LSPClient interface {
 }
 
 type jsonrpcClient struct {
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
-	reader io.Reader // for testing
-	writer io.Writer // for testing
+	conn   io.ReadWriteCloser
+	reader io.Reader
+	writer io.Writer
+	cmd    *exec.Cmd // Optional: if managed by us
 
 	nextID  atomic.Uint64
 	pending sync.Map // map[uint64]chan *JSONRPCResponse
@@ -60,8 +60,7 @@ func NewClient(ctx context.Context, dir string, binary string, args ...string) (
 
 	c := &jsonrpcClient{
 		cmd:    cmd,
-		stdin:  stdin,
-		stdout: stdout,
+		conn:   nil, // Managed via pipes
 		reader: stdout,
 		writer: stdin,
 		done:   make(chan struct{}),
@@ -70,6 +69,31 @@ func NewClient(ctx context.Context, dir string, binary string, args ...string) (
 	go c.listen()
 
 	// Initialize
+	if err := c.initialize(ctx); err != nil {
+		c.Close()
+		return nil, err
+	}
+
+	return c, nil
+}
+
+// NewSocketClient connects to an existing LSP server via a Unix socket.
+func NewSocketClient(ctx context.Context, network, address string) (LSPClient, error) {
+	var netDialer net.Dialer
+	conn, err := netDialer.DialContext(ctx, network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	c := &jsonrpcClient{
+		conn:   conn,
+		reader: conn,
+		writer: conn,
+		done:   make(chan struct{}),
+	}
+
+	go c.listen()
+
 	if err := c.initialize(ctx); err != nil {
 		c.Close()
 		return nil, err
@@ -89,7 +113,7 @@ func (c *jsonrpcClient) listen() {
 				close(c.done)
 				return
 			}
-			line = strings.TrimRight(line, "\r\n") // Fix: Protocol violation (handle \r\n)
+			line = strings.TrimRight(line, "\r\n")
 			if line == "" {
 				break
 			}
@@ -102,10 +126,10 @@ func (c *jsonrpcClient) listen() {
 			continue
 		}
 
-		// Fix: OOM Vulnerability (cap at 5MB)
-		if contentLength > 5*1024*1024 {
+		// Body size limit: 10MB
+		if contentLength > 10*1024*1024 {
 			close(c.done)
-			return // Disconnect on massive payload
+			return
 		}
 
 		// Read body
@@ -327,8 +351,8 @@ func (c *jsonrpcClient) Close() error {
 	exitData, _ := json.Marshal(exitReq)
 	fmt.Fprintf(c.writer, "Content-Length: %d\r\n\r\n%s", len(exitData), exitData)
 
-	if c.stdin != nil {
-		c.stdin.Close()
+	if c.conn != nil {
+		return c.conn.Close()
 	}
 	if c.cmd != nil && c.cmd.Process != nil {
 		return c.cmd.Process.Kill()
