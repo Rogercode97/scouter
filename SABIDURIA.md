@@ -7,6 +7,7 @@ Este documento resume las decisiones arquitectónicas fundamentales y el "alma" 
 ### Naming de Funciones Anónimas
 Para que un Call Graph sea persistente y útil para el análisis de impacto, los nombres sintéticos de las funciones anónimas (closures/lambdas) deben ser **estables**.
 - **Regla:** Se utiliza el formato jerárquico `Parent.funcN` (ej. `MyClass.MyMethod.func1`).
+- **Unificación:** Esta convención está unificada en todos los lenguajes soportados (Go, TypeScript, Python, Rust) tanto en el motor AST nativo como en el motor Tree-sitter.
 - **Por qué:** Los nombres basados en línea/columna (`func_12_5`) se rompen con cualquier cambio de formato. El nombre jerárquico sobrevive a refactorizaciones locales y permite seguir el flujo de datos de forma lógica.
 
 ### LSP Warp Speed (Persistent Daemon)

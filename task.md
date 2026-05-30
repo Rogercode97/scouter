@@ -3,7 +3,7 @@
 ## 🛡️ Deep AST Intelligence (Wave 15)
 - [x] **SSA-based Call Graph (Go)**: Implement a `--deep` mode using `golang.org/x/tools/go/callgraph/cha` for precise interface/pointer resolution.
 - [ ] **Data Flow Analysis**: Add basic tracking of variable assignments to identify where values are coming from in large functions.
-- [ ] **Structural Refinement**: Ensure all languages supported by Tree-sitter follow the same hierarchical naming convention for closures.
+- [x] **Structural Refinement**: Ensure all languages supported by Tree-sitter follow the same hierarchical naming convention for closures.
 
 ## 🛠️ Performance & Scalability
 - [ ] **Index Sharding**: Optimize the SQLite/Bleve index for extremely large codebases (>1M lines).

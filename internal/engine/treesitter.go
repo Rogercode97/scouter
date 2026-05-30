@@ -77,7 +77,8 @@ func init() {
          (class_definition name: (identifier) @name) @class
          (class_definition name: (identifier) @recv body: (block (function_definition name: (identifier) @name) @method))
          (class_definition name: (identifier) @recv body: (block (decorated_definition (function_definition name: (identifier) @name) @method)))
-         (class_definition name: (identifier) @recv body: (block (expression_statement (assignment left: (identifier) @name right: (lambda))))) @method`,
+         (class_definition name: (identifier) @recv body: (block (expression_statement (assignment left: (identifier) @name right: (lambda))))) @method
+         (lambda) @function`,
 		`(call function: [(identifier) (attribute)] @callee)`,
 		`(import_statement name: (dotted_name) @import) (import_from_statement module_name: (dotted_name) @import)`)
 
@@ -88,7 +89,8 @@ func init() {
          (struct_item name: (type_identifier) @name) @class
          (trait_item name: (type_identifier) @name) @interface
          (impl_item type: (type_identifier) @recv body: (declaration_list (function_item name: (identifier) @name) @method))
-         (trait_item name: (type_identifier) @iname body: (declaration_list (function_item name: (identifier) @mname) @interface_spec))`,
+         (trait_item name: (type_identifier) @iname body: (declaration_list (function_item name: (identifier) @mname) @interface_spec))
+         (closure_expression) @function`,
 		`(call_expression function: [(identifier) (field_expression)] @callee)
          (impl_item trait: (type_identifier) @trait_name type: (type_identifier) @type_name) @impl_block`,
 		`(use_declaration argument: (_) @import)`)
@@ -182,9 +184,9 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 				}
 			}
 
-			// Capture anonymous functions (closures/lambdas)
-			if symType == "function" && name == "" && symNode != nil {
-				parentName := "global"
+			// Calculate hierarchical parent name
+			parentName := "global"
+			if symNode != nil {
 				curr := symNode.Parent()
 				for curr != nil {
 					if n, ok := names[curr.EndByte()]; ok {
@@ -193,8 +195,16 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 					}
 					curr = curr.Parent()
 				}
-				anonCounters[parentName]++
-				name = fmt.Sprintf("%s.func%d", parentName, anonCounters[parentName])
+			}
+
+			// Capture anonymous functions (closures/lambdas)
+			if symType == "function" && name == "" && symNode != nil {
+				p := parentName
+				if p == "" {
+					p = "global"
+				}
+				anonCounters[p]++
+				name = fmt.Sprintf("func%d", anonCounters[p])
 			}
 
 			// Handle normal symbols
@@ -202,6 +212,8 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 				fullName := name
 				if recv != "" {
 					fullName = recv + "." + name
+				} else if parentName != "" && parentName != "global" {
+					fullName = parentName + "." + name
 				}
 
 				names[symNode.EndByte()] = fullName
@@ -262,34 +274,47 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 		counters := make(map[string]int)
 		for {
 			m, ok := ptrCursor.NextMatch()
-			if !ok { break }
+			if !ok {
+				break
+			}
 			var name, symType, recv string
 			var node *gotreesitter.Node
 			for _, cap := range m.Captures {
-				if cap.Name == "name" { name = cap.Node.Text(content) }
-				if cap.Name == "recv" { recv = cap.Node.Text(content) }
+				if cap.Name == "name" {
+					name = cap.Node.Text(content)
+				}
+				if cap.Name == "recv" {
+					recv = cap.Node.Text(content)
+				}
 				if cap.Name == "function" || cap.Name == "method" || cap.Name == "class" || cap.Name == "interface" {
 					symType = cap.Name
 					node = cap.Node
 				}
 			}
 			if node != nil {
-				if name == "" && symType == "function" {
-					pName := "global"
-					curr := node.Parent()
-					for curr != nil {
-						if n, ok := symbolNames[curr.EndByte()]; ok {
-							pName = n
-							break
-						}
-						curr = curr.Parent()
+				// Calculate hierarchical parent name
+				pName := "global"
+				curr := node.Parent()
+				for curr != nil {
+					if n, ok := symbolNames[curr.EndByte()]; ok {
+						pName = n
+						break
 					}
-					counters[pName]++
-					name = fmt.Sprintf("%s.func%d", pName, counters[pName])
+					curr = curr.Parent()
 				}
+
+				if name == "" && symType == "function" {
+					counters[pName]++
+					name = fmt.Sprintf("func%d", counters[pName])
+				}
+
 				if name != "" {
 					fullName := name
-					if recv != "" { fullName = recv + "." + name }
+					if recv != "" {
+						fullName = recv + "." + name
+					} else if pName != "" && pName != "global" {
+						fullName = pName + "." + name
+					}
 					symbolNames[node.EndByte()] = fullName
 				}
 			}
