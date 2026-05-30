@@ -3,10 +3,88 @@ package engine
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/types"
 )
+
+func TestStreamWithTreeSitter_Anonymous(t *testing.T) {
+	t.Run("Go", func(t *testing.T) {
+		content := []byte(`
+			package main
+			func main() {
+				go func() {
+					println("hello")
+				}()
+				f := func(x int) {
+					println(x)
+				}
+				f(1)
+			}
+		`)
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "test.go")
+		os.WriteFile(filePath, content, 0644)
+
+		ctx := t.Context()
+		pointersIt, _, err := StreamWithTreeSitter(ctx, filePath)
+		if err != nil {
+			t.Fatalf("StreamWithTreeSitter failed: %v", err)
+		}
+
+		var pointers []types.ASTPointer
+		for p := range pointersIt {
+			pointers = append(pointers, p)
+		}
+
+		foundAnon := 0
+		for _, p := range pointers {
+			if strings.Contains(p.Name, ".func") {
+				foundAnon++
+			}
+		}
+		// Expecting at least 2: the goroutine closure and the variable assignment closure
+		if foundAnon < 2 {
+			t.Errorf("expected at least 2 anonymous functions, got %d", foundAnon)
+		}
+	})
+
+	t.Run("TypeScript", func(t *testing.T) {
+		content := []byte(`
+			const anon = () => { console.log("hello") };
+			[1, 2].forEach(x => console.log(x));
+			function named() {
+				return function() { return 42 };
+			}
+		`)
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "test.ts")
+		os.WriteFile(filePath, content, 0644)
+
+		ctx := t.Context()
+		pointersIt, _, err := StreamWithTreeSitter(ctx, filePath)
+		if err != nil {
+			t.Fatalf("StreamWithTreeSitter failed: %v", err)
+		}
+
+		var pointers []types.ASTPointer
+		for p := range pointersIt {
+			pointers = append(pointers, p)
+		}
+
+		foundAnon := 0
+		for _, p := range pointers {
+			if strings.Contains(p.Name, ".func") {
+				foundAnon++
+			}
+		}
+		// Expecting 3: arrow function 'anon', arrow function in 'forEach', and function expression in 'named'
+		if foundAnon < 3 {
+			t.Errorf("expected at least 3 anonymous functions, got %d", foundAnon)
+		}
+	})
+}
 
 func TestStreamWithTreeSitter_Calls(t *testing.T) {
 	// Create a sample TS file

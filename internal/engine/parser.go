@@ -92,6 +92,9 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 	tsTree, _ = tsParser.Parse(tsContent)
 
 	// We return closures that perform the AST inspection lazily
+	names := make(map[ast.Node]string)
+	anonCounters := make(map[string]int)
+
 	return func(yield func(types.ASTPointer) bool) {
 			select {
 			case <-ctx.Done():
@@ -165,11 +168,67 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 						StructuralHash: structuralHash,
 						Metrics:        metrics,
 					}
+					names[fn] = fullName
 					if !yield(p) {
 						stopped = true
 						return false
 					}
 				}
+
+				// Capture anonymous functions (closures/lambdas)
+				if fl, ok := n.(*ast.FuncLit); ok {
+					startPos := fset.Position(fl.Pos())
+					endPos := fset.Position(fl.End())
+
+					// Determine parent name for hierarchical synthetic naming
+					parentName := "global"
+					for i := len(stack) - 1; i >= 0; i-- {
+						p := stack[i]
+						if name, ok := names[p]; ok {
+							parentName = name
+							break
+						}
+					}
+
+					symType := "function"
+					// Generate stable hierarchical name: Parent.funcN
+					counterKey := pkgPath + ":" + parentName
+					anonCounters[counterKey]++
+					fullName := fmt.Sprintf("%s.func%d", parentName, anonCounters[counterKey])
+
+					signature := extractSignature(fl.Type)
+					content := fmt.Sprintf("%s:%s:%s:%d:%d", symType, fullName, signature, startPos.Offset, endPos.Offset)
+					h := sha256.Sum256([]byte(content))
+
+					var structuralHash string
+					var metrics *types.SemanticMetrics
+					if tsTree != nil {
+						root := tsTree.RootNode()
+						tsNode := root.NamedDescendantForByteRange(uint32(startPos.Offset), uint32(endPos.Offset))
+						structuralHash = GetStructuralHash(tsNode, tsContent, grammars.GoLanguage())
+					}
+					metrics = computeGoMetrics(fl)
+
+					p := types.ASTPointer{
+						Type:           symType,
+						Name:           fullName,
+						PackagePath:    pkgPath,
+						Signature:      signature,
+						Range:          types.Range{Start: startPos.Offset, End: endPos.Offset},
+						StartLine:      startPos.Line,
+						StartCol:       startPos.Column,
+						EndLine:        endPos.Line,
+						Hash:           hex.EncodeToString(h[:]),
+						StructuralHash: structuralHash,
+						Metrics:        metrics,
+					}
+					names[fl] = fullName
+					if !yield(p) {
+						stopped = true
+						return false
+					}
+				}
+
 
 				// Capture Structs and Interfaces from GenDecl
 				if gd, ok := n.(*ast.GenDecl); ok && gd.Tok == token.TYPE {
@@ -269,12 +328,9 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 			default:
 			}
 
-			names := make(map[ast.Node]string)
 			// Track types of parameters/variables in the current function scope
 			scopeTypes := make(map[ast.Node]map[string]string)
 			
-			anonCounts := make(map[ast.Node]int)
-			globalAnonCount := 0
 			stopped := false
 
 			ast.PreorderStack(file, nil, func(n ast.Node, stack []ast.Node) bool {
@@ -294,18 +350,6 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 				}
 
 				if fn, ok := n.(*ast.FuncDecl); ok {
-					fullName := fn.Name.Name
-
-					if fn.Recv != nil && len(fn.Recv.List) > 0 {
-						recvType, _ := extractMethodReceiver(fn)
-						if recvType != "" {
-							fullName = recvType + "." + fn.Name.Name
-						}
-					}
-					
-					// [Omniscience] Use FQN for function names in the scope map
-					names[fn] = pkgPath + "." + fullName
-					
 					// Capture parameter types
 					fScope := make(map[string]string)
 					if fn.Type.Params != nil {
@@ -319,32 +363,6 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 						}
 					}
 					scopeTypes[fn] = fScope
-				} else if fn, ok := n.(*ast.FuncLit); ok {
-					parentName := "global"
-					var parentNode ast.Node
-					for i := len(stack) - 1; i >= 0; i-- {
-						p := stack[i]
-						if _, ok := p.(*ast.FuncDecl); ok {
-							parentNode = p
-							parentName = names[p]
-							break
-						}
-						if _, ok := p.(*ast.FuncLit); ok {
-							parentNode = p
-							parentName = names[p]
-							break
-						}
-					}
-					var count int
-					if parentNode != nil {
-						anonCounts[parentNode]++
-						count = anonCounts[parentNode]
-					} else {
-						globalAnonCount++
-						count = globalAnonCount
-					}
-					anonName := fmt.Sprintf("%s.func%d", parentName, count)
-					names[fn] = anonName
 				}
 
 				if call, ok := n.(*ast.CallExpr); ok {
@@ -360,6 +378,13 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 					}
 
 					if callerName != "" {
+						// Prepend pkgPath if it's not already qualified and not an anonymous function
+						if !strings.Contains(callerName, "/") && !strings.HasPrefix(callerName, "global.func") && !strings.Contains(callerName, ".func") {
+							callerName = pkgPath + "." + callerName
+						} else if strings.Contains(callerName, ".func") && !strings.HasPrefix(callerName, pkgPath+".") {
+							callerName = pkgPath + "." + callerName
+						}
+
 						calleeName, calleePath := resolveCallee(call.Fun, validatedPath)
 						
 						calleeName = resolveTypeInfoCallee(call, pkg, currentScope, pkgPath, calleeName)
@@ -399,24 +424,13 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 }
 // resolveCallee attempts to get the name and potential path of the function being called.
 func resolveCallee(fun ast.Expr, currentPath string) (string, string) {
-	switch f := fun.(type) {
-	case *ast.Ident:
-		// Package-level call or local variable.
-		// We return an empty path to allow the store to resolve it globally within the package/project.
-		// Returning currentPath is incorrect for multi-file packages (Divine Fix).
-		return f.Name, ""
-	case *ast.SelectorExpr:
-		// Potential call to another package or a method on a struct
-		if x, ok := f.X.(*ast.Ident); ok {
-			// Heuristic: if X is lowercase, it might be a variable (method call).
-			// If X is Uppercase, it might be a package name.
-			// For now, we return the selector string.
-			return x.Name + "." + f.Sel.Name, ""
-		}
-		return f.Sel.Name, ""
-	default:
+	name := exprToString(fun)
+	if name == "unknown" || name == "" {
 		return "", ""
 	}
+	// Note: we don't return currentPath here because the store/linker 
+	// handles global resolution within the project context.
+	return name, ""
 }
 
 // ReadFragment reads a specific code fragment from a file within the given range.

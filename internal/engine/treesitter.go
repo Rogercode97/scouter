@@ -34,8 +34,9 @@ func init() {
 	goLang := grammars.GoLanguage()
 	registerLanguage(".go", goLang,
 		`(function_declaration name: (identifier) @name) @function 
-         (method_declaration name: (field_identifier) @name) @method`,
-		`(call_expression function: (identifier) @callee) (call_expression function: (selector_expression field: (field_identifier) @callee))`,
+         (method_declaration name: (field_identifier) @name) @method
+         (func_literal) @function`,
+		`(call_expression function: [(identifier) (selector_expression)] @callee)`,
 		`(import_spec path: [(interpreted_string_literal) (raw_string_literal)] @import)`)
 
 	// TS Configuration
@@ -43,16 +44,22 @@ func init() {
 	tsQuery := `(class_declaration name: (type_identifier) @name) @class 
          (function_declaration name: (identifier) @name) @function 
          (generator_function_declaration name: (identifier) @name) @function
-         (variable_declarator name: (identifier) @name value: (arrow_function)) @function
+         (variable_declarator name: (identifier) @name value: [(arrow_function) (function_expression)]) @function
          (method_definition name: (property_identifier) @name) @method 
+         (public_field_definition name: (property_identifier) @name value: [(arrow_function) (function_expression)]) @method
+         (pair key: (property_identifier) @name value: [(arrow_function) (function_expression)]) @method
+         (arrow_function) @function
+         (function_expression) @function
          (interface_declaration name: (type_identifier) @name) @interface
          (interface_declaration name: (type_identifier) @iname body: (interface_body (method_signature name: (property_identifier) @mname) @interface_spec))
          (call_expression 
            function: (member_expression property: (property_identifier) @pname (#match? @pname "^(registerTool|registerResource|registerPrompt|tool|resource|prompt)$"))
            arguments: (arguments (string (string_fragment) @name))) @mcp_entry`
-	tsCallQuery := `(call_expression function: (identifier) @callee) 
-                    (call_expression function: (member_expression property: (property_identifier) @callee))
-                    (call_expression function: (member_expression object: (identifier) @obj property: (property_identifier) @callee))`
+	tsCallQuery := `(call_expression function: [
+                      (identifier) @callee
+                      (member_expression property: (property_identifier) @callee)
+                      (member_expression object: (member_expression property: (property_identifier))) @callee
+                    ])`
 	tsImportQuery := `(import_statement source: (string) @import)`
 
 	registerLanguage(".ts", tsLang, tsQuery, tsCallQuery, tsImportQuery)
@@ -69,8 +76,9 @@ func init() {
 		`(function_definition name: (identifier) @name) @function 
          (class_definition name: (identifier) @name) @class
          (class_definition name: (identifier) @recv body: (block (function_definition name: (identifier) @name) @method))
-         (class_definition name: (identifier) @recv body: (block (decorated_definition (function_definition name: (identifier) @name) @method)))`,
-		`(call function: (identifier) @callee) (call function: (attribute attribute: (identifier) @callee))`,
+         (class_definition name: (identifier) @recv body: (block (decorated_definition (function_definition name: (identifier) @name) @method)))
+         (class_definition name: (identifier) @recv body: (block (expression_statement (assignment left: (identifier) @name right: (lambda))))) @method`,
+		`(call function: [(identifier) (attribute)] @callee)`,
 		`(import_statement name: (dotted_name) @import) (import_from_statement module_name: (dotted_name) @import)`)
 
 	// Rust Configuration
@@ -81,8 +89,7 @@ func init() {
          (trait_item name: (type_identifier) @name) @interface
          (impl_item type: (type_identifier) @recv body: (declaration_list (function_item name: (identifier) @name) @method))
          (trait_item name: (type_identifier) @iname body: (declaration_list (function_item name: (identifier) @mname) @interface_spec))`,
-		`(call_expression function: (identifier) @callee)
-         (call_expression function: (field_expression field: (field_identifier) @callee))
+		`(call_expression function: [(identifier) (field_expression)] @callee)
          (impl_item trait: (type_identifier) @trait_name type: (type_identifier) @type_name) @impl_block`,
 		`(use_declaration argument: (_) @import)`)
 }
@@ -141,6 +148,9 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 
 	pointerIter := func(yield func(types.ASTPointer) bool) {
 		cursor := config.Query.Exec(tree.RootNode(), lang, content)
+		names := make(map[uint32]string) // map node end byte to name
+		anonCounters := make(map[string]int)
+
 		for {
 			match, ok := cursor.NextMatch()
 			if !ok {
@@ -172,12 +182,29 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 				}
 			}
 
+			// Capture anonymous functions (closures/lambdas)
+			if symType == "function" && name == "" && symNode != nil {
+				parentName := "global"
+				curr := symNode.Parent()
+				for curr != nil {
+					if n, ok := names[curr.EndByte()]; ok {
+						parentName = n
+						break
+					}
+					curr = curr.Parent()
+				}
+				anonCounters[parentName]++
+				name = fmt.Sprintf("%s.func%d", parentName, anonCounters[parentName])
+			}
+
 			// Handle normal symbols
 			if name != "" && symType != "interface_spec" && symNode != nil {
 				fullName := name
 				if recv != "" {
 					fullName = recv + "." + name
 				}
+
+				names[symNode.EndByte()] = fullName
 
 				doc := extractDoc(symNode, content, ext, lang)
 				h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s", symType, fullName)))
@@ -225,6 +252,49 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 
 	callIter := func(yield func(types.ASTCall) bool) {
 		cursor := config.CallQuery.Exec(tree.RootNode(), lang, content)
+		// We need a second pass or shared state to resolve CallerNames for anonymous functions correctly
+		// Since pointerIter is separate, we'll re-calculate or use a heuristic inside findTSCaller.
+		// For consistency, let's use the same heuristic in findTSCaller but we need to track local counters.
+		// Actually, we can pre-calculate all symbol names.
+		
+		symbolNames := make(map[uint32]string)
+		ptrCursor := config.Query.Exec(tree.RootNode(), lang, content)
+		counters := make(map[string]int)
+		for {
+			m, ok := ptrCursor.NextMatch()
+			if !ok { break }
+			var name, symType, recv string
+			var node *gotreesitter.Node
+			for _, cap := range m.Captures {
+				if cap.Name == "name" { name = cap.Node.Text(content) }
+				if cap.Name == "recv" { recv = cap.Node.Text(content) }
+				if cap.Name == "function" || cap.Name == "method" || cap.Name == "class" || cap.Name == "interface" {
+					symType = cap.Name
+					node = cap.Node
+				}
+			}
+			if node != nil {
+				if name == "" && symType == "function" {
+					pName := "global"
+					curr := node.Parent()
+					for curr != nil {
+						if n, ok := symbolNames[curr.EndByte()]; ok {
+							pName = n
+							break
+						}
+						curr = curr.Parent()
+					}
+					counters[pName]++
+					name = fmt.Sprintf("%s.func%d", pName, counters[pName])
+				}
+				if name != "" {
+					fullName := name
+					if recv != "" { fullName = recv + "." + name }
+					symbolNames[node.EndByte()] = fullName
+				}
+			}
+		}
+
 		for {
 			match, ok := cursor.NextMatch()
 			if !ok {
@@ -273,7 +343,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 				}
 
 				c := types.ASTCall{
-					CallerName: findTSCaller(callNode, content, lang),
+					CallerName: findTSCaller(callNode, content, lang, symbolNames),
 					CalleeName: callee,
 					CalleePath: calleePath,
 					LinkType:   "call",
@@ -290,35 +360,11 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 	return pointerIter, callIter, nil
 }
 
-func findTSCaller(node *gotreesitter.Node, content []byte, lang *gotreesitter.Language) string {
+func findTSCaller(node *gotreesitter.Node, content []byte, lang *gotreesitter.Language, symbolNames map[uint32]string) string {
 	curr := node.Parent()
 	for curr != nil {
-		kind := curr.Type(lang)
-		if kind == "function_definition" || kind == "function_declaration" || kind == "method_definition" || kind == "method_declaration" || kind == "function_item" {
-			recvName := ""
-			parentClass := curr.Parent()
-			for parentClass != nil {
-				if parentClass.Type(lang) == "class_declaration" || parentClass.Type(lang) == "class_definition" {
-					if nameNode := parentClass.ChildByFieldName("name", lang); nameNode != nil {
-						recvName = nameNode.Text(content)
-						break
-					}
-				} else if parentClass.Type(lang) == "impl_item" {
-					if typeNode := parentClass.ChildByFieldName("type", lang); typeNode != nil {
-						recvName = typeNode.Text(content)
-						break
-					}
-				}
-				parentClass = parentClass.Parent()
-			}
-
-			if name := curr.ChildByFieldName("name", lang); name != nil {
-				methodName := name.Text(content)
-				if recvName != "" {
-					return recvName + "." + methodName
-				}
-				return methodName
-			}
+		if name, ok := symbolNames[curr.EndByte()]; ok {
+			return name
 		}
 		curr = curr.Parent()
 	}
