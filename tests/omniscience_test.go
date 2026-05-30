@@ -65,8 +65,7 @@ func TestOmniscienceCallHierarchy(t *testing.T) {
 		}
 	}
 
-	mgr := lsp.NewManager()
-	defer mgr.Close()
+	mgr := lsp.GetGlobalManager()
 
 	client, err := mgr.GetClient(ctx, absPath)
 	if err != nil {

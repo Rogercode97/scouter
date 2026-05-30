@@ -16,6 +16,11 @@ type clientEntry struct {
 	once   sync.Once
 }
 
+var (
+	globalManager *Manager
+	globalOnce    sync.Once
+)
+
 type Manager struct {
 	clients map[string]*clientEntry
 	mu      sync.RWMutex
@@ -41,6 +46,13 @@ func NewManager() *Manager {
 		}
 	}, clients)
 	return m
+}
+
+func GetGlobalManager() *Manager {
+	globalOnce.Do(func() {
+		globalManager = NewManager()
+	})
+	return globalManager
 }
 
 func (m *Manager) SetClientCreatorForTest(fn func(ctx context.Context, dir string, binary string, args ...string) (LSPClient, error)) {

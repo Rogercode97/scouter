@@ -105,7 +105,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 
 		path := cmdArgs[0]
-		lspMgr := lsp.NewManager()
+		lspMgr := lsp.GetGlobalManager()
 		defer lspMgr.Close()
 		
 		analyzer := engine.NewAnalysisEngine(db)

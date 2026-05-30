@@ -177,7 +177,7 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 
 		p.mu.Lock()
 		if p.LSPManager == nil {
-			p.LSPManager = lsp.NewManager()
+			p.LSPManager = lsp.GetGlobalManager()
 		}
 		p.mu.Unlock()
 

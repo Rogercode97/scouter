@@ -36,7 +36,7 @@ func init() {
 		`(function_declaration name: (identifier) @name) @function 
          (method_declaration name: (field_identifier) @name) @method`,
 		`(call_expression function: (identifier) @callee) (call_expression function: (selector_expression field: (field_identifier) @callee))`,
-		`(import_spec path: (string_literal) @import)`)
+		`(import_spec path: [(interpreted_string_literal) (raw_string_literal)] @import)`)
 
 	// TS Configuration
 	tsLang := grammars.TypescriptLanguage()

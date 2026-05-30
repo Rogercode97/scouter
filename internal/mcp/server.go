@@ -54,7 +54,7 @@ func NewServer(st store.Store, logger *slog.Logger) *Server {
 		mcpServer: mcp.NewServer(implementation, opts),
 		store:    st,
 		resolver: NewPointerResolver(st),
-		lspMgr:    lsp.NewManager(),
+		lspMgr:    lsp.GetGlobalManager(),
 		logger:    logger,
 		chronos:   engine.NewChronosEngine(),
 		snapshots: make(map[string]*engine.ChronosSnapshot),

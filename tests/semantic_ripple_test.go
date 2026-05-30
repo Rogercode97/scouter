@@ -51,8 +51,7 @@ func TestSemanticRipple_CrossPackage(t *testing.T) {
 	analyzer := engine.NewAnalysisEngine(db)
 	analyzer.ProjectRoot = fixtureDir
 	
-	lspMgr := lsp.NewManager()
-	defer lspMgr.Close()
+	lspMgr := lsp.GetGlobalManager()
 	
 	te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer), engine.WithLSP(lspMgr))
 	

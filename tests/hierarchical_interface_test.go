@@ -80,8 +80,7 @@ func UseB(b B) {
 		t.Fatalf("failed to resolve: %v", err)
 	}
 
-	lspMgr := lsp.NewManager()
-	defer lspMgr.Close()
+	lspMgr := lsp.GetGlobalManager()
 	impact := engine.NewImpactEngine(st, lspMgr, nil)
 	strategy := engine.NewBFSPropagationStrategy(st, impact)
 

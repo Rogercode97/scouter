@@ -62,3 +62,14 @@ func TestLSPManager(t *testing.T) {
 		t.Errorf("Client not cached")
 	}
 }
+
+func TestGlobalManager(t *testing.T) {
+	m1 := GetGlobalManager()
+	if m1 == nil {
+		t.Fatal("Expected GetGlobalManager to return a non-nil instance")
+	}
+	m2 := GetGlobalManager()
+	if m1 != m2 {
+		t.Error("Expected GetGlobalManager to return the same instance across calls")
+	}
+}
