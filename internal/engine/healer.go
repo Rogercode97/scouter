@@ -11,15 +11,17 @@ import (
 
 	"golang.org/x/tools/imports"
 
-	"github.com/Rogercode97/scouter/internal/filter"
+	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
+	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
-	)
+	"github.com/cinar/resile"
+)
 
-	// HealerEngine manages the autonomous RCA -> Fix -> Verify loop using the Shinigami Protocol.
-	type HealerEngine struct {
+// HealerEngine manages the autonomous RCA -> Fix -> Verify loop using the Shinigami Protocol.
+type HealerEngine struct {
 	store    TransactionalStore
 	analyzer *AnalysisEngine
 	impact   *ImpactEngine
@@ -28,17 +30,19 @@ import (
 
 	// Bridge to MCP sampling
 	DoFixRequest func(ctx context.Context, prompt string) (string, error)
-	
+
 	Search *SearchEngine
+	memory memory.MemoryProvider
 }
 
-func NewHealerEngine(s TransactionalStore, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine, search *SearchEngine) *HealerEngine {
+func NewHealerEngine(s TransactionalStore, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine, search *SearchEngine, mem memory.MemoryProvider) *HealerEngine {
 	return &HealerEngine{
 		store:    s,
 		lspMgr:   l,
 		analyzer: a,
 		impact:   i,
 		Search:   search,
+		memory:   mem,
 		Ledger:   NewLedger(),
 	}
 }
@@ -56,7 +60,7 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 	}
 
 	// 2. Resolve Context
-	itPointers, _, err := StreamSymbols(ctx, failingFile)
+	itPointers, _, _, err := StreamSymbols(ctx, failingFile)
 	if err != nil {
 		return nil, err
 	}
@@ -98,15 +102,44 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 		return nil, fmt.Errorf("failed to stage fix: %w", err)
 	}
 
+	e.recordInoculation(ctx, target, failingFile, errorLog)
+
 	return &types.HealResult{
 		Status:    "STAGED",
 		FixedCode: bestCandidate.code,
 		Metadata: map[string]string{
-			"failingFile": failingFile,
-			"method": "shinigami-parallel-sampling",
+			"failingFile":    failingFile,
+			"method":         "shinigami-parallel-sampling",
 			"ledger_summary": e.Ledger.Summary(),
 		},
 	}, nil
+}
+
+func (e *HealerEngine) recordInoculation(ctx context.Context, target *types.ASTPointer, failingFile, errorLog string) {
+	if e.memory == nil {
+		return
+	}
+
+	// Extract a brief reason for RCA
+	lines := strings.Split(errorLog, "\n")
+	reason := "Autonomous repair"
+	if len(lines) > 0 && len(lines[0]) > 0 {
+		reason = lines[0]
+	}
+
+	content := fmt.Sprintf("**What**: Autonomous repair of failing test\n**Why**: %s\n**Where**: %s\n**Learned**: Successful Shinigami intervention", reason, failingFile)
+
+	symbolID := utils.SymbolSignatureHash(target.Name, failingFile, target.Signature)
+	topic := "scouter/risk/" + symbolID
+
+	mem := memory.DistilledMemory{
+		Title:   fmt.Sprintf("Healer Fix: %s", target.Name),
+		Type:    "bugfix",
+		Content: content,
+		Topic:   topic,
+	}
+
+	_ = e.memory.SaveObservation(ctx, utils.GetRepoName(ctx), mem)
 }
 
 func extractRCA(errorLog string) (string, int, [][]string, error) {
@@ -130,11 +163,11 @@ func extractRCA(errorLog string) (string, int, [][]string, error) {
 func (e *HealerEngine) buildHealerContext(ctx context.Context, target *types.ASTPointer, failingFile, errorLog string, allMatches [][]string, originalCode string) string {
 	var contextBuilder strings.Builder
 	contextBuilder.WriteString(fmt.Sprintf("Failing File: %s\nTarget: %s\nError:\n%s\n\n", failingFile, target.Name, errorLog))
-	
+
 	for _, match := range allMatches {
 		f := match[1]
 		l, _ := strconv.Atoi(match[2])
-		
+
 		if e.lspMgr != nil {
 			client, err := e.lspMgr.GetClient(ctx, f)
 			if err == nil {
@@ -151,7 +184,7 @@ func (e *HealerEngine) buildHealerContext(ctx context.Context, target *types.AST
 		}
 	}
 	contextBuilder.WriteString("\nCode:\n" + originalCode)
-	
+
 	risk, _ := e.impact.Analyze(ctx, target.Name, failingFile, 1)
 	if risk != nil {
 		contextBuilder.WriteString(fmt.Sprintf("\n\nCurrent Risk Score: %.2f (%s)", risk.Target.RiskScore, risk.RiskLevel))
@@ -182,12 +215,14 @@ func (e *HealerEngine) sampleParallelFixes(ctx context.Context, prompt string, f
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			resRaw, err := e.DoFixRequest(ctx, prompt+"\n\nProvide solution variant #"+strconv.Itoa(id))
+			resRaw, err := resile.Do(ctx, func(c context.Context) (string, error) {
+				return e.DoFixRequest(c, prompt+"\n\nProvide solution variant #"+strconv.Itoa(id))
+			}, resile.WithRetry(3))
 			if err == nil {
 				candidateCode := utils.ExtractCodeBlock(resRaw)
-				
+
 				newContent := string(fullContent[:target.Range.Start]) + candidateCode + string(fullContent[target.Range.End:])
-				
+
 				processedContent, err := imports.Process(failingFile, []byte(newContent), nil)
 				if err != nil {
 					processedContent = []byte(newContent)
@@ -199,7 +234,7 @@ func (e *HealerEngine) sampleParallelFixes(ctx context.Context, prompt string, f
 					Original:   string(fullContent),
 					NewContent: string(processedContent),
 				})
-				
+
 				validator := NewLSPValidator("")
 
 				select {
@@ -236,15 +271,15 @@ func (e *HealerEngine) sampleParallelFixes(ctx context.Context, prompt string, f
 	close(candidates)
 
 	var bestCandidate *fixCandidate
-	
+
 	for c := range candidates {
 		if !c.valid {
 			continue
 		}
 
 		curr := c
-		curr.score = 1.0 
-		
+		curr.score = 1.0
+
 		if len(curr.code) > len(originalCode)*2 {
 			curr.score -= 0.3
 		}
@@ -263,7 +298,7 @@ func (e *HealerEngine) sampleParallelFixes(ctx context.Context, prompt string, f
 
 // Index parses and persists a file. (Internal helper for HealerEngine)
 func (e *HealerEngine) Index(ctx context.Context, path string) error {
-	itPointers, itCalls, err := StreamSymbols(ctx, path)
+	itPointers, itCalls, _, err := StreamSymbols(ctx, path)
 	if err != nil {
 		return err
 	}
@@ -365,7 +400,7 @@ func (e *HealerEngine) DiagnoseHUD(ctx context.Context, errorLog string) (*Diagn
 	}
 
 	// 3. Visión de Rayos X (AST)
-	itPointers, _, err := StreamSymbols(ctx, failingFile)
+	itPointers, _, _, err := StreamSymbols(ctx, failingFile)
 	if err != nil {
 		return nil, err
 	}
