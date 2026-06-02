@@ -1,100 +1,108 @@
-<p align="center">
-  <img width="1024" alt="Scouter — Structural Intelligence Engine" src="assets/scouter-banner.png" />
-</p>
+# Scouter: Structural Intelligence Engine
 
-<p align="center">
-  <strong>Structural Analysis & Reconnaissance for AI Agents</strong><br>
-  <em>Deep AST inspection. Impact analysis. Automated healing.</em>
-</p>
+**Structural Analysis & Reconnaissance for AI Agents**
+Deep AST inspection, Impact analysis, and Automated healing.
 
-<p align="center">
-  <a href="#-quick-start">Quick Start</a> &bull;
-  <a href="docs/INSTALLATION.md">Installation</a> &bull;
-  <a href="docs/AGENT-SETUP.md">Agent Setup</a> &bull;
-  <a href="docs/MCP-REFERENCE.md">MCP Reference</a> &bull;
-  <a href="docs/ARCHITECTURE.md">Architecture</a> &bull;
-  <a href="docs/CODEBASE-GUIDE.md">Codebase Guide</a> &bull;
-  <a href="CONTRIBUTING.md">Contributing</a>
-</p>
+Scouter is the tactical visor for your AI coding agents. While memory systems provide context, Scouter provides the structural eyes. Instead of parsing plain text, Scouter parses and navigates the Abstract Syntax Tree (AST), bringing precision to autonomous code operations.
 
----
+## Overview
 
-> **scouter** `/ˈskaʊ.tər/` — _reconnaissance_: a tool that explores codebases to gather structural intelligence and predict the impact of changes.
+Scouter uses Tree-sitter for robust code parsing, indexes structures into SQLite and Bleve, and provides structural intelligence via the Model Context Protocol (MCP). It equips AI agents with 25+ specialized tools to safely navigate, analyze, and modify complex codebases.
 
-**Scouter** is the "tactical visor" for your AI coding agents. While [Engram](https://github.com/Gentleman-Programming/engram) provides the **Brain** (Memory), Scouter provides the **Eyes** (Structural Analysis). While others see text, Scouter sees the **Abstract Syntax Tree (AST)**.
+### Core Capabilities
 
-```mermaid
-graph TD
-    Agent[AI Agent: Gemini / Claude / Cursor] -->|MCP / CLI| Scouter[Scouter Engine]
-    Scouter -->|Analyzes| AST[AST Store: SQLite + Tree-sitter]
-    Scouter -->|Calculates| Impact[Blast Radius & Impact Analysis]
-    Scouter -->|Executes| Healing[Autonomous Root Cause Analysis]
-    Scouter -->|Verifies| Ledger[Staging Ledger & Validation]
-```
+- **AST Mapping & Inspection**: Surgical analysis via `ast_map`, `ast_read`, `ast_search`, and `ast_neighborhood` to minimize context noise.
+- **Impact Analysis (Blast Radius)**: Calculate exactly which files and symbols will break before modifying the code using `risk_impact` and `risk_predict`.
+- **Autonomous Healing**: Automated Root Cause Analysis (RCA) that fixes tests and verifies the solution in a closed loop (`scouter_heal`).
+- **Ripple Protocol**: Atomic, multi-file symbol refactoring that maintains structural integrity (`ledger_ripple`, `ledger_evolve`).
+- **Staging Ledger**: All mutations are staged in memory and strictly validated before they are committed to disk (`ledger_commit`, `ledger_rollback`, `ledger_diff`).
 
-## 🚀 Quick Start
-
-### 1. Install
+## Installation
 
 ```bash
 go install github.com/Rogercode97/scouter/cmd/scouter@latest
 ```
 
-### 2. Setup Your Agent
+## Agent Integration
 
-| Agent                       | One-liner / Setup                                                                 |
-| --------------------------- | ---------------------------------------------------------------------------------- |
-| Gemini CLI                  | `scouter setup gemini-cli`                                                        |
-| Claude Code                 | `claude plugin install $(which scouter)`                                          |
-| VS Code / Cursor            | Add MCP: `{"command": "scouter", "args": ["mcp"]}`                                |
-| Other Agents                | See [docs/AGENT-SETUP.md](docs/AGENT-SETUP.md)                                   |
+Scouter is built to serve directly into agent workflows.
 
-### 3. Start Reconnaissance
+| Agent | Configuration |
+| --- | --- |
+| Gemini CLI | `scouter setup gemini-cli` |
+| Claude Code | `claude plugin install $(which scouter)` |
+| Cursor / VS Code | Add MCP: `{"command": "scouter", "args": ["mcp"]}` |
+
+## Usage Guide
+
+### Command Line Interface
+
+You can execute structural tasks directly via the CLI:
 
 ```bash
-scouter index .             # Map the codebase
-scouter predict             # Predict affected tests from git diff
-cat telemetry.jsonl | scouter ingest --env production # Map runtime telemetry to AST symbols
+# Map the codebase and index AST symbols
+scouter index .
+
+# Predict affected tests from git diff using the Call Graph
+scouter predict
+
+# Map runtime telemetry to AST symbols
+cat telemetry.jsonl | scouter ingest --env production
 ```
 
-## 🛠️ MCP Tools
+### Model Context Protocol (Reference)
 
-Scouter exposes its intelligence via **27 specialized tools** for agents:
+Agents access Scouter through specialized MCP tools categorized by their objective.
 
-| Category               | Tools                                                                 |
-| ---------------------- | --------------------------------------------------------------------- |
-| **Intelligence**       | `index`, `search`, `read`, `type_info`                                |
-| **Impact & Flow**      | `impact`, `callers`, `goto_definition`                                |
-| **Autonomous Healing** | `self_heal` (RCA -> Fix -> Verify)                                    |
-| **Refactoring**        | `ripple_refactor`, `scouter_commit`, `scouter_rollback`, `scouter_diff` |
+**Mapping and Verification**
+- `ast_map`: Map a file or directory to return its skeleton (signatures without bodies).
+- `ast_index`: Index a file or directory for AST symbols.
+- `ast_snapshot` / `ast_verify`: Take snapshots to guarantee structural integrity pre and post-edit.
 
-> **Core Invariant:** Validation is finality. No destructive mutation is applied without passing through the Staging Ledger and Impact Analysis.
+**Navigation and Intelligence**
+- `ast_search`: Semantic or text search for symbols.
+- `ast_read`: Read specific symbols or fragments.
+- `ast_callers`: Trace call hierarchy.
+- `ast_definition`: LSP-powered Go-To-Definition.
+- `ast_neighborhood`: Get 1-hop structural neighborhood in ZON format.
 
-## 🏗️ Key Capabilities
+**Risk and Predictive Analytics**
+- `risk_impact`: Calculate the blast radius of a change.
+- `risk_predict`: Identify tests affected by current changes.
+- `risk_critical_code`: Identify high-risk symbols based on high centrality and fragility.
 
-*   **Impact Analysis (Blast Radius):** Calculate exactly which files and symbols will break before you even touch the code.
-*   **Ripple Protocol:** Atomic, multi-file symbol refactoring that maintains structural integrity across the entire project.
-*   **Autonomous Healing (Shinigami):** Automated RCA (Root Cause Analysis) that fixes tests and verifies the solution in a loop.
-*   **Token Optimization:** High-density data serialization and adaptive context windowing to keep your agent's context lean and fast.
+**Safe Mutation (The Ledger)**
+- `ledger_diff`: Review staged changes.
+- `ledger_commit`: Atomic commit of staged changes to disk.
+- `ledger_rollback`: Clear all staged changes safely.
+- `ledger_ripple`: Rename or change signatures across the codebase atomically.
+- `ledger_evolve`: Apply multi-file architectural changes safely.
 
-## 📚 Documentation
+**Cognitive & Diagnostic Engines**
+- `scouter_diagnose`: Generate a Diagnostic HUD from error logs.
+- `scouter_heal`: Execute a full RCA, Fix, and Verify loop for tests.
+- `cognitive_dream`: Distill Architectural Decision Records (ADRs) and pattern summaries.
 
-| Resource | Description |
-| :--- | :--- |
-| [MCP Reference](./docs/MCP-REFERENCE.md) | Technical reference for MCP tools and Engram integration. |
-| [Architecture](./docs/ARCHITECTURE.md) | Deep dive into the Engine, Store, and MCP layers. |
-| [Codebase Guide](./docs/CODEBASE-GUIDE.md) | Landmarks, domain boundaries, and logic maps. |
-| [Security Policy](./SECURITY.md) | Staging ledger and safe mutation protocols. |
-| [Contributing](./CONTRIBUTING.md) | Standards for extending the Scouter AST engine. |
+## Architecture
 
----
+Scouter relies on a strict internal modular structure:
 
-**Inspired by [Engram](https://github.com/Gentleman-Programming/engram)** — providing the eyes to go with the brain.
+- `cmd/scouter/`: The CLI application and entry points.
+- `internal/mcp/`: The MCP server, handler logic, and tool registrations.
+- `internal/engine/`: The core analytical brains, handling search, impact, refactoring, and automated healing.
+- `internal/store/`: The data persistence layer (SQLite, Bleve).
+- `openspec/`: Architectural specifications and conventions.
 
-## Contributors
+**Core Invariant**: Validation is finality. No destructive mutation is ever applied directly to disk without first passing through the Staging Ledger and surviving a comprehensive Impact Analysis.
 
-<a href="https://github.com/Rogercode97/scouter/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=Rogercode97/scouter&max=100" />
-</a>
+## Documentation Resources
 
-*MIT License*
+- **MCP Reference**: `docs/MCP-REFERENCE.md`
+- **Architecture Guidelines**: `docs/ARCHITECTURE.md`
+- **Codebase Map**: `docs/CODEBASE-GUIDE.md`
+- **Security Policy**: `SECURITY.md`
+- **Contributing Guidelines**: `CONTRIBUTING.md`
+
+## License
+
+MIT License.
