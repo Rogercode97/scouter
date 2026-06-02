@@ -14,6 +14,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/Rogercode97/scouter/internal/domain/memory"
+	"github.com/Rogercode97/scouter/internal/engine/apply"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
@@ -631,11 +632,55 @@ func (e *TruthEngine) CommitLedger(ctx context.Context) (string, error) {
 		return "No changes staged in Ledger.", nil
 	}
 
-	if err := e.ledger.CommitStaged(ctx); err != nil {
-		return "", err
+	plan := apply.StagePlan{
+		Prepare: []apply.Step{},
+		Apply:   []apply.Step{},
 	}
 
+	for _, patch := range e.ledger.GetStaged() {
+		p := patch // copy
+		plan.Prepare = append(plan.Prepare, &preparePatchStep{path: p.FilePath, patch: p})
+		plan.Apply = append(plan.Apply, &applyPatchStep{path: p.FilePath, original: p.Original})
+	}
+
+	orch := apply.NewOrchestrator(apply.DefaultRollbackPolicy())
+	res := orch.Execute(plan)
+	if res.Err != nil {
+		return "", fmt.Errorf("commit failed: %v", res.Err)
+	}
+
+	e.ledger.Rollback(ctx) // clear ledger after successful commit
+
 	return fmt.Sprintf("✅ Committed changes to %d files: %v", len(files), files), nil
+}
+
+type preparePatchStep struct {
+	path  string
+	patch Patch
+}
+
+func (p *preparePatchStep) ID() string { return p.path + "_prepare" }
+func (p *preparePatchStep) Run() error {
+	if err := os.MkdirAll(filepath.Dir(p.path), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(p.path+".scouter.tmp", []byte(p.patch.NewContent), 0644)
+}
+
+type applyPatchStep struct {
+	path     string
+	original string
+}
+
+func (a *applyPatchStep) ID() string { return a.path + "_apply" }
+func (a *applyPatchStep) Run() error {
+	return os.Rename(a.path+".scouter.tmp", a.path)
+}
+func (a *applyPatchStep) Rollback() error {
+	if a.original == "" {
+		return os.Remove(a.path)
+	}
+	return os.WriteFile(a.path, []byte(a.original), 0644)
 }
 
 func (e *TruthEngine) RollbackLedger(ctx context.Context) (string, error) {
