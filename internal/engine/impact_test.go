@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/store"
@@ -71,15 +72,23 @@ func TestImpactEngine_RiskScoreFormula(t *testing.T) {
 	ctx := context.Background()
 	
 	// Create mock that returns specific metadata for formula
-	db := &mockImpactStore{
-		affectedTests: make(map[string][]store.Symbol),
+	db := &mockSpecificImpactStore{
+		mockImpactStore: &mockImpactStore{
+			affectedTests: make(map[string][]store.Symbol),
+		},
 	}
-	// We override the GetSymbolsByNameInFile behavior via a custom mock wrapper or just hardcode if needed
-	// Actually, the current mock returns an empty symbol with just Name and Path.
-	// We'll create a custom store locally.
+	
+	mockMem := &testMemoryProvider{
+		searchInsights: []types.MemoryInsight{
+			{ID: "1", Type: "bugfix", Title: "fix 1"},
+			{ID: "2", Type: "bugfix", Title: "fix 2"},
+			{ID: "3", Type: "bugfix", Title: "fix 3"},
+		},
+	}
 	
 	engine := &ImpactEngine{
-		store: &mockSpecificImpactStore{mockImpactStore: db},
+		store:  db,
+		memory: mockMem,
 	}
 	
 	res, err := engine.Analyze(ctx, "TestSym", "file.go", 3)
@@ -95,7 +104,7 @@ func TestImpactEngine_RiskScoreFormula(t *testing.T) {
 	// volumeScore: 100 / 500.0 = 0.2
 	// runtimeScore: 0.5
 	
-	// expected RiskScore: 
+	// expected base RiskScore: 
 	// (0.111499 * 0.20) = 0.0222998
 	// (0.5 * 0.35)      = 0.175
 	// (0.8 * 0.15)      = 0.12
@@ -104,18 +113,15 @@ func TestImpactEngine_RiskScoreFormula(t *testing.T) {
 	// (0.5 * 0.10)      = 0.05
 	// Total: 0.0222998 + 0.175 + 0.12 + 0.15 + 0.01 + 0.05 = 0.5272998
 	
-	// If it used the OLD formula:
-	// cogScore: min(1.0, 50/30.0) = 1.0
-	// (0.111499 * 0.25) = 0.02787
-	// (1.0 * 0.20)      = 0.20
-	// (0.8 * 0.20)      = 0.16
-	// (1.0 * 0.15)      = 0.15
-	// (0.2 * 0.10)      = 0.02
-	// (0.5 * 0.10)      = 0.05
-	// Total old: 0.60787
+	// expected final RiskScore with multiplier (3 bugfixes -> 1.6x)
+	// 0.5272998 * 1.6 = 0.84367968
 
-	if math.Abs(res.Target.RiskScore - 0.5273) > 0.001 {
-		t.Errorf("expected RiskScore ~0.5273, got %f", res.Target.RiskScore)
+	if math.Abs(res.Target.RiskScore - 0.8437) > 0.001 {
+		t.Errorf("expected RiskScore ~0.8437, got %f", res.Target.RiskScore)
+	}
+
+	if !strings.Contains(res.Breakdown, "Historical Fragility (multiplier): 1.60x") {
+		t.Errorf("expected Breakdown to contain fragility factor, got:\n%s", res.Breakdown)
 	}
 }
 
@@ -132,7 +138,7 @@ func (m *mockSpecificImpactStore) GetSymbolsByNameInFile(ctx context.Context, na
 				StartLine: 0,
 				EndLine: 100,
 				ChurnScore: 0.8,
-				PageRank: 0.5,
+				Pagerank: 0.5,
 				Metrics: &types.SemanticMetrics{
 					CognitiveComplexity: 50,
 				},
@@ -230,4 +236,62 @@ func TestFindTestsForSymbolsUnique(t *testing.T) {
 
 	// Verify TestTarget usage
 	var _ types.TestTarget = tests[0]
+}
+
+func TestHealerImpactIntegration(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. Initial State
+	db := &mockSpecificImpactStore{
+		mockImpactStore: &mockImpactStore{
+			affectedTests: make(map[string][]store.Symbol),
+		},
+	}
+	
+	// Create an empty memory provider initially
+	mockMem := &testMemoryProvider{}
+	
+	impact := NewImpactEngine(db, nil, mockMem)
+	
+	// Check initial risk
+	resInitial, _ := impact.Analyze(ctx, "TestSym", "file.go", 3)
+	initialRisk := resInitial.Target.RiskScore
+
+	// 2. Simulate a Healer Fix
+	// For this test we will just invoke recordInoculation manually or via a fake fix
+	// But let's just use the logic directly
+	healer := NewHealerEngine(nil, nil, nil, impact, nil, mockMem)
+	
+	target := &types.ASTPointer{
+		Name: "TestSym",
+		Signature: "func()",
+	}
+	
+	// Directly call the unexported method to simulate a successful fix
+	healer.recordInoculation(ctx, target, "file.go", "test failure line 1")
+	
+	// Now memory provider should have 1 observation
+	if len(mockMem.savedObservations) != 1 {
+		t.Fatalf("expected 1 observation, got %d", len(mockMem.savedObservations))
+	}
+
+	// 3. Update the mock memory provider to return the saved observation in SearchInsights
+	// so ImpactEngine can find it.
+	mockMem.searchInsights = []types.MemoryInsight{
+		{ID: "1", Type: mockMem.savedObservations[0].Type, Title: mockMem.savedObservations[0].Title},
+	}
+
+	// 4. Check Risk again
+	resAfter, _ := impact.Analyze(ctx, "TestSym", "file.go", 3)
+	afterRisk := resAfter.Target.RiskScore
+
+	if afterRisk <= initialRisk {
+		t.Errorf("expected risk score to increase after fix. Initial: %f, After: %f", initialRisk, afterRisk)
+	}
+	
+	// It should increase by 1.2x 
+	expectedNewRisk := math.Min(1.0, initialRisk * 1.2)
+	if math.Abs(afterRisk - expectedNewRisk) > 0.001 {
+		t.Errorf("expected new risk to be %f, got %f", expectedNewRisk, afterRisk)
+	}
 }

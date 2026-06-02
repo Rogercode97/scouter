@@ -26,7 +26,7 @@ func TestOmniscienceCallHierarchy(t *testing.T) {
 	dbPath := filepath.Join(projectRoot, "scouter_test.db")
 	defer os.Remove(dbPath)
 
-	st, err := store.New(ctx, dbPath)
+	st, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}

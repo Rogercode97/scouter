@@ -2,9 +2,12 @@ package display
 
 import (
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-isatty"
 )
@@ -160,7 +163,28 @@ func FormatSparkline(values []float64) string {
 	return b.String()
 }
 
-// visualWidth returns the visible width of a string, ignoring ANSI escape codes.
+// PrintFlows displays data flow origins in a styled table.
+func PrintFlows(w io.Writer, symbol string, flows []store.Flow) {
+	if len(flows) == 0 {
+		fmt.Fprintf(w, "No data flow origins found for %s\n", symbol)
+		return
+	}
+
+	fmt.Fprintf(w, "\n%s %s\n", HeaderStyle.Render("Data Flow Origins for:"), StatStyle.Render(symbol))
+
+	headers := []string{"Source", "Type", "Location"}
+	var rows [][]string
+	for _, f := range flows {
+		location := fmt.Sprintf("%s:%d", filepath.Base(f.Path), f.Line)
+		rows = append(rows, []string{
+			StatStyle.Render(f.Source),
+			f.Type,
+			DimStyle.Render(location),
+		})
+	}
+
+	fmt.Fprintln(w, FormatTable(headers, rows))
+}
 func visualWidth(s string) int {
 	return lipgloss.Width(s)
 }

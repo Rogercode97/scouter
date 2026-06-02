@@ -33,7 +33,7 @@ func Multiply(a, b int) int {
 	}
 
 	ctx := context.Background()
-	itPointers, _, err := StreamSymbols(ctx, tmpFile.Name())
+	itPointers, _, _, err := StreamSymbols(ctx, tmpFile.Name())
 	if err != nil {
 		t.Fatalf("StreamSymbols failed: %v", err)
 	}

@@ -43,7 +43,7 @@ func DoSomething() {}`
 
 	// 2. Initialize Engines
 	dbPath := filepath.Join(tempDir, "test.db")
-	db, err := store.New(ctx, dbPath)
+	db, err := store.NewStore(ctx, dbPath)
 	require.NoError(t, err)
 	defer db.Close()
 

@@ -70,7 +70,7 @@ func (e *HAKAIEncoder) EncodeCall(c store.Call) error {
 	return err
 }
 
-// EncodeRank encodes a PageRank metric row.
+// EncodeRank encodes a Pagerank metric row.
 // Format: R|PathID|Rank
 func (e *HAKAIEncoder) EncodeRank(path string, rank float64) error {
 	id, err := e.getPathID(path)

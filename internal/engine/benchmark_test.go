@@ -54,7 +54,7 @@ func Function_%d() {
 
 	// Initialize Store with a temp DB
 	dbPath := filepath.Join(tmpDir, "benchmark.db")
-	s, err := store.New(ctx, dbPath)
+	s, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		b.Fatal(err)
 	}

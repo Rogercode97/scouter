@@ -129,7 +129,7 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 // PassiveHealthIngest parses test results from stdout and updates the risk map.
 func (p *Pipeline) PassiveHealthIngest(ctx context.Context, output string) {
 	cfg, _ := config.Load(ctx)
-	db, err := store.New(ctx, cfg.Tracking.DBPath)
+	db, err := store.NewStore(ctx, cfg.Tracking.DBPath)
 	if err != nil {
 		return
 	}
@@ -149,7 +149,7 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 	}
 
 	cfg, _ := config.Load(ctx)
-	db, err := store.New(ctx, cfg.Tracking.DBPath)
+	db, err := store.NewStore(ctx, cfg.Tracking.DBPath)
 	if err != nil {
 		return
 	}

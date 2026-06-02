@@ -31,56 +31,56 @@ const MaxParseSize = 5 * 1024 * 1024
 
 // ParseFile analyzes a file using the AST engine to index its structure and call graph.
 // It is now a wrapper around StreamSymbols for backward compatibility.
-func ParseFile(ctx context.Context, filePath string, lspMgr *lsp.Manager) ([]types.ASTPointer, []types.ASTCall, error) {
-	itPointers, itCalls, err := StreamSymbols(ctx, filePath)
+func ParseFile(ctx context.Context, filePath string, lspMgr *lsp.Manager) ([]types.ASTPointer, []types.ASTCall, []types.DataFlow, error) {
+	itPointers, itCalls, itFlows, err := StreamSymbols(ctx, filePath)
 	if err != nil {
 		// Try Tree-sitter for multi-language support as fallback
-		pIt, cIt, tsErr := StreamWithTreeSitter(ctx, filePath)
+		pIt, cIt, fIt, tsErr := StreamWithTreeSitter(ctx, filePath)
 		if tsErr == nil {
-			return slices.Collect(pIt), slices.Collect(cIt), nil
+			return slices.Collect(pIt), slices.Collect(cIt), slices.Collect(fIt), nil
 		}
-		return nil, nil, fmt.Errorf("parsing failed for %s: %w (fallback error: %v)", filePath, err, tsErr)
+		return nil, nil, nil, fmt.Errorf("parsing failed for %s: %w (fallback error: %v)", filePath, err, tsErr)
 	}
-	return slices.Collect(itPointers), slices.Collect(itCalls), nil
+	return slices.Collect(itPointers), slices.Collect(itCalls), slices.Collect(itFlows), nil
 }
 
-// StreamSymbols analyzes a file and returns iterators for symbols and calls.
+// StreamSymbols analyzes a file and returns iterators for symbols, calls and data flows.
 // Optimized for Go 1.25 to avoid large slice allocations.
-func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPointer], iter.Seq[types.ASTCall], error) {
+func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPointer], iter.Seq[types.ASTCall], iter.Seq[types.DataFlow], error) {
 	// 1. Context check
 	select {
 	case <-ctx.Done():
-		return nil, nil, ctx.Err()
+		return nil, nil, nil, ctx.Err()
 	default:
 	}
 
 	ext := filepath.Ext(filePath)
 	if ext != ".go" {
-		pIt, cIt, err := StreamWithTreeSitter(ctx, filePath)
+		pIt, cIt, fIt, err := StreamWithTreeSitter(ctx, filePath)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
-		return pIt, cIt, nil
+		return pIt, cIt, fIt, nil
 	}
 
 	// 2. Path Security Check
 	validatedPath, err := utils.ValidatePath(filePath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// 1.5. Size Limit Check
 	fi, err := os.Stat(validatedPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error stating file: %w", err)
+		return nil, nil, nil, fmt.Errorf("error stating file: %w", err)
 	}
 	if fi.Size() > MaxParseSize {
-		return nil, nil, fmt.Errorf("file too large to index (%d bytes), limit is %d bytes", fi.Size(), MaxParseSize)
+		return nil, nil, nil, fmt.Errorf("file too large to index (%d bytes), limit is %d bytes", fi.Size(), MaxParseSize)
 	}
 
 	file, fset, pkg, err := loadASTFile(validatedPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	pkgPath := pkg.PkgPath
 
@@ -420,6 +420,140 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 				}
 				return true
 			})
+		}, func(yield func(types.DataFlow) bool) {
+			ast.PreorderStack(file, nil, func(n ast.Node, stack []ast.Node) bool {
+				select {
+				case <-ctx.Done():
+					return false
+				default:
+				}
+
+				if call, ok := n.(*ast.CallExpr); ok {
+					calleeName := exprToString(call.Fun)
+					for i, arg := range call.Args {
+						source := exprToString(arg)
+						sink := fmt.Sprintf("%s:arg%d", calleeName, i)
+						pos := fset.Position(arg.Pos())
+						f := types.DataFlow{
+							Source: source,
+							Sink:   sink,
+							Type:   "argument",
+							Path:   validatedPath,
+							Line:   pos.Line,
+						}
+						if !yield(f) {
+							return false
+						}
+					}
+				}
+
+				if ret, ok := n.(*ast.ReturnStmt); ok {
+					var currentFunc string
+					for i := len(stack) - 1; i >= 0; i-- {
+						p := stack[i]
+						if name, exists := names[p]; exists {
+							currentFunc = name
+							break
+						}
+					}
+					if currentFunc != "" {
+						for i, res := range ret.Results {
+							source := exprToString(res)
+							sink := fmt.Sprintf("%s:return%d", currentFunc, i)
+							pos := fset.Position(res.Pos())
+							f := types.DataFlow{
+								Source: source,
+								Sink:   sink,
+								Type:   "return",
+								Path:   validatedPath,
+								Line:   pos.Line,
+							}
+							if !yield(f) {
+								return false
+							}
+						}
+					}
+				}
+
+				if as, ok := n.(*ast.AssignStmt); ok {
+					isCallOnRhs := false
+					var calleeName string
+					if len(as.Rhs) == 1 {
+						if call, ok := as.Rhs[0].(*ast.CallExpr); ok {
+							isCallOnRhs = true
+							calleeName = exprToString(call.Fun)
+						}
+					}
+
+					for i, lhs := range as.Lhs {
+						var source string
+						if isCallOnRhs {
+							source = fmt.Sprintf("%s:return%d", calleeName, i)
+						} else {
+							if i < len(as.Rhs) {
+								source = exprToString(as.Rhs[i])
+							} else if len(as.Rhs) == 1 {
+								source = exprToString(as.Rhs[0])
+							}
+						}
+						sink := exprToString(lhs)
+
+						if source != "" && sink != "" && sink != "_" {
+							pos := fset.Position(as.Pos())
+							f := types.DataFlow{
+								Source: source,
+								Sink:   sink,
+								Type:   "assignment",
+								Path:   validatedPath,
+								Line:   pos.Line,
+							}
+							if !yield(f) {
+								return false
+							}
+						}
+					}
+				}
+
+				if vs, ok := n.(*ast.ValueSpec); ok {
+					isCallOnRhs := false
+					var calleeName string
+					if len(vs.Values) == 1 {
+						if call, ok := vs.Values[0].(*ast.CallExpr); ok {
+							isCallOnRhs = true
+							calleeName = exprToString(call.Fun)
+						}
+					}
+
+					for i, name := range vs.Names {
+						var source string
+						if isCallOnRhs {
+							source = fmt.Sprintf("%s:return%d", calleeName, i)
+						} else {
+							if i < len(vs.Values) {
+								source = exprToString(vs.Values[i])
+							} else if len(vs.Values) == 1 {
+								source = exprToString(vs.Values[0])
+							}
+						}
+						sink := name.Name
+
+						if source != "" && sink != "" && sink != "_" {
+							pos := fset.Position(vs.Pos())
+							f := types.DataFlow{
+								Source: source,
+								Sink:   sink,
+								Type:   "assignment",
+								Path:   validatedPath,
+								Line:   pos.Line,
+							}
+							if !yield(f) {
+								return false
+							}
+						}
+					}
+				}
+				return true
+			})
 		}, nil
 }
 // resolveCallee attempts to get the name and potential path of the function being called.
@@ -519,6 +653,10 @@ func exprToString(expr ast.Expr) string {
 	switch t := expr.(type) {
 	case *ast.Ident:
 		return t.Name
+	case *ast.BasicLit:
+		return t.Value
+	case *ast.CallExpr:
+		return exprToString(t.Fun) + "()"
 	case *ast.SelectorExpr:
 		return exprToString(t.X) + "." + t.Sel.Name
 	case *ast.StarExpr:
@@ -550,6 +688,10 @@ func exprToString(expr ast.Expr) string {
 		return "..." + exprToString(t.Elt)
 	case *ast.ParenExpr:
 		return "(" + exprToString(t.X) + ")"
+	case *ast.BinaryExpr:
+		return exprToString(t.X) + " " + t.Op.String() + " " + exprToString(t.Y)
+	case *ast.UnaryExpr:
+		return t.Op.String() + exprToString(t.X)
 	default:
 		return "unknown"
 	}

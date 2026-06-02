@@ -25,7 +25,7 @@ func ComplexFunc(err error) {
 	tmpFile := filepath.Join(t.TempDir(), "test.go")
 	os.WriteFile(tmpFile, []byte(content), 0644)
 
-	pointersIter, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
+	pointersIter, _, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
 	assert.NoError(t, err)
 
 	var ptrs []types.ASTPointer
@@ -57,7 +57,7 @@ async def process_data(data):
 	tmpFile := filepath.Join(t.TempDir(), "test.py")
 	os.WriteFile(tmpFile, []byte(content), 0644)
 
-	pointersIter, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
+	pointersIter, _, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
 	assert.NoError(t, err)
 
 	var ptrs []types.ASTPointer
@@ -94,7 +94,7 @@ async function fetchData(url: string) {
 	tmpFile := filepath.Join(t.TempDir(), "test.ts")
 	os.WriteFile(tmpFile, []byte(content), 0644)
 
-	pointersIter, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
+	pointersIter, _, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
 	assert.NoError(t, err)
 
 	var ptrs []types.ASTPointer
@@ -135,7 +135,7 @@ func NestedFunc(score int) string {
 	tmpFile := filepath.Join(t.TempDir(), "test.go")
 	os.WriteFile(tmpFile, []byte(content), 0644)
 
-	pointersIter, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
+	pointersIter, _, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
 	assert.NoError(t, err)
 
 	var ptrs []types.ASTPointer
@@ -169,7 +169,7 @@ end:
 	tmpFile := filepath.Join(t.TempDir(), "test.go")
 	os.WriteFile(tmpFile, []byte(content), 0644)
 
-	pointersIter, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
+	pointersIter, _, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
 	assert.NoError(t, err)
 
 	var ptrs []types.ASTPointer
@@ -207,7 +207,7 @@ func ClosureFunc() {
 	tmpFile := filepath.Join(t.TempDir(), "test.go")
 	os.WriteFile(tmpFile, []byte(content), 0644)
 
-	pointersIter, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
+	pointersIter, _, _, err := StreamWithTreeSitter(context.Background(), tmpFile)
 	assert.NoError(t, err)
 
 	var ptrs []types.ASTPointer

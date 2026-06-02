@@ -152,7 +152,7 @@ func TestImpactEngine_Analyze_Mixed(t *testing.T) {
 			{CallerName: "Dog", Path: "dog.rs", LinkType: "implements"},
 		},
 		symbols: []store.Symbol{
-			{Name: "SymA", Path: "fileA.go", PageRank: 42.0},
+			{Name: "SymA", Path: "fileA.go", Pagerank: 42.0},
 		},
 	}
 
@@ -163,7 +163,7 @@ func TestImpactEngine_Analyze_Mixed(t *testing.T) {
 		t.Fatalf("Analyze failed: %v", err)
 	}
 
-	// Verify Centrality is using PageRank
+	// Verify Centrality is using Pagerank
 	if res.Target.Metrics.Centrality != 42.0 {
 		t.Errorf("Expected Centrality 42.0, got %f", res.Target.Metrics.Centrality)
 	}

@@ -22,7 +22,7 @@ func TestStreamWithTreeSitter_Hierarchical(t *testing.T) {
 		os.WriteFile(filePath, content, 0644)
 
 		ctx := t.Context()
-		pointersIt, _, err := StreamWithTreeSitter(ctx, filePath)
+		pointersIt, _, _, err := StreamWithTreeSitter(ctx, filePath)
 		if err != nil {
 			t.Fatalf("StreamWithTreeSitter failed: %v", err)
 		}
@@ -60,7 +60,7 @@ def outer():
 		os.WriteFile(filePath, content, 0644)
 
 		ctx := t.Context()
-		pointersIt, _, err := StreamWithTreeSitter(ctx, filePath)
+		pointersIt, _, _, err := StreamWithTreeSitter(ctx, filePath)
 		if err != nil {
 			t.Fatalf("StreamWithTreeSitter failed: %v", err)
 		}
@@ -92,7 +92,7 @@ fn main() {
 		os.WriteFile(filePath, content, 0644)
 
 		ctx := t.Context()
-		pointersIt, _, err := StreamWithTreeSitter(ctx, filePath)
+		pointersIt, _, _, err := StreamWithTreeSitter(ctx, filePath)
 		if err != nil {
 			t.Fatalf("StreamWithTreeSitter failed: %v", err)
 		}
@@ -127,7 +127,7 @@ fn main() {
 		os.WriteFile(filePath, content, 0644)
 
 		ctx := t.Context()
-		_, callsIt, err := StreamWithTreeSitter(ctx, filePath)
+		_, callsIt, _, err := StreamWithTreeSitter(ctx, filePath)
 		if err != nil {
 			t.Fatalf("StreamWithTreeSitter failed: %v", err)
 		}

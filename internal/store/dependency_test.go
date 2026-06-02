@@ -13,7 +13,7 @@ func TestStoreDependencies(t *testing.T) {
 	dbPath := "test_scouter_deps.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}

@@ -33,7 +33,7 @@ type SymbolRegistry interface {
 	GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error]
 	UpdateSymbolCentrality(ctx context.Context, name, path string, centrality int) error
 	UpdateSymbolChurn(ctx context.Context, path string, score float64) error
-	UpdateSymbolPageRank(ctx context.Context, name, path string, score float64) error
+	UpdateSymbolPagerank(ctx context.Context, name, path string, score float64) error
 	UpdateSymbolRuntimeHits(ctx context.Context, name, path string, hits int) error
 	RecordSymbolUsage(ctx context.Context, env string, usages []UsageRecord) error
 	GetStats(ctx context.Context) (int, int, error)
@@ -53,6 +53,11 @@ type StructuralGraph interface {
 	GetCallersRecursive(ctx context.Context, name, path string, maxDepth int) ([]Call, error)
 	GetAffectedTestsRecursive(ctx context.Context, name, path string) ([]Symbol, error)
 	ClearCalls(ctx context.Context, path string) error
+
+	// Data Flow
+	SaveFlow(ctx context.Context, flow Flow) error
+	GetFlows(ctx context.Context, sink string) ([]Flow, error)
+	ClearFlows(ctx context.Context, path string) error
 }
 
 type DiagnosticStore interface {

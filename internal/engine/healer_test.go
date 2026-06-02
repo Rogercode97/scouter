@@ -9,9 +9,30 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
+	"github.com/Rogercode97/scouter/internal/types"
 )
+
+type testMemoryProvider struct {
+	savedObservations []memory.DistilledMemory
+	searchInsights    []types.MemoryInsight
+}
+
+func (m *testMemoryProvider) GetRecentObservations(ctx context.Context, project string, hours int) ([]memory.Observation, error) {
+	return nil, nil
+}
+func (m *testMemoryProvider) SaveObservation(ctx context.Context, project string, mem memory.DistilledMemory) error {
+	m.savedObservations = append(m.savedObservations, mem)
+	return nil
+}
+func (m *testMemoryProvider) SearchInsights(ctx context.Context, query string, limit int) ([]types.MemoryInsight, error) {
+	return m.searchInsights, nil
+}
+func (m *testMemoryProvider) SaveSummary(ctx context.Context, project string, summary memory.Summary) error {
+	return nil
+}
 
 type healerMockLSPClient struct {
 	lsp.LSPClient
@@ -30,7 +51,7 @@ func (m *healerMockLSPClient) Close() error { return nil }
 func TestHealerEngine_Fix_DeepRCA(t *testing.T) {
 	ctx := context.Background()
 	// 1. Setup Store, LSP, Analyzer, and Impact
-	s, _ := store.New(ctx, ":memory:")
+	s, _ := store.NewStore(ctx, ":memory:")
 	defer s.Close()
 	
 	mgr := lsp.NewManager()
@@ -49,10 +70,11 @@ func TestHealerEngine_Fix_DeepRCA(t *testing.T) {
 		}, nil
 	})
 
+	mockMem := &testMemoryProvider{}
 	analyzer := NewAnalysisEngine(s)
-	impact := NewImpactEngine(s, nil, nil)
+	impact := NewImpactEngine(s, nil, mockMem)
 	search := NewSearchEngine(s, nil)
-	h := NewHealerEngine(s, mgr, analyzer, impact, search)
+	h := NewHealerEngine(s, mgr, analyzer, impact, search, mockMem)
 	
 	// Mock the LLM request
 	var (
@@ -103,19 +125,31 @@ func TestHealerEngine_Fix_DeepRCA(t *testing.T) {
 	if !strings.Contains(p, "Current Risk Score") {
 		t.Errorf("Prompt missing impact analysis section. Prompt:\n%s", p)
 	}
+
+	if len(mockMem.savedObservations) == 0 {
+		t.Errorf("Expected an observation to be saved")
+	} else {
+		obs := mockMem.savedObservations[0]
+		if obs.Type != "bugfix" {
+			t.Errorf("Expected bugfix memory, got %s", obs.Type)
+		}
+		if !strings.Contains(obs.Content, "**What**: Autonomous repair") {
+			t.Errorf("Content missing **What**: %s", obs.Content)
+		}
+	}
 }
 
 func TestHealerEngine_Shinigami(t *testing.T) {
 	t.Skip("Flaky test")
 	ctx := context.Background()
-	s, _ := store.New(ctx, ":memory:")
+	s, _ := store.NewStore(ctx, ":memory:")
 	defer s.Close()
 
 	mgr := lsp.NewManager()
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
 	search := NewSearchEngine(s, nil)
-	h := NewHealerEngine(s, mgr, analyzer, impact, search)
+	h := NewHealerEngine(s, mgr, analyzer, impact, search, nil)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
 		if strings.Contains(prompt, "variant #0") {
@@ -152,13 +186,13 @@ func TestHealerEngine_Shinigami(t *testing.T) {
 
 func TestHealerEngine_Cancellation(t *testing.T) {
 	ctx := context.Background()
-	s, _ := store.New(ctx, ":memory:")
+	s, _ := store.NewStore(ctx, ":memory:")
 	defer s.Close()
 
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
 	search := NewSearchEngine(s, nil)
-	h := NewHealerEngine(s, nil, analyzer, impact, search)
+	h := NewHealerEngine(s, nil, analyzer, impact, search, nil)
 
 	var wg sync.WaitGroup
 	wg.Add(2) // For the two slow goroutines
@@ -195,13 +229,13 @@ func TestHealerEngine_Cancellation(t *testing.T) {
 
 func TestHealerEngine_AllFail(t *testing.T) {
 	ctx := context.Background()
-	s, _ := store.New(ctx, ":memory:")
+	s, _ := store.NewStore(ctx, ":memory:")
 	defer s.Close()
 
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
 	search := NewSearchEngine(s, nil)
-	h := NewHealerEngine(s, nil, analyzer, impact, search)
+	h := NewHealerEngine(s, nil, analyzer, impact, search, nil)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
 		return "```go\nfunc (m *MyStruct) Dont() {}\n```", nil
@@ -241,13 +275,13 @@ var _ MyInterface = (*MyStruct)(nil)
 
 func TestHealerEngine_Imports(t *testing.T) {
 	ctx := context.Background()
-	s, _ := store.New(ctx, ":memory:")
+	s, _ := store.NewStore(ctx, ":memory:")
 	defer s.Close()
 
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
 	search := NewSearchEngine(s, nil)
-	h := NewHealerEngine(s, nil, analyzer, impact, search)
+	h := NewHealerEngine(s, nil, analyzer, impact, search, nil)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
 		// Return code that uses fmt but doesn't import it
@@ -292,13 +326,13 @@ var _ MyInterface = (*MyStruct)(nil)
 
 func TestHealerEngine_Fix_IntegrityWarning(t *testing.T) {
 	ctx := context.Background()
-	s, _ := store.New(ctx, ":memory:")
+	s, _ := store.NewStore(ctx, ":memory:")
 	defer s.Close()
 
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
 	search := NewSearchEngine(s, nil)
-	h := NewHealerEngine(s, nil, analyzer, impact, search)
+	h := NewHealerEngine(s, nil, analyzer, impact, search, nil)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
 		return "```go\nfunc fixed() {}\n```", nil

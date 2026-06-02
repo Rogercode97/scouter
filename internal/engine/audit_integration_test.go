@@ -18,7 +18,7 @@ func TestArchitecturalAuditIntegration(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	dbPath := filepath.Join(tmpDir, "test.db")
-	repo, err := store.New(ctx, dbPath)
+	repo, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}

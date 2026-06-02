@@ -358,7 +358,7 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 
 	existingIdx, err := e.store.GetFileIndex(ctx, path)
 	if err == nil && existingIdx != nil {
-		if existingIdx.Mtime == mtime {
+		if existingIdx.Mtime == int(mtime) {
 			return existingIdx.Hash, nil // Truly unchanged, skip everything
 		}
 	}
@@ -369,7 +369,7 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 	}
 
 	if existingIdx != nil && existingIdx.Hash == hash {
-		existingIdx.Mtime = mtime
+		existingIdx.Mtime = int(mtime)
 		err = e.store.SaveFileIndex(ctx, existingIdx)
 		if err != nil {
 			return "", fmt.Errorf("failed to update file index: %w", err)
@@ -379,7 +379,7 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 
 	e.logger.Info("indexing file", "path", path)
 
-	itPointers, itCalls, err := StreamSymbols(ctx, path)
+	itPointers, itCalls, itFlows, err := StreamSymbols(ctx, path)
 	if err != nil {
 		return "", fmt.Errorf("parsing failed for %s: %w", path, err)
 	}
@@ -387,13 +387,14 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 	batchItem := store.BatchItem{
 		Index: &store.FileIndex{
 			Path:    path,
-			Mtime:   mtime,
+			Mtime:   int(mtime),
 			Hash:    hash,
-			ASTJSON: "{}",
+			AstJson: "{}",
 			Project: utils.GetRepoName(ctx),
 		},
 		Symbols:    []store.Symbol{},
 		Calls:      []store.Call{},
+		Flows:      []store.Flow{},
 		Violations: []store.Violation{},
 	}
 
@@ -432,6 +433,16 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 			LinkType:   c.LinkType,
 			Path:       path,
 			Line:       c.Line,
+		})
+	}
+
+	for f := range itFlows {
+		batchItem.Flows = append(batchItem.Flows, store.Flow{
+			Source: f.Source,
+			Sink:   f.Sink,
+			Type:   f.Type,
+			Path:   path,
+			Line:   f.Line,
 		})
 	}
 

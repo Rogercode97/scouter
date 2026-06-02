@@ -45,14 +45,14 @@ func (n NotAShape) Area(x int) float64 { return 0 }
 
 	ctx := context.Background()
 	dbPath := filepath.Join(tmpDir, "test.db")
-	s, err := store.New(ctx, dbPath)
+	s, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
 	defer s.Close()
 
 	// Parse and save symbols
-	pointers, _, err := ParseFile(ctx, filePath, nil)
+	pointers, _, _, err := ParseFile(ctx, filePath, nil)
 	if err != nil {
 		t.Fatalf("ParseFile failed: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestResolveCentrality(t *testing.T) {
 	dbPath := "test_centrality.db"
 	defer os.Remove(dbPath)
 
-	s, err := store.New(ctx, dbPath)
+	s, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -160,12 +160,12 @@ func TestResolveCentrality(t *testing.T) {
 	}
 }
 
-func TestResolvePageRank(t *testing.T) {
+func TestResolvePagerank(t *testing.T) {
 	ctx := context.Background()
 	dbPath := "test_pagerank.db"
 	defer os.Remove(dbPath)
 
-	s, err := store.New(ctx, dbPath)
+	s, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestResolvePageRank(t *testing.T) {
 	analyzer := NewAnalysisEngine(s)
 
 	// Setup a simple graph: A -> B, C -> B
-	// B should have higher PageRank than A or C
+	// B should have higher Pagerank than A or C
 	_ = s.SaveFileIndex(ctx, &store.FileIndex{Path: "a.go", Project: "p"})
 	_ = s.SaveFileIndex(ctx, &store.FileIndex{Path: "b.go", Project: "p"})
 	_ = s.SaveFileIndex(ctx, &store.FileIndex{Path: "c.go", Project: "p"})
@@ -186,8 +186,8 @@ func TestResolvePageRank(t *testing.T) {
 	_ = s.SaveCall(ctx, store.Call{CallerName: "A", Path: "a.go", CalleeName: "B", CalleePath: "b.go"})
 	_ = s.SaveCall(ctx, store.Call{CallerName: "C", Path: "c.go", CalleeName: "B", CalleePath: "b.go"})
 
-	if err := analyzer.ResolvePageRank(ctx); err != nil {
-		t.Fatalf("ResolvePageRank failed: %v", err)
+	if err := analyzer.ResolvePagerank(ctx); err != nil {
+		t.Fatalf("ResolvePagerank failed: %v", err)
 	}
 
 	symAs, _ := s.GetSymbolsByNameInFile(ctx, "A", "a.go")
@@ -200,7 +200,7 @@ func TestResolvePageRank(t *testing.T) {
 
 	symA, symB, symC := symAs[0], symBs[0], symCs[0]
 
-	if symB.PageRank <= symA.PageRank || symB.PageRank <= symC.PageRank {
-		t.Errorf("expected B to have higher PageRank than A/C. A: %f, B: %f, C: %f", symA.PageRank, symB.PageRank, symC.PageRank)
+	if symB.Pagerank <= symA.Pagerank || symB.Pagerank <= symC.Pagerank {
+		t.Errorf("expected B to have higher Pagerank than A/C. A: %f, B: %f, C: %f", symA.Pagerank, symB.Pagerank, symC.Pagerank)
 	}
 }

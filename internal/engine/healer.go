@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/tools/imports"
 
 	"github.com/Rogercode97/scouter/internal/domain/memory"
@@ -203,71 +204,73 @@ type fixCandidate struct {
 
 func (e *HealerEngine) sampleParallelFixes(ctx context.Context, prompt string, failingFile string, originalCode string, target *types.ASTPointer) (*fixCandidate, error) {
 	candidates := make(chan fixCandidate, 3)
-	var wg sync.WaitGroup
 	var valMu sync.Mutex
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	eg, egCtx := errgroup.WithContext(ctx)
 
 	fullContent, _ := os.ReadFile(failingFile)
 
 	for i := 0; i < 3; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			resRaw, err := resile.Do(ctx, func(c context.Context) (string, error) {
+		id := i
+		eg.Go(func() error {
+			resRaw, err := resile.Do(egCtx, func(c context.Context) (string, error) {
 				return e.DoFixRequest(c, prompt+"\n\nProvide solution variant #"+strconv.Itoa(id))
 			}, resile.WithRetry(3))
-			if err == nil {
-				candidateCode := utils.ExtractCodeBlock(resRaw)
-
-				newContent := string(fullContent[:target.Range.Start]) + candidateCode + string(fullContent[target.Range.End:])
-
-				processedContent, err := imports.Process(failingFile, []byte(newContent), nil)
-				if err != nil {
-					processedContent = []byte(newContent)
-				}
-
-				tempLedger := NewLedger()
-				_ = tempLedger.Stage(failingFile, Patch{
-					FilePath:   failingFile,
-					Original:   string(fullContent),
-					NewContent: string(processedContent),
-				})
-
-				validator := NewLSPValidator("")
-
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-
-				valMu.Lock()
-				if ctx.Err() != nil {
-					valMu.Unlock()
-					return
-				}
-				valRes, _ := validator.Validate(ctx, tempLedger)
-				valMu.Unlock()
-
-				valid := valRes.Valid
-
-				candidates <- fixCandidate{
-					id:       id,
-					code:     candidateCode,
-					fullCode: string(processedContent),
-					valid:    valid,
-				}
-
-				if valid {
-					cancel()
-				}
+			if err != nil {
+				return err
 			}
-		}(i)
+			
+			candidateCode := utils.ExtractCodeBlock(resRaw)
+
+			newContent := string(fullContent[:target.Range.Start]) + candidateCode + string(fullContent[target.Range.End:])
+
+			processedContent, err := imports.Process(failingFile, []byte(newContent), nil)
+			if err != nil {
+				processedContent = []byte(newContent)
+			}
+
+			tempLedger := NewLedger()
+			_ = tempLedger.Stage(failingFile, Patch{
+				FilePath:   failingFile,
+				Original:   string(fullContent),
+				NewContent: string(processedContent),
+			})
+
+			validator := NewLSPValidator("")
+
+			select {
+			case <-egCtx.Done():
+				return egCtx.Err()
+			default:
+			}
+
+			valMu.Lock()
+			if egCtx.Err() != nil {
+				valMu.Unlock()
+				return egCtx.Err()
+			}
+			valRes, _ := validator.Validate(egCtx, tempLedger)
+			valMu.Unlock()
+
+			valid := valRes.Valid
+
+			candidates <- fixCandidate{
+				id:       id,
+				code:     candidateCode,
+				fullCode: string(processedContent),
+				valid:    valid,
+			}
+
+			if valid {
+				// Success doesn't natively cancel errgroup without an error, but that's okay.
+			}
+			return nil
+		})
 	}
 
-	wg.Wait()
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
 	close(candidates)
 
 	var bestCandidate *fixCandidate
@@ -313,9 +316,9 @@ func (e *HealerEngine) Index(ctx context.Context, path string) error {
 	return e.store.WithTransaction(ctx, func(ctx context.Context, tx store.Store) error {
 		tx.SaveFileIndex(ctx, &store.FileIndex{
 			Path:    path,
-			Mtime:   mtime,
+			Mtime:   int(mtime),
 			Hash:    hash,
-			ASTJSON: "{}",
+			AstJson: "{}",
 			Project: utils.GetRepoName(ctx),
 		})
 		tx.ClearSymbols(ctx, path)

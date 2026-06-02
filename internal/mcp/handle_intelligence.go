@@ -82,8 +82,8 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 		enc.WriteHeader()
 		for _, sym := range results {
 			enc.EncodeCritical(sym)
-			if sym.PageRank > 0 {
-				enc.EncodeRank(sym.Path, sym.PageRank)
+			if sym.Pagerank > 0 {
+				enc.EncodeRank(sym.Path, sym.Pagerank)
 			}
 			if sym.ChurnScore > 0 {
 				enc.EncodeChurn(sym.Path, sym.ChurnScore)

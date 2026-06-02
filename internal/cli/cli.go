@@ -10,8 +10,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Rogercode97/scouter/internal/adapters/engram"
 	"github.com/Rogercode97/scouter/internal/config"
 	"github.com/Rogercode97/scouter/internal/display"
+	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/filter"
@@ -40,6 +42,7 @@ Usage:
 Core Commands:
   index <path>    Index a file or directory for structural intelligence (--deep for Go SSA)
   search <query>   Search for symbols across AST and historical insights
+  flow <symbol>    Trace the origin of a variable or symbol
   graph [filter]   Export the Call Graph in Mermaid format
   predict [diff]  Identify tests affected by current changes
   setup           Interactive environment configuration
@@ -80,7 +83,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 	// Database: Centralized initialization for commands that need it
 	openDB := func() (store.Store, func(), int) {
-		db, err := store.New(ctx, cfg.Tracking.DBPath)
+		db, err := store.NewStore(ctx, cfg.Tracking.DBPath)
 		if err != nil {
 			fmt.Fprintf(stderr, "error opening database: %v\n", err)
 			return nil, nil, 1
@@ -101,7 +104,50 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		defer closeDB()
 
 		logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-		server := mcp.NewServer(db, logger)
+		
+		engramPath, _ := engram.DiscoverDBPath()
+		memoryProvider := engram.NewSQLiteMemoryProvider(engramPath)
+
+		lspMgr := lsp.GetGlobalManager()
+		ledger := engine.NewLedger()
+		impact := engine.NewImpactEngine(db, lspMgr, memoryProvider)
+		analyzer := engine.NewAnalysisEngine(db)
+		ripple := engine.NewRippleEngine(db, nil, impact)
+		ripple.Validators = append(ripple.Validators, engine.NewLSPValidator(analyzer.ProjectRoot))
+		searchEngine := engine.NewSearchEngine(db, memoryProvider)
+		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider)
+		compact := engine.NewCompactionEngine(db, ledger)
+		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, healer, lspMgr)
+		sdd := engine.NewSDDEngine(".")
+
+		truthEngine := engine.NewTruthEngine(
+			db,
+			engine.WithMemory(memoryProvider),
+			engine.WithAnalyzer(analyzer),
+			engine.WithLSP(lspMgr),
+			engine.WithImpact(impact),
+			engine.WithSearch(searchEngine),
+			engine.WithCompact(compact),
+			engine.WithHealer(healer),
+			engine.WithDiagnostic(diagnostic),
+			engine.WithRipple(ripple),
+			engine.WithSDD(sdd),
+			engine.WithLedger(ledger),
+		)
+
+		appService := memory.NewAppService(memoryProvider, nil)
+		chronos := engine.NewChronosEngine()
+
+		opts := mcp.Options{
+			Store:         db,
+			Logger:        logger,
+			LspMgr:        lspMgr,
+			TruthEngine:   truthEngine,
+			ChronosEngine: chronos,
+			AppService:    appService,
+		}
+
+		server := mcp.NewServer(opts)
 		defer server.Close()
 		
 		transport := &sdk.StdioTransport{}
@@ -251,6 +297,24 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		for _, sym := range results.Symbols {
 			fmt.Fprintf(stdout, "- [%s] %s (%s:%d)\n", sym.Type, sym.Name, sym.Path, sym.StartLine)
 		}
+		return 0
+
+	case "flow":
+		if len(cmdArgs) < 1 {
+			fmt.Fprintf(stderr, "usage: scouter flow <symbol>\n")
+			return 1
+		}
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+		flows, err := db.GetFlows(ctx, cmdArgs[0])
+		if err != nil {
+			fmt.Fprintf(stderr, "error fetching flows: %v\n", err)
+			return 1
+		}
+		display.PrintFlows(stdout, cmdArgs[0], flows)
 		return 0
 
 	case "ingest":

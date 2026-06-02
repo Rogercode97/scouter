@@ -257,7 +257,7 @@ func (s *SovereignWrapper) EmitCall(c store.Call) error {
 	}
 }
 
-// EmitRank emits a PageRank metric if the state is not COLD.
+// EmitRank emits a Pagerank metric if the state is not COLD.
 func (s *SovereignWrapper) EmitRank(path string, rank float64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

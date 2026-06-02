@@ -88,7 +88,7 @@ func (e *DiagnosticEngine) Diagnose(ctx context.Context, errorLog string) (*Diag
 	}
 
 	// Resolve Symbol
-	itPointers, _, _ := StreamSymbols(ctx, failingFile)
+	itPointers, _, _, _ := StreamSymbols(ctx, failingFile)
 	var symbol string
 	for p := range itPointers {
 		if line >= p.StartLine && line <= p.EndLine {

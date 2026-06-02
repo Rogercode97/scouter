@@ -15,7 +15,7 @@ func TestIntegration_PredictiveTesting(t *testing.T) {
 	dbPath := "test_integration_predict.db"
 	defer os.Remove(dbPath)
 
-	s, err := store.New(ctx, dbPath)
+	s, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestIntegration_PredictiveTesting(t *testing.T) {
 	// 2. Index the files
 	files := []string{sourcePath, testPath}
 	for _, path := range files {
-		pointers, calls, err := engine.ParseFile(ctx, path, nil)
+		pointers, calls, _, err := engine.ParseFile(ctx, path, nil)
 		if err != nil {
 			t.Fatalf("ParseFile failed for %s: %v", path, err)
 		}

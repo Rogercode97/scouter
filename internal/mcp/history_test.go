@@ -12,10 +12,10 @@ import (
 )
 
 func TestServer_SessionHistory(t *testing.T) {
-	st, _ := store.New(context.Background(), ":memory:")
+	st, _ := store.NewStore(context.Background(), ":memory:")
 	defer st.Close()
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	server := NewServer(st, logger)
+	server := setupMockServer(st, logger)
 
 	// Test 1: Appending messages
 	server.AppendSessionMessage(memory.Message{Role: "user", Content: "Hello"})

@@ -42,7 +42,7 @@ func TestSemanticRipple_CrossPackage(t *testing.T) {
 	dbPath := filepath.Join(fixtureDir, ".scouter", "scouter_test.db")
 	os.Remove(dbPath)
 	
-	db, err := store.New(ctx, dbPath)
+	db, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create DB: %v", err)
 	}

@@ -70,7 +70,7 @@ func TestAnalyzeChurn(t *testing.T) {
 	// 2. Setup store
 	ctx := context.Background()
 	dbPath := filepath.Join(tmpDir, "test.db")
-	s, err := store.New(ctx, dbPath)
+	s, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}

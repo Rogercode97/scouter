@@ -11,7 +11,7 @@ func TestEvolution(t *testing.T) {
 	dbPath := "test_evolution.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -23,7 +23,7 @@ func TestEvolution(t *testing.T) {
 			Path:    p,
 			Mtime:   12345,
 			Hash:    "hash",
-			ASTJSON: "{}",
+			AstJson: "{}",
 			Project: "scouter",
 		})
 		if err != nil {

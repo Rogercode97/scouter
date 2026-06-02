@@ -16,51 +16,15 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-type FileIndex struct {
-	Path      string `json:"path"`
-	Mtime     int64  `json:"mtime"`
-	Hash      string `json:"hash"`
-	ASTJSON   string `json:"ast_json"`
-	Project   string `json:"project"`
-	Freshness int    `json:"freshness"` // 0: fresh, 1: edited, 2: stale
-}
 
-type Symbol struct {
-	Name           string  `json:"name"`
-	Type           string  `json:"type"`
-	PackagePath    string  `json:"package_path"`  // Fully qualified package path
-	ReceiverType   string  `json:"receiver_type"` // pointer, value, or empty
-	Signature      string  `json:"signature,omitempty"`
-	Doc            string  `json:"doc"`
-	Path           string  `json:"path"`
-	StartByte      int     `json:"start_byte"`
-	EndByte        int     `json:"end_byte"`
-	StartLine      int     `json:"start_line"`
-	StartCol       int     `json:"start_col"`
-	EndLine        int     `json:"end_line"`
-	StructuralHash string  `json:"structural_hash,omitempty"`
-	Relevance      float64 `json:"relevance,omitempty"`
-	PageRank       float64 `json:"pagerank,omitempty"`
-	ChurnScore     float64 `json:"churn_score,omitempty"`
-	RuntimeHits    int     `json:"runtime_hits,omitempty"`
-	AISummary      string  `json:"ai_summary,omitempty"`
-	Metrics        *types.SemanticMetrics `json:"metrics,omitempty"`
-}
 
-type CriticalSymbol struct {
-	Symbol
-	Centrality int `json:"centrality"`
-	Fragility  int `json:"fragility"`
-}
 
-type Call struct {
-	CallerName string `json:"caller_name"`
-	CalleeName string `json:"callee_name"`
-	CalleePath string `json:"callee_path"`
-	LinkType   string `json:"link_type"`
-	Path       string `json:"path"`
-	Line       int    `json:"line"`
-	Body       string `json:"body,omitempty"`
+type Flow struct {
+	Source string `json:"source"`
+	Sink   string `json:"sink"`
+	Type   string `json:"type"` // assignment, parameter, return
+	Path   string `json:"path"`
+	Line   int    `json:"line"`
 }
 
 // SovereignDelta represents the index data for a single file, stable for Git.
@@ -69,12 +33,14 @@ type SovereignDelta struct {
 	Hash    string   `json:"hash"`
 	Symbols []Symbol `json:"symbols"`
 	Calls   []Call   `json:"calls"`
+	Flows   []Flow   `json:"flows"`
 }
 
 type BatchItem struct {
 	Index      *FileIndex
 	Symbols    []Symbol
 	Calls      []Call
+	Flows      []Flow
 	Violations []Violation
 }
 
@@ -97,7 +63,7 @@ type storeImpl struct {
 
 var _ Store = (*storeImpl)(nil)
 
-func New(ctx context.Context, dbPath string) (Store, error) {
+func NewStore(ctx context.Context, dbPath string) (Store, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
@@ -160,6 +126,8 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 		`CREATE TABLE IF NOT EXISTS violations (id INTEGER PRIMARY KEY AUTOINCREMENT, rule_id TEXT, file_path TEXT, message TEXT, severity TEXT, start_line INTEGER, start_col INTEGER, text TEXT, FOREIGN KEY(file_path) REFERENCES file_index(path) ON DELETE CASCADE);`,
 		`CREATE INDEX IF NOT EXISTS idx_violations_file ON violations(file_path);`,
 		`CREATE TABLE IF NOT EXISTS symbol_usage (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol_id INTEGER NOT NULL, environment TEXT NOT NULL, last_used INTEGER NOT NULL, hit_count INTEGER NOT NULL, UNIQUE(symbol_id, environment), FOREIGN KEY(symbol_id) REFERENCES symbols(id) ON DELETE CASCADE);`,
+		`CREATE TABLE IF NOT EXISTS flows (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, sink TEXT NOT NULL, type TEXT NOT NULL, path TEXT NOT NULL, line INTEGER NOT NULL, FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);`,
+		`CREATE INDEX IF NOT EXISTS idx_flows_sink ON flows(sink);`,
 	}
 
 	for _, q := range queries {
@@ -415,7 +383,7 @@ func (s *storeImpl) query(ctx context.Context, q string, a ...any) (*sql.Rows, e
 
 func (s *storeImpl) GetFileIndex(ctx context.Context, p string) (*FileIndex, error) {
 	var idx FileIndex
-	err := s.queryRow(ctx, "SELECT path, mtime, hash, ast_json, project, freshness FROM file_index WHERE path = ?", p).Scan(&idx.Path, &idx.Mtime, &idx.Hash, &idx.ASTJSON, &idx.Project, &idx.Freshness)
+	err := s.queryRow(ctx, "SELECT path, mtime, hash, ast_json, project, freshness FROM file_index WHERE path = ?", p).Scan(&idx.Path, &idx.Mtime, &idx.Hash, &idx.AstJson, &idx.Project, &idx.Freshness)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file index: %w", err)
 	}
@@ -431,7 +399,7 @@ func (s *storeImpl) SaveFileIndex(ctx context.Context, idx *FileIndex) error {
                 ast_json=excluded.ast_json,
                 project=excluded.project,
                 freshness=excluded.freshness`
-	_, err := s.exec(ctx, query, idx.Path, idx.Mtime, idx.Hash, idx.ASTJSON, idx.Project, idx.Freshness)
+	_, err := s.exec(ctx, query, idx.Path, idx.Mtime, idx.Hash, idx.AstJson, idx.Project, idx.Freshness)
 	if err != nil {
 		return fmt.Errorf("failed to save file index: %w", err)
 	}
@@ -451,6 +419,9 @@ func (s *storeImpl) SaveFileIndexBatch(ctx context.Context, items []BatchItem) e
 				if err := tx.ClearCalls(txCtx, item.Index.Path); err != nil {
 					return fmt.Errorf("failed to clear calls for %s: %w", item.Index.Path, err)
 				}
+				if err := tx.ClearFlows(txCtx, item.Index.Path); err != nil {
+					return fmt.Errorf("failed to clear flows for %s: %w", item.Index.Path, err)
+				}
 			}
 			for _, sym := range item.Symbols {
 				symCopy := sym
@@ -461,6 +432,11 @@ func (s *storeImpl) SaveFileIndexBatch(ctx context.Context, items []BatchItem) e
 			for _, call := range item.Calls {
 				if err := tx.SaveCall(txCtx, call); err != nil {
 					return fmt.Errorf("failed to save call from %s to %s: %w", call.CallerName, call.CalleeName, err)
+				}
+			}
+			for _, flow := range item.Flows {
+				if err := tx.SaveFlow(txCtx, flow); err != nil {
+					return fmt.Errorf("failed to save flow: %w", err)
 				}
 			}
 			for _, violation := range item.Violations {
@@ -529,7 +505,7 @@ func (s *storeImpl) SaveSymbol(ctx context.Context, sym *Symbol) error {
 			metricsJSON = string(b)
 		}
 	}
-	_, err := s.exec(ctx, "INSERT INTO symbols (name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, pagerank, churn_score, runtime_hits, ai_summary, metrics_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", sym.Name, sym.Type, sym.PackagePath, sym.ReceiverType, sym.Signature, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.StartCol, sym.EndLine, sym.StructuralHash, sym.PageRank, sym.ChurnScore, sym.RuntimeHits, sym.AISummary, metricsJSON)
+	_, err := s.exec(ctx, "INSERT INTO symbols (name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, pagerank, churn_score, runtime_hits, ai_summary, metrics_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", sym.Name, sym.Type, sym.PackagePath, sym.ReceiverType, sym.Signature, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.StartCol, sym.EndLine, sym.StructuralHash, sym.Pagerank, sym.ChurnScore, sym.RuntimeHits, sym.AiSummary, metricsJSON)
 	if err != nil {
 		return fmt.Errorf("failed to save symbol: %w", err)
 	}
@@ -563,7 +539,7 @@ func (s *storeImpl) SearchSymbols(ctx context.Context, q, t string, limit, offse
 	for rows.Next() {
 		var sym Symbol
 		var metricsJSON string
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AISummary, &metricsJSON); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 			return nil, fmt.Errorf("scan symbol failed: %w", err)
 		}
 		res = append(res, sym)
@@ -584,7 +560,7 @@ func (s *storeImpl) GetSymbolsByNameInFile(ctx context.Context, name, path strin
 	for rows.Next() {
 		var sym Symbol
 		var metricsJSON string
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AISummary, &metricsJSON); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 			return nil, fmt.Errorf("scan symbol failed: %w", err)
 		}
 		res = append(res, sym)
@@ -614,7 +590,7 @@ func (s *storeImpl) GetSymbolsByStructuralHash(ctx context.Context, hash string)
 	for rows.Next() {
 		var sym Symbol
 		var metricsJSON string
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AISummary, &metricsJSON); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 			return nil, fmt.Errorf("scan symbol failed: %w", err)
 		}
 		res = append(res, sym)
@@ -645,7 +621,7 @@ func (s *storeImpl) SearchSymbolsWeighted(ctx context.Context, q, t string) iter
 		for rows.Next() {
 			var sym Symbol
 			var metricsJSON string
-			if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AISummary, &metricsJSON); err != nil {
+			if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 				if !yield(Symbol{}, fmt.Errorf("scan weighted symbol failed: %w", err)) {
 					return
 				}
@@ -671,7 +647,7 @@ func (s *storeImpl) GetSymbolsByRange(ctx context.Context, path string, start, e
 	for rows.Next() {
 		var sym Symbol
 		var metricsJSON string
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AISummary, &metricsJSON); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 			return nil, fmt.Errorf("scan symbol range failed: %w", err)
 		}
 		res = append(res, sym)
@@ -698,7 +674,7 @@ func (s *storeImpl) GetSymbolsByPathPrefix(ctx context.Context, pathPrefix strin
 	for rows.Next() {
 		var sym Symbol
 		var metricsJSON string
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AISummary, &metricsJSON); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 			return nil, fmt.Errorf("scan symbol by path prefix failed: %w", err)
 		}
 		res = append(res, sym)
@@ -719,7 +695,7 @@ func (s *storeImpl) GetSymbolsByType(ctx context.Context, symType string) ([]Sym
 	for rows.Next() {
 		var sym Symbol
 		var metricsJSON string
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AISummary, &metricsJSON); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 			return nil, fmt.Errorf("scan symbol by type failed: %w", err)
 		}
 		res = append(res, sym)
@@ -742,7 +718,7 @@ func (s *storeImpl) GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error] 
 		for rows.Next() {
 			var sym Symbol
 			var metricsJSON string
-			if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.PageRank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AISummary, &metricsJSON); err != nil {
+			if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 				if !yield(Symbol{}, err) {
 					return
 				}
@@ -816,7 +792,7 @@ func (s *storeImpl) UpdateSymbolChurn(ctx context.Context, path string, score fl
 	return nil
 }
 
-func (s *storeImpl) UpdateSymbolPageRank(ctx context.Context, name, path string, score float64) error {
+func (s *storeImpl) UpdateSymbolPagerank(ctx context.Context, name, path string, score float64) error {
 	_, err := s.exec(ctx, "UPDATE symbols SET pagerank = ? WHERE (name = ? OR (package_path || '.' || name) = ?) AND (path = ? OR ? = '')", score, name, name, path, path)
 	if err != nil {
 		return fmt.Errorf("failed to update pagerank: %w", err)
@@ -937,7 +913,7 @@ func (s *storeImpl) ImportDelta(ctx context.Context, syncDir string) error {
 				tx.SaveFileIndex(txCtx, &FileIndex{
 					Path:    delta.Path,
 					Hash:    delta.Hash,
-					ASTJSON: "{}", // Not needed for Delta Sync
+					AstJson: "{}", // Not needed for Delta Sync
 				})
 				tx.ClearSymbols(txCtx, delta.Path)
 				tx.ClearCalls(txCtx, delta.Path)
@@ -971,6 +947,38 @@ func (s *storeImpl) SaveCall(ctx context.Context, c Call) error {
 	}
 
 	return nil
+}
+
+func (s *storeImpl) SaveFlow(ctx context.Context, flow Flow) error {
+	query := `INSERT INTO flows (source, sink, type, path, line) VALUES (?, ?, ?, ?, ?)`
+	_, err := s.exec(ctx, query, flow.Source, flow.Sink, flow.Type, flow.Path, flow.Line)
+	if err != nil {
+		return fmt.Errorf("failed to save flow: %w", err)
+	}
+	return nil
+}
+
+func (s *storeImpl) GetFlows(ctx context.Context, sink string) ([]Flow, error) {
+	rows, err := s.query(ctx, "SELECT source, sink, type, path, line FROM flows WHERE sink = ?", sink)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get flows: %w", err)
+	}
+	defer rows.Close()
+
+	var res []Flow
+	for rows.Next() {
+		var f Flow
+		if err := rows.Scan(&f.Source, &f.Sink, &f.Type, &f.Path, &f.Line); err != nil {
+			return nil, fmt.Errorf("scan flow failed: %w", err)
+		}
+		res = append(res, f)
+	}
+	return res, nil
+}
+
+func (s *storeImpl) ClearFlows(ctx context.Context, path string) error {
+	_, err := s.exec(ctx, "DELETE FROM flows WHERE path = ?", path)
+	return err
 }
 
 
@@ -1293,3 +1301,9 @@ func (s *storeImpl) WithTransaction(ctx context.Context, fn func(context.Context
 }
 
 func (s *storeImpl) Close() error { return s.db.Close() }
+
+type CriticalSymbol struct {
+	Symbol
+	Centrality int `json:"centrality"`
+	Fragility  int `json:"fragility"`
+}

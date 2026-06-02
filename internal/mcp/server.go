@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Rogercode97/scouter/internal/adapters/engram"
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
@@ -38,60 +37,39 @@ type Server struct {
 	snapshotOrder   []string // insertion order for LRU eviction
 }
 
+// Options contains the dependencies required to initialize the MCP Server.
+type Options struct {
+	Store         store.Store
+	Logger        *slog.Logger
+	LspMgr        *lsp.Manager
+	TruthEngine   *engine.TruthEngine
+	ChronosEngine *engine.ChronosEngine
+	AppService    *memory.AppService
+}
+
 // NewServer initializes a sovereign, SDK-based MCP server.
-func NewServer(st store.Store, logger *slog.Logger) *Server {
+func NewServer(opts Options) *Server {
 	implementation := &mcp.Implementation{
 		Name:    "scouter",
 		Version: "12.0.0-ascension",
 	}
 
-	opts := &mcp.ServerOptions{
-		Logger: logger,
+	mcpOpts := &mcp.ServerOptions{
+		Logger:       opts.Logger,
 		Instructions: ScouterServerInstructions,
 	}
-	
+
 	s := &Server{
-		mcpServer: mcp.NewServer(implementation, opts),
-		store:    st,
-		resolver: NewPointerResolver(st),
-		lspMgr:    lsp.GetGlobalManager(),
-		logger:    logger,
-		chronos:   engine.NewChronosEngine(),
+		mcpServer: mcp.NewServer(implementation, mcpOpts),
+		store:     opts.Store,
+		resolver:  NewPointerResolver(opts.Store),
+		lspMgr:    opts.LspMgr,
+		logger:    opts.Logger,
+		chronos:   opts.ChronosEngine,
 		snapshots: make(map[string]*engine.ChronosSnapshot),
+		engine:    opts.TruthEngine,
+		appService: opts.AppService,
 	}
-
-	// [Dream Ascension] Initialize Memory Service
-	engramPath, _ := engram.DiscoverDBPath()
-	memoryProvider := engram.NewSQLiteMemoryProvider(engramPath)
-
-	// [Sovereignty Upgrade] Initialize Engines
-	ledger := engine.NewLedger() // Staging Ledger with persistence
-	impact := engine.NewImpactEngine(st, s.lspMgr, memoryProvider)
-	analyzer := engine.NewAnalysisEngine(st)
-	ripple := engine.NewRippleEngine(st, nil, impact)
-	ripple.Validators = append(ripple.Validators, engine.NewLSPValidator(analyzer.ProjectRoot))
-	search := engine.NewSearchEngine(st, memoryProvider)
-	healer := engine.NewHealerEngine(st, s.lspMgr, analyzer, impact, search)
-	compact := engine.NewCompactionEngine(st, ledger)
-	diagnostic := engine.NewDiagnosticEngine(st, analyzer, impact, healer, s.lspMgr)
-	sdd := engine.NewSDDEngine(".")
-
-	s.engine = engine.NewTruthEngine(
-		st,
-		engine.WithMemory(memoryProvider),
-		engine.WithAnalyzer(analyzer),
-		engine.WithLSP(s.lspMgr),
-		engine.WithImpact(impact),
-		engine.WithSearch(search),
-		engine.WithCompact(compact),
-		engine.WithHealer(healer),
-		engine.WithDiagnostic(diagnostic),
-		engine.WithRipple(ripple),
-		engine.WithSDD(sdd),
-		engine.WithLedger(ledger),
-	)
-
-	s.appService = memory.NewAppService(memoryProvider, nil)
 
 	s.registerCoreTools()
 	s.registerResources()

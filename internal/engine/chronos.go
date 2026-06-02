@@ -40,7 +40,7 @@ func (e *ChronosEngine) TakeSnapshot(ctx context.Context, filePath string) (*Chr
 		return nil, err
 	}
 
-	ptrIter, _, err := StreamWithTreeSitter(ctx, absPath)
+	ptrIter, _, _, err := StreamWithTreeSitter(ctx, absPath)
 	if err != nil {
 		return nil, fmt.Errorf("chronos failed to stream AST: %w", err)
 	}
@@ -72,7 +72,7 @@ func (e *ChronosEngine) CompareSnapshot(ctx context.Context, snapshot *ChronosSn
 		return nil, err
 	}
 
-	ptrIter, _, err := StreamWithTreeSitter(ctx, absPath)
+	ptrIter, _, _, err := StreamWithTreeSitter(ctx, absPath)
 	if err != nil {
 		return nil, fmt.Errorf("chronos failed to stream AST for comparison: %w", err)
 	}

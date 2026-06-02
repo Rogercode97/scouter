@@ -31,6 +31,14 @@ type ASTCall struct {
 	Line       int    `json:"line" validate:"required,gte=1"`
 }
 
+type DataFlow struct {
+	Source string `json:"source" validate:"required"`
+	Sink   string `json:"sink" validate:"required"`
+	Type   string `json:"type" validate:"required"` // assignment, argument, return
+	Path   string `json:"path" validate:"required"`
+	Line   int    `json:"line" validate:"required,gte=1"`
+}
+
 type RiskMetrics struct {
 	Centrality         float64 `json:"centrality"`
 	BlastRadius        float64 `json:"blast_radius"`
@@ -53,6 +61,7 @@ type ImpactResult struct {
 	Callers   []ImpactEntity `json:"callers"`
 	Mermaid   string         `json:"mermaid"`
 	RiskLevel string         `json:"risk_level"` // Low, Medium, High, Critical
+	Breakdown string         `json:"breakdown,omitempty"`
 }
 
 type Dependency struct {

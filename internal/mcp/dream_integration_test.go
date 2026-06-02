@@ -56,9 +56,9 @@ func TestDream_PassiveIntegration(t *testing.T) {
 	db.Close()
 
 	// 2. Setup Scouter Server with Mocked Services
-	st, _ := store.New(ctx, ":memory:")
+	st, _ := store.NewStore(ctx, ":memory:")
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	server := NewServer(st, logger)
+	server := setupMockServer(st, logger)
 
 	// Inject Test-friendly AppService
 	memoryProvider := engram.NewSQLiteMemoryProvider(dbPath)

@@ -44,7 +44,7 @@ func (m *ShardManager) GetShard(ctx context.Context, path string) (Store, error)
 	}
 
 	shardPath := filepath.Join(m.basePath, fmt.Sprintf("shard_%s.db", shardKey))
-	newShard, err := New(ctx, shardPath)
+	newShard, err := NewStore(ctx, shardPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create shard %s: %w", shardKey, err)
 	}

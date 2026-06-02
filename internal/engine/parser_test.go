@@ -27,7 +27,7 @@ func Callee() {}
 	}
 
 	ctx := context.Background()
-	pointers, calls, err := ParseFile(ctx, filePath, nil)
+	pointers, calls, _, err := ParseFile(ctx, filePath, nil)
 	if err != nil {
 		t.Fatalf("ParseFile failed: %v", err)
 	}
@@ -75,7 +75,7 @@ func Nested() {}
 	}
 
 	ctx := context.Background()
-	_, calls, err := ParseFile(ctx, filePath, nil)
+	_, calls, _, err := ParseFile(ctx, filePath, nil)
 	if err != nil {
 		t.Fatalf("ParseFile failed: %v", err)
 	}
@@ -133,7 +133,7 @@ func NestedCallee() {}
 	}
 
 	ctx := context.Background()
-	_, calls, err := ParseFile(ctx, filePath, nil)
+	_, calls, _, err := ParseFile(ctx, filePath, nil)
 	if err != nil {
 		t.Fatalf("ParseFile failed: %v", err)
 	}
@@ -195,7 +195,7 @@ func World() {}
 	}
 
 	ctx := context.Background()
-	pointers, _, err := ParseFile(ctx, filePath, nil)
+	pointers, _, _, err := ParseFile(ctx, filePath, nil)
 	if err != nil {
 		t.Fatalf("ParseFile failed: %v", err)
 	}
@@ -242,7 +242,7 @@ function callee() {}
 	}
 
 	ctx := context.Background()
-	_, calls, err := ParseFile(ctx, filePath, nil)
+	_, calls, _, err := ParseFile(ctx, filePath, nil)
 	if err != nil {
 		t.Fatalf("ParseFile failed: %v", err)
 	}
@@ -288,7 +288,7 @@ func GlobalFunc() {}
 	}
 
 	ctx := context.Background()
-	pointers, _, err := ParseFile(ctx, filePath, nil)
+	pointers, _, _, err := ParseFile(ctx, filePath, nil)
 	if err != nil {
 		t.Fatalf("ParseFile failed: %v", err)
 	}
@@ -337,5 +337,166 @@ func GlobalFunc() {}
 	}
 	if !foundStruct {
 		t.Errorf("MyStruct not found")
+	}
+}
+
+func TestParseFileWithDataFlow(t *testing.T) {
+	content := `
+package test
+func Flow() {
+	x := 42
+	y := x
+	z := y
+	_ = z
+}
+`
+	tmpDir, _ := os.MkdirTemp("", "scouter-flow-*")
+	defer os.RemoveAll(tmpDir)
+
+	filePath := filepath.Join(tmpDir, "test.go")
+	os.WriteFile(filePath, []byte(content), 0644)
+
+	ctx := context.Background()
+	_, _, flows, err := ParseFile(ctx, filePath, nil)
+	if err != nil {
+		t.Fatalf("ParseFile failed: %v", err)
+	}
+
+	if len(flows) != 3 {
+		t.Errorf("expected 3 flows, got %d", len(flows))
+	}
+
+	foundXY := false
+	foundYZ := false
+	for _, f := range flows {
+		if f.Source == "42" && f.Sink == "x" {
+			foundXY = true
+		}
+		if f.Source == "x" && f.Sink == "y" {
+			foundYZ = true
+		}
+	}
+
+	if !foundXY {
+		t.Errorf("did not find flow x := 42")
+	}
+	if !foundYZ {
+		t.Errorf("did not find flow y := x")
+	}
+}
+
+func TestParseFileWithArgsAndReturns(t *testing.T) {
+	content := `
+package test
+func F(a, b int) int {
+	return a + b
+}
+func G() (int, int) {
+	return 1, 2
+}
+func Main() {
+	x := 10
+	y := 20
+	z := F(x, y)
+	a, b := G()
+	F(G())
+	_ = z
+	_ = a
+	_ = b
+}
+`
+	tmpDir, _ := os.MkdirTemp("", "scouter-args-*")
+	defer os.RemoveAll(tmpDir)
+
+	filePath := filepath.Join(tmpDir, "test.go")
+	os.WriteFile(filePath, []byte(content), 0644)
+
+	ctx := context.Background()
+	_, _, flows, err := ParseFile(ctx, filePath, nil)
+	if err != nil {
+		t.Fatalf("ParseFile failed: %v", err)
+	}
+
+	// Verify Arguments
+	foundArg0 := false
+	foundArg1 := false
+	for _, f := range flows {
+		if f.Type == "argument" && f.Source == "x" && f.Sink == "F:arg0" {
+			foundArg0 = true
+		}
+		if f.Type == "argument" && f.Source == "y" && f.Sink == "F:arg1" {
+			foundArg1 = true
+		}
+	}
+	if !foundArg0 {
+		t.Errorf("did not find flow x -> F:arg0")
+	}
+	if !foundArg1 {
+		t.Errorf("did not find flow y -> F:arg1")
+	}
+
+	// Verify Returns
+	foundRetF := false
+	foundRetG0 := false
+	foundRetG1 := false
+	for _, f := range flows {
+		if f.Type == "return" && f.Source == "a + b" && f.Sink == "F:return0" {
+			foundRetF = true
+		}
+		if f.Type == "return" && f.Source == "1" && f.Sink == "G:return0" {
+			foundRetG0 = true
+		}
+		if f.Type == "return" && f.Source == "2" && f.Sink == "G:return1" {
+			foundRetG1 = true
+		}
+	}
+	if !foundRetF {
+		t.Errorf("did not find flow a+b -> F:return0")
+	}
+	if !foundRetG0 {
+		t.Errorf("did not find flow 1 -> G:return0")
+	}
+	if !foundRetG1 {
+		t.Errorf("did not find flow 2 -> G:return1")
+	}
+
+	// Verify Assignment Return Mapping
+	foundZ := false
+	foundA := false
+	foundB := false
+	for _, f := range flows {
+		if f.Type == "assignment" && f.Source == "F:return0" && f.Sink == "z" {
+			foundZ = true
+		}
+		if f.Type == "assignment" && f.Source == "G:return0" && f.Sink == "a" {
+			foundA = true
+		}
+		if f.Type == "assignment" && f.Source == "G:return1" && f.Sink == "b" {
+			foundB = true
+		}
+	}
+	if !foundZ {
+		t.Errorf("did not find flow F:return0 -> z")
+	}
+	if !foundA {
+		t.Errorf("did not find flow G:return0 -> a")
+	}
+	if !foundB {
+		t.Errorf("did not find flow G:return1 -> b")
+	}
+
+	// Verify Nested Call Mapping: F(G())
+	// Note: Our current implementation in parser.go handles G() as a single argument to F.
+	// Task 4 says "link function call returns to assignment targets". 
+	// Task 2 says "emit argument flows for each parameter (e.g., x -> f:arg0)".
+	// In F(G()), G() is the argument.
+	foundNestedArg := false
+	for _, f := range flows {
+		if f.Type == "argument" && f.Source == "G()" && f.Sink == "F:arg0" {
+			foundNestedArg = true
+		}
+	}
+	if !foundNestedArg {
+		t.Errorf("did not find flow G() -> F:arg0")
 	}
 }

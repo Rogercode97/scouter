@@ -12,7 +12,7 @@ import (
 func newTestStore(t *testing.T) store.Store {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	st, err := store.New(context.Background(), dbPath)
+	st, err := store.NewStore(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}

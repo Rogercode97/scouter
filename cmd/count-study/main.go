@@ -17,7 +17,7 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	db, err := store.New(ctx, cfg.Tracking.DBPath)
+	db, err := store.NewStore(ctx, cfg.Tracking.DBPath)
 	if err != nil {
 		log.Fatalf("failed to open store: %v", err)
 	}

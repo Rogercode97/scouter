@@ -16,7 +16,7 @@ func TestInterfacePropagation_Omniscience(t *testing.T) {
 	dbPath := "omniscience.db"
 	defer os.Remove(dbPath)
 
-	st, err := store.New(ctx, dbPath)
+	st, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}

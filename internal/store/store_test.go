@@ -17,7 +17,7 @@ func TestStoreSearch(t *testing.T) {
 	dbPath := "test_scouter.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestStoreSearch(t *testing.T) {
 		Path:    "store.go",
 		Mtime:   123456789,
 		Hash:    "dummyhash",
-		ASTJSON: "{}",
+		AstJson: "{}",
 		Project: "scouter",
 	})
 	if err != nil {
@@ -82,7 +82,7 @@ func TestStoreCalls(t *testing.T) {
 	dbPath := "test_scouter_calls.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestStoreCalls(t *testing.T) {
 		Path:    "main.go",
 		Mtime:   123456789,
 		Hash:    "dummyhash",
-		ASTJSON: "{}",
+		AstJson: "{}",
 		Project: "scouter",
 	})
 	if err != nil {
@@ -140,7 +140,7 @@ func TestGetUnusedSymbols(t *testing.T) {
 	dbPath := "test_scouter_deadcode.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestGetUnusedSymbols(t *testing.T) {
 		Path:    "logic.go",
 		Mtime:   123456789,
 		Hash:    "hash1",
-		ASTJSON: "{}",
+		AstJson: "{}",
 		Project: "scouter",
 	})
 	if err != nil {
@@ -209,7 +209,7 @@ func TestStoreSearch_Injection(t *testing.T) {
 	dbPath := "test_scouter_injection.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestStoreSearch_Injection(t *testing.T) {
 		Path:    "store.go",
 		Mtime:   123456789,
 		Hash:    "dummyhash",
-		ASTJSON: "{}",
+		AstJson: "{}",
 		Project: "scouter",
 	})
 	if err != nil {
@@ -250,7 +250,7 @@ func TestSaveFileIndex_PreservesSymbols(t *testing.T) {
 	dbPath := "test_scouter_preserve.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestSaveFileIndex_PreservesSymbols(t *testing.T) {
 		Path:    path,
 		Mtime:   100,
 		Hash:    "h1",
-		ASTJSON: "{}",
+		AstJson: "{}",
 		Project: "p1",
 	})
 	if err != nil {
@@ -280,7 +280,7 @@ func TestSaveFileIndex_PreservesSymbols(t *testing.T) {
 		Path:    path,
 		Mtime:   200, // changed
 		Hash:    "h2",  // changed
-		ASTJSON: "{}",
+		AstJson: "{}",
 		Project: "p1",
 	})
 	if err != nil {
@@ -303,7 +303,7 @@ func TestStore_DeleteCascade(t *testing.T) {
 	dbPath := "test_scouter_cascade.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -343,7 +343,7 @@ func TestStore_HasColumn(t *testing.T) {
 	dbPath := "test_scouter_hascolumn.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -418,7 +418,7 @@ func TestStore_TransactionSafety(t *testing.T) {
 	dbPath := "test_scouter_tx.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -429,7 +429,7 @@ func TestStore_TransactionSafety(t *testing.T) {
 		Path:    "store.go",
 		Mtime:   123456789,
 		Hash:    "dummyhash",
-		ASTJSON: "{}",
+		AstJson: "{}",
 		Project: "scouter",
 	})
 	if err != nil {
@@ -461,7 +461,7 @@ func TestStore_TransactionSafety(t *testing.T) {
 	dbPath := "test_scouter_namefile.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -494,7 +494,7 @@ func TestGetSymbolsByType(t *testing.T) {
 	dbPath := "test_scouter_type.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -520,7 +520,7 @@ func TestCallLinkTypePersistence(t *testing.T) {
 	dbPath := "test_scouter_linktype.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -544,7 +544,7 @@ func TestStore_SemanticFields(t *testing.T) {
 	dbPath := "test_scouter_semantic.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -630,7 +630,7 @@ func TestStore_Migration(t *testing.T) {
 	db.Close()
 
 	// 2. Open it with New(), which should trigger migration
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("New() failed on old database: %v", err)
 	}
@@ -655,7 +655,7 @@ func TestStore_Migration(t *testing.T) {
 func TestDirectoryHashes(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "scouter.db")
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -711,7 +711,7 @@ func TestSaveFileIndexBatch(t *testing.T) {
 	dbPath := "test_batch_insert.db"
 	defer os.Remove(dbPath)
 
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
@@ -723,9 +723,9 @@ func TestSaveFileIndexBatch(t *testing.T) {
 		batch = append(batch, BatchItem{
 			Index: &FileIndex{
 				Path:    path,
-				Mtime:   int64(1000 + i),
+				Mtime:   int(1000 + i),
 				Hash:    fmt.Sprintf("hash%d", i),
-				ASTJSON: "{}",
+				AstJson: "{}",
 				Project: "batch_test",
 			},
 			Symbols: []Symbol{
@@ -756,7 +756,7 @@ func TestSaveFileIndexBatch(t *testing.T) {
 func TestStore_RecordSymbolUsage(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "scouter_test.db")
-	s, err := New(ctx, dbPath)
+	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}

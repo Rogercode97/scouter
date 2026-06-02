@@ -19,7 +19,7 @@ func TestZeroLatencyBypass(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	dbPath := filepath.Join(tmpDir, "perf.db")
-	repo, err := store.New(ctx, dbPath)
+	repo, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}

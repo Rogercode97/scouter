@@ -34,7 +34,7 @@ func TestIntegration_InterfaceTracing(t *testing.T) {
 	dbPath := "test_integration_interface.db"
 	defer os.Remove(dbPath)
 
-	s, err := store.New(ctx, dbPath)
+	s, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}

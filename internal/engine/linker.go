@@ -2,19 +2,28 @@ package engine
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
 )
 
+type Linker struct {
+	logger *slog.Logger
+}
+
+func NewLinker(logger *slog.Logger) *Linker {
+	return &Linker{logger: logger}
+}
+
 // LinkInterfaces performs semantic linking between interfaces and their implementations
 // using the LSP 'textDocument/implementation' request.
-func LinkInterfaces(ctx context.Context, repo store.Store, lspMgr *lsp.Manager) error {
+func (l *Linker) LinkInterfaces(ctx context.Context, repo store.Store, lspMgr *lsp.Manager) error {
 	interfaces, err := repo.GetInterfaces(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get interfaces: %w", err)
+		l.logger.Error("failed to get interfaces", "error", err)
+		return err
 	}
 
 	for _, iface := range interfaces {
@@ -59,11 +68,11 @@ func LinkInterfaces(ctx context.Context, repo store.Store, lspMgr *lsp.Manager) 
 
 		locations, err := client.Implementation(ctx, params)
 		if err != nil {
-			fmt.Printf("  [Linker] LSP error for %s: %v\n", iface.Name, err)
+			l.logger.Error("LSP error", "interface", iface.Name, "error", err)
 			continue
 		}
 
-		fmt.Printf("  [Linker] Found %d implementations for %s\n", len(locations), iface.Name)
+		l.logger.Debug("Found implementations", "interface", iface.Name, "count", len(locations))
 
 		for _, loc := range locations {
 			destPath := strings.TrimPrefix(loc.URI, "file://")
@@ -86,7 +95,7 @@ func LinkInterfaces(ctx context.Context, repo store.Store, lspMgr *lsp.Manager) 
 			}
 
 			if err := repo.SaveCall(ctx, call); err != nil {
-				fmt.Printf("  [Linker] SaveCall error for %s: %v\n", iface.Name, err)
+				l.logger.Error("SaveCall error", "interface", iface.Name, "error", err)
 				continue
 			}
 		}

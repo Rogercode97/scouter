@@ -23,6 +23,7 @@ type LanguageConfig struct {
 	Query       *gotreesitter.Query
 	CallQuery   *gotreesitter.Query
 	ImportQuery *gotreesitter.Query
+	FlowQuery   *gotreesitter.Query
 }
 
 var languageConfigs map[string]*LanguageConfig
@@ -37,7 +38,8 @@ func init() {
          (method_declaration name: (field_identifier) @name) @method
          (func_literal) @function`,
 		`(call_expression function: [(identifier) (selector_expression)] @callee)`,
-		`(import_spec path: [(interpreted_string_literal) (raw_string_literal)] @import)`)
+		`(import_spec path: [(interpreted_string_literal) (raw_string_literal)] @import)`,
+		"")
 
 	// TS Configuration
 	tsLang := grammars.TypescriptLanguage()
@@ -61,17 +63,25 @@ func init() {
                       (member_expression object: (member_expression property: (property_identifier))) @callee
                     ])`
 	tsImportQuery := `(import_statement source: (string) @import)`
+	tsFlowQuery := `(variable_declarator name: (identifier) @sink value: (_) @source)
+                   (assignment_expression left: (identifier) @sink right: (_) @source)
+                   (call_expression function: [(identifier) (member_expression)] @call arguments: (arguments (_) @argument))
+                   (return_statement (_) @return)
+                   (arrow_function body: (_) @return)`
 
-	registerLanguage(".ts", tsLang, tsQuery, tsCallQuery, tsImportQuery)
+	registerLanguage(".ts", tsLang, tsQuery, tsCallQuery, tsImportQuery, tsFlowQuery)
 
 	// TSX/JSX Configuration
 	tsxLang := grammars.TsxLanguage()
-	registerLanguage(".tsx", tsxLang, tsQuery, tsCallQuery, tsImportQuery)
-	registerLanguage(".jsx", tsxLang, tsQuery, tsCallQuery, tsImportQuery)
-	registerLanguage(".js", tsLang, tsQuery, tsCallQuery, tsImportQuery)
+	registerLanguage(".tsx", tsxLang, tsQuery, tsCallQuery, tsImportQuery, tsFlowQuery)
+	registerLanguage(".jsx", tsxLang, tsQuery, tsCallQuery, tsImportQuery, tsFlowQuery)
+	registerLanguage(".js", tsLang, tsQuery, tsCallQuery, tsImportQuery, tsFlowQuery)
 
 	// Python Configuration
 	pyLang := grammars.PythonLanguage()
+	pyFlowQuery := `(assignment left: (identifier) @sink right: (_) @source)
+                   (call function: [(identifier) (attribute)] @call arguments: (argument_list (_) @argument))
+                   (return_statement (_) @return)`
 	registerLanguage(".py", pyLang,
 		`(function_definition name: (identifier) @name) @function 
          (class_definition name: (identifier) @name) @class
@@ -80,10 +90,15 @@ func init() {
          (class_definition name: (identifier) @recv body: (block (expression_statement (assignment left: (identifier) @name right: (lambda))))) @method
          (lambda) @function`,
 		`(call function: [(identifier) (attribute)] @callee)`,
-		`(import_statement name: (dotted_name) @import) (import_from_statement module_name: (dotted_name) @import)`)
+		`(import_statement name: (dotted_name) @import) (import_from_statement module_name: (dotted_name) @import)`,
+		pyFlowQuery)
 
 	// Rust Configuration
 	rustLang := grammars.RustLanguage()
+	rustFlowQuery := `(let_declaration pattern: (identifier) @sink value: (_) @source)
+                     (assignment_expression left: (identifier) @sink right: (_) @source)
+                     (call_expression function: [(identifier) (field_expression)] @call arguments: (arguments (_) @argument))
+                     (return_expression (_) @return)`
 	registerLanguage(".rs", rustLang,
 		`(function_item name: (identifier) @name) @function
          (struct_item name: (type_identifier) @name) @class
@@ -93,10 +108,11 @@ func init() {
          (closure_expression) @function`,
 		`(call_expression function: [(identifier) (field_expression)] @callee)
          (impl_item trait: (type_identifier) @trait_name type: (type_identifier) @type_name) @impl_block`,
-		`(use_declaration argument: (_) @import)`)
+		`(use_declaration argument: (_) @import)`,
+		rustFlowQuery)
 }
 
-func registerLanguage(ext string, lang *gotreesitter.Language, qSrc, cSrc, iSrc string) {
+func registerLanguage(ext string, lang *gotreesitter.Language, qSrc, cSrc, iSrc, fSrc string) {
 	q, err := gotreesitter.NewQuery(qSrc, lang)
 	if err != nil {
 		slog.Error("failed to register symbol query", "ext", ext, "error", err)
@@ -109,28 +125,35 @@ func registerLanguage(ext string, lang *gotreesitter.Language, qSrc, cSrc, iSrc 
 	if err != nil {
 		slog.Error("failed to register import query", "ext", ext, "error", err)
 	}
-	languageConfigs[ext] = &LanguageConfig{Language: lang, Query: q, CallQuery: cq, ImportQuery: iq}
+	var fq *gotreesitter.Query
+	if fSrc != "" {
+		fq, err = gotreesitter.NewQuery(fSrc, lang)
+		if err != nil {
+			slog.Error("failed to register flow query", "ext", ext, "error", err)
+		}
+	}
+	languageConfigs[ext] = &LanguageConfig{Language: lang, Query: q, CallQuery: cq, ImportQuery: iq, FlowQuery: fq}
 }
 
-func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.ASTPointer], iter.Seq[types.ASTCall], error) {
+func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.ASTPointer], iter.Seq[types.ASTCall], iter.Seq[types.DataFlow], error) {
 	filePath, err := utils.ValidatePath(filePath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	ext := filepath.Ext(filePath)
 	config, ok := languageConfigs[ext]
 	if !ok {
-		return func(yield func(types.ASTPointer) bool) {}, func(yield func(types.ASTCall) bool) {}, nil
+		return func(yield func(types.ASTPointer) bool) {}, func(yield func(types.ASTCall) bool) {}, func(yield func(types.DataFlow) bool) {}, nil
 	}
 
 	if config.Query == nil || config.CallQuery == nil {
-		return nil, nil, fmt.Errorf("tree-sitter queries not initialized for %s", ext)
+		return nil, nil, nil, fmt.Errorf("tree-sitter queries not initialized for %s", ext)
 	}
 
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	safeInt := func(u uint32) int {
@@ -145,181 +168,131 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 	parser := gotreesitter.NewParser(lang)
 	tree, _ := parser.Parse(content)
 	if tree == nil {
-		return func(yield func(types.ASTPointer) bool) {}, func(yield func(types.ASTCall) bool) {}, nil
+		return func(yield func(types.ASTPointer) bool) {}, func(yield func(types.ASTCall) bool) {}, func(yield func(types.DataFlow) bool) {}, nil
+	}
+
+	symbolNames := make(map[uint32]string) // shared between iters
+	anonCounters := make(map[string]int)
+	var pointers []types.ASTPointer
+
+	// Eagerly populate symbolNames and collect pointers to allow independent iterator usage
+	// and correct hierarchical resolution in callIter and flowIter.
+	pCursor := config.Query.Exec(tree.RootNode(), lang, content)
+	for {
+		match, ok := pCursor.NextMatch()
+		if !ok {
+			break
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, nil, nil, ctx.Err()
+		default:
+		}
+
+		var name, symType, recv, mname, iname string
+		var symNode *gotreesitter.Node
+		for _, cap := range match.Captures {
+			nameN := cap.Name
+			switch nameN {
+			case "name":
+				name = cap.Node.Text(content)
+			case "recv":
+				recv = cap.Node.Text(content)
+			case "mname":
+				mname = cap.Node.Text(content)
+			case "iname":
+				iname = cap.Node.Text(content)
+			default:
+				symType = nameN
+				symNode = cap.Node
+			}
+		}
+
+		// Calculate hierarchical parent name
+		parentName := "global"
+		if symNode != nil {
+			curr := symNode.Parent()
+			for curr != nil {
+				if n, ok := symbolNames[curr.EndByte()]; ok {
+					parentName = n
+					break
+				}
+				curr = curr.Parent()
+			}
+		}
+
+		// Capture anonymous functions (closures/lambdas)
+		if symType == "function" && name == "" && symNode != nil {
+			p := parentName
+			if p == "" {
+				p = "global"
+			}
+			anonCounters[p]++
+			name = fmt.Sprintf("func%d", anonCounters[p])
+		}
+
+		// Handle normal symbols
+		if name != "" && symType != "interface_spec" && symNode != nil {
+			fullName := name
+			if recv != "" {
+				fullName = recv + "." + name
+			} else if parentName != "" && (parentName != "global" || strings.HasPrefix(name, "func")) {
+				fullName = parentName + "." + name
+			}
+
+			symbolNames[symNode.EndByte()] = fullName
+
+			doc := extractDoc(symNode, content, ext, lang)
+			h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s", symType, fullName)))
+			p := types.ASTPointer{
+				Type:           symType,
+				Name:           fullName,
+				Doc:            doc,
+				Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
+				StartLine:      int(symNode.StartPoint().Row) + 1,
+				EndLine:        int(symNode.EndPoint().Row) + 1,
+				Hash:           hex.EncodeToString(h[:]),
+				StructuralHash: GetStructuralHash(symNode, content, lang),
+				LogicHash:      GetLogicHash(symNode, content, lang),
+				Metrics:        computeSemanticMetrics(symNode, lang, content),
+			}
+			pointers = append(pointers, p)
+		}
+
+		// Handle interface method specs
+		if mname != "" && symNode != nil {
+			parentInterface := name
+			if iname != "" {
+				parentInterface = iname
+			}
+			fullMethodName := parentInterface + "." + mname
+			p := types.ASTPointer{
+				Type:           "interface_method",
+				Name:           fullMethodName,
+				Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
+				StartLine:      int(symNode.StartPoint().Row) + 1,
+				EndLine:        int(symNode.EndPoint().Row) + 1,
+				Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
+				StructuralHash: GetStructuralHash(symNode, content, lang),
+				LogicHash:      GetLogicHash(symNode, content, lang),
+				Metrics:        computeSemanticMetrics(symNode, lang, content),
+			}
+			pointers = append(pointers, p)
+		}
 	}
 
 	pointerIter := func(yield func(types.ASTPointer) bool) {
-		cursor := config.Query.Exec(tree.RootNode(), lang, content)
-		names := make(map[uint32]string) // map node end byte to name
-		anonCounters := make(map[string]int)
-
-		for {
-			match, ok := cursor.NextMatch()
-			if !ok {
-				break
-			}
-
-			select {
-			case <-ctx.Done():
+		for _, p := range pointers {
+			if !yield(p) {
 				return
-			default:
-			}
-
-			var name, symType, recv, mname, iname string
-			var symNode *gotreesitter.Node
-			for _, cap := range match.Captures {
-				nameN := cap.Name
-				switch nameN {
-				case "name":
-					name = cap.Node.Text(content)
-				case "recv":
-					recv = cap.Node.Text(content)
-				case "mname":
-					mname = cap.Node.Text(content)
-				case "iname":
-					iname = cap.Node.Text(content)
-				default:
-					symType = nameN
-					symNode = cap.Node
-				}
-			}
-
-			// Calculate hierarchical parent name
-			parentName := "global"
-			if symNode != nil {
-				curr := symNode.Parent()
-				for curr != nil {
-					if n, ok := names[curr.EndByte()]; ok {
-						parentName = n
-						break
-					}
-					curr = curr.Parent()
-				}
-			}
-
-			// Capture anonymous functions (closures/lambdas)
-			if symType == "function" && name == "" && symNode != nil {
-				p := parentName
-				if p == "" {
-					p = "global"
-				}
-				anonCounters[p]++
-				name = fmt.Sprintf("func%d", anonCounters[p])
-			}
-
-			// Handle normal symbols
-			if name != "" && symType != "interface_spec" && symNode != nil {
-				fullName := name
-				if recv != "" {
-					fullName = recv + "." + name
-				} else if parentName != "" && parentName != "global" {
-					fullName = parentName + "." + name
-				}
-
-				names[symNode.EndByte()] = fullName
-
-				doc := extractDoc(symNode, content, ext, lang)
-				h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s", symType, fullName)))
-				p := types.ASTPointer{
-					Type:           symType,
-					Name:           fullName,
-					Doc:            doc,
-					Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
-					StartLine:      int(symNode.StartPoint().Row) + 1,
-					EndLine:        int(symNode.EndPoint().Row) + 1,
-					Hash:           hex.EncodeToString(h[:]),
-					StructuralHash: GetStructuralHash(symNode, content, lang),
-					LogicHash:      GetLogicHash(symNode, content, lang),
-					Metrics:        computeSemanticMetrics(symNode, lang, content),
-				}
-				if !yield(p) {
-					return
-				}
-			}
-
-			// Handle interface method specs
-			if mname != "" && symNode != nil {
-				parentInterface := name
-				if iname != "" {
-					parentInterface = iname
-				}
-				fullMethodName := parentInterface + "." + mname
-				p := types.ASTPointer{
-					Type:           "interface_method",
-					Name:           fullMethodName,
-					Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
-					StartLine:      int(symNode.StartPoint().Row) + 1,
-					EndLine:        int(symNode.EndPoint().Row) + 1,
-					Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
-					StructuralHash: GetStructuralHash(symNode, content, lang),
-					LogicHash:      GetLogicHash(symNode, content, lang),
-					Metrics:        computeSemanticMetrics(symNode, lang, content),
-				}
-				if !yield(p) {
-					return
-				}
 			}
 		}
 	}
 
+
 	callIter := func(yield func(types.ASTCall) bool) {
 		cursor := config.CallQuery.Exec(tree.RootNode(), lang, content)
-		// We need a second pass or shared state to resolve CallerNames for anonymous functions correctly
-		// Since pointerIter is separate, we'll re-calculate or use a heuristic inside findTSCaller.
-		// For consistency, let's use the same heuristic in findTSCaller but we need to track local counters.
-		// Actually, we can pre-calculate all symbol names.
-		
-		symbolNames := make(map[uint32]string)
-		ptrCursor := config.Query.Exec(tree.RootNode(), lang, content)
-		counters := make(map[string]int)
-		for {
-			m, ok := ptrCursor.NextMatch()
-			if !ok {
-				break
-			}
-			var name, symType, recv string
-			var node *gotreesitter.Node
-			for _, cap := range m.Captures {
-				if cap.Name == "name" {
-					name = cap.Node.Text(content)
-				}
-				if cap.Name == "recv" {
-					recv = cap.Node.Text(content)
-				}
-				if cap.Name == "function" || cap.Name == "method" || cap.Name == "class" || cap.Name == "interface" {
-					symType = cap.Name
-					node = cap.Node
-				}
-			}
-			if node != nil {
-				// Calculate hierarchical parent name
-				pName := "global"
-				curr := node.Parent()
-				for curr != nil {
-					if n, ok := symbolNames[curr.EndByte()]; ok {
-						pName = n
-						break
-					}
-					curr = curr.Parent()
-				}
-
-				if name == "" && symType == "function" {
-					counters[pName]++
-					name = fmt.Sprintf("func%d", counters[pName])
-				}
-
-				if name != "" {
-					fullName := name
-					if recv != "" {
-						fullName = recv + "." + name
-					} else if pName != "" && pName != "global" {
-						fullName = pName + "." + name
-					}
-					symbolNames[node.EndByte()] = fullName
-				}
-			}
-		}
-
 		for {
 			match, ok := cursor.NextMatch()
 			if !ok {
@@ -382,7 +355,98 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 		}
 	}
 
-	return pointerIter, callIter, nil
+	flowIter := func(yield func(types.DataFlow) bool) {
+		if config.FlowQuery == nil {
+			return
+		}
+		cursor := config.FlowQuery.Exec(tree.RootNode(), lang, content)
+		for {
+			match, ok := cursor.NextMatch()
+			if !ok {
+				break
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			var source, sink, call string
+			var node *gotreesitter.Node
+			var argNode, retNode *gotreesitter.Node
+			for _, cap := range match.Captures {
+				switch cap.Name {
+				case "source":
+					source = cap.Node.Text(content)
+				case "sink":
+					sink = cap.Node.Text(content)
+					node = cap.Node
+				case "call":
+					call = cap.Node.Text(content)
+				case "argument":
+					source = cap.Node.Text(content)
+					argNode = cap.Node
+				case "return":
+					source = cap.Node.Text(content)
+					retNode = cap.Node
+				}
+			}
+
+			if source != "" && sink != "" && node != nil {
+				f := types.DataFlow{
+					Source: source,
+					Sink:   sink,
+					Type:   "assignment",
+					Path:   filePath,
+					Line:   int(node.StartPoint().Row) + 1,
+				}
+				if !yield(f) {
+					return
+				}
+			}
+
+			if call != "" && argNode != nil {
+				// Determine argument position
+				pos := 0
+				parent := argNode.Parent()
+				if parent != nil {
+					for i := 0; i < int(parent.NamedChildCount()); i++ {
+						if parent.NamedChild(i).EndByte() == argNode.EndByte() {
+							pos = i
+							break
+						}
+					}
+				}
+				f := types.DataFlow{
+					Source: source,
+					Sink:   fmt.Sprintf("%s:arg%d", call, pos),
+					Type:   "argument",
+					Path:   filePath,
+					Line:   int(argNode.StartPoint().Row) + 1,
+				}
+				if !yield(f) {
+					return
+				}
+			}
+
+			if retNode != nil {
+				currentFunc := findTSCaller(retNode, content, lang, symbolNames)
+				f := types.DataFlow{
+					Source: source,
+					Sink:   fmt.Sprintf("%s:return0", currentFunc),
+					Type:   "return",
+					Path:   filePath,
+					Line:   int(retNode.StartPoint().Row) + 1,
+				}
+				if !yield(f) {
+					return
+				}
+			}
+		}
+	}
+
+	return pointerIter, callIter, flowIter, nil
 }
 
 func findTSCaller(node *gotreesitter.Node, content []byte, lang *gotreesitter.Language, symbolNames map[uint32]string) string {

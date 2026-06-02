@@ -12,9 +12,9 @@ import (
 )
 
 func setupTestServer(ctx context.Context) (*Server, *mcp.ClientSession, func()) {
-	st, _ := store.New(ctx, ":memory:")
+	st, _ := store.NewStore(ctx, ":memory:")
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	server := NewServer(st, logger)
+	server := setupMockServer(st, logger)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 
 	go server.Start(ctx, serverTransport)

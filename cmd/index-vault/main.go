@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -68,7 +69,7 @@ func main() {
 	}
 	dbPath := cfg.Tracking.DBPath
 
-	s, err := store.New(mainCtx, dbPath)
+	s, err := store.NewStore(mainCtx, dbPath)
 	if err != nil {
 		log.Fatalf("Failed to open store: %v", err)
 	}
@@ -190,7 +191,7 @@ func main() {
 
 					if res.Error == nil {
 						res.Hash = h
-						syms, calls, parseErr := engine.ParseFile(groupCtx, job.Path, lspMgr)
+						syms, calls, _, parseErr := engine.ParseFile(groupCtx, job.Path, lspMgr)
 						if parseErr != nil {
 							res.Error = parseErr
 						} else {
@@ -236,7 +237,7 @@ func main() {
 		err = s.WithTransaction(mainCtx, func(txCtx context.Context, tx store.Store) error {
 			if err := tx.SaveFileIndex(txCtx, &store.FileIndex{
 				Path:  res.Path,
-				Mtime: res.Info.ModTime().UnixNano(),
+				Mtime: int(res.Info.ModTime().UnixNano()),
 				Hash:  res.Hash,
 			}); err != nil {
 				return err
@@ -304,7 +305,7 @@ func main() {
 
 	// TASK 2.4: Sovereign Interface Resolution (Lazo Soberano)
 	fmt.Println("Resolving interfaces and contract fulfillments...")
-	if err := engine.LinkInterfaces(mainCtx, s, lspMgr); err != nil {
+	if err := engine.NewLinker(slog.Default()).LinkInterfaces(mainCtx, s, lspMgr); err != nil {
 		log.Printf("Warning: interface resolution failed: %v", err)
 	}
 	analyzer := engine.NewAnalysisEngine(s)

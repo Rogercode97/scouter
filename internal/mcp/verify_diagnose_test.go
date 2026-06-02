@@ -12,8 +12,8 @@ import (
 
 func TestVerifyDiagnose(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	st, _ := store.New(context.Background(), ":memory:")
-	server := NewServer(st, logger)
+	st, _ := store.NewStore(context.Background(), ":memory:")
+	server := setupMockServer(st, logger)
 
 	errorLog := `--- FAIL: TestDummy (0.00s)
     internal/engine/healer_test.go:15: dummy error

@@ -86,7 +86,7 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 		sym := targetSymbols[0]
 		isExported = strings.Contains("ABCDEFGHIJKLMNOPQRSTUVWXYZ", string(sym.Name[0]))
 		signature = sym.Signature
-		centrality = sym.PageRank
+		centrality = sym.Pagerank
 		
 		if bodyExtracted, err := utils.ExtractLines(sym.Path, sym.StartLine, sym.EndLine); err == nil {
 			body = strings.TrimSpace(bodyExtracted)
@@ -203,8 +203,25 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 	// Signal 6: Runtime/Centrality (10%)
 	runtimeScore := centrality
 
-	res.Target.RiskScore = (bScore * 0.20) + (cogScore * 0.35) + (churnScore * 0.15) + (testGap * 0.15) + (volumeScore * 0.05) + (runtimeScore * 0.10)
-	res.Target.RiskScore = math.Min(1.0, res.Target.RiskScore)
+	baseRisk := (bScore * 0.20) + (cogScore * 0.35) + (churnScore * 0.15) + (testGap * 0.15) + (volumeScore * 0.05) + (runtimeScore * 0.10)
+	
+	// Apply Historical Fragility Multiplier
+	fragilityFactor := 1.0 + (float64(res.Target.Metrics.HistoricalBugfixes) * 0.2)
+	finalRisk := baseRisk * fragilityFactor
+	res.Target.RiskScore = math.Min(1.0, finalRisk)
+
+	var breakdown strings.Builder
+	breakdown.WriteString(fmt.Sprintf("Base Risk: %.2f\n", baseRisk))
+	breakdown.WriteString(fmt.Sprintf("- Blast Radius: %.2f (w: 0.20)\n", bScore))
+	breakdown.WriteString(fmt.Sprintf("- Complexity: %.2f (w: 0.35)\n", cogScore))
+	breakdown.WriteString(fmt.Sprintf("- Churn: %.2f (w: 0.15)\n", churnScore))
+	breakdown.WriteString(fmt.Sprintf("- Test Gap: %.2f (w: 0.15)\n", testGap))
+	breakdown.WriteString(fmt.Sprintf("- Volume: %.2f (w: 0.05)\n", volumeScore))
+	breakdown.WriteString(fmt.Sprintf("- Centrality: %.2f (w: 0.10)\n", runtimeScore))
+	if res.Target.Metrics.HistoricalBugfixes > 0 {
+		breakdown.WriteString(fmt.Sprintf("- Historical Fragility (multiplier): %.2fx\n", fragilityFactor))
+	}
+	res.Breakdown = breakdown.String()
 
 	switch {
 	case res.Target.RiskScore >= 0.8: res.RiskLevel = "Critical"

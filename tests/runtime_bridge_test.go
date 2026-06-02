@@ -19,7 +19,7 @@ func TestRuntimeBridgeE2E(t *testing.T) {
 	ctx := context.Background()
 
 	// Initialize the Store (this creates the DB and runs migrations)
-	dbStore, err := store.New(ctx, dbPath)
+	dbStore, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}

@@ -25,20 +25,20 @@ type AnalysisStore interface {
 }
 
 
-type PageRankOptions struct {
+type PagerankOptions struct {
 	TaskSeeds []string
 }
 
-type PageRankOption func(*PageRankOptions)
+type PagerankOption func(*PagerankOptions)
 
-func WithTaskSeeds(seeds []string) PageRankOption {
-	return func(o *PageRankOptions) {
+func WithTaskSeeds(seeds []string) PagerankOption {
+	return func(o *PagerankOptions) {
 		o.TaskSeeds = seeds
 	}
 }
 
-func (a *AnalysisEngine) ResolvePageRank(ctx context.Context, opts ...PageRankOption) error {
-	options := PageRankOptions{}
+func (a *AnalysisEngine) ResolvePagerank(ctx context.Context, opts ...PagerankOption) error {
+	options := PagerankOptions{}
 	for _, o := range opts {
 		o(&options)
 	}
@@ -79,8 +79,8 @@ func (a *AnalysisEngine) ResolvePageRank(ctx context.Context, opts ...PageRankOp
 		_ = g.AddEdge(callerKey, calleeKey, graph.EdgeWeight(weight))
 	}
 
-	// 4. Calculate PageRank (Simplified Iterative Implementation)
-	// Note: dominikbraun/graph doesn't have native PageRank yet in v0.23,
+	// 4. Calculate Pagerank (Simplified Iterative Implementation)
+	// Note: dominikbraun/graph doesn't have native Pagerank yet in v0.23,
 	// so we implement it using the graph structure.
 	
 	adjacency, _ := g.AdjacencyMap()
@@ -250,7 +250,7 @@ func (a *AnalysisEngine) ResolvePageRank(ctx context.Context, opts ...PageRankOp
 			score := currentRanks[i]
 			parts := strings.SplitN(node, ":", 2)
 			if len(parts) == 2 {
-				if err := tx.UpdateSymbolPageRank(txCtx, parts[0], parts[1], score); err != nil {
+				if err := tx.UpdateSymbolPagerank(txCtx, parts[0], parts[1], score); err != nil {
 					return err
 				}
 			}
