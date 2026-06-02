@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/blevesearch/bleve/v2 v2.6.0
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/cinar/resile v1.0.5
 	github.com/dominikbraun/graph v0.23.0
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/go-git/go-git/v6 v6.0.0-alpha.4
@@ -51,7 +52,6 @@ require (
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
-	github.com/cinar/resile v1.0.5 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
