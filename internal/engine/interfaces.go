@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 
+	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/store"
 )
 
@@ -20,7 +21,43 @@ type TransactionalStore interface {
 }
 
 // ImpactAnalyzer abstracts the capabilities of the ImpactEngine required by other engines.
-// This decouples RippleEngine and others from depending on concrete *ImpactEngine pointers.
 type ImpactAnalyzer interface {
 	GetDeterministicCallers(ctx context.Context, symbolName string) ([]store.Call, error)
+}
+
+type IndexerService interface {
+	Index(ctx context.Context, path string) error
+}
+
+type DiscoveryService interface {
+	HybridSearch(ctx context.Context, query string, limit, offset int) (*types.HybridSearchResult, error)
+	FindLogicalTwins(ctx context.Context, symbolName, path string) ([]types.Symbol, error)
+	GetNeighborhood(ctx context.Context, filePath string) (string, error)
+}
+
+type IntelligenceService interface {
+	AnalyzeImpact(ctx context.Context, symbol, path string, verbose bool, messenger Messenger) (*types.ImpactResult, error)
+	GetCriticalSymbols(ctx context.Context, limit int) ([]store.CriticalSymbol, error)
+	PredictTests(ctx context.Context, diff string) ([]types.TestTarget, error)
+}
+
+type EvolutionService interface {
+	Propagate(ctx context.Context, symbol, transformation string, messenger Messenger) (string, error)
+	CommitLedger(ctx context.Context) (string, error)
+	RollbackLedger(ctx context.Context) (string, error)
+	GetLedgerDiff(ctx context.Context) (string, error)
+	GetLedgerSummary(ctx context.Context) string
+	StageMutation(ctx context.Context, filePath, newContent string) error
+}
+
+type HealerService interface {
+	Fix(ctx context.Context, errorLog string, messenger Messenger) (string, error)
+	DiagnoseHUD(ctx context.Context, errorLog string) (*DiagnosticHUD, error)
+}
+
+
+type SDDService interface {
+	GetSDDRoadmap(ctx context.Context) (*SDDRoadmap, error)
+	GetSDDTasks(ctx context.Context) ([]SDDTask, error)
+	SearchSDDSpecs(ctx context.Context, query string, limit, offset int) ([]SpecResult, error)
 }

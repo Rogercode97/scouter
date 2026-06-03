@@ -61,8 +61,9 @@ type Violation struct {
 var schemaSQL string
 
 type storeImpl struct {
-	db *sql.DB
-	tx *sql.Tx
+	dbRead  *sql.DB
+	dbWrite *sql.DB
+	tx      *sql.Tx
 }
 
 var _ Store = (*storeImpl)(nil)
@@ -81,15 +82,27 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 	if !strings.HasPrefix(dsn, "file:") {
 		dsn = "file:" + dsn
 	}
-	dsn = fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)", dsn, separator)
-	db, err := sql.Open("sqlite3", dsn)
+	// Write pool
+	dsnWrite := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)&_txlock=immediate", dsn, separator)
+	dbWrite, err := sql.Open("sqlite3", dsnWrite)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, fmt.Errorf("failed to open write database: %w", err)
 	}
+	dbWrite.SetMaxOpenConns(1)
 
-	tx, err := db.BeginTx(ctx, nil)
+	// Read pool
+	dsnRead := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)", dsn, separator)
+	dbRead, err := sql.Open("sqlite3", dsnRead)
 	if err != nil {
-		db.Close()
+		dbWrite.Close()
+		return nil, fmt.Errorf("failed to open read database: %w", err)
+	}
+	dbRead.SetMaxOpenConns(runtime.NumCPU() * 2)
+
+	tx, err := dbWrite.BeginTx(ctx, nil)
+	if err != nil {
+		dbRead.Close()
+		dbWrite.Close()
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
@@ -103,13 +116,16 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 	}
 
 	s := &storeImpl{
-		db: db,
+		dbRead:  dbRead,
+		dbWrite: dbWrite,
 	}
 
 	// Go 1.25 native cleanup
-	runtime.AddCleanup(s, func(db *sql.DB) {
-		_ = db.Close()
-	}, db)
+	type dbState struct{ r, w *sql.DB }
+	runtime.AddCleanup(s, func(state dbState) {
+		_ = state.r.Close()
+		_ = state.w.Close()
+	}, dbState{dbRead, dbWrite})
 
 	return s, nil
 }
@@ -143,21 +159,21 @@ func (s *storeImpl) exec(ctx context.Context, q string, a ...any) (sql.Result, e
 	if s.tx != nil {
 		return s.tx.ExecContext(ctx, q, a...)
 	}
-	return s.db.ExecContext(ctx, q, a...)
+	return s.dbWrite.ExecContext(ctx, q, a...)
 }
 
 func (s *storeImpl) queryRow(ctx context.Context, q string, a ...any) *sql.Row {
 	if s.tx != nil {
 		return s.tx.QueryRowContext(ctx, q, a...)
 	}
-	return s.db.QueryRowContext(ctx, q, a...)
+	return s.dbRead.QueryRowContext(ctx, q, a...)
 }
 
 func (s *storeImpl) query(ctx context.Context, q string, a ...any) (*sql.Rows, error) {
 	if s.tx != nil {
 		return s.tx.QueryContext(ctx, q, a...)
 	}
-	return s.db.QueryContext(ctx, q, a...)
+	return s.dbRead.QueryContext(ctx, q, a...)
 }
 
 func (s *storeImpl) GetFileIndex(ctx context.Context, p string) (*FileIndex, error) {
@@ -1069,12 +1085,12 @@ func (s *storeImpl) GetViolationsByFile(ctx context.Context, path string) ([]Vio
 }
 
 func (s *storeImpl) WithTransaction(ctx context.Context, fn func(context.Context, Store) error) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.dbWrite.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
-	if err := fn(ctx, &storeImpl{db: s.db, tx: tx}); err != nil {
+	if err := fn(ctx, &storeImpl{dbRead: s.dbRead, dbWrite: s.dbWrite, tx: tx}); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -1083,7 +1099,10 @@ func (s *storeImpl) WithTransaction(ctx context.Context, fn func(context.Context
 	return nil
 }
 
-func (s *storeImpl) Close() error { return s.db.Close() }
+func (s *storeImpl) Close() error { 
+	s.dbRead.Close()
+	return s.dbWrite.Close() 
+}
 
 type CriticalSymbol struct {
 	Symbol

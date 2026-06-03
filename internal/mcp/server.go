@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Rogercode97/scouter/internal/domain/memory"
+	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
@@ -25,7 +26,14 @@ type Server struct {
 	store           store.Store
 	resolver        *PointerResolver
 	lspMgr          *lsp.Manager
-	engine          *engine.TruthEngine
+	indexer         engine.IndexerService
+	discovery       engine.DiscoveryService
+	intelligence    engine.IntelligenceService
+	evolution       engine.EvolutionService
+	healer          engine.HealerService
+	memory          memory.MemoryProvider
+	sdd             engine.SDDService
+	presenter       display.Presenter
 	appService      *memory.AppService
 	logger          *slog.Logger
 	mu              sync.RWMutex
@@ -42,7 +50,14 @@ type Options struct {
 	Store         store.Store
 	Logger        *slog.Logger
 	LspMgr        *lsp.Manager
-	TruthEngine   *engine.TruthEngine
+	Indexer       engine.IndexerService
+	Discovery     engine.DiscoveryService
+	Intelligence  engine.IntelligenceService
+	Evolution     engine.EvolutionService
+	Healer        engine.HealerService
+	Memory        memory.MemoryProvider
+	SDD           engine.SDDService
+	Presenter     display.Presenter
 	ChronosEngine *engine.ChronosEngine
 	AppService    *memory.AppService
 }
@@ -60,15 +75,22 @@ func NewServer(opts Options) *Server {
 	}
 
 	s := &Server{
-		mcpServer: mcp.NewServer(implementation, mcpOpts),
-		store:     opts.Store,
-		resolver:  NewPointerResolver(opts.Store),
-		lspMgr:    opts.LspMgr,
-		logger:    opts.Logger,
-		chronos:   opts.ChronosEngine,
-		snapshots: make(map[string]*engine.ChronosSnapshot),
-		engine:    opts.TruthEngine,
-		appService: opts.AppService,
+		mcpServer:    mcp.NewServer(implementation, mcpOpts),
+		store:        opts.Store,
+		resolver:     NewPointerResolver(opts.Store),
+		lspMgr:       opts.LspMgr,
+		logger:       opts.Logger,
+		chronos:      opts.ChronosEngine,
+		snapshots:    make(map[string]*engine.ChronosSnapshot),
+		indexer:      opts.Indexer,
+		discovery:    opts.Discovery,
+		intelligence: opts.Intelligence,
+		evolution:    opts.Evolution,
+		healer:       opts.Healer,
+		memory:       opts.Memory,
+		sdd:          opts.SDD,
+		presenter:    opts.Presenter,
+		appService:   opts.AppService,
 	}
 
 	s.registerCoreTools()
@@ -197,7 +219,7 @@ func (m *healerMessenger) Ask(ctx context.Context, systemPrompt, userPrompt stri
 }
 
 func (s *Server) fetchEngramContext(ctx context.Context, query string) string {
-	insights, err := s.engine.MemoryProvider().SearchInsights(ctx, query, 3)
+	insights, err := s.memory.SearchInsights(ctx, query, 3)
 	if err != nil {
 		return ""
 	}

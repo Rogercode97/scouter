@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/Rogercode97/scouter/internal/display"
+	
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/filter"
-	"github.com/Rogercode97/scouter/internal/store"
+	
 	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"bytes"
@@ -78,26 +78,17 @@ type NeighborhoodParams struct {
 
 func (s *Server) handleMap(ctx context.Context, req *mcp.CallToolRequest, args MapParams) (*mcp.CallToolResult, any, error) {
 	if args.Path == "" {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "missing path"}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("missing path")), nil, nil
 	}
 
 	path, err := utils.ValidatePath(args.Path)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(err), nil, nil
 	}
 
 	results, err := s.store.GetSymbolsByPathPrefix(ctx, path)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Map execution failed: %v", err)}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("Map execution failed: %v", err)), nil, nil
 	}
 
 	if len(results) == 0 {
@@ -121,26 +112,19 @@ func (s *Server) handleMap(ctx context.Context, req *mcp.CallToolRequest, args M
 		buf.WriteString("\n")
 	}
 
-	thought := fmt.Sprintf("<thought>\nSovereign Map: Extracted skeleton for %s. Found %d symbols across %d files. Function bodies were excluded to save tokens.\n</thought>\n", args.Path, len(results), len(fileMap))
+	thought := fmt.Sprintf("Sovereign Map: Extracted skeleton for %s. Found %d symbols across %d files. Function bodies were excluded to save tokens.", args.Path, len(results), len(fileMap))
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + buf.String()},
-		},
-	}, nil, nil
+	return s.presenter.FormatTextResult(thought, buf.String()), nil, nil
 }
 
 func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args IndexParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("missing filePath")), nil, nil
 	}
 
-	thought := fmt.Sprintf("<thought>\nIndexing AST symbols for path: %s. This will update the global call graph and enable precise impact analysis.\n</thought>\n", args.FilePath)
+	thought := fmt.Sprintf("Indexing AST symbols for path: %s. This will update the global call graph and enable precise impact analysis.", args.FilePath)
 
-	if err := s.engine.Index(ctx, args.FilePath); err != nil {
+	if err := s.indexer.Index(ctx, args.FilePath); err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Indexing failed: %v", err)}},
 			IsError: true,
@@ -148,11 +132,7 @@ func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args
 		nil, nil
 	}
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + fmt.Sprintf("✅ Indexed %s and updated global call graph", args.FilePath)},
-		},
-	}, nil, nil
+	return s.presenter.FormatTextResult(thought, fmt.Sprintf("✅ Indexed %s and updated global call graph", args.FilePath)), nil, nil
 }
 
 func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, args SearchParams) (*mcp.CallToolResult, any, error) {
@@ -161,7 +141,7 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 		limit = 50 // Sovereign Limit
 	}
 
-	searchRes, err := s.engine.HybridSearch(ctx, args.Query, limit, args.Offset)
+	searchRes, err := s.discovery.HybridSearch(ctx, args.Query, limit, args.Offset)
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Search execution failed: %v", err)}},
@@ -170,46 +150,11 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 		nil, nil
 	}
 
-	var outStr string
-	useHakai := args.Format == "hakai" || (args.Format == "" && len(searchRes.Symbols) > 20)
+	thought := fmt.Sprintf("Sovereign Search: Querying AST+Engram for '%s' (%s). Pagination: [Limit:%d Offset:%d]. Found %d matches & %d insights.",
+		args.Query, args.Type, limit, args.Offset, len(searchRes.Symbols), len(searchRes.Insights))
 
-	if useHakai {
-		var buf bytes.Buffer
-		sw := display.NewSovereignWrapper(&buf)
-		// Initialize ACCP with centralized thresholds
-		sw.SetACCP(display.NewACCP(display.DefaultThresholdWarm, display.DefaultThresholdCold))
-		sw.WriteHeader()
-		for _, sym := range searchRes.Symbols {
-			sSym := store.Symbol{
-				Name: sym.Name,
-				Type: sym.Type,
-				Signature: sym.Signature,
-				Path: sym.Path,
-				StartLine: sym.StartLine,
-				EndLine: sym.EndLine,
-				Doc: sym.Doc,
-			}
-			sw.EmitSymbol(sSym)
-		}
-		sw.Flush()
-		outStr = buf.String()
-	} else {
-		zonSyms, _ := engine.EncodeZON(searchRes.Symbols)
-		zonInsights, _ := engine.EncodeZON(searchRes.Insights)
-		outStr = zonSyms + "\nInsights:\n" + zonInsights
-		if len(outStr) > 4096 {
-			outStr = outStr[:4000] + "\n... [TRUNCATED BY SOVEREIGN GUARD (4KB LIMIT)]"
-		}
-	}
-
-	thought := fmt.Sprintf("<thought>\nSovereign Search: Querying AST+Engram for '%s' (%s). Pagination: [Limit:%d Offset:%d]. Found %d matches & %d insights. Format: %s.\n</thought>\n",
-		args.Query, args.Type, limit, args.Offset, len(searchRes.Symbols), len(searchRes.Insights), map[bool]string{true: "hakai", false: "zon"}[useHakai])
-
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + outStr},
-		},
-	}, nil, nil
+	resultPayload, err := s.presenter.FormatResult(thought, searchRes)
+	return resultPayload, nil, err
 }
 
 func (s *Server) handleRead(ctx context.Context, req *mcp.CallToolRequest, args ReadParams) (*mcp.CallToolResult, any, error) {
@@ -264,13 +209,9 @@ func (s *Server) handleRead(ctx context.Context, req *mcp.CallToolRequest, args 
 		nil, nil
 	}
 
-	thought := fmt.Sprintf("<thought>\nReading fragment from %s (pointer: %s). Resolved to range %d:%d.\n</thought>\n",
+	thought := fmt.Sprintf("Reading fragment from %s (pointer: %s). Resolved to range %d:%d.",
 	        args.FilePath, args.Pointer, rng.Start, rng.End)
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + content},
-		},
-	}, nil, nil
+	return s.presenter.FormatTextResult(thought, content), nil, nil
 }
 
 func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, args CallersParams) (*mcp.CallToolResult, any, error) {
@@ -306,35 +247,11 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 		}
 	}
 
-	var outStr string
-	useHakai := args.Format == "hakai" || (args.Format == "" && len(results) > 20)
+	thought := fmt.Sprintf("Call Graph Analysis: Finding all callers of '%s'. Pagination: [Limit:%d Offset:%d]. Found %d callers.",
+		args.CalleeName, limit, args.Offset, len(results))
 
-	if useHakai {
-		var buf bytes.Buffer
-		sw := display.NewSovereignWrapper(&buf)
-		// Initialize ACCP with centralized thresholds
-		sw.SetACCP(display.NewACCP(display.DefaultThresholdWarm, display.DefaultThresholdCold))
-		sw.WriteHeader()
-		for _, call := range results {
-			sw.EmitCall(call)
-		}
-		sw.Flush()
-		outStr = buf.String()
-	} else {
-		outStr, _ = engine.EncodeZON(results)
-		if len(outStr) > 4096 {
-			outStr = outStr[:4000] + "\n... [TRUNCATED BY SOVEREIGN GUARD (4KB LIMIT)]"
-		}
-	}
-
-	thought := fmt.Sprintf("<thought>\nCall Graph Analysis: Finding all callers of '%s'. Pagination: [Limit:%d Offset:%d]. Found %d callers. Format: %s.\n</thought>\n",
-		args.CalleeName, limit, args.Offset, len(results), map[bool]string{true: "hakai", false: "zon"}[useHakai])
-
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + outStr},
-		},
-	}, nil, nil
+	resultPayload, err := s.presenter.FormatResult(thought, results)
+	return resultPayload, nil, err
 }
 
 func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequest, args DefinitionParams) (*mcp.CallToolResult, any, error) {
@@ -369,21 +286,10 @@ func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequ
 	        nil, nil
 	}
 
-	outStr, err := engine.EncodeZONLSPLocation(result)
-	if err != nil {
-	        return &mcp.CallToolResult{
-	                Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to encode location: %v", err)}},
-	                IsError: true,
-	        },
-	        nil, nil
-	}
-	thought := fmt.Sprintf("<thought>\nLSP Navigation: Finding definition at %s:%d:%d.\n</thought>\n", args.FilePath, args.Line, args.Character)
+	thought := fmt.Sprintf("LSP Navigation: Finding definition at %s:%d:%d.", args.FilePath, args.Line, args.Character)
 
-	return &mcp.CallToolResult{
-	        Content: []mcp.Content{
-	                &mcp.TextContent{Text: thought + outStr},
-	        },
-	}, nil, nil
+	resultPayload, formatErr := s.presenter.FormatResult(thought, result)
+	return resultPayload, nil, formatErr
 	}
 
 	func (s *Server) handleTypeInfo(ctx context.Context, req *mcp.CallToolRequest, args TypeInfoParams) (*mcp.CallToolResult, any, error) {
@@ -417,29 +323,15 @@ func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequ
 	        },
 	        nil, nil
 	}
-	outStr, err := engine.EncodeZONLSPHover(result)
-	if err != nil {
-	        return &mcp.CallToolResult{
-	                Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to encode hover: %v", err)}},
-	                IsError: true,
-	        },
-	        nil, nil
-	}
-	thought := fmt.Sprintf("<thought>\nLSP Inspection: Extracting type information/hover docs at %s:%d:%d.\n</thought>\n", args.FilePath, args.Line, args.Character)
+	thought := fmt.Sprintf("LSP Inspection: Extracting type information/hover docs at %s:%d:%d.", args.FilePath, args.Line, args.Character)
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + outStr},
-		},
-	}, nil, nil
+	resultPayload, formatErr := s.presenter.FormatResult(thought, result)
+	return resultPayload, nil, formatErr
 }
 
 func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRequest, args StructuralSearchParams) (*mcp.CallToolResult, any, error) {
 	if args.Pattern == "" && args.TargetSymbol == "" {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "missing pattern or targetSymbol"}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("missing pattern or targetSymbol")), nil, nil
 	}
 
 	searchPath := args.Path
@@ -449,10 +341,7 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 
 	path, err := utils.ValidatePath(searchPath)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(err), nil, nil
 	}
 
 	limit := args.Limit
@@ -465,12 +354,9 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 	}
 
 	if args.TargetSymbol != "" {
-		results, err := s.engine.FindLogicalTwins(ctx, args.TargetSymbol, path)
+		results, err := s.discovery.FindLogicalTwins(ctx, args.TargetSymbol, path)
 		if err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to find logical twins: %v", err)}},
-				IsError: true,
-			}, nil, nil
+			return s.presenter.FormatError(fmt.Errorf("Failed to find logical twins: %v", err)), nil, nil
 		}
 		total := len(results)
 		if offset >= total {
@@ -483,25 +369,15 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 			results = results[offset:end]
 		}
 		
-		outStr, _ := engine.EncodeZON(results)
-		if len(outStr) > 4096 {
-			outStr = outStr[:4000] + "\n... [TRUNCATED BY SOVEREIGN GUARD (4KB LIMIT)]"
-		}
-		thought := fmt.Sprintf("<thought>\nStructural Analysis: Identifying symbols with identical logical signatures to '%s' in '%s'. Pagination: [Limit:%d Offset:%d]. Found %d matches (Total: %d).\n</thought>\n", args.TargetSymbol, path, limit, offset, len(results), total)
+		thought := fmt.Sprintf("Structural Analysis: Identifying symbols with identical logical signatures to '%s' in '%s'. Pagination: [Limit:%d Offset:%d]. Found %d matches (Total: %d).", args.TargetSymbol, path, limit, offset, len(results), total)
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: thought + outStr},
-			},
-		}, nil, nil
+		resultPayload, formatErr := s.presenter.FormatResult(thought, results)
+		return resultPayload, nil, formatErr
 	}
 
 	action, ok := filter.GetAction("ast_grep")
 	if !ok {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "ast_grep action not found in registry"}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("ast_grep action not found in registry")), nil, nil
 	}
 
 	// Prepare parameters for the ast_grep action
@@ -533,10 +409,7 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 	input := filter.ActionResult{Metadata: map[string]any{"path": path}}
 	res, err := action(ctx, input, params)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Structural search failed: %v", err)}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("Structural search failed: %v", err)), nil, nil
 	}
 
 	// The result lines are JSON strings from ast-grep's --json=stream
@@ -570,85 +443,49 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 		results = results[offset:end]
 	}
 
-	var outStr string
-	outStr, _ = engine.EncodeZON(results)
-	if len(outStr) > 4096 {
-		outStr = outStr[:4000] + "\n... [TRUNCATED BY SOVEREIGN GUARD (4KB LIMIT)]"
-	}
-
-	thought := fmt.Sprintf("<thought>\nExecuted structural search for pattern '%s' in '%s'. Pagination: [Limit:%d Offset:%d]. Found %d matches (Total: %d).\n</thought>\n",
+	thought := fmt.Sprintf("Executed structural search for pattern '%s' in '%s'. Pagination: [Limit:%d Offset:%d]. Found %d matches (Total: %d).",
 		args.Pattern, path, limit, offset, len(results), total)
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + outStr},
-		},
-	}, nil, nil
+	resultPayload, formatErr := s.presenter.FormatResult(thought, results)
+	return resultPayload, nil, formatErr
 }
 
 func (s *Server) handleDiagnose(ctx context.Context, req *mcp.CallToolRequest, args DiagnoseParams) (*mcp.CallToolResult, any, error) {
 	if args.ErrorLog == "" {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "missing errorLog"}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("missing errorLog")), nil, nil
 	}
 
-	hudStruct, err := s.engine.Healer().DiagnoseHUD(ctx, args.ErrorLog)
+	hudStruct, err := s.healer.DiagnoseHUD(ctx, args.ErrorLog)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Diagnose failed: %v", err)}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("Diagnose failed: %v", err)), nil, nil
 	}
 
-	hudOutput, err := engine.EncodeZON([]engine.DiagnosticHUD{*hudStruct})
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Encode failed: %v", err)}},
-			IsError: true,
-		}, nil, nil
-	}
+	thought := "Executing Diagnostic Vision (Fase 8). Fused Git Provenance, X-Ray AST, Radar Impact, and Thermal Similarity into HUD."
 
-	thought := "<thought>\nExecuting Diagnostic Vision (Fase 8). Fused Git Provenance, X-Ray AST, Radar Impact, and Thermal Similarity into HUD.\n</thought>\n"
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + hudOutput},
-		},
-	}, nil, nil
+	resultPayload, formatErr := s.presenter.FormatResult(thought, []engine.DiagnosticHUD{*hudStruct})
+
+
+	return resultPayload, nil, formatErr
 }
 
 func (s *Server) handleNeighborhood(ctx context.Context, req *mcp.CallToolRequest, args NeighborhoodParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("missing filePath")), nil, nil
 	}
 
 	path, err := utils.ValidatePath(args.FilePath)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(err), nil, nil
 	}
 
-	neighborhood, err := s.engine.GetNeighborhood(ctx, path)
+	neighborhood, err := s.discovery.GetNeighborhood(ctx, path)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get neighborhood: %v", err)}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("Failed to get neighborhood: %v", err)), nil, nil
 	}
 
-	thought := fmt.Sprintf("<thought>\nZON Neighborhood: Extracted 1-hop structural context for %s.\n</thought>\n", args.FilePath)
+	thought := fmt.Sprintf("ZON Neighborhood: Extracted 1-hop structural context for %s.", args.FilePath)
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + neighborhood},
-		},
-	}, nil, nil
+	return s.presenter.FormatTextResult(thought, neighborhood), nil, nil
 }
 

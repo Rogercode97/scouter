@@ -51,7 +51,7 @@ func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, a
 	engramCtx := s.fetchEngramContext(ctx, "bugfix "+searchQuery)
 
 	// Delegate to TruthEngine
-	res, err := s.engine.Fix(ctx, args.ErrorLog, &healerMessenger{server: s, req: req, engramCtx: engramCtx})
+	res, err := s.healer.Fix(ctx, args.ErrorLog, &healerMessenger{server: s, req: req, engramCtx: engramCtx})
 	if err != nil {
 		return nil, nil, fmt.Errorf("self-heal failed: %w", err)
 	}
@@ -72,7 +72,7 @@ func (s *Server) handleRippleRefactor(ctx context.Context, req *mcp.CallToolRequ
 	defer s.mu.Unlock()
 
 	// Delegate to TruthEngine
-	res, err := s.engine.Propagate(ctx, args.SymbolName, args.Transformation, &mcpMessenger{server: s, req: req})
+	res, err := s.evolution.Propagate(ctx, args.SymbolName, args.Transformation, &mcpMessenger{server: s, req: req})
 	if err != nil {
 		return nil, nil, fmt.Errorf("propagation failed: %w", err)
 	}
@@ -88,7 +88,7 @@ func (s *Server) handleCommit(ctx context.Context, req *mcp.CallToolRequest, arg
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	res, err := s.engine.CommitLedger(ctx)
+	res, err := s.evolution.CommitLedger(ctx)
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Commit failed: %v", err)}},
@@ -106,7 +106,7 @@ func (s *Server) handleRollback(ctx context.Context, req *mcp.CallToolRequest, a
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	res, err := s.engine.RollbackLedger(ctx)
+	res, err := s.evolution.RollbackLedger(ctx)
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Rollback failed: %v", err)}},
@@ -123,7 +123,7 @@ func (s *Server) handleDiff(ctx context.Context, req *mcp.CallToolRequest, args 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	res, err := s.engine.GetLedgerDiff(ctx)
+	res, err := s.evolution.GetLedgerDiff(ctx)
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Diff failed: %v", err)}},
@@ -132,7 +132,7 @@ func (s *Server) handleDiff(ctx context.Context, req *mcp.CallToolRequest, args 
 		nil, nil
 	}
 
-	summary := s.engine.GetLedgerSummary(ctx)
+	summary := s.evolution.GetLedgerSummary(ctx)
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -189,7 +189,7 @@ func (s *Server) handleEvolve(ctx context.Context, req *mcp.CallToolRequest, arg
 			return nil, nil, fmt.Errorf("SOVEREIGNTY VIOLATION: Mutation attempts to modify GEP core logic in '%s'. Use 'force:true' if this is an intended self-lobotomy.", m.File)
 		}
 
-		if err := s.engine.StageMutation(ctx, m.File, m.Content); err != nil {
+		if err := s.evolution.StageMutation(ctx, m.File, m.Content); err != nil {
 			return nil, nil, fmt.Errorf("failed to stage mutation for %s: %w", m.File, err)
 		}
 		stagedCount++

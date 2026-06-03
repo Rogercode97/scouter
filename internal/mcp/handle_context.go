@@ -66,7 +66,7 @@ func (s *Server) handleSaveAnchor(ctx context.Context, req *mcp.CallToolRequest,
 	engramContent := fmt.Sprintf("**What**: Latent session state compaction.\n**Why**: Context window optimization.\n**Where**: Project: %s\n**Learned**: %s", project, args.Summary)
 
 	// [Sinergia Upgrade] Direct SQLite Persistence
-	err := s.engine.MemoryProvider().SaveObservation(ctx, project, memory.DistilledMemory{
+	err := s.memory.SaveObservation(ctx, project, memory.DistilledMemory{
 		Type:    "session_summary",
 		Title:   title,
 		Content: engramContent,

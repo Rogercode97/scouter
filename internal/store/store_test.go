@@ -15,7 +15,7 @@ import (
 
 func TestStoreSearch(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_scouter.db"
+	dbPath := "test_scouter.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -80,7 +80,7 @@ func TestStoreSearch(t *testing.T) {
 
 func TestStoreCalls(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_scouter_calls.db"
+	dbPath := "test_scouter_calls.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -138,7 +138,7 @@ func TestStoreCalls(t *testing.T) {
 func TestGetUnusedSymbols(t *testing.T) {
 
 	ctx := t.Context()
-	dbPath := "test_scouter_deadcode.db"
+	dbPath := "test_scouter_deadcode.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -207,7 +207,7 @@ func TestGetUnusedSymbols(t *testing.T) {
 
 func TestStoreSearch_Injection(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_scouter_injection.db"
+	dbPath := "test_scouter_injection.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -248,7 +248,7 @@ func TestStoreSearch_Injection(t *testing.T) {
 
 func TestSaveFileIndex_PreservesSymbols(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_scouter_preserve.db"
+	dbPath := "test_scouter_preserve.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -301,7 +301,7 @@ func TestSaveFileIndex_PreservesSymbols(t *testing.T) {
 
 func TestStore_DeleteCascade(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_scouter_cascade.db"
+	dbPath := "test_scouter_cascade.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -341,7 +341,7 @@ func TestStore_DeleteCascade(t *testing.T) {
 
 func TestStore_HasColumn(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_scouter_hascolumn.db"
+	dbPath := "test_scouter_hascolumn.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -351,7 +351,7 @@ func TestStore_HasColumn(t *testing.T) {
 	defer s.Close()
 
 	storeImpl := s.(*storeImpl)
-	tx, _ := storeImpl.db.BeginTx(ctx, nil)
+	tx, _ := storeImpl.dbWrite.BeginTx(ctx, nil)
 	defer tx.Rollback()
 
 	// 1. Check existing column
@@ -416,7 +416,7 @@ func TestSanitizeFTS_SpecialCharacters(t *testing.T) {
 
 func TestStore_TransactionSafety(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_scouter_tx.db"
+	dbPath := "test_scouter_tx.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -459,7 +459,7 @@ func TestStore_TransactionSafety(t *testing.T) {
 
 	func TestGetSymbolsByNameInFile(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_scouter_namefile.db"
+	dbPath := "test_scouter_namefile.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -492,7 +492,7 @@ func TestStore_TransactionSafety(t *testing.T) {
 
 func TestGetSymbolsByType(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_scouter_type.db"
+	dbPath := "test_scouter_type.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -518,7 +518,7 @@ func TestGetSymbolsByType(t *testing.T) {
 
 func TestCallLinkTypePersistence(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_scouter_linktype.db"
+	dbPath := "test_scouter_linktype.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -542,7 +542,7 @@ func TestCallLinkTypePersistence(t *testing.T) {
 
 func TestStore_SemanticFields(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_scouter_semantic.db"
+	dbPath := "test_scouter_semantic.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -612,7 +612,7 @@ func TestStore_SemanticFields(t *testing.T) {
 
 func TestStore_Migration(t *testing.T) {
 	ctx := t.Context()
-	dbPath := filepath.Join(t.TempDir(), "test_scouter_migration.db")
+	dbPath := filepath.Join(t.TempDir(), "test_scouter_migration.dbWrite")
 
 	// 1. Create a database with old schema manually
 	dsn := fmt.Sprintf("%s?_pragma=foreign_keys(1)", dbPath)
@@ -638,7 +638,7 @@ func TestStore_Migration(t *testing.T) {
 
 	// 3. Verify columns exist
 	storeImpl := s.(*storeImpl)
-	tx, _ := storeImpl.db.BeginTx(ctx, nil)
+	tx, _ := storeImpl.dbWrite.BeginTx(ctx, nil)
 	defer tx.Rollback()
 
 	hasPkg, _ := hasColumn(ctx, tx, "symbols", "package_path")
@@ -654,7 +654,7 @@ func TestStore_Migration(t *testing.T) {
 
 func TestDirectoryHashes(t *testing.T) {
 	ctx := context.Background()
-	dbPath := filepath.Join(t.TempDir(), "scouter.db")
+	dbPath := filepath.Join(t.TempDir(), "scouter.dbWrite")
 	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
@@ -708,7 +708,7 @@ func TestDirectoryHashes(t *testing.T) {
 
 func TestSaveFileIndexBatch(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_batch_insert.db"
+	dbPath := "test_batch_insert.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -755,7 +755,7 @@ func TestSaveFileIndexBatch(t *testing.T) {
 }
 func TestStore_RecordSymbolUsage(t *testing.T) {
 	ctx := context.Background()
-	dbPath := filepath.Join(t.TempDir(), "scouter_test.db")
+	dbPath := filepath.Join(t.TempDir(), "scouter_test.dbWrite")
 	s, err := NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
@@ -798,7 +798,7 @@ func TestStore_RecordSymbolUsage(t *testing.T) {
 	impl := s.(*storeImpl)
 	var hitCount int
 	var lastUsed int64
-	err = impl.db.QueryRowContext(ctx, "SELECT hit_count, last_used FROM symbol_usage WHERE environment = 'prod'").Scan(&hitCount, &lastUsed)
+	err = impl.dbWrite.QueryRowContext(ctx, "SELECT hit_count, last_used FROM symbol_usage WHERE environment = 'prod'").Scan(&hitCount, &lastUsed)
 	if err != nil {
 		t.Fatalf("failed to query symbol_usage: %v", err)
 	}
@@ -822,7 +822,7 @@ func TestStore_RecordSymbolUsage(t *testing.T) {
 		t.Fatalf("failed to update usage: %v", err)
 	}
 
-	err = impl.db.QueryRowContext(ctx, "SELECT hit_count, last_used FROM symbol_usage WHERE environment = 'prod'").Scan(&hitCount, &lastUsed)
+	err = impl.dbWrite.QueryRowContext(ctx, "SELECT hit_count, last_used FROM symbol_usage WHERE environment = 'prod'").Scan(&hitCount, &lastUsed)
 	if err != nil {
 		t.Fatalf("failed to query symbol_usage: %v", err)
 	}

@@ -40,7 +40,7 @@ type PredictParams struct {
 
 func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, args ImpactParams) (*mcp.CallToolResult, any, error) {
 	// [Sovereignty Upgrade] Route through TruthEngine
-	res, err := s.engine.AnalyzeImpact(ctx, args.SymbolName, args.FilePath, args.Verbose, &mcpMessenger{server: s, req: req})
+	res, err := s.intelligence.AnalyzeImpact(ctx, args.SymbolName, args.FilePath, args.Verbose, &mcpMessenger{server: s, req: req})
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to analyze impact: %v", err)}},
@@ -50,13 +50,9 @@ func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, arg
 	}
 	outStr := engine.EncodeZONImpact(res)
 
-	thought := fmt.Sprintf("<thought>\nCalculated blast radius for '%s'. Target risk score: %.4f (Level: %s). Found %d affected callers.\n</thought>\n", args.SymbolName, res.Target.RiskScore, res.RiskLevel, len(res.Callers))
+	thought := fmt.Sprintf("Calculated blast radius for '%s'. Target risk score: %.4f (Level: %s). Found %d affected callers.", args.SymbolName, res.Target.RiskScore, res.RiskLevel, len(res.Callers))
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + outStr},
-		},
-	}, nil, nil
+	return s.presenter.FormatTextResult(thought, outStr), nil, nil
 }
 
 func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, args CriticalParams) (*mcp.CallToolResult, any, error) {
@@ -64,7 +60,7 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 	if limit <= 0 || limit > 50 {
 		limit = 10
 	}
-	results, err := s.engine.GetCriticalSymbols(ctx, limit)
+	results, err := s.intelligence.GetCriticalSymbols(ctx, limit)
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get critical symbols: %v", err)}},
@@ -94,14 +90,10 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 		outStr, _ = engine.EncodeZON(results)
 	}
 
-	thought := fmt.Sprintf("<thought>\nRisk Analysis: Identifying high-risk symbols (high centrality and fragility). Found %d targets (limit: %d). Format: %s.\n</thought>\n",
+	thought := fmt.Sprintf("Risk Analysis: Identifying high-risk symbols (high centrality and fragility). Found %d targets (limit: %d). Format: %s.",
 		len(results), limit, map[bool]string{true: "hakai", false: "zon"}[useHakai])
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + outStr},
-		},
-	}, nil, nil
+	return s.presenter.FormatTextResult(thought, outStr), nil, nil
 }
 
 func (s *Server) handleObsidianExport(ctx context.Context, req *mcp.CallToolRequest, args ObsidianExportParams) (*mcp.CallToolResult, any, error) {
@@ -124,7 +116,7 @@ cleanPath := filepath.Clean(exportPath)
 		return nil, nil, fmt.Errorf("security violation: export path '%s' is outside the workspace", exportPath)
 	}
 
-	res, err := s.engine.AnalyzeImpact(ctx, args.SymbolName, args.FilePath, true, nil)
+	res, err := s.intelligence.AnalyzeImpact(ctx, args.SymbolName, args.FilePath, true, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -186,7 +178,7 @@ func (s *Server) handlePredict(ctx context.Context, req *mcp.CallToolRequest, ar
 		}
 	}
 
-	results, err := s.engine.PredictTests(ctx, diff)
+	results, err := s.intelligence.PredictTests(ctx, diff)
 	if err != nil {
 		return nil, nil, err
 	}

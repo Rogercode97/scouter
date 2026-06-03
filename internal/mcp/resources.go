@@ -174,7 +174,7 @@ func (s *Server) registerResources() {
 		Description: "Returns the project trajectory and current phase.",
 		MIMEType:    "application/json",
 	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-		res, err := s.engine.GetSDDRoadmap(ctx)
+		res, err := s.sdd.GetSDDRoadmap(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -197,7 +197,7 @@ func (s *Server) registerResources() {
 		Description: "Returns the current SDD task list.",
 		MIMEType:    "application/json",
 	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-		res, err := s.engine.GetSDDTasks(ctx)
+		res, err := s.sdd.GetSDDTasks(ctx)
 		if err != nil {
 			return nil, err
 		}

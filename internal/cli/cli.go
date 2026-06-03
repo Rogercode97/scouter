@@ -142,9 +142,14 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			Store:         db,
 			Logger:        logger,
 			LspMgr:        lspMgr,
-			TruthEngine:   truthEngine,
+			Indexer:       truthEngine,
+			Discovery:     truthEngine,
+			Intelligence:  truthEngine,
+			Evolution:     truthEngine,
+			Healer:        truthEngine,
 			ChronosEngine: chronos,
 			AppService:    appService,
+			Presenter:     display.NewDefaultPresenter(),
 		}
 
 		server := mcp.NewServer(opts)

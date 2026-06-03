@@ -45,54 +45,35 @@ func (s *Server) getSnapshot(id string) (*engine.ChronosSnapshot, bool) {
 
 func (s *Server) handleSnapshotAST(ctx context.Context, req *mcp.CallToolRequest, args SnapshotASTParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("missing filePath")), nil, nil
 	}
 
 	path, err := utils.ValidatePath(args.FilePath)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(err), nil, nil
 	}
 
 	snapshot, err := s.chronos.TakeSnapshot(ctx, path)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to take snapshot: %v", err)}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("Failed to take snapshot: %v", err)), nil, nil
 	}
 
 	s.storeSnapshot(snapshot)
 
-	thought := fmt.Sprintf("<thought>\nChronos Engine: Snapshot taken for %s. Captured %d structural nodes. Snapshot ID: %s.\n</thought>\n",
+	thought := fmt.Sprintf("Chronos Engine: Snapshot taken for %s. Captured %d structural nodes. Snapshot ID: %s.",
 		filepath.Base(path), len(snapshot.Symbols), snapshot.ID)
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: thought + fmt.Sprintf("[ZON Snapshot: %s]\nSYMBOLS | %d", snapshot.ID, len(snapshot.Symbols))},
-		},
-	}, nil, nil
+	return s.presenter.FormatTextResult(thought, fmt.Sprintf("[ZON Snapshot: %s]\nSYMBOLS | %d", snapshot.ID, len(snapshot.Symbols))), nil, nil
 }
 
 func (s *Server) handleVerifyAST(ctx context.Context, req *mcp.CallToolRequest, args VerifyASTParams) (*mcp.CallToolResult, any, error) {
 	if args.SnapshotID == "" || args.FilePath == "" {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "missing snapshotId or filePath"}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("missing snapshotId or filePath")), nil, nil
 	}
 
 	path, err := utils.ValidatePath(args.FilePath)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(err), nil, nil
 	}
 
 	snapshot, exists := s.getSnapshot(args.SnapshotID)
@@ -105,10 +86,7 @@ func (s *Server) handleVerifyAST(ctx context.Context, req *mcp.CallToolRequest, 
 
 	diff, err := s.chronos.CompareSnapshot(ctx, snapshot, path)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to verify snapshot: %v", err)}},
-			IsError: true,
-		}, nil, nil
+		return s.presenter.FormatError(fmt.Errorf("Failed to verify snapshot: %v", err)), nil, nil
 	}
 
 	outStr := engine.EncodeZONVerify(diff)
@@ -120,7 +98,7 @@ func (s *Server) handleVerifyAST(ctx context.Context, req *mcp.CallToolRequest, 
 		isError = true
 	}
 
-	thought := fmt.Sprintf("<thought>\nChronos Engine: Verified %s against snapshot %s. %s\nMissing: %d | Mangled: %d | Added: %d | Unchanged: %d\n</thought>\n",
+	thought := fmt.Sprintf("Chronos Engine: Verified %s against snapshot %s. %s\nMissing: %d | Mangled: %d | Added: %d | Unchanged: %d",
 		filepath.Base(path), args.SnapshotID, status,
 		len(diff.MissingSymbols), len(diff.MangledSymbols), len(diff.AddedSymbols), diff.Unchanged)
 

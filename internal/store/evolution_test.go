@@ -8,7 +8,7 @@ import (
 
 func TestEvolution(t *testing.T) {
 	ctx := context.Background()
-	dbPath := "test_evolution.db"
+	dbPath := "test_evolution.dbWrite"
 	defer os.Remove(dbPath)
 
 	s, err := NewStore(ctx, dbPath)
@@ -73,7 +73,7 @@ func TestEvolution(t *testing.T) {
 
 	// Verify CASCADE (symbols and calls should be gone for file1.go)
 	var count int
-	err = s.(*storeImpl).db.QueryRow("SELECT COUNT(*) FROM symbols WHERE path = 'file1.go'").Scan(&count)
+	err = s.(*storeImpl).dbWrite.QueryRow("SELECT COUNT(*) FROM symbols WHERE path = 'file1.go'").Scan(&count)
 	if err != nil {
 		t.Fatalf("Failed to query symbols: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestEvolution(t *testing.T) {
 		t.Errorf("Expected 0 symbols for file1.go due to CASCADE, got %d", count)
 	}
 
-	err = s.(*storeImpl).db.QueryRow("SELECT COUNT(*) FROM calls WHERE path = 'file1.go'").Scan(&count)
+	err = s.(*storeImpl).dbWrite.QueryRow("SELECT COUNT(*) FROM calls WHERE path = 'file1.go'").Scan(&count)
 	if err != nil {
 		t.Fatalf("Failed to query calls: %v", err)
 	}
