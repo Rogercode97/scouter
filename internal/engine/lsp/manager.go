@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -135,7 +134,7 @@ func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, er
 			// If connection failed, try to start the daemon
 			daemonCmd := exec.Command("gopls", "serve", "-listen=unix;"+socketPath)
 			// Detach from current process group so it persists
-			daemonCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+			setSysProcAttr(daemonCmd)
 			if err := daemonCmd.Start(); err == nil {
 				// Give it a tiny moment to create the socket
 				for i := 0; i < 10; i++ {
