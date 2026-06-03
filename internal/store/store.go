@@ -73,31 +73,46 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	// Optimized SQLite parameters for high-performance bulk indexing
-	separator := "?"
-	if strings.Contains(dbPath, "?") {
-		separator = "&"
-	}
-	dsn := dbPath
-	if !strings.HasPrefix(dsn, "file:") {
-		dsn = "file:" + dsn
-	}
-	// Write pool
-	dsnWrite := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)&_txlock=immediate", dsn, separator)
-	dbWrite, err := sql.Open("sqlite3", dsnWrite)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open write database: %w", err)
-	}
-	dbWrite.SetMaxOpenConns(1)
+	var dbRead, dbWrite *sql.DB
+	var err error
 
-	// Read pool
-	dsnRead := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)", dsn, separator)
-	dbRead, err := sql.Open("sqlite3", dsnRead)
-	if err != nil {
-		dbWrite.Close()
-		return nil, fmt.Errorf("failed to open read database: %w", err)
+	if strings.Contains(dbPath, ":memory:") {
+		// For in-memory databases, we must share the exact same connection pool
+		// between read and write to prevent "no such table" isolation errors.
+		dbWrite, err = sql.Open("sqlite3", ":memory:")
+		if err != nil {
+			return nil, fmt.Errorf("failed to open memory database: %w", err)
+		}
+		dbWrite.SetMaxOpenConns(1)
+		dbRead = dbWrite
+	} else {
+		// Optimized SQLite parameters for high-performance bulk indexing
+		separator := "?"
+		if strings.Contains(dbPath, "?") {
+			separator = "&"
+		}
+		dsn := dbPath
+		if !strings.HasPrefix(dsn, "file:") {
+			dsn = "file:" + dsn
+		}
+		
+		// Write pool
+		dsnWrite := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)&_txlock=immediate", dsn, separator)
+		dbWrite, err = sql.Open("sqlite3", dsnWrite)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open write database: %w", err)
+		}
+		dbWrite.SetMaxOpenConns(1)
+
+		// Read pool
+		dsnRead := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)", dsn, separator)
+		dbRead, err = sql.Open("sqlite3", dsnRead)
+		if err != nil {
+			dbWrite.Close()
+			return nil, fmt.Errorf("failed to open read database: %w", err)
+		}
+		dbRead.SetMaxOpenConns(runtime.NumCPU() * 2)
 	}
-	dbRead.SetMaxOpenConns(runtime.NumCPU() * 2)
 
 	tx, err := dbWrite.BeginTx(ctx, nil)
 	if err != nil {
