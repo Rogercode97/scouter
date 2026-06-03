@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
@@ -171,121 +172,183 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 		return func(yield func(types.ASTPointer) bool) {}, func(yield func(types.ASTCall) bool) {}, func(yield func(types.DataFlow) bool) {}, nil
 	}
 
-	symbolNames := make(map[uint32]string) // shared between iters
-	anonCounters := make(map[string]int)
-	var pointers []types.ASTPointer
+	var (
+		sharedSymbolNames map[uint32]string
+		symbolsOnce       sync.Once
+	)
 
-	// Eagerly populate symbolNames and collect pointers to allow independent iterator usage
-	// and correct hierarchical resolution in callIter and flowIter.
-	pCursor := config.Query.Exec(tree.RootNode(), lang, content)
-	for {
-		match, ok := pCursor.NextMatch()
-		if !ok {
-			break
-		}
-
-		select {
-		case <-ctx.Done():
-			return nil, nil, nil, ctx.Err()
-		default:
-		}
-
-		var name, symType, recv, mname, iname string
-		var symNode *gotreesitter.Node
-		for _, cap := range match.Captures {
-			nameN := cap.Name
-			switch nameN {
-			case "name":
-				name = cap.Node.Text(content)
-			case "recv":
-				recv = cap.Node.Text(content)
-			case "mname":
-				mname = cap.Node.Text(content)
-			case "iname":
-				iname = cap.Node.Text(content)
-			default:
-				symType = nameN
-				symNode = cap.Node
-			}
-		}
-
-		// Calculate hierarchical parent name
-		parentName := "global"
-		if symNode != nil {
-			curr := symNode.Parent()
-			for curr != nil {
-				if n, ok := symbolNames[curr.EndByte()]; ok {
-					parentName = n
+	getSharedSymbolNames := func() map[uint32]string {
+		symbolsOnce.Do(func() {
+			sharedSymbolNames = make(map[uint32]string)
+			anonCounters := make(map[string]int)
+			pCursor := config.Query.Exec(tree.RootNode(), lang, content)
+			for {
+				match, ok := pCursor.NextMatch()
+				if !ok {
 					break
 				}
-				curr = curr.Parent()
-			}
-		}
+				var name, symType, recv string
+				var symNode *gotreesitter.Node
+				for _, cap := range match.Captures {
+					nameN := cap.Name
+					switch nameN {
+					case "name":
+						name = cap.Node.Text(content)
+					case "recv":
+						recv = cap.Node.Text(content)
+					case "mname", "iname":
+						// skip
+					default:
+						symType = nameN
+						symNode = cap.Node
+					}
+				}
 
-		// Capture anonymous functions (closures/lambdas)
-		if symType == "function" && name == "" && symNode != nil {
-			p := parentName
-			if p == "" {
-				p = "global"
-			}
-			anonCounters[p]++
-			name = fmt.Sprintf("func%d", anonCounters[p])
-		}
+				parentName := "global"
+				if symNode != nil {
+					curr := symNode.Parent()
+					for curr != nil {
+						if n, ok := sharedSymbolNames[curr.EndByte()]; ok {
+							parentName = n
+							break
+						}
+						curr = curr.Parent()
+					}
+				}
 
-		// Handle normal symbols
-		if name != "" && symType != "interface_spec" && symNode != nil {
-			fullName := name
-			if recv != "" {
-				fullName = recv + "." + name
-			} else if parentName != "" && (parentName != "global" || strings.HasPrefix(name, "func")) {
-				fullName = parentName + "." + name
-			}
+				if symType == "function" && name == "" && symNode != nil {
+					p := parentName
+					if p == "" {
+						p = "global"
+					}
+					anonCounters[p]++
+					name = fmt.Sprintf("func%d", anonCounters[p])
+				}
 
-			symbolNames[symNode.EndByte()] = fullName
-
-			doc := extractDoc(symNode, content, ext, lang)
-			h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s", symType, fullName)))
-			p := types.ASTPointer{
-				Type:           symType,
-				Name:           fullName,
-				Doc:            doc,
-				Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
-				StartLine:      int(symNode.StartPoint().Row) + 1,
-				EndLine:        int(symNode.EndPoint().Row) + 1,
-				Hash:           hex.EncodeToString(h[:]),
-				StructuralHash: GetStructuralHash(symNode, content, lang),
-				LogicHash:      GetLogicHash(symNode, content, lang),
-				Metrics:        computeSemanticMetrics(symNode, lang, content),
+				if name != "" && symType != "interface_spec" && symNode != nil {
+					fullName := name
+					if recv != "" {
+						fullName = recv + "." + name
+					} else if parentName != "" && (parentName != "global" || strings.HasPrefix(name, "func")) {
+						fullName = parentName + "." + name
+					}
+					sharedSymbolNames[symNode.EndByte()] = fullName
+				}
 			}
-			pointers = append(pointers, p)
-		}
-
-		// Handle interface method specs
-		if mname != "" && symNode != nil {
-			parentInterface := name
-			if iname != "" {
-				parentInterface = iname
-			}
-			fullMethodName := parentInterface + "." + mname
-			p := types.ASTPointer{
-				Type:           "interface_method",
-				Name:           fullMethodName,
-				Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
-				StartLine:      int(symNode.StartPoint().Row) + 1,
-				EndLine:        int(symNode.EndPoint().Row) + 1,
-				Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
-				StructuralHash: GetStructuralHash(symNode, content, lang),
-				LogicHash:      GetLogicHash(symNode, content, lang),
-				Metrics:        computeSemanticMetrics(symNode, lang, content),
-			}
-			pointers = append(pointers, p)
-		}
+		})
+		return sharedSymbolNames
 	}
 
 	pointerIter := func(yield func(types.ASTPointer) bool) {
-		for _, p := range pointers {
-			if !yield(p) {
+		symbolNames := make(map[uint32]string)
+		anonCounters := make(map[string]int)
+
+		pCursor := config.Query.Exec(tree.RootNode(), lang, content)
+		for {
+			match, ok := pCursor.NextMatch()
+			if !ok {
+				break
+			}
+
+			select {
+			case <-ctx.Done():
 				return
+			default:
+			}
+
+			var name, symType, recv, mname, iname string
+			var symNode *gotreesitter.Node
+			for _, cap := range match.Captures {
+				nameN := cap.Name
+				switch nameN {
+				case "name":
+					name = cap.Node.Text(content)
+				case "recv":
+					recv = cap.Node.Text(content)
+				case "mname":
+					mname = cap.Node.Text(content)
+				case "iname":
+					iname = cap.Node.Text(content)
+				default:
+					symType = nameN
+					symNode = cap.Node
+				}
+			}
+
+			// Calculate hierarchical parent name
+			parentName := "global"
+			if symNode != nil {
+				curr := symNode.Parent()
+				for curr != nil {
+					if n, ok := symbolNames[curr.EndByte()]; ok {
+						parentName = n
+						break
+					}
+					curr = curr.Parent()
+				}
+			}
+
+			// Capture anonymous functions (closures/lambdas)
+			if symType == "function" && name == "" && symNode != nil {
+				p := parentName
+				if p == "" {
+					p = "global"
+				}
+				anonCounters[p]++
+				name = fmt.Sprintf("func%d", anonCounters[p])
+			}
+
+			// Handle normal symbols
+			if name != "" && symType != "interface_spec" && symNode != nil {
+				fullName := name
+				if recv != "" {
+					fullName = recv + "." + name
+				} else if parentName != "" && (parentName != "global" || strings.HasPrefix(name, "func")) {
+					fullName = parentName + "." + name
+				}
+
+				symbolNames[symNode.EndByte()] = fullName
+
+				doc := extractDoc(symNode, content, ext, lang)
+				h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s", symType, fullName)))
+				p := types.ASTPointer{
+					Type:           symType,
+					Name:           fullName,
+					Doc:            doc,
+					Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
+					StartLine:      int(symNode.StartPoint().Row) + 1,
+					EndLine:        int(symNode.EndPoint().Row) + 1,
+					Hash:           hex.EncodeToString(h[:]),
+					StructuralHash: GetStructuralHash(symNode, content, lang),
+					LogicHash:      GetLogicHash(symNode, content, lang),
+					Metrics:        computeSemanticMetrics(symNode, lang, content),
+				}
+				if !yield(p) {
+					return
+				}
+			}
+
+			// Handle interface method specs
+			if mname != "" && symNode != nil {
+				parentInterface := name
+				if iname != "" {
+					parentInterface = iname
+				}
+				fullMethodName := parentInterface + "." + mname
+				p := types.ASTPointer{
+					Type:           "interface_method",
+					Name:           fullMethodName,
+					Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
+					StartLine:      int(symNode.StartPoint().Row) + 1,
+					EndLine:        int(symNode.EndPoint().Row) + 1,
+					Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
+					StructuralHash: GetStructuralHash(symNode, content, lang),
+					LogicHash:      GetLogicHash(symNode, content, lang),
+					Metrics:        computeSemanticMetrics(symNode, lang, content),
+				}
+				if !yield(p) {
+					return
+				}
 			}
 		}
 	}
@@ -341,7 +404,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 				}
 
 				c := types.ASTCall{
-					CallerName: findTSCaller(callNode, content, lang, symbolNames),
+					CallerName: findTSCaller(callNode, content, lang, getSharedSymbolNames()),
 					CalleeName: callee,
 					CalleePath: calleePath,
 					LinkType:   "call",
@@ -431,7 +494,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 			}
 
 			if retNode != nil {
-				currentFunc := findTSCaller(retNode, content, lang, symbolNames)
+				currentFunc := findTSCaller(retNode, content, lang, getSharedSymbolNames())
 				f := types.DataFlow{
 					Source: source,
 					Sink:   fmt.Sprintf("%s:return0", currentFunc),

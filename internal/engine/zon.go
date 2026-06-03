@@ -31,25 +31,29 @@ func EncodeZON(slice interface{}) (string, error) {
 		return "", fmt.Errorf("ZON encoder requires a slice of structs")
 	}
 
-	var headers []string
-	for i := 0; i < elemType.NumField(); i++ {
-		headers = append(headers, elemType.Field(i).Name)
-	}
-
 	var sb strings.Builder
 	// ZON Header: @(count)[col1 | col2]
-	sb.WriteString(fmt.Sprintf("@(%d)[%s]\n", val.Len(), strings.Join(headers, " | ")))
+	fmt.Fprintf(&sb, "@(%d)[", val.Len())
+	for i := 0; i < elemType.NumField(); i++ {
+		if i > 0 {
+			sb.WriteString(" | ")
+		}
+		sb.WriteString(elemType.Field(i).Name)
+	}
+	sb.WriteString("]\n")
 
 	for i := 0; i < val.Len(); i++ {
 		item := val.Index(i)
 		if item.Kind() == reflect.Ptr {
 			item = item.Elem()
 		}
-		var row []string
 		for j := 0; j < item.NumField(); j++ {
-			row = append(row, fmt.Sprintf("%v", item.Field(j).Interface()))
+			if j > 0 {
+				sb.WriteString(" | ")
+			}
+			fmt.Fprintf(&sb, "%v", item.Field(j).Interface())
 		}
-		sb.WriteString(strings.Join(row, " | ") + "\n")
+		sb.WriteString("\n")
 	}
 
 	return sb.String(), nil

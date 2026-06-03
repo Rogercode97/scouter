@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"iter"
 	"context"
 	"fmt"
 	"log/slog"
@@ -223,6 +224,19 @@ func (e *TruthEngine) Index(ctx context.Context, path string) error {
 		return fmt.Errorf("error stating path: %w", err)
 	}
 
+	var parsedData map[string]*ParsedPackageData
+	if fi.IsDir() {
+		pd, loadErr := BatchLoadPackages(validatedPath)
+		if loadErr != nil {
+			e.logger.Warn("BatchLoadPackages failed, falling back to individual loading", "error", loadErr)
+			parsedData = make(map[string]*ParsedPackageData)
+		} else {
+			parsedData = pd
+		}
+	} else {
+		parsedData = make(map[string]*ParsedPackageData)
+	}
+
 	collector := newIndexCollector(ctx, e.store)
 
 	// Limitamos a 4 workers para evitar que el OS (ej. MIUI) mate el proceso por exceso de hilos
@@ -234,10 +248,10 @@ func (e *TruthEngine) Index(ctx context.Context, path string) error {
 
 	var indexErr error
 	if fi.IsDir() {
-		_, indexErr = e.indexDirectory(ctx, validatedPath, workerSem, collector)
+		_, indexErr = e.indexDirectory(ctx, validatedPath, workerSem, collector, parsedData)
 	} else {
 		workerSem <- struct{}{}
-		_, indexErr = e.indexFile(ctx, validatedPath, workerSem, collector)
+		_, indexErr = e.indexFile(ctx, validatedPath, workerSem, collector, parsedData)
 		<-workerSem
 	}
 
@@ -265,7 +279,7 @@ func (e *TruthEngine) Index(ctx context.Context, path string) error {
 }
 
 
-func (e *TruthEngine) indexDirectory(ctx context.Context, dir string, workerSem chan struct{}, collector *indexCollector) (string, error) {
+func (e *TruthEngine) indexDirectory(ctx context.Context, dir string, workerSem chan struct{}, collector *indexCollector, parsedData map[string]*ParsedPackageData) (string, error) {
 	storedHash, _, err := e.store.GetDirectoryHash(ctx, dir)
 	if err == nil && storedHash != "" {
 		// Cache hit logic
@@ -295,7 +309,7 @@ func (e *TruthEngine) indexDirectory(ctx context.Context, dir string, workerSem 
 				continue
 			}
 			g.Go(func() error {
-				childHash, err := e.indexDirectory(ctx, path, workerSem, collector)
+				childHash, err := e.indexDirectory(ctx, path, workerSem, collector, parsedData)
 				if err != nil {
 					e.logger.Error("failed to index directory", "path", path, "error", err)
 					return nil
@@ -316,7 +330,7 @@ func (e *TruthEngine) indexDirectory(ctx context.Context, dir string, workerSem 
 				workerSem <- struct{}{}
 				defer func() { <-workerSem }()
 				
-				childHash, err := e.indexFile(ctx, path, workerSem, collector)
+				childHash, err := e.indexFile(ctx, path, workerSem, collector, parsedData)
 				if err != nil {
 					e.logger.Error("failed to index file", "path", path, "error", err)
 					return nil
@@ -350,7 +364,7 @@ func (e *TruthEngine) indexDirectory(ctx context.Context, dir string, workerSem 
 	return dirHash, nil
 }
 
-func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan struct{}, collector *indexCollector) (string, error) {
+func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan struct{}, collector *indexCollector, parsedData map[string]*ParsedPackageData) (string, error) {
 	fi, err := os.Stat(path)
 	if err != nil {
 		return "", fmt.Errorf("error stating file: %w", err)
@@ -380,9 +394,23 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 
 	e.logger.Info("indexing file", "path", path)
 
-	itPointers, itCalls, itFlows, err := StreamSymbols(ctx, path)
-	if err != nil {
-		return "", fmt.Errorf("parsing failed for %s: %w", path, err)
+	var itPointers iter.Seq[types.ASTPointer]
+	var itCalls iter.Seq[types.ASTCall]
+	var itFlows iter.Seq[types.DataFlow]
+	var streamErr error
+
+	if parsedData != nil && filepath.Ext(path) == ".go" {
+		if pd, ok := parsedData[path]; ok {
+			itPointers, itCalls, itFlows, streamErr = StreamSymbolsFromAST(ctx, pd.Fset, pd.File, pd.Pkg)
+		} else {
+			itPointers, itCalls, itFlows, streamErr = StreamSymbols(ctx, path)
+		}
+	} else {
+		itPointers, itCalls, itFlows, streamErr = StreamSymbols(ctx, path)
+	}
+
+	if streamErr != nil {
+		return "", fmt.Errorf("parsing failed for %s: %w", path, streamErr)
 	}
 
 	batchItem := store.BatchItem{

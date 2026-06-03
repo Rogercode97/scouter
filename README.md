@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/scouter-banner.png" alt="Scouter: Structural Intelligence Engine" width="100%" />
+</p>
+
 # Scouter: Structural Intelligence Engine
 
 **Structural Analysis & Reconnaissance for AI Agents**

@@ -288,9 +288,7 @@ func TestHealerEngine_Imports(t *testing.T) {
 		return "```go\nfunc (m *MyStruct) Do() { fmt.Println(\"hello\") }\n```", nil
 	}
 
-	tmpDir := filepath.Join(".", "test_imports_pkg")
-	os.MkdirAll(tmpDir, 0755)
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 	
 	tmpFile := filepath.Join(tmpDir, "imports.go")
 	content := `package test_imports_pkg

@@ -82,6 +82,44 @@ func StreamSymbols(ctx context.Context, filePath string) (iter.Seq[types.ASTPoin
 	if err != nil {
 		return nil, nil, nil, err
 	}
+
+	return StreamSymbolsFromAST(ctx, fset, file, pkg)
+}
+
+type ParsedPackageData struct {
+	File *ast.File
+	Fset *token.FileSet
+	Pkg  *packages.Package
+}
+
+func BatchLoadPackages(dir string) (map[string]*ParsedPackageData, error) {
+	cfg := &packages.Config{
+		Mode:  packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+		Tests: true,
+		Dir:   dir,
+	}
+	pkgs, err := packages.Load(cfg, "./...")
+	if err != nil {
+		return nil, fmt.Errorf("batch load failed: %w", err)
+	}
+
+	result := make(map[string]*ParsedPackageData)
+	for _, p := range pkgs {
+		for _, syntax := range p.Syntax {
+			filename := p.Fset.Position(syntax.Pos()).Filename
+			result[filename] = &ParsedPackageData{
+				File: syntax,
+				Fset: p.Fset,
+				Pkg:  p,
+			}
+		}
+	}
+	return result, nil
+}
+
+func StreamSymbolsFromAST(ctx context.Context, fset *token.FileSet, astFile *ast.File, pkg *packages.Package) (iter.Seq[types.ASTPointer], iter.Seq[types.ASTCall], iter.Seq[types.DataFlow], error) {
+	file := astFile
+	validatedPath := fset.Position(file.Pos()).Filename
 	pkgPath := pkg.PkgPath
 
 	// For structural hashing consistency, we also parse with Tree-sitter for Go files
