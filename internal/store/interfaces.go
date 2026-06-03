@@ -39,6 +39,8 @@ type SymbolRegistry interface {
 	GetStats(ctx context.Context) (int, int, error)
 	GetAllFilePaths(ctx context.Context) ([]string, error)
 	DeleteFileIndex(ctx context.Context, path string) error
+	InsertSemanticVector(ctx context.Context, symbolID int64, embedding []float32) error
+	SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int) ([]Symbol, error)
 	SaveDependency(ctx context.Context, dep *types.Dependency) error
 	GetDependencies(ctx context.Context) ([]types.Dependency, error)
 	ClearDependencies(ctx context.Context) error

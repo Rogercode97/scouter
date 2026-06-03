@@ -1,0 +1,18 @@
+--- internal/store/store.go
++++ internal/store/store.go
+@@ -118,2 +118,2 @@
+ func migrate(ctx context.Context, tx *sql.Tx) error {
+ 	queries := strings.Split(schemaSQL, ";")
+ 
+ 	for _, q := range queries {
+ 		q = strings.TrimSpace(q)
+ 		if q == "" {
+ 			continue
+ 		}
+ 		if _, err := tx.ExecContext(ctx, q); err != nil {
+ 			return fmt.Errorf("failed to execute migration query: %w\nQuery: %s", err, q)
+ 		}
+ 	}
+ 
+ 	return nil
+ }

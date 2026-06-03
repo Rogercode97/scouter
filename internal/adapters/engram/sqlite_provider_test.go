@@ -7,7 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/asg017/sqlite-vec-go-bindings/ncruces"
+	_ "github.com/ncruces/go-sqlite3/driver"
 )
 
 func TestDiscoverDBPath(t *testing.T) {
@@ -45,7 +46,7 @@ func TestDiscoverDBPath(t *testing.T) {
 func TestSQLiteMemoryProvider_SearchInsights(t *testing.T) {
 	// Create a temporary database
 	dbPath := filepath.Join(t.TempDir(), "engram.db")
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatalf("failed to create test db: %v", err)
 	}

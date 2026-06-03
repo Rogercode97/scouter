@@ -9,7 +9,8 @@ import (
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/utils"
-	_ "modernc.org/sqlite"
+	_ "github.com/asg017/sqlite-vec-go-bindings/ncruces"
+	_ "github.com/ncruces/go-sqlite3/driver"
 )
 
 func TestStoreSearch(t *testing.T) {
@@ -611,12 +612,11 @@ func TestStore_SemanticFields(t *testing.T) {
 
 func TestStore_Migration(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_scouter_migration.db"
-	defer os.Remove(dbPath)
+	dbPath := filepath.Join(t.TempDir(), "test_scouter_migration.db")
 
 	// 1. Create a database with old schema manually
 	dsn := fmt.Sprintf("%s?_pragma=foreign_keys(1)", dbPath)
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		t.Fatalf("Failed to open db: %v", err)
 	}

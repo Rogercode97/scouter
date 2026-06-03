@@ -62,8 +62,8 @@ func (t *Tracker) ensureOpen(ctx context.Context) error {
 			return
 		}
 
-		dsn := t.dbPath + "?_pragma=busy_timeout(5000)"
-		db, err := sql.Open("sqlite", dsn)
+		dsn := "file:" + t.dbPath + "?_pragma=busy_timeout(5000)"
+		db, err := sql.Open("sqlite3", dsn)
 		if err != nil {
 			t.initErr = fmt.Errorf("open db: %w", err)
 			return

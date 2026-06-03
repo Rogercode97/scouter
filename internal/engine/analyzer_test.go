@@ -155,8 +155,8 @@ func TestResolveCentrality(t *testing.T) {
 		t.Fatalf("Symbol B not found")
 	}
 
-	if syms[0].Relevance != 2 {
-		t.Errorf("expected centrality 2, got %v", syms[0].Relevance)
+	if syms[0].Indegree != 2 {
+		t.Errorf("expected centrality 2, got %v", syms[0].Indegree)
 	}
 }
 

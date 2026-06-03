@@ -1,6 +1,7 @@
 package store
 
 import (
+	_ "embed"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -13,7 +14,8 @@ import (
 
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
-	_ "modernc.org/sqlite"
+	_ "github.com/asg017/sqlite-vec-go-bindings/ncruces"
+	_ "github.com/ncruces/go-sqlite3/driver"
 )
 
 
@@ -55,6 +57,8 @@ type Violation struct {
 	Text      string `json:"text"`
 }
 
+//go:embed schema.sql
+var schemaSQL string
 
 type storeImpl struct {
 	db *sql.DB
@@ -73,8 +77,12 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 	if strings.Contains(dbPath, "?") {
 		separator = "&"
 	}
-	dsn := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)", dbPath, separator)
-	db, err := sql.Open("sqlite", dsn)
+	dsn := dbPath
+	if !strings.HasPrefix(dsn, "file:") {
+		dsn = "file:" + dsn
+	}
+	dsn = fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)", dsn, separator)
+	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -107,243 +115,14 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 }
 
 func migrate(ctx context.Context, tx *sql.Tx) error {
-	queries := []string{
-		`CREATE TABLE IF NOT EXISTS file_index (path TEXT PRIMARY KEY, mtime INTEGER, hash TEXT, ast_json TEXT, project TEXT);`,
-		`CREATE TABLE IF NOT EXISTS directory_hashes (path TEXT PRIMARY KEY, hash TEXT, mtime INTEGER);`,
-		`CREATE TABLE IF NOT EXISTS symbols (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT, package_path TEXT DEFAULT '', receiver_type TEXT DEFAULT '', signature TEXT DEFAULT '', doc TEXT, path TEXT, start_byte INTEGER, end_byte INTEGER, start_line INTEGER, start_col INTEGER, end_line INTEGER, structural_hash TEXT DEFAULT '', indegree INTEGER DEFAULT 0, FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);`,
-		`CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(name, type, signature, doc, path, content='symbols', content_rowid='id');`,
-		`CREATE TRIGGER IF NOT EXISTS symbols_ai AFTER INSERT ON symbols BEGIN INSERT INTO symbols_fts(rowid, name, type, signature, doc, path) VALUES (new.id, new.name, new.type, new.signature, new.doc, new.path); END;`,
-		`CREATE TRIGGER IF NOT EXISTS symbols_ad AFTER DELETE ON symbols BEGIN INSERT INTO symbols_fts(symbols_fts, rowid, name, type, signature, doc, path) VALUES('delete', old.id, old.name, old.type, old.signature, old.doc, old.path); END;`,
-		`CREATE TRIGGER IF NOT EXISTS symbols_au AFTER UPDATE ON symbols BEGIN INSERT INTO symbols_fts(symbols_fts, rowid, name, type, signature, doc, path) VALUES('delete', old.id, old.name, old.type, old.signature, old.doc, old.path); INSERT INTO symbols_fts(rowid, name, type, signature, doc, path) VALUES (new.id, new.name, new.type, new.signature, new.doc, new.path); END;`,
-		`CREATE INDEX IF NOT EXISTS idx_symbols_path ON symbols(path);`,
-		`CREATE INDEX IF NOT EXISTS idx_symbols_resolution ON symbols(name, path);`,
-		`CREATE TABLE IF NOT EXISTS calls (id INTEGER PRIMARY KEY AUTOINCREMENT, caller_name TEXT NOT NULL, callee_name TEXT NOT NULL, path TEXT NOT NULL, line INTEGER NOT NULL, callee_path TEXT DEFAULT '', link_type TEXT DEFAULT 'call', indegree INTEGER DEFAULT 0, FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);`,
-		`CREATE INDEX IF NOT EXISTS idx_calls_callee ON calls(callee_name);`,
-		`CREATE INDEX IF NOT EXISTS idx_calls_impact ON calls(callee_name, callee_path);`,
-		`CREATE TABLE IF NOT EXISTS dependencies (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, version TEXT, type TEXT, project TEXT, direct INTEGER);`,
-		`CREATE TABLE IF NOT EXISTS test_results (id INTEGER PRIMARY KEY AUTOINCREMENT, test_name TEXT NOT NULL, status TEXT NOT NULL, error_message TEXT, stack_trace TEXT, target_symbol TEXT, duration_ms INTEGER, project TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);`,
-		`CREATE INDEX IF NOT EXISTS idx_test_results_symbol ON test_results(target_symbol);`,
-		`CREATE TABLE IF NOT EXISTS violations (id INTEGER PRIMARY KEY AUTOINCREMENT, rule_id TEXT, file_path TEXT, message TEXT, severity TEXT, start_line INTEGER, start_col INTEGER, text TEXT, FOREIGN KEY(file_path) REFERENCES file_index(path) ON DELETE CASCADE);`,
-		`CREATE INDEX IF NOT EXISTS idx_violations_file ON violations(file_path);`,
-		`CREATE TABLE IF NOT EXISTS symbol_usage (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol_id INTEGER NOT NULL, environment TEXT NOT NULL, last_used INTEGER NOT NULL, hit_count INTEGER NOT NULL, UNIQUE(symbol_id, environment), FOREIGN KEY(symbol_id) REFERENCES symbols(id) ON DELETE CASCADE);`,
-		`CREATE TABLE IF NOT EXISTS flows (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, sink TEXT NOT NULL, type TEXT NOT NULL, path TEXT NOT NULL, line INTEGER NOT NULL, FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE);`,
-		`CREATE INDEX IF NOT EXISTS idx_flows_sink ON flows(sink);`,
-	}
-
+	queries := strings.Split(schemaSQL, "\n\n")
 	for _, q := range queries {
+		q = strings.TrimSpace(q)
+		if q == "" { continue }
 		if _, err := tx.ExecContext(ctx, q); err != nil {
-			return fmt.Errorf("failed to execute migration query: %w", err)
+			return err
 		}
 	}
-
-	// [Divine Fix] Wave 11 Data Integrity: Remove duplicates before creating unique index
-	cleanupQuery := `
-		DELETE FROM calls 
-		WHERE id NOT IN (
-			SELECT MIN(id) 
-			FROM calls 
-			GROUP BY caller_name, callee_name, path, line, link_type
-		);`
-	if _, err := tx.ExecContext(ctx, cleanupQuery); err != nil {
-		return fmt.Errorf("failed to cleanup duplicate calls: %w", err)
-	}
-
-	// [Divine Fix] Wave 11 Data Integrity: Apply unique index after cleanup
-	if _, err := tx.ExecContext(ctx, "CREATE UNIQUE INDEX IF NOT EXISTS idx_calls_unique ON calls(caller_name, callee_name, path, line, link_type);"); err != nil {
-		return fmt.Errorf("failed to create unique index on calls: %w", err)
-	}
-
-	// Dynamic column check for 'doc'
-	hasDoc, err := hasColumn(ctx, tx, "symbols", "doc")
-	if err != nil {
-		return fmt.Errorf("failed to check column symbols.doc: %w", err)
-	}
-	if !hasDoc {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN doc TEXT;"); err != nil {
-			return fmt.Errorf("failed to alter table symbols (doc): %w", err)
-		}
-	}
-
-	// Dynamic column check for 'signature'
-	hasSig, err := hasColumn(ctx, tx, "symbols", "signature")
-	if err != nil {
-		return fmt.Errorf("failed to check column symbols.signature: %w", err)
-	}
-	if !hasSig {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN signature TEXT DEFAULT '';"); err != nil {
-			return fmt.Errorf("failed to alter table symbols (signature): %w", err)
-		}
-	}
-
-	// Dynamic column check for 'signature' in FTS (SQLite FTS5 does not support ALTER TABLE)
-	hasFTSig, err := hasColumn(ctx, tx, "symbols_fts", "signature")
-	if err != nil {
-		return fmt.Errorf("failed to check column symbols_fts.signature: %w", err)
-	}
-	if !hasFTSig {
-		// Drop and recreate FTS table
-		ftsQueries := []string{
-			`DROP TABLE IF EXISTS symbols_fts;`,
-			`CREATE VIRTUAL TABLE symbols_fts USING fts5(name, type, signature, doc, path, content='symbols', content_rowid='id');`,
-			`INSERT INTO symbols_fts(rowid, name, type, signature, doc, path) SELECT id, name, type, signature, doc, path FROM symbols;`,
-		}
-		for _, q := range ftsQueries {
-			if _, err := tx.ExecContext(ctx, q); err != nil {
-				return fmt.Errorf("failed to recreate symbols_fts: %w", err)
-			}
-		}
-	}
-
-	// Recreate triggers to include signature and doc
-	triggerQueries := []string{
-		`DROP TRIGGER IF EXISTS symbols_ai;`,
-		`DROP TRIGGER IF EXISTS symbols_ad;`,
-		`DROP TRIGGER IF EXISTS symbols_au;`,
-		`CREATE TRIGGER symbols_ai AFTER INSERT ON symbols BEGIN INSERT INTO symbols_fts(rowid, name, type, signature, doc, path) VALUES (new.id, new.name, new.type, new.signature, new.doc, new.path); END;`,
-		`CREATE TRIGGER symbols_ad AFTER DELETE ON symbols BEGIN INSERT INTO symbols_fts(symbols_fts, rowid, name, type, signature, doc, path) VALUES('delete', old.id, old.name, old.type, old.signature, old.doc, old.path); END;`,
-		`CREATE TRIGGER symbols_au AFTER UPDATE ON symbols BEGIN INSERT INTO symbols_fts(symbols_fts, rowid, name, type, signature, doc, path) VALUES('delete', old.id, old.name, old.type, old.signature, old.doc, old.path); INSERT INTO symbols_fts(rowid, name, type, signature, doc, path) VALUES (new.id, new.name, new.type, new.signature, new.doc, new.path); END;`,
-	}
-	for _, tq := range triggerQueries {
-		if _, err := tx.ExecContext(ctx, tq); err != nil {
-			return fmt.Errorf("failed to recreate trigger: %w", err)
-		}
-	}
-
-	// Dynamic column check for 'start_col'
-	hasCol, err := hasColumn(ctx, tx, "symbols", "start_col")
-	if err != nil {
-		return fmt.Errorf("failed to check column symbols.start_col: %w", err)
-	}
-	if !hasCol {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN start_col INTEGER DEFAULT 0;"); err != nil {
-			return fmt.Errorf("failed to alter table symbols (start_col): %w", err)
-		}
-	}
-
-	// Dynamic column check for 'indegree' in 'calls'
-	hasIndegree, err := hasColumn(ctx, tx, "calls", "indegree")
-	if err != nil {
-		return fmt.Errorf("failed to check column calls.indegree: %w", err)
-	}
-	if !hasIndegree {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE calls ADD COLUMN indegree INTEGER DEFAULT 0;"); err != nil {
-			return fmt.Errorf("failed to alter table calls (indegree): %w", err)
-		}
-	}
-
-	// Dynamic column check for 'indegree' in 'symbols'
-	hasSymIndegree, err := hasColumn(ctx, tx, "symbols", "indegree")
-	if err != nil {
-		return fmt.Errorf("failed to check column symbols.indegree: %w", err)
-	}
-	if !hasSymIndegree {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN indegree INTEGER DEFAULT 0;"); err != nil {
-			return fmt.Errorf("failed to alter table symbols (indegree): %w", err)
-		}
-	}
-
-	// Dynamic column check for 'structural_hash'
-	hasStructHash, err := hasColumn(ctx, tx, "symbols", "structural_hash")
-	if err != nil {
-		return fmt.Errorf("failed to check column symbols.structural_hash: %w", err)
-	}
-	if !hasStructHash {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN structural_hash TEXT DEFAULT '';"); err != nil {
-			return fmt.Errorf("failed to alter table symbols (structural_hash): %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_symbols_structural_hash ON symbols(structural_hash);"); err != nil {
-			return fmt.Errorf("failed to create index on structural_hash: %w", err)
-		}
-	}
-
-	// Dynamic column check for 'package_path'
-	hasPkg, err := hasColumn(ctx, tx, "symbols", "package_path")
-	if err != nil {
-		return fmt.Errorf("failed to check column symbols.package_path: %w", err)
-	}
-	if !hasPkg {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN package_path TEXT DEFAULT '';"); err != nil {
-			return fmt.Errorf("failed to alter table symbols (package_path): %w", err)
-		}
-	}
-
-	// Dynamic column check for 'receiver_type'
-	hasRec, err := hasColumn(ctx, tx, "symbols", "receiver_type")
-	if err != nil {
-		return fmt.Errorf("failed to check column symbols.receiver_type: %w", err)
-	}
-	if !hasRec {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN receiver_type TEXT DEFAULT '';"); err != nil {
-			return fmt.Errorf("failed to alter table symbols (receiver_type): %w", err)
-		}
-	}
-
-	// Dynamic column check for 'pagerank'
-	hasPagerank, err := hasColumn(ctx, tx, "symbols", "pagerank")
-	if err != nil {
-		return fmt.Errorf("failed to check column symbols.pagerank: %w", err)
-	}
-	if !hasPagerank {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN pagerank REAL DEFAULT 0.0;"); err != nil {
-			return fmt.Errorf("failed to alter table symbols (pagerank): %w", err)
-		}
-	}
-
-	// Dynamic column check for 'churn_score'
-	hasChurn, err := hasColumn(ctx, tx, "symbols", "churn_score")
-	if err != nil {
-		return fmt.Errorf("failed to check column symbols.churn_score: %w", err)
-	}
-	if !hasChurn {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN churn_score REAL DEFAULT 0.0;"); err != nil {
-			return fmt.Errorf("failed to alter table symbols (churn_score): %w", err)
-		}
-	}
-
-	// Dynamic column check for 'runtime_hits'
-	hasRuntimeHits, err := hasColumn(ctx, tx, "symbols", "runtime_hits")
-	if err != nil {
-		return fmt.Errorf("failed to check column symbols.runtime_hits: %w", err)
-	}
-	if !hasRuntimeHits {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN runtime_hits INTEGER DEFAULT 0;"); err != nil {
-			return fmt.Errorf("failed to alter table symbols (runtime_hits): %w", err)
-		}
-	}
-
-	// Dynamic column check for 'metrics_json'
-	hasMetrics, err := hasColumn(ctx, tx, "symbols", "metrics_json")
-	if err != nil {
-		return fmt.Errorf("failed to check column symbols.metrics_json: %w", err)
-	}
-	if !hasMetrics {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN metrics_json TEXT DEFAULT '{}';"); err != nil {
-			return fmt.Errorf("failed to alter table symbols (metrics_json): %w", err)
-		}
-	}
-
-	// Dynamic column check for 'ai_summary'
-	hasSummary, err := hasColumn(ctx, tx, "symbols", "ai_summary")
-	if err != nil {
-		return fmt.Errorf("failed to check column symbols.ai_summary: %w", err)
-	}
-	if !hasSummary {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE symbols ADD COLUMN ai_summary TEXT DEFAULT '';"); err != nil {
-			return fmt.Errorf("failed to alter table symbols (ai_summary): %w", err)
-		}
-	}
-
-	// Dynamic column check for 'freshness' in 'file_index'
-	hasFresh, err := hasColumn(ctx, tx, "file_index", "freshness")
-	if err != nil {
-		return fmt.Errorf("failed to check column file_index.freshness: %w", err)
-	}
-	if !hasFresh {
-		if _, err := tx.ExecContext(ctx, "ALTER TABLE file_index ADD COLUMN freshness INTEGER DEFAULT 0;"); err != nil {
-			return fmt.Errorf("failed to alter table file_index (freshness): %w", err)
-		}
-	}
-
 	return nil
 }
 
@@ -408,7 +187,7 @@ func (s *storeImpl) SaveFileIndex(ctx context.Context, idx *FileIndex) error {
 
 func (s *storeImpl) SaveFileIndexBatch(ctx context.Context, items []BatchItem) error {
 	return s.WithTransaction(ctx, func(txCtx context.Context, tx Store) error {
-		for _, item := range items {
+		for i, item := range items {
 			if item.Index != nil {
 				if err := tx.SaveFileIndex(txCtx, item.Index); err != nil {
 					return fmt.Errorf("failed to save index for %s: %w", item.Index.Path, err)
@@ -423,11 +202,12 @@ func (s *storeImpl) SaveFileIndexBatch(ctx context.Context, items []BatchItem) e
 					return fmt.Errorf("failed to clear flows for %s: %w", item.Index.Path, err)
 				}
 			}
-			for _, sym := range item.Symbols {
+			for j, sym := range item.Symbols {
 				symCopy := sym
 				if err := tx.SaveSymbol(txCtx, &symCopy); err != nil {
 					return fmt.Errorf("failed to save symbol %s: %w", symCopy.Name, err)
 				}
+				items[i].Symbols[j].ID = symCopy.ID
 			}
 			for _, call := range item.Calls {
 				if err := tx.SaveCall(txCtx, call); err != nil {
@@ -505,9 +285,12 @@ func (s *storeImpl) SaveSymbol(ctx context.Context, sym *Symbol) error {
 			metricsJSON = string(b)
 		}
 	}
-	_, err := s.exec(ctx, "INSERT INTO symbols (name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, pagerank, churn_score, runtime_hits, ai_summary, metrics_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", sym.Name, sym.Type, sym.PackagePath, sym.ReceiverType, sym.Signature, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.StartCol, sym.EndLine, sym.StructuralHash, sym.Pagerank, sym.ChurnScore, sym.RuntimeHits, sym.AiSummary, metricsJSON)
+	res, err := s.exec(ctx, "INSERT INTO symbols (name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, relevance, pagerank, churn_score, runtime_hits, ai_summary, metrics_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", sym.Name, sym.Type, sym.PackagePath, sym.ReceiverType, sym.Signature, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.StartCol, sym.EndLine, sym.StructuralHash, sym.Indegree, sym.Relevance, sym.Pagerank, sym.ChurnScore, sym.RuntimeHits, sym.AiSummary, metricsJSON)
 	if err != nil {
 		return fmt.Errorf("failed to save symbol: %w", err)
+	}
+	if id, err := res.LastInsertId(); err == nil {
+		sym.ID = int(id)
 	}
 	return nil
 }
@@ -517,7 +300,7 @@ func (s *storeImpl) SearchSymbols(ctx context.Context, q, t string, limit, offse
 	if safe == "" {
 		return nil, nil
 	}
-	sql := `SELECT symbols.name, symbols.type, symbols.package_path, symbols.receiver_type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.start_col, symbols.end_line, symbols.structural_hash, symbols.indegree, symbols.pagerank, symbols.churn_score, symbols.runtime_hits, symbols.ai_summary, symbols.metrics_json
+	sql := `SELECT symbols.name, symbols.type, symbols.package_path, symbols.receiver_type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.start_col, symbols.end_line, symbols.structural_hash, symbols.indegree, symbols.relevance, symbols.pagerank, symbols.churn_score, symbols.runtime_hits, symbols.ai_summary, symbols.metrics_json
             FROM symbols JOIN symbols_fts ON symbols.id = symbols_fts.rowid
             WHERE symbols_fts MATCH ?`
 	args := []any{safe}
@@ -539,7 +322,7 @@ func (s *storeImpl) SearchSymbols(ctx context.Context, q, t string, limit, offse
 	for rows.Next() {
 		var sym Symbol
 		var metricsJSON string
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Indegree, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 			return nil, fmt.Errorf("scan symbol failed: %w", err)
 		}
 		res = append(res, sym)
@@ -548,7 +331,7 @@ func (s *storeImpl) SearchSymbols(ctx context.Context, q, t string, limit, offse
 }
 
 func (s *storeImpl) GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, relevance, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
             FROM symbols
             WHERE name = ? AND path = ?`
 	rows, err := s.query(ctx, sql, name, path)
@@ -560,7 +343,7 @@ func (s *storeImpl) GetSymbolsByNameInFile(ctx context.Context, name, path strin
 	for rows.Next() {
 		var sym Symbol
 		var metricsJSON string
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Indegree, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 			return nil, fmt.Errorf("scan symbol failed: %w", err)
 		}
 		res = append(res, sym)
@@ -578,7 +361,7 @@ func (s *storeImpl) UpdateSymbolRuntimeHits(ctx context.Context, name, path stri
 }
 
 func (s *storeImpl) GetSymbolsByStructuralHash(ctx context.Context, hash string) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, relevance, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
             FROM symbols
             WHERE structural_hash = ?`
 	rows, err := s.query(ctx, sql, hash)
@@ -590,7 +373,7 @@ func (s *storeImpl) GetSymbolsByStructuralHash(ctx context.Context, hash string)
 	for rows.Next() {
 		var sym Symbol
 		var metricsJSON string
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Indegree, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 			return nil, fmt.Errorf("scan symbol failed: %w", err)
 		}
 		res = append(res, sym)
@@ -603,7 +386,7 @@ func (s *storeImpl) SearchSymbolsWeighted(ctx context.Context, q, t string) iter
 		if safe == "" {
 			return
 		}
-		sql := `SELECT symbols.name, symbols.type, symbols.package_path, symbols.receiver_type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.start_col, symbols.end_line, symbols.structural_hash, bm25(symbols_fts, 10.0, 2.0, 5.0, 1.0, 0.5) as relevance, symbols.pagerank, symbols.churn_score, symbols.runtime_hits, symbols.ai_summary, symbols.metrics_json
+		sql := `SELECT symbols.name, symbols.type, symbols.package_path, symbols.receiver_type, symbols.signature, symbols.doc, symbols.path, symbols.start_byte, symbols.end_byte, symbols.start_line, symbols.start_col, symbols.end_line, symbols.structural_hash, symbols.indegree, bm25(symbols_fts, 10.0, 2.0, 5.0, 1.0, 0.5) as relevance, symbols.pagerank, symbols.churn_score, symbols.runtime_hits, symbols.ai_summary, symbols.metrics_json
             FROM symbols JOIN symbols_fts ON symbols.id = symbols_fts.rowid
                 WHERE symbols_fts MATCH ?`
 		args := []any{safe}
@@ -621,7 +404,7 @@ func (s *storeImpl) SearchSymbolsWeighted(ctx context.Context, q, t string) iter
 		for rows.Next() {
 			var sym Symbol
 			var metricsJSON string
-			if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
+			if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Indegree, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 				if !yield(Symbol{}, fmt.Errorf("scan weighted symbol failed: %w", err)) {
 					return
 				}
@@ -635,7 +418,7 @@ func (s *storeImpl) SearchSymbolsWeighted(ctx context.Context, q, t string) iter
 }
 
 func (s *storeImpl) GetSymbolsByRange(ctx context.Context, path string, start, end int) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, relevance, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
             FROM symbols
             WHERE path = ? AND NOT (start_line > ? OR end_line < ?)`
 	rows, err := s.query(ctx, sql, path, end, start)
@@ -647,7 +430,7 @@ func (s *storeImpl) GetSymbolsByRange(ctx context.Context, path string, start, e
 	for rows.Next() {
 		var sym Symbol
 		var metricsJSON string
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Indegree, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 			return nil, fmt.Errorf("scan symbol range failed: %w", err)
 		}
 		res = append(res, sym)
@@ -655,7 +438,7 @@ func (s *storeImpl) GetSymbolsByRange(ctx context.Context, path string, start, e
 	return res, nil
 }
 func (s *storeImpl) GetSymbolsByPathPrefix(ctx context.Context, pathPrefix string) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, relevance, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
             FROM symbols
             WHERE path LIKE ? ORDER BY path ASC, start_line ASC`
 	
@@ -674,7 +457,7 @@ func (s *storeImpl) GetSymbolsByPathPrefix(ctx context.Context, pathPrefix strin
 	for rows.Next() {
 		var sym Symbol
 		var metricsJSON string
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Indegree, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 			return nil, fmt.Errorf("scan symbol by path prefix failed: %w", err)
 		}
 		res = append(res, sym)
@@ -683,7 +466,7 @@ func (s *storeImpl) GetSymbolsByPathPrefix(ctx context.Context, pathPrefix strin
 }
 
 func (s *storeImpl) GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error) {
-	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
+	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, relevance, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
             FROM symbols
             WHERE type = ?`
 	rows, err := s.query(ctx, sql, symType)
@@ -695,7 +478,7 @@ func (s *storeImpl) GetSymbolsByType(ctx context.Context, symType string) ([]Sym
 	for rows.Next() {
 		var sym Symbol
 		var metricsJSON string
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Indegree, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 			return nil, fmt.Errorf("scan symbol by type failed: %w", err)
 		}
 		res = append(res, sym)
@@ -709,7 +492,7 @@ func (s *storeImpl) GetInterfaces(ctx context.Context) ([]Symbol, error) {
 
 func (s *storeImpl) GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error] {
 	return func(yield func(Symbol, error) bool) {
-		rows, err := s.query(ctx, "SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, pagerank, churn_score, runtime_hits, ai_summary, metrics_json FROM symbols")
+		rows, err := s.query(ctx, "SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, relevance, pagerank, churn_score, runtime_hits, ai_summary, metrics_json FROM symbols")
 		if err != nil {
 			yield(Symbol{}, err)
 			return
@@ -718,7 +501,7 @@ func (s *storeImpl) GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error] 
 		for rows.Next() {
 			var sym Symbol
 			var metricsJSON string
-			if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
+			if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.StartCol, &sym.EndLine, &sym.StructuralHash, &sym.Indegree, &sym.Relevance, &sym.Pagerank, &sym.ChurnScore, &sym.RuntimeHits, &sym.AiSummary, &metricsJSON); err != nil {
 				if !yield(Symbol{}, err) {
 					return
 				}
@@ -1039,7 +822,7 @@ func (s *storeImpl) GetCallersRecursive(ctx context.Context, symbol string, path
 	)
 	SELECT DISTINCT caller_name, caller_path, distance, link_type 
 	FROM blast_radius 
-	ORDER BY distance ASC LIMIT 500;`
+	ORDER BY distance ASC LIMIT 500`
 
 	rows, err := s.query(ctx, query, symbol, symbol, path, path, maxDepth)
 	if err != nil {
@@ -1081,7 +864,7 @@ func (s *storeImpl) GetAffectedTestsRecursive(ctx context.Context, symbol, path 
 	JOIN affected a ON (CASE WHEN s.package_path != '' THEN s.package_path || '.' || s.name ELSE s.name END) = a.name AND s.path = a.path
 	WHERE (s.name LIKE 'Test%' AND (s.type = 'function' OR s.type = 'method'))
 	   OR s.path LIKE '%_test.go'
-	ORDER BY s.path, s.start_line;`
+	ORDER BY s.path, s.start_line`
 	rows, err := s.query(ctx, query, symbol, symbol, path)
 	if err != nil {
 		return nil, err
@@ -1306,4 +1089,73 @@ type CriticalSymbol struct {
 	Symbol
 	Centrality int `json:"centrality"`
 	Fragility  int `json:"fragility"`
+}
+
+func (s *storeImpl) InsertSemanticVector(ctx context.Context, symbolID int64, embedding []float32) error {
+	embJSON, err := json.Marshal(embedding)
+	if err != nil {
+		return fmt.Errorf("failed to marshal embedding: %w", err)
+	}
+
+	// Insert into vec_ast_meta first to get rowid
+	res, err := s.exec(ctx, "INSERT INTO vec_ast_meta (symbol_id) VALUES (?) ON CONFLICT(symbol_id) DO NOTHING", symbolID)
+	if err != nil {
+		return fmt.Errorf("failed to insert vec_ast_meta: %w", err)
+	}
+
+	var rowID int64
+	// If ON CONFLICT DO NOTHING triggered, res.LastInsertId() might be 0.
+	// We should probably just select it if it exists.
+	rowID, err = res.LastInsertId()
+	if err != nil || rowID == 0 {
+		err = s.queryRow(ctx, "SELECT rowid FROM vec_ast_meta WHERE symbol_id = ?", symbolID).Scan(&rowID)
+		if err != nil {
+			return fmt.Errorf("failed to get rowid for symbol %d: %w", symbolID, err)
+		}
+	}
+
+	// Now insert/update vec_ast
+	_, err = s.exec(ctx, "INSERT OR REPLACE INTO vec_ast (rowid, embedding) VALUES (?, ?)", rowID, string(embJSON))
+	if err != nil {
+		return fmt.Errorf("failed to insert vec_ast: %w", err)
+	}
+
+	return nil
+}
+
+func (s *storeImpl) SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int) ([]Symbol, error) {
+        embJSON, err := json.Marshal(queryEmbedding)
+        if err != nil {
+                return nil, fmt.Errorf("failed to marshal embedding: %w", err)
+        }
+
+        // According to sqlite-vec documentation, we can query like this:
+        // SELECT m.symbol_id, v.distance FROM vec_ast v JOIN vec_ast_meta m ON v.rowid = m.rowid WHERE v.embedding MATCH ? ORDER BY distance LIMIT ?
+        // Or using `AND k = ?` syntax depending on sqlite-vec versions. Let's try `AND k = ?` as it limits KNN.
+        // Or simply `LIMIT ?` at the end of the query.
+        
+        query := `
+        SELECT s.name, s.type, s.package_path, s.receiver_type, s.signature, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line
+        FROM vec_ast v
+        JOIN vec_ast_meta m ON v.rowid = m.rowid
+        JOIN symbols s ON s.id = m.symbol_id
+        WHERE v.embedding MATCH ? AND k = ?
+        ORDER BY distance
+        `
+        
+        rows, err := s.query(ctx, query, string(embJSON), limit)
+        if err != nil {
+                return nil, fmt.Errorf("failed to execute semantic search query: %w", err)
+        }
+        defer rows.Close()
+
+        var res []Symbol
+        for rows.Next() {
+                var sym Symbol
+                if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
+                        return nil, fmt.Errorf("scan semantic symbol failed: %w", err)
+                }
+                res = append(res, sym)
+        }
+        return res, nil
 }

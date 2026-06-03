@@ -61,6 +61,7 @@ type TruthEngine struct {
 	compact    *CompactionEngine
 	healer     *HealerEngine
 	diagnostic *DiagnosticEngine
+	semantic   *SemanticEngine
 	ripple     *RippleEngine
 	sdd        *SDDEngine
 	ledger     *Ledger
@@ -102,6 +103,10 @@ func WithHealer(h *HealerEngine) TruthOption {
 
 func WithDiagnostic(d *DiagnosticEngine) TruthOption {
 	return func(te *TruthEngine) { te.diagnostic = d }
+}
+
+func WithSemantic(s *SemanticEngine) TruthOption {
+	return func(te *TruthEngine) { te.semantic = s }
 }
 
 func WithRipple(r *RippleEngine) TruthOption {
@@ -150,6 +155,14 @@ type indexCollector struct {
 	done      chan struct{}
 	err       error
 	batchSize int
+	semantic  *SemanticEngine
+	semCh     chan semanticJob
+	semWg     sync.WaitGroup
+}
+
+type semanticJob struct {
+	symbolID int64
+	text     string
 }
 
 func calculateBatchSize() int {
@@ -164,7 +177,7 @@ func calculateBatchSize() int {
 	return 500
 }
 
-func newIndexCollector(ctx context.Context, s store.Store) *indexCollector {
+func newIndexCollector(ctx context.Context, s store.Store, sem *SemanticEngine) *indexCollector {
 	bs := calculateBatchSize()
 	c := &indexCollector{
 		items:     make([]store.BatchItem, 0, bs),
@@ -173,7 +186,29 @@ func newIndexCollector(ctx context.Context, s store.Store) *indexCollector {
 		store:     s,
 		done:      make(chan struct{}),
 		batchSize: bs,
+		semantic:  sem,
 	}
+
+	if sem != nil {
+		c.semCh = make(chan semanticJob, 1000)
+		for i := 0; i < 4; i++ {
+			c.semWg.Add(1)
+			go func() {
+				defer c.semWg.Done()
+				for job := range c.semCh {
+					vec, err := sem.GenerateEmbedding(ctx, job.text)
+					if err == nil && len(vec) > 0 {
+						if err := s.InsertSemanticVector(ctx, job.symbolID, vec); err != nil {
+							fmt.Printf("failed to insert semantic vector symbolID=%d error=%v\n", job.symbolID, err)
+						}
+					} else if err != nil {
+						fmt.Printf("failed to generate embedding error=%v\n", err)
+					}
+				}
+			}()
+		}
+	}
+
 	go c.run()
 	return c
 }
@@ -200,12 +235,32 @@ func (c *indexCollector) flush() error {
 		return nil
 	}
 	err := c.store.SaveFileIndexBatch(c.ctx, c.items)
+	if err == nil && c.semantic != nil && c.semCh != nil {
+		for _, item := range c.items {
+			for _, sym := range item.Symbols {
+				text := sym.Name
+				if sym.Doc != "" {
+					text += "\n" + sym.Doc
+				} else if sym.Signature != "" {
+					text += "\n" + sym.Signature
+				}
+				c.semCh <- semanticJob{
+					symbolID: int64(sym.ID),
+					text:     text,
+				}
+			}
+		}
+	}
 	c.items = c.items[:0]
 	return err
 }
 
 func (c *indexCollector) Wait() error {
 	<-c.done
+	if c.semCh != nil {
+		close(c.semCh)
+		c.semWg.Wait()
+	}
 	return c.err
 }
 
@@ -237,7 +292,7 @@ func (e *TruthEngine) Index(ctx context.Context, path string) error {
 		parsedData = make(map[string]*ParsedPackageData)
 	}
 
-	collector := newIndexCollector(ctx, e.store)
+	collector := newIndexCollector(ctx, e.store, e.semantic)
 
 	// Limitamos a 4 workers para evitar que el OS (ej. MIUI) mate el proceso por exceso de hilos
 	maxWorkers := 4
@@ -297,6 +352,7 @@ func (e *TruthEngine) indexDirectory(ctx context.Context, dir string, workerSem 
 	for _, entry := range entries {
 		select {
 		case <-ctx.Done():
+			g.Wait()
 			return "", ctx.Err()
 		default:
 		}
@@ -308,11 +364,20 @@ func (e *TruthEngine) indexDirectory(ctx context.Context, dir string, workerSem 
 			if BlockedDirs[entry.Name()] {
 				continue
 			}
+			
+			select {
+			case <-ctx.Done():
+				g.Wait()
+				return "", ctx.Err()
+			case workerSem <- struct{}{}:
+			}
+			
 			g.Go(func() error {
+				defer func() { <-workerSem }()
 				childHash, err := e.indexDirectory(ctx, path, workerSem, collector, parsedData)
 				if err != nil {
 					e.logger.Error("failed to index directory", "path", path, "error", err)
-					return nil
+					return err
 				}
 				if childHash != "" {
 					mu.Lock()
@@ -326,14 +391,21 @@ func (e *TruthEngine) indexDirectory(ctx context.Context, dir string, workerSem 
 			if !SupportedExts[ext] {
 				continue
 			}
+			
+			select {
+			case <-ctx.Done():
+				g.Wait()
+				return "", ctx.Err()
+			case workerSem <- struct{}{}:
+			}
+			
 			g.Go(func() error {
-				workerSem <- struct{}{}
 				defer func() { <-workerSem }()
 				
 				childHash, err := e.indexFile(ctx, path, workerSem, collector, parsedData)
 				if err != nil {
 					e.logger.Error("failed to index file", "path", path, "error", err)
-					return nil
+					return err
 				}
 				if childHash != "" {
 					mu.Lock()
@@ -450,6 +522,7 @@ func (e *TruthEngine) indexFile(ctx context.Context, path string, workerSem chan
 				"name": ptr.Name,
 				"doc":  ptr.Doc,
 				"path": path,
+				"type": ptr.Type,
 			})
 		}
 	}
@@ -811,4 +884,39 @@ func (e *TruthEngine) SearchSDDSpecs(ctx context.Context, query string, limit, o
 		return nil, fmt.Errorf("SDD engine not initialized")
 	}
 	return e.sdd.SearchSpecs(ctx, query, limit, offset)
+}
+
+func (e *TruthEngine) SemanticSearch(ctx context.Context, query string, limit int) ([]types.Symbol, error) {
+        if e.semantic == nil {
+                return nil, fmt.Errorf("semantic engine not initialized")
+        }
+        if e.store == nil {
+                return nil, fmt.Errorf("store not initialized")
+        }
+
+        embedding, err := e.semantic.GenerateEmbedding(ctx, query)
+        if err != nil {
+                return nil, fmt.Errorf("failed to generate embedding: %w", err)
+        }
+
+        storeSymbols, err := e.store.SearchSemantic(ctx, embedding, limit)
+        if err != nil {
+                return nil, fmt.Errorf("failed to execute semantic search: %w", err)
+        }
+
+        var results []types.Symbol
+        for _, s := range storeSymbols {
+                results = append(results, types.Symbol{
+                        Name:         s.Name,
+                        Type:         s.Type,
+                        PackagePath:  s.PackagePath,
+                        ReceiverType: s.ReceiverType,
+                        Signature:    s.Signature,
+                        Doc:          s.Doc,
+                        Path:         s.Path,
+                        StartLine:    s.StartLine,
+                        EndLine:      s.EndLine,
+                })
+        }
+        return results, nil
 }

@@ -11,14 +11,14 @@ CREATE TABLE IF NOT EXISTS commands (
 	saved_tokens INTEGER NOT NULL,
 	savings_pct REAL NOT NULL,
 	exec_time_ms INTEGER NOT NULL
-);
+)
 `
 
 const cleanupSQL = `DELETE FROM commands WHERE timestamp < datetime('now', '-90 days');`
 
 const insertSQL = `
 INSERT INTO commands (original_cmd, scouter_cmd, input_tokens, output_tokens, saved_tokens, savings_pct, exec_time_ms)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?)
 `
 
 const summarySQL = `
@@ -27,7 +27,7 @@ SELECT
 	COALESCE(SUM(saved_tokens), 0) as total_saved,
 	COALESCE(SUM(saved_tokens) * 100.0 / NULLIF(SUM(input_tokens), 0), 0) as avg_savings,
 	COALESCE(SUM(exec_time_ms), 0) as total_time_ms
-FROM commands;
+FROM commands
 `
 
 const dailySQL = `
@@ -41,14 +41,14 @@ SELECT
 FROM commands
 WHERE timestamp >= datetime('now', ? || ' days')
 GROUP BY date(timestamp)
-ORDER BY day DESC;
+ORDER BY day DESC
 `
 
 const recentSQL = `
 SELECT original_cmd, scouter_cmd, input_tokens, output_tokens, saved_tokens, savings_pct, exec_time_ms, timestamp
 FROM commands
 ORDER BY id DESC
-LIMIT ?;
+LIMIT ?
 `
 
 const byCommandSQL = `
@@ -62,7 +62,7 @@ SELECT
 FROM commands
 GROUP BY original_cmd
 ORDER BY saved_tokens DESC
-LIMIT ?;
+LIMIT ?
 `
 
 const weeklySQL = `
@@ -76,7 +76,7 @@ SELECT
 FROM commands
 WHERE timestamp >= datetime('now', ? || ' days')
 GROUP BY strftime('%Y-W%W', timestamp)
-ORDER BY period DESC;
+ORDER BY period DESC
 `
 
 const monthlySQL = `
@@ -90,7 +90,7 @@ SELECT
 FROM commands
 WHERE timestamp >= datetime('now', ? || ' days')
 GROUP BY strftime('%Y-%m', timestamp)
-ORDER BY period DESC;
+ORDER BY period DESC
 `
 
 // Summary holds aggregate tracking stats.
