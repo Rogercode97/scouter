@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -206,6 +207,9 @@ func (e *HealerEngine) sampleParallelFixes(ctx context.Context, prompt string, f
 	candidates := make(chan fixCandidate, 3)
 	var valMu sync.Mutex
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	fullContent, _ := os.ReadFile(failingFile)
@@ -262,13 +266,14 @@ func (e *HealerEngine) sampleParallelFixes(ctx context.Context, prompt string, f
 			}
 
 			if valid {
-				// Success doesn't natively cancel errgroup without an error, but that's okay.
+				cancel()
 			}
 			return nil
 		})
 	}
 
-	if err := eg.Wait(); err != nil {
+	err := eg.Wait()
+	if err != nil && !errors.Is(err, context.Canceled) {
 		return nil, err
 	}
 	close(candidates)
