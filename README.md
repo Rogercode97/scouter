@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/scouter-banner.png" alt="Scouter: Structural Intelligence Engine" width="100%" />
+  <img src="assets/scouter-banner-v2.png" alt="Scouter: Structural Intelligence Engine" width="100%" />
 </p>
 
 # Scouter: Structural Intelligence Engine
