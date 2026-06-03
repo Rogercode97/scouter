@@ -1,6 +1,6 @@
 module github.com/Rogercode97/scouter
 
-go 1.26.4
+go 1.26.3
 
 require (
 	github.com/blevesearch/bleve/v2 v2.6.0

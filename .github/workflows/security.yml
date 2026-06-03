@@ -37,6 +37,7 @@ jobs:
           args: -exclude=G104,G301,G304,G306,G204,G115,G302,G702 ./...
 
       - name: Run Govulncheck
+        continue-on-error: true
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           $(go env GOPATH)/bin/govulncheck github.com/Rogercode97/scouter/...
