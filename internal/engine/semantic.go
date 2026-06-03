@@ -37,6 +37,7 @@ func (s *SemanticEngine) Init(ctx context.Context, modelPath string) error {
 }
 
 func (s *SemanticEngine) ensureModelDownloaded(ctx context.Context, modelPath string) error {
+	/* #nosec G101 */
 	files := map[string]string{
 		"model.safetensors": "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/model.safetensors",
 		"config.json":       "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/config.json",
@@ -82,7 +83,7 @@ func downloadFile(ctx context.Context, url, dest string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
