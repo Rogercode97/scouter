@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS calls (
     FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_calls_path ON calls(path);
 CREATE INDEX IF NOT EXISTS idx_calls_callee ON calls(callee_name);
 CREATE INDEX IF NOT EXISTS idx_calls_impact ON calls(callee_name, callee_path);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_calls_unique ON calls(caller_name, callee_name, path, line, link_type);
@@ -130,6 +131,7 @@ CREATE TABLE IF NOT EXISTS flows (
     FOREIGN KEY(path) REFERENCES file_index(path) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_flows_path ON flows(path);
 CREATE INDEX IF NOT EXISTS idx_flows_sink ON flows(sink);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS vec_ast USING vec0(

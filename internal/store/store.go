@@ -97,7 +97,7 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 		}
 		
 		// Write pool
-		dsnWrite := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)&_txlock=immediate", dsn, separator)
+		dsnWrite := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=temp_store(MEMORY)&_pragma=cache_size(-10000)&_txlock=immediate", dsn, separator)
 		dbWrite, err = sql.Open("sqlite3", dsnWrite)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open write database: %w", err)
@@ -105,7 +105,7 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 		dbWrite.SetMaxOpenConns(1)
 
 		// Read pool
-		dsnRead := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)", dsn, separator)
+		dsnRead := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=temp_store(MEMORY)&_pragma=cache_size(-10000)", dsn, separator)
 		dbRead, err = sql.Open("sqlite3", dsnRead)
 		if err != nil {
 			dbWrite.Close()
@@ -218,7 +218,10 @@ func (s *storeImpl) SaveFileIndex(ctx context.Context, idx *FileIndex) error {
 
 func (s *storeImpl) SaveFileIndexBatch(ctx context.Context, items []BatchItem) error {
 	return s.WithTransaction(ctx, func(txCtx context.Context, tx Store) error {
-		for i, item := range items {
+		var allSymbols []*Symbol
+		var allCalls []Call
+		for i := range items {
+			item := &items[i]
 			if item.Index != nil {
 				if err := tx.SaveFileIndex(txCtx, item.Index); err != nil {
 					return fmt.Errorf("failed to save index for %s: %w", item.Index.Path, err)
@@ -233,17 +236,11 @@ func (s *storeImpl) SaveFileIndexBatch(ctx context.Context, items []BatchItem) e
 					return fmt.Errorf("failed to clear flows for %s: %w", item.Index.Path, err)
 				}
 			}
-			for j, sym := range item.Symbols {
-				symCopy := sym
-				if err := tx.SaveSymbol(txCtx, &symCopy); err != nil {
-					return fmt.Errorf("failed to save symbol %s: %w", symCopy.Name, err)
-				}
-				items[i].Symbols[j].ID = symCopy.ID
+			for j := range item.Symbols {
+				allSymbols = append(allSymbols, &item.Symbols[j])
 			}
 			for _, call := range item.Calls {
-				if err := tx.SaveCall(txCtx, call); err != nil {
-					return fmt.Errorf("failed to save call from %s to %s: %w", call.CallerName, call.CalleeName, err)
-				}
+				allCalls = append(allCalls, call)
 			}
 			for _, flow := range item.Flows {
 				if err := tx.SaveFlow(txCtx, flow); err != nil {
@@ -270,6 +267,14 @@ func (s *storeImpl) SaveFileIndexBatch(ctx context.Context, items []BatchItem) e
 				}
 			}
 		}
+		
+		if err := tx.SaveSymbolsBulk(txCtx, allSymbols); err != nil {
+			return fmt.Errorf("failed to save symbols bulk: %w", err)
+		}
+		if err := tx.SaveCallsBulk(txCtx, allCalls); err != nil {
+			return fmt.Errorf("failed to save calls bulk: %w", err)
+		}
+
 		return nil
 	})
 }
@@ -322,6 +327,54 @@ func (s *storeImpl) SaveSymbol(ctx context.Context, sym *Symbol) error {
 	}
 	if id, err := res.LastInsertId(); err == nil {
 		sym.ID = int(id)
+	}
+	return nil
+}
+
+func (s *storeImpl) SaveSymbolsBulk(ctx context.Context, symbols []*Symbol) error {
+	if len(symbols) == 0 {
+		return nil
+	}
+	batchSize := 20 // 20 parameters per symbol, max 500 params per query
+	for i := 0; i < len(symbols); i += batchSize {
+		end := i + batchSize
+		if end > len(symbols) {
+			end = len(symbols)
+		}
+		batch := symbols[i:end]
+
+		query := "INSERT INTO symbols (name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, relevance, pagerank, churn_score, runtime_hits, ai_summary, metrics_json) VALUES "
+		var args []any
+		var placeholders []string
+		for _, sym := range batch {
+			placeholders = append(placeholders, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+			metricsJSON := "{}"
+			if sym.Metrics != nil {
+				if b, err := json.Marshal(sym.Metrics); err == nil {
+					metricsJSON = string(b)
+				}
+			}
+			args = append(args, sym.Name, sym.Type, sym.PackagePath, sym.ReceiverType, sym.Signature, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.StartCol, sym.EndLine, sym.StructuralHash, sym.Indegree, sym.Relevance, sym.Pagerank, sym.ChurnScore, sym.RuntimeHits, sym.AiSummary, metricsJSON)
+		}
+		query += strings.Join(placeholders, ", ") + " RETURNING id"
+		rows, err := s.query(ctx, query, args...)
+		if err != nil {
+			return fmt.Errorf("failed to save symbols bulk: %w", err)
+		}
+		
+		idx := 0
+		for rows.Next() {
+			var id int
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				return fmt.Errorf("failed to scan returned id: %w", err)
+			}
+			if idx < len(batch) {
+				batch[idx].ID = id
+			}
+			idx++
+		}
+		rows.Close()
 	}
 	return nil
 }
@@ -598,6 +651,14 @@ func (s *storeImpl) UpdateSymbolCentrality(ctx context.Context, name, path strin
 	return nil
 }
 
+func (s *storeImpl) RecomputeIndegrees(ctx context.Context) error {
+	_, err := s.exec(ctx, "UPDATE symbols SET indegree = (SELECT count(*) FROM calls WHERE calls.callee_name = symbols.name)")
+	if err != nil {
+		return fmt.Errorf("failed to recompute indegrees: %w", err)
+	}
+	return nil
+}
+
 func (s *storeImpl) UpdateSymbolChurn(ctx context.Context, path string, score float64) error {
 	_, err := s.exec(ctx, "UPDATE symbols SET churn_score = ? WHERE path = ?", score, path)
 	if err != nil {
@@ -607,7 +668,7 @@ func (s *storeImpl) UpdateSymbolChurn(ctx context.Context, path string, score fl
 }
 
 func (s *storeImpl) UpdateSymbolPagerank(ctx context.Context, name, path string, score float64) error {
-	_, err := s.exec(ctx, "UPDATE symbols SET pagerank = ? WHERE (name = ? OR (package_path || '.' || name) = ?) AND (path = ? OR ? = '')", score, name, name, path, path)
+	_, err := s.exec(ctx, "UPDATE symbols SET pagerank = ? WHERE name = ? AND path = ?", score, name, path)
 	if err != nil {
 		return fmt.Errorf("failed to update pagerank: %w", err)
 	}
@@ -752,14 +813,36 @@ func (s *storeImpl) SaveCall(ctx context.Context, c Call) error {
 	if err != nil {
 		return fmt.Errorf("failed to save call: %w", err)
 	}
+	return nil
+}
 
-	// Increment indegree for the callee symbol
-	_, err = s.exec(ctx, "UPDATE symbols SET indegree = indegree + 1 WHERE name = ? AND (path = ? OR ? = '')", c.CalleeName, c.CalleePath, c.CalleePath)
-	if err != nil {
-		// Log but don't fail, as symbol might not be indexed yet
+func (s *storeImpl) SaveCallsBulk(ctx context.Context, calls []Call) error {
+	if len(calls) == 0 {
 		return nil
 	}
+	batchSize := 80 // 6 parameters per call, max 500 params per query
+	for i := 0; i < len(calls); i += batchSize {
+		end := i + batchSize
+		if end > len(calls) {
+			end = len(calls)
+		}
+		batch := calls[i:end]
 
+		query := "INSERT OR IGNORE INTO calls (caller_name, callee_name, path, line, callee_path, link_type) VALUES "
+		var args []any
+		var placeholders []string
+		for _, c := range batch {
+			if c.LinkType == "" {
+				c.LinkType = "call"
+			}
+			placeholders = append(placeholders, "(?, ?, ?, ?, ?, ?)")
+			args = append(args, c.CallerName, c.CalleeName, c.Path, c.Line, c.CalleePath, c.LinkType)
+		}
+		query += strings.Join(placeholders, ", ")
+		if _, err := s.exec(ctx, query, args...); err != nil {
+			return fmt.Errorf("failed to save calls bulk: %w", err)
+		}
+	}
 	return nil
 }
 

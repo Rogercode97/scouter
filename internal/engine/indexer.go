@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -273,6 +274,11 @@ func (ip *IndexerPipeline) indexDirectory(ctx context.Context, dir string, worke
 				continue
 			}
 
+			info, err := entry.Info()
+			if err != nil || info.Size() > 64*1024 { // skip files > 64KB
+				continue
+			}
+
 			select {
 			case <-ctx.Done():
 				g.Wait()
@@ -318,6 +324,9 @@ func (ip *IndexerPipeline) indexDirectory(ctx context.Context, dir string, worke
 }
 
 func (ip *IndexerPipeline) indexFile(ctx context.Context, path string, workerSem chan struct{}, collector *indexCollector, parsedData map[string]*ParsedPackageData) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	fi, err := os.Stat(path)
 	if err != nil {
 		return "", fmt.Errorf("error stating file: %w", err)
@@ -357,6 +366,8 @@ func (ip *IndexerPipeline) indexFile(ctx context.Context, path string, workerSem
 			itPointers, itCalls, itFlows, streamErr = StreamSymbolsFromAST(ctx, pd.Fset, pd.File, pd.Pkg)
 		} else {
 			itPointers, itCalls, itFlows, streamErr = StreamSymbols(ctx, path)
+			ip.config.Logger.Warn("file ignored by build tags", "path", path)
+			return "", nil
 		}
 	} else {
 		itPointers, itCalls, itFlows, streamErr = StreamSymbols(ctx, path)

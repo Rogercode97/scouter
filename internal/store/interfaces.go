@@ -22,6 +22,7 @@ type SymbolRegistry interface {
 	SaveDirectoryHash(ctx context.Context, path string, hash string, mtime int64) error
 	ClearSymbols(ctx context.Context, path string) error
 	SaveSymbol(ctx context.Context, sym *Symbol) error
+	SaveSymbolsBulk(ctx context.Context, symbols []*Symbol) error
 	SearchSymbols(ctx context.Context, query string, symType string, limit, offset int) ([]Symbol, error)
 	GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]Symbol, error)
 	GetSymbolsByStructuralHash(ctx context.Context, hash string) ([]Symbol, error)
@@ -32,6 +33,7 @@ type SymbolRegistry interface {
 	GetInterfaces(ctx context.Context) ([]Symbol, error)
 	GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error]
 	UpdateSymbolCentrality(ctx context.Context, name, path string, centrality int) error
+	RecomputeIndegrees(ctx context.Context) error
 	UpdateSymbolChurn(ctx context.Context, path string, score float64) error
 	UpdateSymbolPagerank(ctx context.Context, name, path string, score float64) error
 	UpdateSymbolRuntimeHits(ctx context.Context, name, path string, hits int) error
@@ -50,6 +52,7 @@ type SymbolRegistry interface {
 type StructuralGraph interface {
 	GetAllCalls(ctx context.Context) iter.Seq2[Call, error]
 	SaveCall(ctx context.Context, call Call) error
+	SaveCallsBulk(ctx context.Context, calls []Call) error
 	GetCallers(ctx context.Context, calleeName string, limit, offset int) ([]Call, error)
 	GetCallees(ctx context.Context, callerName string) ([]Call, error)
 	GetCallersRecursive(ctx context.Context, name, path string, maxDepth int) ([]Call, error)

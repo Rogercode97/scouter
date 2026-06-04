@@ -429,27 +429,7 @@ func (a *AnalysisEngine) ResolveInterfaces(ctx context.Context) error {
 }
 
 func (a *AnalysisEngine) ResolveCentrality(ctx context.Context) error {
-	indegree := make(map[string]int)
-	
-	for call, err := range a.store.GetAllCalls(ctx) {
-		if err != nil {
-			return err
-		}
-		key := call.CalleeName + ":" + call.CalleePath
-		indegree[key]++
-	}
-
-	return a.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Store) error {
-		for key, count := range indegree {
-			parts := strings.SplitN(key, ":", 2)
-			if len(parts) == 2 {
-				if err := tx.UpdateSymbolCentrality(txCtx, parts[0], parts[1], count); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	})
+	return a.store.RecomputeIndegrees(ctx)
 }
 
 func (a *AnalysisEngine) GetCriticalSymbols(ctx context.Context, limit int) ([]store.CriticalSymbol, error) {
