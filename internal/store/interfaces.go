@@ -33,9 +33,11 @@ type SymbolRegistry interface {
 	GetInterfaces(ctx context.Context) ([]Symbol, error)
 	GetAllSymbols(ctx context.Context) iter.Seq2[Symbol, error]
 	UpdateSymbolCentrality(ctx context.Context, name, path string, centrality int) error
+	UpdateSymbolCentralitiesBulk(ctx context.Context, updates map[string]int) error
 	RecomputeIndegrees(ctx context.Context) error
 	UpdateSymbolChurn(ctx context.Context, path string, score float64) error
 	UpdateSymbolPagerank(ctx context.Context, name, path string, score float64) error
+	UpdateSymbolPageranksBulk(ctx context.Context, updates map[string]float64) error
 	UpdateSymbolRuntimeHits(ctx context.Context, name, path string, hits int) error
 	RecordSymbolUsage(ctx context.Context, env string, usages []UsageRecord) error
 	GetStats(ctx context.Context) (int, int, error)

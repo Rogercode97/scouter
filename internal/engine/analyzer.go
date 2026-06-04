@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/Rogercode97/scouter/internal/store"
@@ -23,7 +22,6 @@ type AnalysisStore interface {
 	store.DiagnosticStore
 	store.TransactionManager
 }
-
 
 type PagerankOptions struct {
 	TaskSeeds []string
@@ -59,10 +57,10 @@ func (a *AnalysisEngine) ResolvePagerank(ctx context.Context, opts ...PagerankOp
 		if err != nil {
 			return err
 		}
-		
+
 		callerKey := call.CallerName + ":" + call.Path
 		calleeKey := call.CalleeName + ":" + call.CalleePath
-		
+
 		// Weight based on link type
 		weight := 1
 		switch call.LinkType {
@@ -82,7 +80,7 @@ func (a *AnalysisEngine) ResolvePagerank(ctx context.Context, opts ...PagerankOp
 	// 4. Calculate Pagerank (Simplified Iterative Implementation)
 	// Note: dominikbraun/graph doesn't have native Pagerank yet in v0.23,
 	// so we implement it using the graph structure.
-	
+
 	adjacency, _ := g.AdjacencyMap()
 	N := len(adjacency)
 	if N == 0 {
@@ -244,19 +242,12 @@ func (a *AnalysisEngine) ResolvePagerank(ctx context.Context, opts ...PagerankOp
 		}
 	}
 
-	// 5. Update store
-	return a.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Store) error {
-		for i, node := range nodes {
-			score := currentRanks[i]
-			parts := strings.SplitN(node, ":", 2)
-			if len(parts) == 2 {
-				if err := tx.UpdateSymbolPagerank(txCtx, parts[0], parts[1], score); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	})
+	// 5. Update
+	updates := make(map[string]float64)
+	for i, node := range nodes {
+		updates[node] = currentRanks[i]
+	}
+	return a.store.UpdateSymbolPageranksBulk(ctx, updates)
 }
 
 type AnalysisEngine struct {
@@ -291,12 +282,12 @@ func (a *AnalysisEngine) BuildTypeUniverse() (map[string]*types.Package, error) 
 	return universe, nil
 }
 
-func (a *AnalysisEngine) saveImplementation(ctx context.Context, tx AnalysisStore, typeSym, ifaceSym store.Symbol, V types.Type, iface *types.Interface) {
+func (a *AnalysisEngine) saveImplementation(typeSym, ifaceSym store.Symbol, V types.Type, iface *types.Interface, allCalls *[]store.Call) {
 	// Task 4: Use fully qualified names for 'implements' and 'satisfies'
 	callerFQ := typeSym.PackagePath + "." + typeSym.Name
 	calleeFQ := ifaceSym.PackagePath + "." + ifaceSym.Name
 
-	_ = tx.SaveCall(ctx, store.Call{
+	*allCalls = append(*allCalls, store.Call{
 		CallerName: callerFQ,
 		CalleeName: calleeFQ,
 		Path:       typeSym.Path,
@@ -311,7 +302,7 @@ func (a *AnalysisEngine) saveImplementation(ctx context.Context, tx AnalysisStor
 		sel := mset.Lookup(m.Pkg(), m.Name())
 		if sel != nil {
 			// Method FQ names: pkg.Type.Method
-			_ = tx.SaveCall(ctx, store.Call{
+			*allCalls = append(*allCalls, store.Call{
 				CallerName: callerFQ + "." + m.Name(),
 				CalleeName: calleeFQ + "." + m.Name(),
 				Path:       typeSym.Path,
@@ -341,6 +332,8 @@ func (a *AnalysisEngine) ResolveInterfaces(ctx context.Context) error {
 			types_ = append(types_, sym)
 		}
 	}
+
+	var allCalls []store.Call
 
 	return a.store.WithTransaction(ctx, func(txCtx context.Context, tx store.Store) error {
 		for _, ifaceSym := range interfaces {
@@ -379,7 +372,7 @@ func (a *AnalysisEngine) ResolveInterfaces(ctx context.Context) error {
 						ifaceFQ := ifaceSym.PackagePath + "." + ifaceSym.Name
 
 						// Link interfaces (embeds)
-						_ = tx.SaveCall(ctx, store.Call{
+						allCalls = append(allCalls, store.Call{
 							CallerName: ifaceFQ,
 							CalleeName: embFQ,
 							Path:       ifaceSym.Path,
@@ -390,7 +383,7 @@ func (a *AnalysisEngine) ResolveInterfaces(ctx context.Context) error {
 						if embIface, ok := named.Underlying().(*types.Interface); ok {
 							for j := 0; j < embIface.NumMethods(); j++ {
 								m := embIface.Method(j)
-								_ = tx.SaveCall(ctx, store.Call{
+								allCalls = append(allCalls, store.Call{
 									CallerName: ifaceFQ + "." + m.Name(),
 									CalleeName: embPkg.Path() + "." + embObj.Name() + "." + m.Name(),
 									Path:       ifaceSym.Path,
@@ -417,19 +410,31 @@ func (a *AnalysisEngine) ResolveInterfaces(ctx context.Context) error {
 
 				// Check if value implements
 				if types.Implements(V, iface) {
-					a.saveImplementation(txCtx, tx, typeSym, ifaceSym, V, iface)
+					a.saveImplementation(typeSym, ifaceSym, V, iface, &allCalls)
 				} else if types.Implements(types.NewPointer(V), iface) {
 					// Check if pointer implements
-					a.saveImplementation(txCtx, tx, typeSym, ifaceSym, types.NewPointer(V), iface)
+					a.saveImplementation(typeSym, ifaceSym, types.NewPointer(V), iface, &allCalls)
 				}
 			}
+		}
+		
+		if len(allCalls) > 0 {
+			return tx.SaveCallsBulk(txCtx, allCalls)
 		}
 		return nil
 	})
 }
 
 func (a *AnalysisEngine) ResolveCentrality(ctx context.Context) error {
-	return a.store.RecomputeIndegrees(ctx)
+	centrality := make(map[string]int)
+	for call, err := range a.store.GetAllCalls(ctx) {
+		if err != nil {
+			return err
+		}
+		key := call.CalleeName + ":" + call.CalleePath
+		centrality[key]++
+	}
+	return a.store.UpdateSymbolCentralitiesBulk(ctx, centrality)
 }
 
 func (a *AnalysisEngine) GetCriticalSymbols(ctx context.Context, limit int) ([]store.CriticalSymbol, error) {
@@ -463,16 +468,16 @@ func (a *AnalysisEngine) GetCriticalSymbols(ctx context.Context, limit int) ([]s
 		if err != nil {
 			return nil, err
 		}
-		
+
 		cKey1 := sym.Name + ":" + sym.Path
 		cKey2 := sym.Name + ":"
-		
+
 		cent := centrality[cKey1]
 		if cent == 0 {
 			cent = centrality[cKey2]
 		}
 		frag := fragility[sym.Name]
-		
+
 		if cent > 0 || frag > 0 || len(results) < limit {
 			results = append(results, store.CriticalSymbol{
 				Symbol:     sym,

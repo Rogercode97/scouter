@@ -1276,3 +1276,132 @@ func (s *storeImpl) SearchSemantic(ctx context.Context, queryEmbedding []float32
         }
         return res, nil
 }
+func (s *storeImpl) UpdateSymbolPageranksBulk(ctx context.Context, updates map[string]float64) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	return s.WithTransaction(ctx, func(txCtx context.Context, tx Store) error {
+		txImpl := tx.(*storeImpl)
+
+		_, err := txImpl.tx.ExecContext(txCtx, "CREATE TEMP TABLE IF NOT EXISTS pr_updates (name TEXT, path TEXT, pr REAL)")
+		if err != nil {
+			return fmt.Errorf("failed to create temp table pr_updates: %w", err)
+		}
+		defer txImpl.tx.ExecContext(context.Background(), "DROP TABLE IF EXISTS pr_updates")
+
+		type entry struct {
+			Name string
+			Path string
+			PR   float64
+		}
+		var entries []entry
+		for k, v := range updates {
+			parts := strings.SplitN(k, ":", 2)
+			if len(parts) == 2 {
+				entries = append(entries, entry{Name: parts[0], Path: parts[1], PR: v})
+			}
+		}
+
+		batchSize := 100
+		for i := 0; i < len(entries); i += batchSize {
+			end := i + batchSize
+			if end > len(entries) {
+				end = len(entries)
+			}
+			chunk := entries[i:end]
+
+			query := "INSERT INTO pr_updates (name, path, pr) VALUES "
+			var args []interface{}
+			var placeholders []string
+			for _, e := range chunk {
+				placeholders = append(placeholders, "(?, ?, ?)")
+				args = append(args, e.Name, e.Path, e.PR)
+			}
+			query += strings.Join(placeholders, ", ")
+
+			_, err = txImpl.tx.ExecContext(txCtx, query, args...)
+			if err != nil {
+				return fmt.Errorf("failed to batch insert pr_updates: %w", err)
+			}
+		}
+
+		updateQuery := `
+			UPDATE symbols 
+			SET pagerank = (SELECT pr FROM pr_updates WHERE pr_updates.name = symbols.name AND pr_updates.path = symbols.path) 
+			WHERE EXISTS (SELECT 1 FROM pr_updates WHERE pr_updates.name = symbols.name AND pr_updates.path = symbols.path)
+		`
+		_, err = txImpl.tx.ExecContext(txCtx, updateQuery)
+		if err != nil {
+			return fmt.Errorf("failed to update pageranks from temp table: %w", err)
+		}
+
+		return nil
+	})
+}
+
+func (s *storeImpl) UpdateSymbolCentralitiesBulk(ctx context.Context, updates map[string]int) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	return s.WithTransaction(ctx, func(txCtx context.Context, tx Store) error {
+		txImpl := tx.(*storeImpl)
+
+		_, err := txImpl.tx.ExecContext(txCtx, "CREATE TEMP TABLE IF NOT EXISTS cent_updates (name TEXT, path TEXT, centrality INTEGER)")
+		if err != nil {
+			return fmt.Errorf("failed to create temp table cent_updates: %w", err)
+		}
+		defer txImpl.tx.ExecContext(context.Background(), "DROP TABLE IF EXISTS cent_updates")
+
+		type entry struct {
+			Name       string
+			Path       string
+			Centrality int
+		}
+		var entries []entry
+		for k, v := range updates {
+			parts := strings.SplitN(k, ":", 2)
+			if len(parts) == 2 {
+				entries = append(entries, entry{Name: parts[0], Path: parts[1], Centrality: v})
+			} else {
+				entries = append(entries, entry{Name: k, Path: "", Centrality: v})
+			}
+		}
+
+		batchSize := 100
+		for i := 0; i < len(entries); i += batchSize {
+			end := i + batchSize
+			if end > len(entries) {
+				end = len(entries)
+			}
+			chunk := entries[i:end]
+
+			query := "INSERT INTO cent_updates (name, path, centrality) VALUES "
+			var args []interface{}
+			var placeholders []string
+			for _, e := range chunk {
+				placeholders = append(placeholders, "(?, ?, ?)")
+				args = append(args, e.Name, e.Path, e.Centrality)
+			}
+			query += strings.Join(placeholders, ", ")
+
+			_, err = txImpl.tx.ExecContext(txCtx, query, args...)
+			if err != nil {
+				return fmt.Errorf("failed to batch insert cent_updates: %w", err)
+			}
+		}
+
+		updateQuery := `
+			UPDATE symbols 
+			SET indegree = (SELECT centrality FROM cent_updates WHERE cent_updates.name = symbols.name AND cent_updates.path = symbols.path) 
+			WHERE EXISTS (SELECT 1 FROM cent_updates WHERE cent_updates.name = symbols.name AND cent_updates.path = symbols.path)
+		`
+		_, err = txImpl.tx.ExecContext(txCtx, updateQuery)
+		if err != nil {
+			return fmt.Errorf("failed to update centralities from temp table: %w", err)
+		}
+
+		return nil
+	})
+}

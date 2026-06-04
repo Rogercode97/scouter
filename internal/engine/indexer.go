@@ -212,6 +212,10 @@ func (ip *IndexerPipeline) Run(ctx context.Context, path string) error {
 		return fmt.Errorf("collector failed: %w", collErr)
 	}
 
+	if err := ip.config.Store.RecomputeIndegrees(ctx); err != nil {
+		ip.config.Logger.Error("failed to recompute indegrees", "error", err)
+	}
+
 	if ip.config.Analyzer != nil {
 		if aErr := ip.config.Analyzer.ResolveInterfaces(ctx); aErr != nil {
 			ip.config.Logger.Error("failed to resolve interfaces", "error", aErr)
@@ -361,13 +365,12 @@ func (ip *IndexerPipeline) indexFile(ctx context.Context, path string, workerSem
 	var itFlows iter.Seq[types.DataFlow]
 	var streamErr error
 
-	if parsedData != nil && filepath.Ext(path) == ".go" {
+	if parsedData != nil && len(parsedData) > 0 && filepath.Ext(path) == ".go" {
 		if pd, ok := parsedData[path]; ok {
 			itPointers, itCalls, itFlows, streamErr = StreamSymbolsFromAST(ctx, pd.Fset, pd.File, pd.Pkg)
 		} else {
 			itPointers, itCalls, itFlows, streamErr = StreamSymbols(ctx, path)
 			ip.config.Logger.Warn("file ignored by build tags", "path", path)
-			return "", nil
 		}
 	} else {
 		itPointers, itCalls, itFlows, streamErr = StreamSymbols(ctx, path)
