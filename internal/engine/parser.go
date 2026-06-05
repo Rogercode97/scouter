@@ -267,7 +267,6 @@ func StreamSymbolsFromAST(ctx context.Context, fset *token.FileSet, astFile *ast
 					}
 				}
 
-
 				// Capture Structs and Interfaces from GenDecl
 				if gd, ok := n.(*ast.GenDecl); ok && gd.Tok == token.TYPE {
 					for _, spec := range gd.Specs {
@@ -368,7 +367,7 @@ func StreamSymbolsFromAST(ctx context.Context, fset *token.FileSet, astFile *ast
 
 			// Track types of parameters/variables in the current function scope
 			scopeTypes := make(map[ast.Node]map[string]string)
-			
+
 			stopped := false
 
 			ast.PreorderStack(file, nil, func(n ast.Node, stack []ast.Node) bool {
@@ -424,21 +423,21 @@ func StreamSymbolsFromAST(ctx context.Context, fset *token.FileSet, astFile *ast
 						}
 
 						calleeName, calleePath := resolveCallee(call.Fun, validatedPath)
-						
+
 						calleeName = resolveTypeInfoCallee(call, pkg, currentScope, pkgPath, calleeName)
 
 						// If still a simple name or local selector, prepend pkgPath
 						if calleeName != "" && !strings.Contains(calleeName, "/") && !strings.HasPrefix(calleeName, pkgPath+".") {
-						  if !strings.Contains(calleeName, ".") {
-						  calleeName = pkgPath + "." + calleeName
-						  } else if parts := strings.Split(calleeName, "."); len(parts) == 2 {
-						  // Check if it's a known type in scope
-						  if tName, exists := currentScope[parts[0]]; exists {
-						  calleeName = pkgPath + "." + tName + "." + parts[1]
-						  } else {
-						  calleeName = pkgPath + "." + calleeName
-						  }
-						  }
+							if !strings.Contains(calleeName, ".") {
+								calleeName = pkgPath + "." + calleeName
+							} else if parts := strings.Split(calleeName, "."); len(parts) == 2 {
+								// Check if it's a known type in scope
+								if tName, exists := currentScope[parts[0]]; exists {
+									calleeName = pkgPath + "." + tName + "." + parts[1]
+								} else {
+									calleeName = pkgPath + "." + calleeName
+								}
+							}
 						}
 						if calleeName != "" {
 							c := types.ASTCall{
@@ -594,13 +593,14 @@ func StreamSymbolsFromAST(ctx context.Context, fset *token.FileSet, astFile *ast
 			})
 		}, nil
 }
+
 // resolveCallee attempts to get the name and potential path of the function being called.
 func resolveCallee(fun ast.Expr, currentPath string) (string, string) {
 	name := exprToString(fun)
 	if name == "unknown" || name == "" {
 		return "", ""
 	}
-	// Note: we don't return currentPath here because the store/linker 
+	// Note: we don't return currentPath here because the store/linker
 	// handles global resolution within the project context.
 	return name, ""
 }
@@ -778,7 +778,6 @@ func computeGoMetrics(node ast.Node) *types.SemanticMetrics {
 
 	return metrics
 }
-
 
 func loadASTFile(validatedPath string) (*ast.File, *token.FileSet, *packages.Package, error) {
 	cfg := &packages.Config{

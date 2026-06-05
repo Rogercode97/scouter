@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/store"
+	"github.com/Rogercode97/scouter/internal/types"
 )
 
 func TestResolveInterfaces(t *testing.T) {
@@ -202,5 +203,87 @@ func TestResolvePagerank(t *testing.T) {
 
 	if symB.Pagerank <= symA.Pagerank || symB.Pagerank <= symC.Pagerank {
 		t.Errorf("expected B to have higher Pagerank than A/C. A: %f, B: %f, C: %f", symA.Pagerank, symB.Pagerank, symC.Pagerank)
+	}
+}
+
+func TestWithTaskSeeds(t *testing.T) {
+	opts := PagerankOptions{}
+	opt := WithTaskSeeds([]string{"A", "B"})
+	opt(&opts)
+	if len(opts.TaskSeeds) != 2 || opts.TaskSeeds[0] != "A" || opts.TaskSeeds[1] != "B" {
+		t.Errorf("WithTaskSeeds failed")
+	}
+}
+
+func TestGetCriticalSymbols(t *testing.T) {
+	ctx := context.Background()
+	dbPath := "test_critical.db"
+	defer os.Remove(dbPath)
+
+	s, err := store.NewStore(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	analyzer := NewAnalysisEngine(s)
+
+	_ = s.SaveFileIndex(ctx, &store.FileIndex{Path: "a.go", Project: "p"})
+	_ = s.SaveFileIndex(ctx, &store.FileIndex{Path: "b.go", Project: "p"})
+	_ = s.SaveFileIndex(ctx, &store.FileIndex{Path: "c.go", Project: "p"})
+
+	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "A", Type: "func", Path: "a.go"})
+	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "B", Type: "func", Path: "b.go"})
+	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "C", Type: "func", Path: "c.go"})
+
+	_ = s.SaveCall(ctx, store.Call{CallerName: "A", CalleeName: "B", Path: "a.go", CalleePath: "b.go"})
+	_ = s.SaveCall(ctx, store.Call{CallerName: "A", CalleeName: "C", Path: "a.go", CalleePath: ""})
+	
+	_ = s.SaveTestResult(ctx, &types.TestResult{TestName: "TestB", TargetSymbol: "B", Status: "fail"})
+
+	for call, _ := range s.GetAllCalls(ctx) { t.Logf("CALL: %+v", call) }
+	results, err := analyzer.GetCriticalSymbols(ctx, 2)
+	if err != nil {
+		t.Fatalf("GetCriticalSymbols failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Errorf("expected 2 results, got %d", len(results))
+	}
+	if len(results) > 0 && results[0].Symbol.Name != "B" {
+		t.Errorf("expected B, got %s. Results: %+v", results[0].Symbol.Name, results)
+	}
+}
+
+func TestGetNeighborhood(t *testing.T) {
+	ctx := context.Background()
+	dbPath := "test_neighborhood.db"
+	defer os.Remove(dbPath)
+
+	s, err := store.NewStore(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	analyzer := NewAnalysisEngine(s)
+
+	tmpDir, _ := os.MkdirTemp("", "scouter-neighbor-*")
+	defer os.RemoveAll(tmpDir)
+
+	filePath := filepath.Join(tmpDir, "n.go")
+	os.WriteFile(filePath, []byte("package n\nimport \"fmt\"\nfunc N() { fmt.Println() }\n"), 0644)
+
+	_ = s.SaveFileIndex(ctx, &store.FileIndex{Path: filePath, Project: "p"})
+	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "N", Type: "func", Path: filePath})
+	_ = s.SaveCall(ctx, store.Call{CallerName: "N", CalleeName: "fmt.Println", Path: filePath, CalleePath: ""})
+
+	zon, err := analyzer.GetNeighborhood(ctx, filePath)
+	if err != nil {
+		t.Fatalf("GetNeighborhood failed: %v", err)
+	}
+
+	if !strings.Contains(zon, "fmt") {
+		t.Errorf("expected ZON to contain fmt, got %s", zon)
 	}
 }

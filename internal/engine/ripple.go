@@ -257,13 +257,13 @@ func (v *CentralityValidator) Validate(ctx context.Context, ledger *Ledger) (Val
 			Valid:   false,
 			Message: "Centrality threshold exceeded",
 			Details: map[string]any{"violations": violations},
-		} , nil
+		}, nil
 	}
 
 	return ValidationResult{Valid: true, Message: "Centrality check passed"}, nil
 }
 
-// LSPValidator uses go/packages with Overlays to perform zero-disk verification 
+// LSPValidator uses go/packages with Overlays to perform zero-disk verification
 // of interface implementations across the entire workspace.
 type LSPValidator struct {
 	ProjectRoot string
@@ -306,10 +306,10 @@ func (v *LSPValidator) Validate(ctx context.Context, ledger *Ledger) (Validation
 			// We only care about type errors that indicate broken contracts
 			// e.g., "does not implement", "missing method", "wrong signature"
 			msg := pkgErr.Msg
-			if strings.Contains(msg, "does not implement") || 
-			   strings.Contains(msg, "missing method") ||
-			   strings.Contains(msg, "have") || 
-			   strings.Contains(msg, "want") {
+			if strings.Contains(msg, "does not implement") ||
+				strings.Contains(msg, "missing method") ||
+				strings.Contains(msg, "have") ||
+				strings.Contains(msg, "want") {
 				violations = append(violations, fmt.Sprintf("[%s] %s", pkg.PkgPath, msg))
 			}
 		}
@@ -345,12 +345,12 @@ func (e *RippleEngine) Propagate(ctx context.Context, symbolName string, transfo
 
 		if _, exists := ledger.Staged[task.FilePath]; !exists {
 			ledger.IncrementTurn() // Each transformation is a turn
-			
+
 			newContent, err := e.Transformer.Transform(ctx, task.FilePath, task.SymbolName, transformation)
 			if err != nil {
 				return nil, fmt.Errorf("transformation failed for %s: %w", task.FilePath, err)
 			}
-			
+
 			if err := ledger.Stage(task.FilePath, Patch{
 				FilePath:   task.FilePath,
 				NewContent: newContent,

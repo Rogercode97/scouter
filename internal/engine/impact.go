@@ -87,7 +87,7 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 		isExported = strings.Contains("ABCDEFGHIJKLMNOPQRSTUVWXYZ", string(sym.Name[0]))
 		signature = sym.Signature
 		centrality = sym.Pagerank
-		
+
 		if bodyExtracted, err := utils.ExtractLines(sym.Path, sym.StartLine, sym.EndLine); err == nil {
 			body = strings.TrimSpace(bodyExtracted)
 		}
@@ -144,12 +144,12 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 				}
 			}
 		}
-		
+
 		edgeSymbol := "-->"
 		if r.LinkType == "implements" {
 			edgeSymbol = "-.->"
 		}
-		
+
 		edge := fmt.Sprintf("    %s[\"%s\"] %s %s[\"%s\"]", r.Symbol, r.Symbol, edgeSymbol, parent, parent)
 		if !edges[edge] {
 			mermaid += edge + "\n"
@@ -204,7 +204,7 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 	runtimeScore := centrality
 
 	baseRisk := (bScore * 0.20) + (cogScore * 0.35) + (churnScore * 0.15) + (testGap * 0.15) + (volumeScore * 0.05) + (runtimeScore * 0.10)
-	
+
 	// Apply Historical Fragility Multiplier
 	fragilityFactor := 1.0 + (float64(res.Target.Metrics.HistoricalBugfixes) * 0.2)
 	finalRisk := baseRisk * fragilityFactor
@@ -224,10 +224,14 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 	res.Breakdown = breakdown.String()
 
 	switch {
-	case res.Target.RiskScore >= 0.8: res.RiskLevel = "Critical"
-	case res.Target.RiskScore >= 0.5: res.RiskLevel = "High"
-	case res.Target.RiskScore >= 0.2: res.RiskLevel = "Medium"
-	default: res.RiskLevel = "Low"
+	case res.Target.RiskScore >= 0.8:
+		res.RiskLevel = "Critical"
+	case res.Target.RiskScore >= 0.5:
+		res.RiskLevel = "High"
+	case res.Target.RiskScore >= 0.2:
+		res.RiskLevel = "Medium"
+	default:
+		res.RiskLevel = "Low"
 	}
 
 	return res, nil

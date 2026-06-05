@@ -417,7 +417,7 @@ func (a *AnalysisEngine) ResolveInterfaces(ctx context.Context) error {
 				}
 			}
 		}
-		
+
 		if len(allCalls) > 0 {
 			return tx.SaveCallsBulk(txCtx, allCalls)
 		}
@@ -449,7 +449,7 @@ func (a *AnalysisEngine) GetCriticalSymbols(ctx context.Context, limit int) ([]s
 		}
 		key1 := call.CalleeName + ":" + call.CalleePath
 		centrality[key1]++
-		if call.CalleePath == "" {
+		if call.CalleePath != "" {
 			key2 := call.CalleeName + ":"
 			centrality[key2]++
 		}

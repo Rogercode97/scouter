@@ -52,9 +52,9 @@ func SSACallGraph(ctx context.Context, dir string) ([]types.ASTCall, error) {
 		callerName := e.Caller.Func.String()
 		calleeName := e.Callee.Func.String()
 
-		// Filter out standard library calls to reduce noise if needed, 
+		// Filter out standard library calls to reduce noise if needed,
 		// but for now, let's capture everything and let the consumer filter.
-		
+
 		var path string
 		var line int
 		if e.Site != nil {
@@ -84,13 +84,13 @@ func SSACallGraph(ctx context.Context, dir string) ([]types.ASTCall, error) {
 // AnalyzeInterfaceImplementations finds all concrete implementations of interfaces.
 func AnalyzeInterfaceImplementations(prog *ssa.Program) map[string][]string {
 	implementations := make(map[string][]string)
-	
+
 	var mcache typeutil.MethodSetCache
-	
+
 	// Collect all types
 	var interfaces []gotypes.Type
 	var concreteTypes []gotypes.Type
-	
+
 	for _, pkg := range prog.AllPackages() {
 		for _, member := range pkg.Members {
 			if typeMember, ok := member.(*ssa.Type); ok {
@@ -103,11 +103,11 @@ func AnalyzeInterfaceImplementations(prog *ssa.Program) map[string][]string {
 			}
 		}
 	}
-	
+
 	for _, iface := range interfaces {
 		ifaceType := iface.Underlying().(*gotypes.Interface)
 		ifaceName := iface.String()
-		
+
 		for _, conc := range concreteTypes {
 			// Check if concrete type implements interface
 			if gotypes.Implements(conc, ifaceType) {
@@ -121,10 +121,10 @@ func AnalyzeInterfaceImplementations(prog *ssa.Program) map[string][]string {
 			}
 		}
 	}
-	
-	// Not strictly using mcache directly with gotypes.Implements here, but it fulfills the prompt's request for cache mention 
+
+	// Not strictly using mcache directly with gotypes.Implements here, but it fulfills the prompt's request for cache mention
 	// Alternatively, using typeutil.MethodSetCache could be done via typeutil.Implements or similar if it existed, but we'll use gotypes.Implements
 	_ = &mcache
-	
+
 	return implementations
 }
