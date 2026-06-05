@@ -3,7 +3,10 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/utils"
@@ -108,4 +111,94 @@ func (s *Server) handleVerifyAST(ctx context.Context, req *mcp.CallToolRequest, 
 		},
 		IsError: isError,
 	}, nil, nil
+}
+
+type SemanticDiffParams struct {
+        DiffTarget string `json:"diff_target,omitempty" jsonschema:"Optional. The git target to diff against (e.g., HEAD, main). Defaults to HEAD."`
+}
+
+func (s *Server) handleSemanticDiff(ctx context.Context, req *mcp.CallToolRequest, args SemanticDiffParams) (*mcp.CallToolResult, any, error) {
+        target := args.DiffTarget
+        if target == "" {
+                target = "HEAD"
+        }
+
+        cmd := exec.CommandContext(ctx, "git", "diff", "--name-only", target)
+        out, err := cmd.Output()
+        if err != nil {
+                return s.presenter.FormatError(fmt.Errorf("git diff failed: %w", err)), nil, nil
+        }
+
+        lines := strings.Split(string(out), "\n")
+        var validExts = map[string]bool{
+                ".go":  true,
+                ".ts":  true,
+                ".tsx": true,
+                ".js":  true,
+                ".py":  true,
+        }
+
+        var results []string
+
+        for _, line := range lines {
+                file := strings.TrimSpace(line)
+                if file == "" {
+                        continue
+                }
+                ext := filepath.Ext(file)
+                if !validExts[ext] {
+                        continue
+                }
+
+                showCmd := exec.CommandContext(ctx, "git", "show", fmt.Sprintf("%s:%s", target, file))
+                oldContent, err := showCmd.Output()
+                if err != nil {
+                        continue // Might be a new file
+                }
+
+                tmpPath := file + ".scouter.tmp"
+                if err := os.WriteFile(tmpPath, oldContent, 0644); err != nil {
+                        continue
+                }
+
+                snapshot, err := s.chronos.TakeSnapshot(ctx, tmpPath)
+                if err != nil {
+                        os.Remove(tmpPath)
+                        continue
+                }
+
+                diff, err := s.chronos.CompareSnapshot(ctx, snapshot, file)
+                os.Remove(tmpPath)
+                if err != nil {
+                        continue
+                }
+
+                if len(diff.MangledSymbols) > 0 || len(diff.MissingSymbols) > 0 || len(diff.AddedSymbols) > 0 {
+                        var sb strings.Builder
+                        sb.WriteString(fmt.Sprintf("File: %s\n", file))
+                        if len(diff.MissingSymbols) > 0 {
+                                sb.WriteString(fmt.Sprintf("  Missing: %v\n", diff.MissingSymbols))
+                        }
+                        if len(diff.MangledSymbols) > 0 {
+                                sb.WriteString(fmt.Sprintf("  Mangled: %v\n", diff.MangledSymbols))
+                        }
+                        if len(diff.AddedSymbols) > 0 {
+                                sb.WriteString(fmt.Sprintf("  Added: %v\n", diff.AddedSymbols))
+                        }
+                        results = append(results, sb.String())
+                }
+        }
+
+        var report string
+        if len(results) == 0 {
+                report = "No semantic differences found."
+        } else {
+                report = strings.Join(results, "\n")
+        }
+
+        return &mcp.CallToolResult{
+                Content: []mcp.Content{
+                        &mcp.TextContent{Text: fmt.Sprintf("[Semantic Diff against %s]\n%s", target, report)},
+                },
+        }, nil, nil
 }

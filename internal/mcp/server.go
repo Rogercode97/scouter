@@ -441,6 +441,11 @@ func (s *Server) registerSpecializedTools() {
 	}, s.handlePredict)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "risk_semantic_diff",
+		Description: "Analyze semantic differences between the working tree and a target commit to detect structural drift.",
+	}, s.handleSemanticDiff)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "cognitive_dream",
 		Description: "ARCHITECTURAL ALIGNMENT: Distill ADRs and Pattern summaries from project history memory.",
 	}, s.handleDream)
