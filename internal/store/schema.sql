@@ -134,12 +134,7 @@ CREATE TABLE IF NOT EXISTS flows (
 CREATE INDEX IF NOT EXISTS idx_flows_path ON flows(path);
 CREATE INDEX IF NOT EXISTS idx_flows_sink ON flows(sink);
 
-CREATE VIRTUAL TABLE IF NOT EXISTS vec_ast USING vec0(
+CREATE VIRTUAL TABLE IF NOT EXISTS vec_symbols USING vec0(
+    symbol_id INTEGER PRIMARY KEY,
     embedding float[384]
-);
-
-CREATE TABLE IF NOT EXISTS vec_ast_meta (
-    rowid INTEGER PRIMARY KEY,
-    symbol_id INTEGER UNIQUE,
-    FOREIGN KEY(symbol_id) REFERENCES symbols(id) ON DELETE CASCADE
 );

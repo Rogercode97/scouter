@@ -125,7 +125,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		analyzer := engine.NewAnalysisEngine(db)
 		ripple := engine.NewRippleEngine(db, nil, impact)
 		ripple.Validators = append(ripple.Validators, engine.NewLSPValidator(analyzer.ProjectRoot))
-		searchEngine := engine.NewSearchEngine(db, memoryProvider)
+		searchEngine := engine.NewSearchEngine(db, memoryProvider, semanticEngine)
 		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider)
 		compact := engine.NewCompactionEngine(db, ledger)
 		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, healer, lspMgr)
@@ -294,7 +294,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 
 		query := cmdArgs[0]
-		search := engine.NewSearchEngine(db, nil)
+		search := engine.NewSearchEngine(db, nil, nil)
 
 		results, err := search.HybridSearch(ctx, query, 10, 0)
 		if err != nil {
@@ -500,7 +500,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 		analyzer := engine.NewAnalysisEngine(db)
 		impactEngine := engine.NewImpactEngine(db, lspMgr, nil)
-		searchEngine := engine.NewSearchEngine(db, nil)
+		searchEngine := engine.NewSearchEngine(db, nil, nil)
 		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impactEngine, searchEngine, nil)
 		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impactEngine, healer, lspMgr)
 

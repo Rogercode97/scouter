@@ -3,7 +3,6 @@ package engine
 import (
 	"testing"
 
-
 	"github.com/odvcencio/gotreesitter/grammars"
 )
 

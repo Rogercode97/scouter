@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"sort"
-	"sync"
 
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/store"
@@ -13,12 +11,13 @@ import (
 )
 
 type SearchEngine struct {
-	store  store.SymbolRegistry
-	memory memory.MemoryProvider
+	store    store.SymbolRegistry
+	memory   memory.MemoryProvider
+	semantic *SemanticEngine
 }
 
-func NewSearchEngine(s store.SymbolRegistry, m memory.MemoryProvider) *SearchEngine {
-	return &SearchEngine{store: s, memory: m}
+func NewSearchEngine(s store.SymbolRegistry, m memory.MemoryProvider, sem *SemanticEngine) *SearchEngine {
+	return &SearchEngine{store: s, memory: m, semantic: sem}
 }
 
 // HybridSearch executes parallel lookups in the AST, Bleve, and Engram databases.
@@ -27,35 +26,13 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 		return nil, fmt.Errorf("missing query")
 	}
 
-	type symRes struct {
-		symbols []store.Symbol
-		err     error
-	}
 	type insRes struct {
 		insights []types.MemoryInsight
 		err      error
 	}
 
-	type textRes struct {
-		hits map[string]int
-		err  error
-	}
-
-	symChan := make(chan symRes, 1)
 	insChan := make(chan insRes, 1)
-	txtChan := make(chan textRes, 1)
-
-	var wg sync.WaitGroup
-	wg.Add(3)
-
 	go func() {
-		defer wg.Done()
-		res, err := e.store.SearchSymbols(ctx, query, "", limit*2, offset)
-		symChan <- symRes{res, err}
-	}()
-
-	go func() {
-		defer wg.Done()
 		if e.memory == nil {
 			insChan <- insRes{nil, nil}
 			return
@@ -64,30 +41,24 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 		insChan <- insRes{res, err}
 	}()
 
-	go func() {
-		defer wg.Done()
-		hits := make(map[string]int)
-		rank := 1
-		for sym, err := range e.store.SearchSymbolsWeighted(ctx, query, "") {
-			if err != nil {
-				txtChan <- textRes{nil, err}
-				return
-			}
-			id := sym.Path + ":" + sym.Name
-			hits[id] = rank
-			rank++
+	var storeSymbols []store.Symbol
+	var err error
+
+	if e.semantic != nil {
+		embedding, semErr := e.semantic.GenerateEmbedding(ctx, query)
+		if semErr != nil {
+			// Elegant Degradation: Warning and fallback to FTS5
+			fmt.Printf("WARNING: semantic.GenerateEmbedding failed: %v. Falling back to FTS5 search.\n", semErr)
+			storeSymbols, err = e.store.SearchSymbols(ctx, query, "", limit, offset)
+		} else {
+			storeSymbols, err = e.store.SearchHybrid(ctx, query, embedding, limit)
 		}
-		txtChan <- textRes{hits, nil}
-	}()
+	} else {
+		storeSymbols, err = e.store.SearchSymbols(ctx, query, "", limit, offset)
+	}
 
-	wg.Wait()
-	close(symChan)
-	close(insChan)
-	close(txtChan)
-
-	sRes := <-symChan
-	if sRes.err != nil {
-		return nil, fmt.Errorf("AST search failed: %w", sRes.err)
+	if err != nil {
+		return nil, fmt.Errorf("store search failed: %w", err)
 	}
 
 	iRes := <-insChan
@@ -95,48 +66,8 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 		return nil, fmt.Errorf("Engram search failed: %w", iRes.err)
 	}
 
-	tRes := <-txtChan
-	if tRes.err != nil {
-		tRes.hits = nil
-	}
-
-	const K = 60.0
-	type scoredSymbol struct {
-		sym   store.Symbol
-		score float64
-	}
-	var rrfResults []scoredSymbol
-
-	for i, s := range sRes.symbols {
-		id := s.Path + ":" + s.Name
-		astRank := float64(i + 1)
-		astScore := 1.0 / (K + astRank)
-
-		txtScore := 0.0
-		if tRes.hits != nil {
-			if txtRank, ok := tRes.hits[id]; ok {
-				txtScore = 1.0 / (K + float64(txtRank))
-			}
-		}
-
-		rrfResults = append(rrfResults, scoredSymbol{
-			sym:   s,
-			score: astScore + txtScore,
-		})
-	}
-
-	sort.SliceStable(rrfResults, func(i, j int) bool {
-		return rrfResults[i].score > rrfResults[j].score
-	})
-
 	var symbols []types.Symbol
-	end := limit
-	if end > len(rrfResults) {
-		end = len(rrfResults)
-	}
-
-	for i := 0; i < end; i++ {
-		s := rrfResults[i].sym
+	for _, s := range storeSymbols {
 		symbols = append(symbols, types.Symbol{
 			Name:         s.Name,
 			Type:         s.Type,
@@ -161,9 +92,7 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 			matchedWhy, _ := regexp.MatchString(pattern, insight.Why)
 			matchedLearned, _ := regexp.MatchString(pattern, insight.Learned)
 
-			// Check if symbol name appears in title, why, or learned sections
 			if matchedTitle || matchedWhy || matchedLearned {
-
 				symbols[i].LinkedInsights = append(symbols[i].LinkedInsights, insight.ID)
 				insight.LinkedSymbols = append(insight.LinkedSymbols, symName)
 			}

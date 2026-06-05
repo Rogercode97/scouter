@@ -73,7 +73,7 @@ func TestHealerEngine_Fix_DeepRCA(t *testing.T) {
 	mockMem := &testMemoryProvider{}
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, mockMem)
-	search := NewSearchEngine(s, nil)
+	search := NewSearchEngine(s, nil, nil)
 	h := NewHealerEngine(s, mgr, analyzer, impact, search, mockMem)
 
 	// Mock the LLM request
@@ -148,7 +148,7 @@ func TestHealerEngine_Shinigami(t *testing.T) {
 	mgr := lsp.NewManager()
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
-	search := NewSearchEngine(s, nil)
+	search := NewSearchEngine(s, nil, nil)
 	h := NewHealerEngine(s, mgr, analyzer, impact, search, nil)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
@@ -191,7 +191,7 @@ func TestHealerEngine_Cancellation(t *testing.T) {
 
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
-	search := NewSearchEngine(s, nil)
+	search := NewSearchEngine(s, nil, nil)
 	h := NewHealerEngine(s, nil, analyzer, impact, search, nil)
 
 	var wg sync.WaitGroup
@@ -234,7 +234,7 @@ func TestHealerEngine_AllFail(t *testing.T) {
 
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
-	search := NewSearchEngine(s, nil)
+	search := NewSearchEngine(s, nil, nil)
 	h := NewHealerEngine(s, nil, analyzer, impact, search, nil)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
@@ -280,7 +280,7 @@ func TestHealerEngine_Imports(t *testing.T) {
 
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
-	search := NewSearchEngine(s, nil)
+	search := NewSearchEngine(s, nil, nil)
 	h := NewHealerEngine(s, nil, analyzer, impact, search, nil)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
@@ -329,7 +329,7 @@ func TestHealerEngine_Fix_IntegrityWarning(t *testing.T) {
 
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
-	search := NewSearchEngine(s, nil)
+	search := NewSearchEngine(s, nil, nil)
 	h := NewHealerEngine(s, nil, analyzer, impact, search, nil)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
