@@ -160,6 +160,13 @@ func (e *TruthEngine) GetCriticalSymbols(ctx context.Context, limit int) ([]stor
 	return e.analyzer.GetCriticalSymbols(ctx, limit)
 }
 
+func (e *TruthEngine) AuditArchitecture(ctx context.Context, targetPath string) ([]types.ASTRuleMatch, error) {
+	if e.astRules == nil {
+		return nil, fmt.Errorf("ast rule engine not initialized")
+	}
+	return e.astRules.Audit(ctx, targetPath)
+}
+
 func (e *TruthEngine) AnalyzeImpact(ctx context.Context, symbol, path string, verbose bool, messenger Messenger) (*types.ImpactResult, error) {
 	if e.diagnostic == nil {
 		

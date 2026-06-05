@@ -444,6 +444,10 @@ func (s *Server) registerSpecializedTools() {
 		Name:        "cognitive_dream",
 		Description: "ARCHITECTURAL ALIGNMENT: Distill ADRs and Pattern summaries from project history memory.",
 	}, s.handleDream)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "risk_lint_architecture",
+		Description: "LINT ARCHITECTURE: Audit a target path against architectural rules.",
+	}, s.handleLintArchitecture)
 }
 
 type UnlockArsenalParams struct{}

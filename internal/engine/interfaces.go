@@ -39,6 +39,7 @@ type IntelligenceService interface {
 	AnalyzeImpact(ctx context.Context, symbol, path string, verbose bool, messenger Messenger) (*types.ImpactResult, error)
 	GetCriticalSymbols(ctx context.Context, limit int) ([]store.CriticalSymbol, error)
 	PredictTests(ctx context.Context, diff string) ([]types.TestTarget, error)
+	AuditArchitecture(ctx context.Context, targetPath string) ([]types.ASTRuleMatch, error)
 }
 
 type EvolutionService interface {

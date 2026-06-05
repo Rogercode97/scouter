@@ -13,6 +13,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"bytes"
+	"encoding/json"
 )
 
 type ImpactParams struct {
@@ -37,6 +38,9 @@ type PredictParams struct {
 	Diff string `json:"diff,omitempty" jsonschema:"Optional: Git diff to analyze (defaults to uncommitted changes)"`
 }
 
+type LintArchitectureParams struct {
+	TargetPath string `json:"target_path" jsonschema:"REQUIRED. The target path to lint"`
+}
 
 func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, args ImpactParams) (*mcp.CallToolResult, any, error) {
 	// [Sovereignty Upgrade] Route through TruthEngine
@@ -192,5 +196,23 @@ func (s *Server) handlePredict(ctx context.Context, req *mcp.CallToolRequest, ar
 	}, nil, nil
 }
 
+func (s *Server) handleLintArchitecture(ctx context.Context, req *mcp.CallToolRequest, args LintArchitectureParams) (*mcp.CallToolResult, any, error) {
+	results, err := s.intelligence.AuditArchitecture(ctx, args.TargetPath)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to audit architecture: %v", err)}},
+			IsError: true,
+		}, nil, nil
+	}
+	
+	outBytes, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal results: %w", err)
+	}
 
-
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(outBytes)},
+		},
+	}, nil, nil
+}
