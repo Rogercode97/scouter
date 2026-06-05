@@ -29,13 +29,19 @@ go install github.com/Rogercode97/scouter/cmd/scouter@latest
 
 ## Agent Integration
 
-Scouter is built to serve directly into agent workflows.
+Scouter is built to serve directly into agent workflows. Run `scouter setup <agent>` to automatically inject the MCP configuration into your environment.
 
-| Agent | Configuration |
+| Agent | Command |
 | --- | --- |
 | Gemini CLI | `scouter setup gemini-cli` |
+| Antigravity CLI | `scouter setup antigravity-cli` |
+| OpenCode | `scouter setup opencode` |
+| Codex | `scouter setup codex` |
+| Cursor | `scouter setup cursor` |
+| Windsurf | `scouter setup windsurf` |
 | Claude Code | `claude plugin install $(which scouter)` |
-| Cursor / VS Code | Add MCP: `{"command": "scouter", "args": ["mcp"]}` |
+
+*(For full manual configuration and advanced options, see the [Agent Setup Guide](docs/tutorials/AGENT-SETUP.md))*
 
 ## Usage Guide
 
