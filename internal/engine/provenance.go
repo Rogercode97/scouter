@@ -50,7 +50,7 @@ func GetFileProvenance(ctx context.Context, repoPath, filePath string) ([]LinePr
 	var result []LineProvenance
 	for i, line := range blame.Lines {
 		hashStr := line.Hash.String()
-		
+
 		era, cached := commitCache[hashStr]
 		if !cached {
 			cObj, err := repo.CommitObject(line.Hash)

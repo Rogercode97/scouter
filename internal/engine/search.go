@@ -160,7 +160,7 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 		for j := range iRes.insights {
 			symName := symbols[i].Name
 			insight := &iRes.insights[j]
-			
+
 			pattern := `(?i)\b` + regexp.QuoteMeta(symName) + `\b`
 			matchedTitle, _ := regexp.MatchString(pattern, insight.Title)
 			matchedWhy, _ := regexp.MatchString(pattern, insight.Why)
@@ -168,7 +168,7 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 
 			// Check if symbol name appears in title, why, or learned sections
 			if matchedTitle || matchedWhy || matchedLearned {
-				
+
 				symbols[i].LinkedInsights = append(symbols[i].LinkedInsights, insight.ID)
 				insight.LinkedSymbols = append(insight.LinkedSymbols, symName)
 			}

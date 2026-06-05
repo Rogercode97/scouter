@@ -2,9 +2,9 @@ package engine
 
 import (
 	"context"
-	"testing"
-	"path/filepath"
 	"os"
+	"path/filepath"
+	"testing"
 
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/stretchr/testify/assert"
@@ -147,7 +147,7 @@ func NestedFunc(score int) string {
 	assert.GreaterOrEqual(t, len(ptrs), 1)
 	fn := ptrs[0]
 	// 1 + 2 + 5 + 10 = 18
-	assert.Equal(t, 18, fn.Metrics.CognitiveComplexity) 
+	assert.Equal(t, 18, fn.Metrics.CognitiveComplexity)
 }
 
 func TestCognitiveComplexity_Goto(t *testing.T) {
@@ -218,7 +218,7 @@ func ClosureFunc() {
 
 	assert.GreaterOrEqual(t, len(ptrs), 1)
 	fn := ptrs[0]
-	// The func_literal increments nesting. 
+	// The func_literal increments nesting.
 	// Inside func, if true -> base 1 + nesting(1) = 2.
 	// Total should be 2.
 	assert.Equal(t, 2, fn.Metrics.CognitiveComplexity)

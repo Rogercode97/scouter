@@ -8,17 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pmezard/go-difflib/difflib"
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine/apply"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
+	"github.com/pmezard/go-difflib/difflib"
 )
-
-
-
 
 var (
 	BlockedDirs = map[string]bool{
@@ -164,7 +161,7 @@ func (e *TruthEngine) AuditArchitecture(ctx context.Context, targetPath string) 
 
 func (e *TruthEngine) AnalyzeImpact(ctx context.Context, symbol, path string, verbose bool, messenger Messenger) (*types.ImpactResult, error) {
 	if e.diagnostic == nil {
-		
+
 		return nil, fmt.Errorf("diagnostic engine not initialized")
 
 	}
@@ -272,7 +269,7 @@ func (e *TruthEngine) FindLogicalTwins(ctx context.Context, symbolName, path str
 
 func (e *TruthEngine) Fix(ctx context.Context, errorLog string, messenger Messenger) (string, error) {
 	if e.diagnostic == nil {
-		
+
 		return "", fmt.Errorf("diagnostic engine not initialized")
 
 	}
@@ -311,7 +308,7 @@ func (e *TruthEngine) CommitLedger(ctx context.Context) (string, error) {
 	if e.ledger == nil {
 		return "", fmt.Errorf("ledger not initialized")
 	}
-	
+
 	files := e.ledger.StagedFiles()
 	if len(files) == 0 {
 		return "No changes staged in Ledger.", nil
@@ -416,7 +413,7 @@ func (e *TruthEngine) GetLedgerDiff(ctx context.Context) (string, error) {
 			sb.WriteString("\n")
 			continue
 		}
-		
+
 		if diff == "" {
 			sb.WriteString(fmt.Sprintf("--- %s (Original)\n+++ %s (Staged)\n (No changes)\n\n", p.FilePath, p.FilePath))
 		} else {
@@ -439,7 +436,7 @@ func (e *TruthEngine) StageMutation(ctx context.Context, filePath, newContent st
 	}
 
 	original, _ := os.ReadFile(cleanPath)
-	
+
 	patch := Patch{
 		FilePath:   cleanPath,
 		Original:   string(original),
@@ -449,45 +446,44 @@ func (e *TruthEngine) StageMutation(ctx context.Context, filePath, newContent st
 	return e.ledger.Stage(cleanPath, patch)
 }
 
-
 func (e *TruthEngine) SemanticSearch(ctx context.Context, query string, limit int) ([]types.Symbol, error) {
-        if e.semantic == nil {
-                return nil, fmt.Errorf("semantic engine not initialized")
-        }
-        if e.store == nil {
-                return nil, fmt.Errorf("store not initialized")
-        }
+	if e.semantic == nil {
+		return nil, fmt.Errorf("semantic engine not initialized")
+	}
+	if e.store == nil {
+		return nil, fmt.Errorf("store not initialized")
+	}
 
-        embedding, err := e.semantic.GenerateEmbedding(ctx, query)
-        if err != nil {
-                return nil, fmt.Errorf("failed to generate embedding: %w", err)
-        }
+	embedding, err := e.semantic.GenerateEmbedding(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate embedding: %w", err)
+	}
 
-        storeSymbols, err := e.store.SearchSemantic(ctx, embedding, limit)
-        if err != nil {
-                return nil, fmt.Errorf("failed to execute semantic search: %w", err)
-        }
+	storeSymbols, err := e.store.SearchSemantic(ctx, embedding, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute semantic search: %w", err)
+	}
 
-        var results []types.Symbol
-        for _, s := range storeSymbols {
-                results = append(results, types.Symbol{
-                        Name:         s.Name,
-                        Type:         s.Type,
-                        PackagePath:  s.PackagePath,
-                        ReceiverType: s.ReceiverType,
-                        Signature:    s.Signature,
-                        Doc:          s.Doc,
-                        Path:         s.Path,
-                        StartLine:    s.StartLine,
-                        EndLine:      s.EndLine,
-                })
-        }
-        return results, nil
+	var results []types.Symbol
+	for _, s := range storeSymbols {
+		results = append(results, types.Symbol{
+			Name:         s.Name,
+			Type:         s.Type,
+			PackagePath:  s.PackagePath,
+			ReceiverType: s.ReceiverType,
+			Signature:    s.Signature,
+			Doc:          s.Doc,
+			Path:         s.Path,
+			StartLine:    s.StartLine,
+			EndLine:      s.EndLine,
+		})
+	}
+	return results, nil
 }
 
 func (e *TruthEngine) DiagnoseHUD(ctx context.Context, errorLog string) (*DiagnosticHUD, error) {
 	if e.diagnostic == nil {
-		
+
 		return nil, fmt.Errorf("diagnostic engine not initialized")
 
 	}

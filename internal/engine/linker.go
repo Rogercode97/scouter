@@ -35,7 +35,7 @@ func (l *Linker) LinkInterfaces(ctx context.Context, repo store.Store, lspMgr *l
 
 		// Prepare implementation params. LSP uses 0-based lines and columns.
 		// We use 1-based lines and columns in our store (from tree-sitter).
-		
+
 		charPos := 0
 		if iface.StartCol > 0 {
 			charPos = iface.StartCol - 1
@@ -76,7 +76,7 @@ func (l *Linker) LinkInterfaces(ctx context.Context, repo store.Store, lspMgr *l
 
 		for _, loc := range locations {
 			destPath := strings.TrimPrefix(loc.URI, "file://")
-			
+
 			// Only save if the destination is not the same as the interface itself
 			if destPath == iface.Path && loc.Range.Start.Line == iface.StartLine-1 {
 				continue

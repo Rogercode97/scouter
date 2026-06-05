@@ -487,7 +487,7 @@ func Main() {
 
 	// Verify Nested Call Mapping: F(G())
 	// Note: Our current implementation in parser.go handles G() as a single argument to F.
-	// Task 4 says "link function call returns to assignment targets". 
+	// Task 4 says "link function call returns to assignment targets".
 	// Task 2 says "emit argument flows for each parameter (e.g., x -> f:arg0)".
 	// In F(G()), G() is the argument.
 	foundNestedArg := false

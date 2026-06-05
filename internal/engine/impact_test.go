@@ -19,7 +19,9 @@ type mockImpactStore struct {
 
 // store.SymbolRegistry methods
 func (m *mockImpactStore) SaveSymbol(ctx context.Context, sym *store.Symbol) error { return nil }
-func (m *mockImpactStore) SearchSymbols(ctx context.Context, query, fileType string, limit, offset int) ([]store.Symbol, error) { return nil, nil }
+func (m *mockImpactStore) SearchSymbols(ctx context.Context, query, fileType string, limit, offset int) ([]store.Symbol, error) {
+	return nil, nil
+}
 func (m *mockImpactStore) DeleteSymbolsByFile(ctx context.Context, path string) error { return nil }
 func (m *mockImpactStore) GetSymbolsByRange(ctx context.Context, path string, start, end int) ([]store.Symbol, error) {
 	return m.symbolsByRange[path], nil
@@ -29,7 +31,7 @@ func (m *mockImpactStore) GetSymbolsByNameInFile(ctx context.Context, name, path
 }
 
 // store.StructuralGraph methods
-func (m *mockImpactStore) SaveCall(ctx context.Context, call store.Call) error { return nil }
+func (m *mockImpactStore) SaveCall(ctx context.Context, call store.Call) error      { return nil }
 func (m *mockImpactStore) DeleteCallsByFile(ctx context.Context, path string) error { return nil }
 func (m *mockImpactStore) GetCallersRecursive(ctx context.Context, symbol string, path string, maxDepth int) ([]store.Call, error) {
 	return []store.Call{}, nil
@@ -70,14 +72,14 @@ func TestImpactEngine_Analyze(t *testing.T) {
 
 func TestImpactEngine_RiskScoreFormula(t *testing.T) {
 	ctx := context.Background()
-	
+
 	// Create mock that returns specific metadata for formula
 	db := &mockSpecificImpactStore{
 		mockImpactStore: &mockImpactStore{
 			affectedTests: make(map[string][]store.Symbol),
 		},
 	}
-	
+
 	mockMem := &testMemoryProvider{
 		searchInsights: []types.MemoryInsight{
 			{ID: "1", Type: "bugfix", Title: "fix 1"},
@@ -85,17 +87,17 @@ func TestImpactEngine_RiskScoreFormula(t *testing.T) {
 			{ID: "3", Type: "bugfix", Title: "fix 3"},
 		},
 	}
-	
+
 	engine := &ImpactEngine{
 		store:  db,
 		memory: mockMem,
 	}
-	
+
 	res, err := engine.Analyze(ctx, "TestSym", "file.go", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	// expected scores:
 	// Blast radius: 1 caller -> bScore = log(2)/log(501) = 0.693147 / 6.216606 = 0.111499
 	// cogScore: 50 / 100.0 = 0.5 (New)
@@ -103,8 +105,8 @@ func TestImpactEngine_RiskScoreFormula(t *testing.T) {
 	// testGap: 1.0
 	// volumeScore: 100 / 500.0 = 0.2
 	// runtimeScore: 0.5
-	
-	// expected base RiskScore: 
+
+	// expected base RiskScore:
 	// (0.111499 * 0.20) = 0.0222998
 	// (0.5 * 0.35)      = 0.175
 	// (0.8 * 0.15)      = 0.12
@@ -112,11 +114,11 @@ func TestImpactEngine_RiskScoreFormula(t *testing.T) {
 	// (0.2 * 0.05)      = 0.01
 	// (0.5 * 0.10)      = 0.05
 	// Total: 0.0222998 + 0.175 + 0.12 + 0.15 + 0.01 + 0.05 = 0.5272998
-	
+
 	// expected final RiskScore with multiplier (3 bugfixes -> 1.6x)
 	// 0.5272998 * 1.6 = 0.84367968
 
-	if math.Abs(res.Target.RiskScore - 0.8437) > 0.001 {
+	if math.Abs(res.Target.RiskScore-0.8437) > 0.001 {
 		t.Errorf("expected RiskScore ~0.8437, got %f", res.Target.RiskScore)
 	}
 
@@ -133,12 +135,12 @@ func (m *mockSpecificImpactStore) GetSymbolsByNameInFile(ctx context.Context, na
 	if name == "TestSym" {
 		return []store.Symbol{
 			{
-				Name: "TestSym", 
-				Path: path,
-				StartLine: 0,
-				EndLine: 100,
+				Name:       "TestSym",
+				Path:       path,
+				StartLine:  0,
+				EndLine:    100,
 				ChurnScore: 0.8,
-				Pagerank: 0.5,
+				Pagerank:   0.5,
 				Metrics: &types.SemanticMetrics{
 					CognitiveComplexity: 50,
 				},
@@ -247,12 +249,12 @@ func TestHealerImpactIntegration(t *testing.T) {
 			affectedTests: make(map[string][]store.Symbol),
 		},
 	}
-	
+
 	// Create an empty memory provider initially
 	mockMem := &testMemoryProvider{}
-	
+
 	impact := NewImpactEngine(db, nil, mockMem)
-	
+
 	// Check initial risk
 	resInitial, _ := impact.Analyze(ctx, "TestSym", "file.go", 3)
 	initialRisk := resInitial.Target.RiskScore
@@ -261,15 +263,15 @@ func TestHealerImpactIntegration(t *testing.T) {
 	// For this test we will just invoke recordInoculation manually or via a fake fix
 	// But let's just use the logic directly
 	healer := NewHealerEngine(nil, nil, nil, impact, nil, mockMem)
-	
+
 	target := &types.ASTPointer{
-		Name: "TestSym",
+		Name:      "TestSym",
 		Signature: "func()",
 	}
-	
+
 	// Directly call the unexported method to simulate a successful fix
 	healer.recordInoculation(ctx, target, "file.go", "test failure line 1")
-	
+
 	// Now memory provider should have 1 observation
 	if len(mockMem.savedObservations) != 1 {
 		t.Fatalf("expected 1 observation, got %d", len(mockMem.savedObservations))
@@ -288,10 +290,10 @@ func TestHealerImpactIntegration(t *testing.T) {
 	if afterRisk <= initialRisk {
 		t.Errorf("expected risk score to increase after fix. Initial: %f, After: %f", initialRisk, afterRisk)
 	}
-	
-	// It should increase by 1.2x 
-	expectedNewRisk := math.Min(1.0, initialRisk * 1.2)
-	if math.Abs(afterRisk - expectedNewRisk) > 0.001 {
+
+	// It should increase by 1.2x
+	expectedNewRisk := math.Min(1.0, initialRisk*1.2)
+	if math.Abs(afterRisk-expectedNewRisk) > 0.001 {
 		t.Errorf("expected new risk to be %f, got %f", expectedNewRisk, afterRisk)
 	}
 }

@@ -67,7 +67,7 @@ func TestBFSPropagationStrategy_Discover(t *testing.T) {
 
 	ctx := context.Background()
 	found := make(map[string]bool)
-	
+
 	for task, err := range strategy.Discover(ctx, "SymA", 2) {
 		if err != nil {
 			t.Fatalf("Discover failed: %v", err)

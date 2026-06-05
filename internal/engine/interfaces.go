@@ -3,8 +3,8 @@ package engine
 import (
 	"context"
 
-	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/store"
+	"github.com/Rogercode97/scouter/internal/types"
 )
 
 // GraphStore defines the core read-only graph traversal capabilities.
@@ -55,4 +55,3 @@ type HealerService interface {
 	Fix(ctx context.Context, errorLog string, messenger Messenger) (string, error)
 	DiagnoseHUD(ctx context.Context, errorLog string) (*DiagnosticHUD, error)
 }
-

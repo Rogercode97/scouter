@@ -9,7 +9,7 @@ func TestLedger_BudgetEnforcement(t *testing.T) {
 	l := NewLedger()
 	l.SetLedgerPath("test_budget_ledger.json")
 	defer os.Remove("test_budget_ledger.json")
-	
+
 	l.SetBudget(100, 2) // Very tight budget: 100 Ki, 2 turns
 
 	t.Run("Respect Turn Limit", func(t *testing.T) {
@@ -36,7 +36,7 @@ func TestLedger_BudgetEnforcement(t *testing.T) {
 		l2 := NewLedger()
 		l2.SetLedgerPath("test_ki_ledger.json")
 		defer os.Remove("test_ki_ledger.json")
-		
+
 		l2.SetBudget(10, 10) // 10 Ki limit
 
 		// 44 chars ≈ 11 Ki (exceeds 10)

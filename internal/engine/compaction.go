@@ -27,11 +27,11 @@ func NewCompactionEngine(s store.Store, l *Ledger) *CompactionEngine {
 
 // SovereignBoundary represents a technical checkpoint in the conversation.
 type SovereignBoundary struct {
-	ID          string            `json:"boundary_id"`
-	TruthKernel string            `json:"truth_kernel"` // Dense summary of discoveries
-	StagingArea map[string]Patch  `json:"staging_area"` // Current Ledger state
-	Budget      MissionStats      `json:"budget"`       // Ki/Turns consumption
-	Timestamp   string            `json:"timestamp"`
+	ID          string           `json:"boundary_id"`
+	TruthKernel string           `json:"truth_kernel"` // Dense summary of discoveries
+	StagingArea map[string]Patch `json:"staging_area"` // Current Ledger state
+	Budget      MissionStats     `json:"budget"`       // Ki/Turns consumption
+	Timestamp   string           `json:"timestamp"`
 }
 
 // CreateBoundary generates a dense checkpoint of the current engine state.
@@ -59,7 +59,7 @@ func (e *CompactionEngine) PruneHistory(toolResults []string) []string {
 		// Rule: If result is > 500 chars (approx 125 tokens), we summarize/truncate
 		if len(res) > 500 {
 			// Extract Pure Signal (e.g., just the first 100 and last 100 chars + pruning marker)
-			pruned[i] = fmt.Sprintf("%s\n... [Sovereign Pruning: 60%% Ki Savings] ...\n%s", 
+			pruned[i] = fmt.Sprintf("%s\n... [Sovereign Pruning: 60%% Ki Savings] ...\n%s",
 				res[:100], res[len(res)-100:])
 		} else {
 			pruned[i] = res
@@ -77,12 +77,12 @@ func (e *CompactionEngine) CompactSession(ctx context.Context, truthKernel strin
 
 	cwd, _ := os.Getwd()
 	anchorPath := filepath.Join(cwd, ".scouter", "boundary.json")
-	
+
 	data, _ := json.MarshalIndent(boundary, "", "  ")
 	if err := os.MkdirAll(filepath.Dir(anchorPath), 0755); err != nil {
 		return nil, err
 	}
-	
+
 	if err := os.WriteFile(anchorPath, data, 0644); err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (e *CompactionEngine) CompactSession(ctx context.Context, truthKernel strin
 	return &types.CompactionResult{
 		AnchorPath: anchorPath,
 		Timestamp:  boundary.Timestamp,
-		Message:    fmt.Sprintf("### 🔱 Sovereign Boundary Created\n\nContext has been compacted to protect the mission budget.\nTruth Kernel: %s\nLedger: %d staged files.\nBudget: %d Ki used.", 
+		Message: fmt.Sprintf("### 🔱 Sovereign Boundary Created\n\nContext has been compacted to protect the mission budget.\nTruth Kernel: %s\nLedger: %d staged files.\nBudget: %d Ki used.",
 			boundary.TruthKernel, len(boundary.StagingArea), boundary.Budget.TotalKi),
 	}, nil
 }

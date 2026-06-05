@@ -126,7 +126,7 @@ func (e *ChurnEngine) AnalyzeChurn(ctx context.Context, repoPath string, commitL
 			}
 
 			score := (float64(churn)/float64(maxChurn))*0.5 + (float64(maxCo)/float64(maxChurn))*0.5
-			
+
 			if err := tx.UpdateSymbolChurn(txCtx, path, score); err != nil {
 				return err
 			}

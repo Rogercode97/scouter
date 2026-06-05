@@ -13,7 +13,7 @@ import (
 
 func TestASTRuleIntegration(t *testing.T) {
 	ctx := context.Background()
-	
+
 	// 1. Setup temporary workspace
 	tempDir, err := os.MkdirTemp("", "scouter-rules-test-*")
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func DoSomething() {}`
 	// 4. Verify: Violation should be in the database
 	violations, err := db.GetViolationsByFile(ctx, violatingFile)
 	require.NoError(t, err)
-	
+
 	if len(violations) == 0 {
 		t.Logf("DIAGNOSTIC: No violations found for %s", violatingFile)
 		// Check if rules directory is correctly perceived

@@ -39,7 +39,7 @@ func TestStructuralSearch_Cancellation(t *testing.T) {
 
 	t.Run("Cancellation during execution", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		
+
 		// Run in background and cancel after a short delay
 		go func() {
 			time.Sleep(10 * time.Millisecond)

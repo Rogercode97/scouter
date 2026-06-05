@@ -27,7 +27,7 @@ func (r *LocalFileResolver) ResolveSource(ctx context.Context, file string, line
 	var lines []string
 	scanner := bufio.NewScanner(f)
 	currentLine := 0
-	
+
 	start := line - 2
 	end := line + 2
 	if start < 1 {

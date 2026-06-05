@@ -292,7 +292,7 @@ func (v *LSPValidator) Validate(ctx context.Context, ledger *Ledger) (Validation
 		Overlay: overlay,
 		Dir:     v.ProjectRoot,
 		Tests:   true,
-		Env:     os.Environ(),
+		Env:     append(os.Environ(), "CGO_ENABLED=0"),
 	}
 
 	pkgs, err := packages.Load(cfg, "./...")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	gotypes "go/types"
+	"os"
 
 	"github.com/Rogercode97/scouter/internal/types"
 	"golang.org/x/tools/go/callgraph"
@@ -27,6 +28,7 @@ func SSACallGraph(ctx context.Context, dir string) ([]types.ASTCall, error) {
 		Tests:   true,
 		Dir:     dir,
 		Context: ctx,
+		Env:     append(os.Environ(), "CGO_ENABLED=0"),
 	}
 
 	pkgs, err := packages.Load(cfg, "./...")

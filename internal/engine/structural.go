@@ -48,7 +48,7 @@ func isAlphaNumeric(b byte) bool {
 func preparePattern(parser *gotreesitter.Parser, pattern string, ext string, lang *gotreesitter.Language) (*gotreesitter.Node, []byte) {
 	processedPattern := pattern
 	processedPattern = strings.ReplaceAll(processedPattern, "$$$", "__SCT_MULTI__")
-	
+
 	var sb strings.Builder
 	for i := 0; i < len(processedPattern); i++ {
 		if processedPattern[i] == '$' && i+1 < len(processedPattern) && isAlpha(processedPattern[i+1]) {
@@ -59,7 +59,7 @@ func preparePattern(parser *gotreesitter.Parser, pattern string, ext string, lan
 				i++
 			}
 			sb.WriteString("__")
-			i-- 
+			i--
 		} else {
 			sb.WriteByte(processedPattern[i])
 		}
@@ -130,7 +130,7 @@ func StructuralRefactor(ctx context.Context, filePath, pattern, template, ext st
 
 func findTargetNode(node *gotreesitter.Node, content []byte, pattern string, lang *gotreesitter.Language) *gotreesitter.Node {
 	patternTrim := strings.TrimSpace(pattern)
-	
+
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		res := findTargetNode(child, content, pattern, lang)
@@ -145,7 +145,7 @@ func findTargetNode(node *gotreesitter.Node, content []byte, pattern string, lan
 		if (kind == "expression_statement" || kind == "source_file" || kind == "program") && node.NamedChildCount() == 1 {
 			return node.NamedChild(0)
 		}
-		
+
 		if kind == "call_expression" || kind == "function_declaration" || kind == "assignment_expression" {
 			return node
 		}
@@ -208,14 +208,14 @@ func StructuralSearchWithRule(ctx context.Context, rootPath string, rule types.S
 
 	jobs := make(chan string, len(files))
 	results := make(chan []StructuralMatch, len(files))
-	
+
 	var wg sync.WaitGroup
 	wg.Add(numWorkers)
 
 	for w := 0; w < numWorkers; w++ {
 		go func() {
 			defer wg.Done()
-			
+
 			parser := gotreesitter.NewParser(langConfig.Language)
 
 			for path := range jobs {
@@ -225,17 +225,17 @@ func StructuralSearchWithRule(ctx context.Context, rootPath string, rule types.S
 				default:
 				}
 
-			content, err := os.ReadFile(path)
-			if err != nil {
-				continue
-			}
+				content, err := os.ReadFile(path)
+				if err != nil {
+					continue
+				}
 
-			var fileMatches []StructuralMatch
-			tree, _ := parser.Parse(content)
-			if tree != nil {
-				findMatches(tree.RootNode(), patternRoot, pContent, content, path, &fileMatches, rule, langConfig.Language, ext)
-			}
-			results <- fileMatches
+				var fileMatches []StructuralMatch
+				tree, _ := parser.Parse(content)
+				if tree != nil {
+					findMatches(tree.RootNode(), patternRoot, pContent, content, path, &fileMatches, rule, langConfig.Language, ext)
+				}
+				results <- fileMatches
 			}
 		}()
 	}
@@ -280,7 +280,7 @@ func checkHas(node *gotreesitter.Node, hasPattern string, content []byte, ext st
 	if hasPattern == "" {
 		return true
 	}
-	
+
 	parser := gotreesitter.NewParser(lang)
 
 	patternRoot, pContent := preparePattern(parser, hasPattern, ext, lang)
@@ -295,7 +295,7 @@ func checkHas(node *gotreesitter.Node, hasPattern string, content []byte, ext st
 		if found {
 			return
 		}
-		
+
 		tmpCaptures := make(map[string]string)
 		if matchNodes(n, patternRoot, pContent, content, tmpCaptures, lang) {
 			found = true
@@ -306,11 +306,11 @@ func checkHas(node *gotreesitter.Node, hasPattern string, content []byte, ext st
 			traverse(n.Child(i))
 		}
 	}
-	
+
 	for i := 0; i < node.ChildCount(); i++ {
 		traverse(node.Child(i))
 	}
-	
+
 	return found
 }
 

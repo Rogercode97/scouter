@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
+	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"

@@ -111,14 +111,14 @@ func (e *Enricher) Enrich(ctx context.Context) error {
 					if err != nil || u.Scheme != "file" {
 						continue
 					}
-					
+
 					// Security: Project Jail validation
 					targetPath := u.Path
 					// Handle Windows drive letters in URI (file:///C:/...)
 					if strings.Contains(targetPath, ":") && strings.HasPrefix(targetPath, "/") {
 						targetPath = strings.TrimPrefix(targetPath, "/")
 					}
-					
+
 					// Convert to relative if within repo to satisfy ValidatePath
 					root, _ := utils.GetRepoRoot()
 					if rel, err := filepath.Rel(root, targetPath); err == nil && !strings.HasPrefix(rel, "..") {
@@ -140,7 +140,7 @@ func (e *Enricher) Enrich(ctx context.Context) error {
 						if ifaceSym.Type != "method_spec" {
 							continue
 						}
-						
+
 						select {
 						case linksChan <- dynamicLink{
 							interfaceMethod: ifaceSym.Name,

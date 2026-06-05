@@ -25,14 +25,14 @@ func foo() {
 	os.WriteFile(tmpFile.Name(), []byte(content), 0644)
 
 	ctx := t.Context()
-	
+
 	t.Run("match function declaration", func(t *testing.T) {
 		// Use a valid identifier as wildcard for now
 		matches, err := StructuralSearch(ctx, tmpFile.Name(), "println($X)", ".go")
 		if err != nil {
 			t.Fatal(err)
 		}
-		// In current implementation, "X" must match "X". 
+		// In current implementation, "X" must match "X".
 		// Let's modify matchNodes to treat uppercase identifiers as wildcards.
 		if len(matches) != 3 {
 			t.Errorf("got %d matches, want 3", len(matches))
@@ -47,7 +47,7 @@ func foo() {
 		if len(matches) == 0 {
 			t.Fatal("expected matches, got 0")
 		}
-		
+
 		// The current implementation might match, but it doesn't return captures.
 		// We expect the first match to have $X = "hello" (including quotes in Go)
 		m := matches[0]
@@ -176,7 +176,7 @@ func main() {
 
 		pattern := "println($X)"
 		template := "log.Printf(\"DEBUG: %v\", $X)"
-		
+
 		newContent, err := StructuralRefactor(ctx, tmpFile.Name(), pattern, template, ".go")
 		if err != nil {
 			t.Fatal(err)
@@ -184,7 +184,7 @@ func main() {
 
 		expected1 := "log.Printf(\"DEBUG: %v\", \"hello\")"
 		expected2 := "log.Printf(\"DEBUG: %v\", \"world\")"
-		
+
 		if !strings.Contains(newContent, expected1) || !strings.Contains(newContent, expected2) {
 			t.Errorf("refactor failed.\nGot:\n%s\nWant it to contain %q and %q", newContent, expected1, expected2)
 		}

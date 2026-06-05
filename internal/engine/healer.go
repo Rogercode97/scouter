@@ -223,7 +223,7 @@ func (e *HealerEngine) sampleParallelFixes(ctx context.Context, prompt string, f
 			if err != nil {
 				return err
 			}
-			
+
 			candidateCode := utils.ExtractCodeBlock(resRaw)
 
 			newContent := string(fullContent[:target.Range.Start]) + candidateCode + string(fullContent[target.Range.End:])

@@ -40,10 +40,10 @@ func (e *ASTRuleEngine) Audit(ctx context.Context, targetPath string) ([]types.A
 	var allMatches []types.ASTRuleMatch
 	for _, ruleFile := range rules {
 		rulePath := filepath.Join(e.rulesDir, ruleFile)
-		
+
 		// ast-grep scan -r <rule_file> <target> --json
 		cmd := exec.CommandContext(ctx, "sg", "scan", "-r", rulePath, targetPath, "--json")
-		
+
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr

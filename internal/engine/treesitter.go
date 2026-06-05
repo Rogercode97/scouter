@@ -353,7 +353,6 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 		}
 	}
 
-
 	callIter := func(yield func(types.ASTCall) bool) {
 		cursor := config.CallQuery.Exec(tree.RootNode(), lang, content)
 		for {

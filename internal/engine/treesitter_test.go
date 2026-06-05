@@ -418,7 +418,8 @@ func TestStreamWithTreeSitter_ArgsAndReturns(t *testing.T) {
 			t.Fatalf("StreamWithTreeSitter failed: %v", err)
 		}
 
-		for range pIt {} // Populate symbolNames
+		for range pIt {
+		} // Populate symbolNames
 
 		var flows []types.DataFlow
 		for f := range fIt {
@@ -441,9 +442,15 @@ func TestStreamWithTreeSitter_ArgsAndReturns(t *testing.T) {
 			}
 		}
 
-		if !foundArg0 { t.Errorf("did not find flow x -> f:arg0") }
-		if !foundArg1 { t.Errorf("did not find flow y -> f:arg1") }
-		if !foundRet { t.Errorf("did not find flow a + b -> f:return0") }
+		if !foundArg0 {
+			t.Errorf("did not find flow x -> f:arg0")
+		}
+		if !foundArg1 {
+			t.Errorf("did not find flow y -> f:arg1")
+		}
+		if !foundRet {
+			t.Errorf("did not find flow a + b -> f:return0")
+		}
 	})
 
 	t.Run("TypeScript Arrow", func(t *testing.T) {
@@ -461,7 +468,8 @@ func TestStreamWithTreeSitter_ArgsAndReturns(t *testing.T) {
 			t.Fatalf("StreamWithTreeSitter failed: %v", err)
 		}
 
-		for range pIt {} // Populate symbolNames
+		for range pIt {
+		} // Populate symbolNames
 
 		var flows []types.DataFlow
 		for f := range fIt {
@@ -480,8 +488,12 @@ func TestStreamWithTreeSitter_ArgsAndReturns(t *testing.T) {
 			}
 		}
 
-		if !foundArg { t.Errorf("did not find flow 10 -> f:arg0") }
-		if !foundRet { t.Errorf("did not find flow x * 2 -> f:return0") }
+		if !foundArg {
+			t.Errorf("did not find flow 10 -> f:arg0")
+		}
+		if !foundRet {
+			t.Errorf("did not find flow x * 2 -> f:return0")
+		}
 	})
 
 	t.Run("Python", func(t *testing.T) {
@@ -503,7 +515,8 @@ f(x, y)
 			t.Fatalf("StreamWithTreeSitter failed: %v", err)
 		}
 
-		for range pIt {} // Populate symbolNames
+		for range pIt {
+		} // Populate symbolNames
 
 		var flows []types.DataFlow
 		for f := range fIt {
@@ -526,9 +539,15 @@ f(x, y)
 			}
 		}
 
-		if !foundArg0 { t.Errorf("did not find flow x -> f:arg0") }
-		if !foundArg1 { t.Errorf("did not find flow y -> f:arg1") }
-		if !foundRet { t.Errorf("did not find flow a + b -> f:return0") }
+		if !foundArg0 {
+			t.Errorf("did not find flow x -> f:arg0")
+		}
+		if !foundArg1 {
+			t.Errorf("did not find flow y -> f:arg1")
+		}
+		if !foundRet {
+			t.Errorf("did not find flow a + b -> f:return0")
+		}
 	})
 
 	t.Run("Rust", func(t *testing.T) {
@@ -552,7 +571,8 @@ fn main() {
 			t.Fatalf("StreamWithTreeSitter failed: %v", err)
 		}
 
-		for range pIt {} // Populate symbolNames
+		for range pIt {
+		} // Populate symbolNames
 
 		var flows []types.DataFlow
 		for f := range fIt {
@@ -575,8 +595,14 @@ fn main() {
 			}
 		}
 
-		if !foundArg0 { t.Errorf("did not find flow x -> f:arg0") }
-		if !foundArg1 { t.Errorf("did not find flow y -> f:arg1") }
-		if !foundRet { t.Errorf("did not find flow a + b -> f:return0") }
+		if !foundArg0 {
+			t.Errorf("did not find flow x -> f:arg0")
+		}
+		if !foundArg1 {
+			t.Errorf("did not find flow y -> f:arg1")
+		}
+		if !foundRet {
+			t.Errorf("did not find flow a + b -> f:return0")
+		}
 	})
 }

@@ -86,26 +86,26 @@ func TestAnalyzeChurn(t *testing.T) {
 	// file2 changed in 2 commits (max_churn = 2)
 	// file2 co-changed with file1 once and file3 once (max_co = 1)
 	// file2 churn score: (2/2)*0.5 + (1/2)*0.5 = 0.5 + 0.25 = 0.75
-	
+
 	// Check file2
 	// Let's save a dummy symbol for file2 first.
 	_ = s.SaveFileIndex(ctx, &store.FileIndex{Path: "file2.go", Project: "test"})
 	_ = s.SaveSymbol(ctx, &store.Symbol{Name: "Sym2", Path: "file2.go"})
-	
+
 	// Re-run analysis to update the symbol
 	if err := engine.AnalyzeChurn(ctx, tmpDir, 10); err != nil {
 		t.Fatalf("AnalyzeChurn failed: %v", err)
 	}
-	
+
 	syms, err := s.GetSymbolsByNameInFile(ctx, "Sym2", "file2.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	if len(syms) == 0 {
 		t.Fatalf("Sym2 not found")
 	}
-	
+
 	if syms[0].ChurnScore != 0.75 {
 		t.Errorf("expected churn score 0.75, got %v", syms[0].ChurnScore)
 	}

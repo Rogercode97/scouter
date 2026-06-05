@@ -26,7 +26,7 @@ func TestNewTruthEngine(t *testing.T) {
 	if engine.lspMgr != l {
 		t.Errorf("expected engine.lspMgr to be %v, got %v", l, engine.lspMgr)
 	}
-	
+
 	if engine.logger == nil {
 		t.Error("expected default logger to be initialized")
 	}

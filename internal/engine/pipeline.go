@@ -94,8 +94,8 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 		if len(lines) > 5 {
 			// Reuse same signaling as head_tail action for consistency
 			headN, tailN := 2, 2
-			filtered = strings.Join(lines[:headN], "\n") + 
-				fmt.Sprintf("\n... [scouter: truncated %d lines of noise in compact mode] ...\n", len(lines)-headN-tailN) + 
+			filtered = strings.Join(lines[:headN], "\n") +
+				fmt.Sprintf("\n... [scouter: truncated %d lines of noise in compact mode] ...\n", len(lines)-headN-tailN) +
 				strings.Join(lines[len(lines)-tailN:], "\n") + "\n"
 		}
 	}
@@ -160,7 +160,7 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 
 	for _, change := range changes {
 		absPath := filepath.Join(cwd, change.Path)
-		
+
 		ext := filepath.Ext(absPath)
 		if ext != ".go" && ext != ".ts" && ext != ".tsx" && ext != ".js" && ext != ".py" {
 			continue
@@ -212,7 +212,7 @@ func (p *Pipeline) Passthrough(ctx context.Context, command string, args []strin
 		fmt.Fprintf(os.Stderr, "scouter: %v\n", err)
 		return 1
 	}
-	
+
 	go p.ShadowIndex(context.Background()) // #nosec G118 - intentional background task
 	return code
 }

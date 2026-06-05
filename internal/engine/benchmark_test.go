@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/domain/memory"
+	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
 )
 
@@ -30,7 +30,7 @@ func (m *mockMemoryProvider) SaveSummary(ctx context.Context, project string, su
 
 func BenchmarkMassiveIndexing(b *testing.B) {
 	ctx := context.Background()
-	
+
 	// Create a temporary directory for the benchmark
 	tmpDir, err := os.MkdirTemp("", "scouter-benchmark-*")
 	if err != nil {

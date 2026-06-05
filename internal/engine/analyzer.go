@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/types"
 	"math"
+	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -267,6 +268,7 @@ func (a *AnalysisEngine) BuildTypeUniverse() (map[string]*types.Package, error) 
 	cfg := &packages.Config{
 		Mode: packages.NeedTypes | packages.NeedSyntax | packages.NeedDeps | packages.NeedImports | packages.NeedName,
 		Dir:  a.ProjectRoot,
+		Env:  append(os.Environ(), "CGO_ENABLED=0"),
 	}
 	pkgs, err := packages.Load(cfg, "./...")
 	if err != nil {

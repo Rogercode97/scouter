@@ -53,9 +53,9 @@ func TestHealerEngine_Fix_DeepRCA(t *testing.T) {
 	// 1. Setup Store, LSP, Analyzer, and Impact
 	s, _ := store.NewStore(ctx, ":memory:")
 	defer s.Close()
-	
+
 	mgr := lsp.NewManager()
-	
+
 	// Override client creator to return our mock
 	mgr.SetClientCreatorForTest(func(ctx context.Context, dir, binary string, args ...string) (lsp.LSPClient, error) {
 		return &healerMockLSPClient{
@@ -75,7 +75,7 @@ func TestHealerEngine_Fix_DeepRCA(t *testing.T) {
 	impact := NewImpactEngine(s, nil, mockMem)
 	search := NewSearchEngine(s, nil)
 	h := NewHealerEngine(s, mgr, analyzer, impact, search, mockMem)
-	
+
 	// Mock the LLM request
 	var (
 		mu             sync.RWMutex
@@ -114,7 +114,7 @@ func TestHealerEngine_Fix_DeepRCA(t *testing.T) {
 	expectedHover1 := "Docs for symbol at 52"
 	// Line 120 in log -> Line 119 in LSP
 	expectedHover2 := "Docs for symbol at 119"
-	
+
 	if !strings.Contains(p, expectedHover1) {
 		t.Errorf("Prompt missing hover info for healer.go:53. Prompt:\n%s", p)
 	}
@@ -245,7 +245,7 @@ func TestHealerEngine_AllFail(t *testing.T) {
 	tmpDir := filepath.Join(".", "test_bad_pkg")
 	os.MkdirAll(tmpDir, 0755)
 	defer os.RemoveAll(tmpDir)
-	
+
 	tmpFile := filepath.Join(tmpDir, "bad.go")
 	content := `package test_bad_pkg
 type MyInterface interface { Do() }
@@ -254,7 +254,7 @@ func (m *MyStruct) Do() {}
 var _ MyInterface = (*MyStruct)(nil)
 `
 	os.WriteFile(tmpFile, []byte(content), 0644)
-	
+
 	// We need to index it so StreamSymbols finds it
 	absTmpFile, _ := filepath.Abs(tmpFile)
 	h.Index(ctx, absTmpFile)
@@ -289,7 +289,7 @@ func TestHealerEngine_Imports(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	
+
 	tmpFile := filepath.Join(tmpDir, "imports.go")
 	content := `package test_imports_pkg
 type MyInterface interface { Do() }
@@ -298,7 +298,7 @@ func (m *MyStruct) Do() {}
 var _ MyInterface = (*MyStruct)(nil)
 `
 	os.WriteFile(tmpFile, []byte(content), 0644)
-	
+
 	absTmpFile, _ := filepath.Abs(tmpFile)
 	h.Index(ctx, absTmpFile)
 
@@ -315,7 +315,7 @@ var _ MyInterface = (*MyStruct)(nil)
 	if !strings.Contains(res.FixedCode, "fmt.Println") {
 		t.Errorf("Expected fmt.Println in fixed code, got %s", res.FixedCode)
 	}
-	
+
 	patch := h.Ledger.Staged[absTmpFile]
 	if !strings.Contains(patch.NewContent, "\"fmt\"") {
 		t.Errorf("Expected 'fmt' import in staged content, got:\n%s", patch.NewContent)

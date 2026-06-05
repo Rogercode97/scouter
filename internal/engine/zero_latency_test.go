@@ -58,7 +58,7 @@ func TestZeroLatencyBypass(t *testing.T) {
 	// 3. Second Index (Hot - No changes)
 	// We wait a bit to ensure mtime precision isn't an issue in fast systems
 	time.Sleep(10 * time.Millisecond)
-	
+
 	start = time.Now()
 	err = engine.Index(ctx, tmpDir)
 	if err != nil {

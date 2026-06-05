@@ -11,17 +11,17 @@ type HybridSearcher struct {
 	index bleve.Index
 }
 
-// NewHybridSearcher initializes a new in-memory Bleve index for fast, 
+// NewHybridSearcher initializes a new in-memory Bleve index for fast,
 // session-based hybrid searching.
 func NewHybridSearcher() (*HybridSearcher, error) {
 	indexMapping := bleve.NewIndexMapping()
-	
+
 	// Create an in-memory index for maximum speed during the agent session
 	index, err := bleve.NewMemOnly(indexMapping)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bleve index: %w", err)
 	}
-	
+
 	return &HybridSearcher{index: index}, nil
 }
 

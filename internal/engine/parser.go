@@ -97,6 +97,7 @@ func BatchLoadPackages(dir string) (map[string]*ParsedPackageData, error) {
 		Mode:  packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
 		Tests: true,
 		Dir:   dir,
+		Env:   append(os.Environ(), "CGO_ENABLED=0"),
 	}
 	pkgs, err := packages.Load(cfg, "./...")
 	if err != nil {
@@ -784,6 +785,7 @@ func loadASTFile(validatedPath string) (*ast.File, *token.FileSet, *packages.Pac
 		Mode:  packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
 		Tests: true,
 		Dir:   filepath.Dir(validatedPath),
+		Env:   append(os.Environ(), "CGO_ENABLED=0"),
 	}
 	pkgs, err := packages.Load(cfg, "file="+validatedPath)
 	if err != nil || len(pkgs) == 0 {

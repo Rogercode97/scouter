@@ -23,8 +23,8 @@ type Patch struct {
 // MissionStats tracks the resource consumption of the current operation.
 type MissionStats struct {
 	StartTime  time.Time `json:"start_time"`
-	TotalKi    int64     `json:"total_ki"`     // Token usage (approximated)
-	TurnCount  int       `json:"turn_count"`   // Number of iterations
+	TotalKi    int64     `json:"total_ki"`   // Token usage (approximated)
+	TurnCount  int       `json:"turn_count"` // Number of iterations
 	FilesCount int       `json:"files_count"`
 }
 
@@ -49,7 +49,7 @@ func NewLedger() *Ledger {
 		TurnLimit:  10,     // Default 10 turns
 		ledgerPath: ".scouter/staging/ledger.json",
 	}
-	
+
 	return l
 }
 
@@ -58,7 +58,7 @@ func (l *Ledger) SetLedgerPath(path string) {
 	l.mu.Lock()
 	l.ledgerPath = path
 	l.mu.Unlock()
-	
+
 	if _, err := os.Stat(path); err == nil {
 		if err := l.Load(); err != nil {
 			slog.Error("failed to load ledger", "path", path, "error", err)
@@ -108,7 +108,7 @@ func (l *Ledger) SetBudget(kiLimit int64, turnLimit int) {
 // Stage adds a patch to the ledger and saves to disk.
 func (l *Ledger) Stage(path string, patch Patch) error {
 	l.mu.Lock()
-	
+
 	if l.Stats.TurnCount > l.TurnLimit && l.TurnLimit > 0 {
 		l.mu.Unlock()
 		return fmt.Errorf("mission budget exceeded: max turns reached (%d)", l.TurnLimit)
@@ -153,7 +153,7 @@ func (l *Ledger) Unstage(path string) {
 func (l *Ledger) GetStaged() []Patch {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	
+
 	patches := make([]Patch, 0, len(l.Staged))
 	for _, p := range l.Staged {
 		patches = append(patches, p)
@@ -165,7 +165,7 @@ func (l *Ledger) GetStaged() []Patch {
 func (l *Ledger) StagedFiles() []string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	
+
 	files := make([]string, 0, len(l.Staged))
 	for path := range l.Staged {
 		files = append(files, path)

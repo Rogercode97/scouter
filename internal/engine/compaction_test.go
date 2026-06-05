@@ -3,10 +3,11 @@ package engine
 import (
 	"context"
 	"os"
-	"github.com/Rogercode97/scouter/internal/store"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Rogercode97/scouter/internal/store"
 )
 
 // MockStore implements store.Store for testing.
@@ -15,7 +16,8 @@ type MockStore struct {
 }
 
 func (m *MockStore) GetFileIndex(ctx context.Context, path string) (*any, error) { return nil, nil }
-// Implementing the minimum required to satisfy the interface if needed, 
+
+// Implementing the minimum required to satisfy the interface if needed,
 // but since CompactSession doesn't use it yet, we just need it to exist.
 // Actually, I'll just use a nil or a minimal struct if it's just for the constructor.
 
@@ -25,7 +27,7 @@ func TestCompactSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get current wd: %v", err)
 	}
-	
+
 	tmpDir := t.TempDir()
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to change wd: %v", err)

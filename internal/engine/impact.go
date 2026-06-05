@@ -470,6 +470,7 @@ func findTestsForSymbols(ctx context.Context, db GraphStore, symbols []store.Sym
 func (e *ImpactEngine) computeVariableBlastRadiusSSA(targetPkg, funcName, varName string) (int, error) {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo,
+		Env:  append(os.Environ(), "CGO_ENABLED=0"),
 	}
 	initial, err := packages.Load(cfg, targetPkg)
 	if err != nil {

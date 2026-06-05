@@ -11,9 +11,9 @@ import (
 
 type mockStore struct {
 	store.Store
-	methods         []store.Symbol
-	symbolsByRange  []store.Symbol
-	savedCalls      []store.Call
+	methods        []store.Symbol
+	symbolsByRange []store.Symbol
+	savedCalls     []store.Call
 }
 
 func (m *mockStore) GetSymbolsByType(ctx context.Context, symType string) ([]store.Symbol, error) {

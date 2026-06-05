@@ -115,7 +115,7 @@ func TestRippleEngine_Propagate(t *testing.T) {
 		},
 	}
 	ie := &ImpactEngine{store: ms}
-	
+
 	mt := &mockTransformer{
 		transformFunc: func(file, symbol, transformation string) (string, error) {
 			return "transformed " + file, nil
@@ -123,7 +123,7 @@ func TestRippleEngine_Propagate(t *testing.T) {
 	}
 
 	strategy := &BFSPropagationStrategy{store: ms, ImpactEngine: ie}
-	
+
 	engine := &RippleEngine{
 		store:        ms,
 		Transformer:  mt,

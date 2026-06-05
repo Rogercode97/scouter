@@ -238,10 +238,12 @@ func TestGetCriticalSymbols(t *testing.T) {
 
 	_ = s.SaveCall(ctx, store.Call{CallerName: "A", CalleeName: "B", Path: "a.go", CalleePath: "b.go"})
 	_ = s.SaveCall(ctx, store.Call{CallerName: "A", CalleeName: "C", Path: "a.go", CalleePath: ""})
-	
+
 	_ = s.SaveTestResult(ctx, &types.TestResult{TestName: "TestB", TargetSymbol: "B", Status: "fail"})
 
-	for call, _ := range s.GetAllCalls(ctx) { t.Logf("CALL: %+v", call) }
+	for call, _ := range s.GetAllCalls(ctx) {
+		t.Logf("CALL: %+v", call)
+	}
 	results, err := analyzer.GetCriticalSymbols(ctx, 2)
 	if err != nil {
 		t.Fatalf("GetCriticalSymbols failed: %v", err)
