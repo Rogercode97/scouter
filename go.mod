@@ -15,7 +15,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/mattn/go-isatty v0.0.22
 	github.com/modelcontextprotocol/go-sdk v1.6.1
-	github.com/ncruces/go-sqlite3 v0.20.0
+	github.com/ncruces/go-sqlite3 v0.34.4
 	github.com/odvcencio/gotreesitter v0.19.1
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pmezard/go-difflib v1.0.0
@@ -85,6 +85,7 @@ require (
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
+	github.com/ncruces/go-sqlite3-wasm/v2 v2.6.35302 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
@@ -92,7 +93,6 @@ require (
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
-	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
