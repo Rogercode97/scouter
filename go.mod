@@ -4,7 +4,7 @@ go 1.26.3
 
 require (
 	github.com/MichaelAyles/goformer v0.1.0
-	github.com/asg017/sqlite-vec-go-bindings v0.1.7-alpha.2
+	github.com/asg017/sqlite-vec-go-bindings v0.1.6
 	github.com/blevesearch/bleve/v2 v2.6.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
@@ -12,11 +12,11 @@ require (
 	github.com/dominikbraun/graph v0.23.0
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/go-git/go-git/v6 v6.0.0-alpha.4
-	github.com/go-playground/validator/v10 v10.30.2
+	github.com/go-playground/validator/v10 v10.30.3
 	github.com/mattn/go-isatty v0.0.22
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/ncruces/go-sqlite3 v0.20.0
-	github.com/odvcencio/gotreesitter v0.19.1
+	github.com/odvcencio/gotreesitter v0.20.1
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/stretchr/testify v1.11.1

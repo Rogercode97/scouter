@@ -27,6 +27,11 @@ Para manejar codebases de millones de líneas sin degradación de performance, S
 - **Meta-Index:** Existe una base de datos maestra (`meta.db`) que actúa como catálogo de shards y almacena información global de dependencias y grafos de llamadas inter-shard.
 - **Beneficio:** Permite paralelismo masivo en la indexación y evita que el índice FTS5 de SQLite crezca hasta volverse ineficiente.
 
+## 🧱 Antifragilidad Termux/WASM (Wave 15.5)
+Scouter se ejecuta frecuentemente bajo el intérprete Wazero en Termux (Android), el cual carece de JIT. El FFI entre Wasm y Host es un cuello de botella crítico.
+- **Zero CGO:** Estrictamente prohibido. Usar `ncruces/go-sqlite3` y `goformer`.
+- **Bulk Updates & Dual Pools:** Obligatorio usar agrupaciones masivas y Connection Pools duales en SQLite para evitar deadlocks ante el volumen paralelo del IndexerPipeline.
+
 ## 🏗️ Patrones de Diseño Core
 
 ### Hexagonal \u0026 Screaming Architecture

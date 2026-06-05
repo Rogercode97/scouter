@@ -12,12 +12,12 @@ Scouter is a high-performance analysis engine that facilitates codebase explorat
 - **Automated Diagnostics**: Structured root cause analysis and verification loops for code maintenance.
 
 ## Documentation Map
-- `docs/ARCHITECTURE.md`: System design and internal components.
-- `docs/CODEBASE-GUIDE.md`: Structural map of the repository.
-- `docs/INSTALLATION.md`: Setup and integration instructions.
+- `docs/architecture/overview.md`: System design and internal components.
+- `docs/architecture/codebase.md`: Structural map of the repository.
+- `docs/tutorials/INSTALLATION.md`: Setup and integration instructions.
 - `CHANGELOG.md`: Detailed history of project updates and features.
 
 ## Engineering Standards
-- **Technical Excellence**: Focus on high-quality, maintainable code and clear documentation.
-- **Verified Implementation**: Comprehensive test coverage is required for all core functionality.
-- **Modular Design**: Strict separation between analysis logic, data storage, and interface adapters.
+- **Termux/WASM Antifragility**: MUST use Zero CGO, Bulk Updates, and Circuit Breakers for SQLite to survive Wasm environments.
+- **Verified Implementation**: Comprehensive test coverage (`just test`) is required before any push.
+- **Modular Design**: Strict role-based interfaces (no God Objects) separating analysis, persistence, and MCP presentation.

@@ -10,12 +10,17 @@ The `mcp.Server` is instantiated via manual Dependency Injection using an `Optio
 
 ```go
 type Options struct {
-	Store         store.Store
-	Logger        *slog.Logger
-	LspMgr        *lsp.Manager
-	TruthEngine   *engine.TruthEngine
-	ChronosEngine *engine.ChronosEngine
-	AppService    *memory.AppService
+        Store        store.Store
+        Logger       *slog.Logger
+        LspMgr       *lsp.Manager
+        Indexer      engine.IndexerService
+        Discovery    engine.DiscoveryService
+        Intelligence engine.IntelligenceService
+        Evolution    engine.EvolutionService
+        Healer       engine.HealerService
+        Memory       memory.MemoryProvider
+        SDD          engine.SDDService
+        Presenter    display.Presenter
 }
 ```
 
