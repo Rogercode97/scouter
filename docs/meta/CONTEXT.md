@@ -4,15 +4,13 @@ Guía rápida de navegación para agentes en el codebase de Scouter.
 
 ## 📂 Directorios Clave
 
-- `cmd/scouter/`: Punto de entrada de la CLI.
-- `internal/engine/`: Core de inteligencia estructural.
-  - `treesitter.go`: Consultas multi-lenguaje (Go, TS, Py, Rs).
-  - `parser.go`: Análisis profundo nativo de Go (AST + TypeInfo).
-  - `ssa.go`: Análisis de flujo de datos y resolución de interfaces (Mode Deep).
-  - `lsp/`: Gestión de servidores de lenguaje y persistencia (Warp Speed).
-  - `impact.go`: Análisis de blast radius y propagación.
-- `internal/mcp/`: Implementación del servidor Model Context Protocol.
-- `internal/store/`: Persistencia en SQLite y búsqueda vectorial/texto.
+- `internal/engine/`: Core de inteligencia estructural (Role-based services).
+  - `indexer.go`: IndexerPipeline (Batch control, Disk walking).
+  - `treesitter.go` & `parser.go`: AST nativo y consultas multi-lenguaje.
+  - `semantic.go`: Motor Semántico local (`goformer` + BGE-small).
+  - `impact.go` & `ssa.go`: Análisis de flujo de datos y propagación.
+- `internal/mcp/`: Servidor MCP. Usa `display.Presenter` para aislar la lógica de UI/formateo.
+- `internal/store/`: Persistencia en SQLite (`ncruces/go-sqlite3`) con Dual Pools para evitar deadlocks.
 - `tests/`: Tests de integración de alto nivel (Ripple, Closure, Omniscience).
 
 ## 🛠️ Herramientas de Desarrollo

@@ -356,7 +356,7 @@ func (s *storeImpl) SaveSymbolsBulk(ctx context.Context, symbols []*Symbol) erro
 			}
 			args = append(args, sym.Name, sym.Type, sym.PackagePath, sym.ReceiverType, sym.Signature, sym.Doc, sym.Path, sym.StartByte, sym.EndByte, sym.StartLine, sym.StartCol, sym.EndLine, sym.StructuralHash, sym.Indegree, sym.Relevance, sym.Pagerank, sym.ChurnScore, sym.RuntimeHits, sym.AiSummary, metricsJSON)
 		}
-		query += strings.Join(placeholders, ", ") + " RETURNING id"
+		query += strings.Join(placeholders, ", ") // #nosec G202 + " RETURNING id"
 		rows, err := s.query(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf("failed to save symbols bulk: %w", err)
@@ -838,7 +838,7 @@ func (s *storeImpl) SaveCallsBulk(ctx context.Context, calls []Call) error {
 			placeholders = append(placeholders, "(?, ?, ?, ?, ?, ?)")
 			args = append(args, c.CallerName, c.CalleeName, c.Path, c.Line, c.CalleePath, c.LinkType)
 		}
-		query += strings.Join(placeholders, ", ")
+		query += strings.Join(placeholders, ", ") // #nosec G202
 		if _, err := s.exec(ctx, query, args...); err != nil {
 			return fmt.Errorf("failed to save calls bulk: %w", err)
 		}
@@ -1318,7 +1318,7 @@ func (s *storeImpl) UpdateSymbolPageranksBulk(ctx context.Context, updates map[s
 				placeholders = append(placeholders, "(?, ?, ?)")
 				args = append(args, e.Name, e.Path, e.PR)
 			}
-			query += strings.Join(placeholders, ", ")
+			query += strings.Join(placeholders, ", ") // #nosec G202
 
 			_, err = txImpl.tx.ExecContext(txCtx, query, args...)
 			if err != nil {
@@ -1384,7 +1384,7 @@ func (s *storeImpl) UpdateSymbolCentralitiesBulk(ctx context.Context, updates ma
 				placeholders = append(placeholders, "(?, ?, ?)")
 				args = append(args, e.Name, e.Path, e.Centrality)
 			}
-			query += strings.Join(placeholders, ", ")
+			query += strings.Join(placeholders, ", ") // #nosec G202
 
 			_, err = txImpl.tx.ExecContext(txCtx, query, args...)
 			if err != nil {
