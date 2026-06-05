@@ -12,16 +12,13 @@ import (
 	"github.com/Rogercode97/scouter/internal/types"
 )
 
-// SearchEngine unifies AST structural search with Engram historical insights.
 type SearchEngine struct {
 	store  store.SymbolRegistry
 	memory memory.MemoryProvider
-	Bleve  *HybridSearcher
 }
 
 func NewSearchEngine(s store.SymbolRegistry, m memory.MemoryProvider) *SearchEngine {
-	hs, _ := NewHybridSearcher()
-	return &SearchEngine{store: s, memory: m, Bleve: hs}
+	return &SearchEngine{store: s, memory: m}
 }
 
 // HybridSearch executes parallel lookups in the AST, Bleve, and Engram databases.
@@ -69,18 +66,16 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 
 	go func() {
 		defer wg.Done()
-		if e.Bleve == nil {
-			txtChan <- textRes{nil, nil}
-			return
-		}
-		res, err := e.Bleve.SearchBM25(query, limit*2)
-		if err != nil {
-			txtChan <- textRes{nil, err}
-			return
-		}
 		hits := make(map[string]int)
-		for i, hit := range res.Hits {
-			hits[hit.ID] = i + 1
+		rank := 1
+		for sym, err := range e.store.SearchSymbolsWeighted(ctx, query, "") {
+			if err != nil {
+				txtChan <- textRes{nil, err}
+				return
+			}
+			id := sym.Path + ":" + sym.Name
+			hits[id] = rank
+			rank++
 		}
 		txtChan <- textRes{hits, nil}
 	}()
@@ -182,8 +177,6 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 }
 
 func (e *SearchEngine) IndexSymbol(docID string, data map[string]interface{}) error {
-	if e.Bleve != nil {
-		return e.Bleve.IndexSymbol(docID, data)
-	}
+	// Replaced by SQLite Triggers in FTS5
 	return nil
 }
