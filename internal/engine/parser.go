@@ -127,7 +127,8 @@ func StreamSymbolsFromAST(ctx context.Context, fset *token.FileSet, astFile *ast
 	var tsTree *gotreesitter.Tree
 	var tsContent []byte
 	tsContent, _ = os.ReadFile(validatedPath)
-	tsParser := gotreesitter.NewParser(grammars.GoLanguage())
+	tsParser := GetParser(grammars.GoLanguage())
+	defer PutParser(grammars.GoLanguage(), tsParser)
 	tsTree, _ = tsParser.Parse(tsContent)
 
 	// We return closures that perform the AST inspection lazily
@@ -135,6 +136,9 @@ func StreamSymbolsFromAST(ctx context.Context, fset *token.FileSet, astFile *ast
 	anonCounters := make(map[string]int)
 
 	return func(yield func(types.ASTPointer) bool) {
+			if tsTree != nil {
+				defer tsTree.Release()
+			}
 			select {
 			case <-ctx.Done():
 				return

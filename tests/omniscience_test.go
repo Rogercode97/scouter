@@ -35,7 +35,7 @@ func TestOmniscienceCallHierarchy(t *testing.T) {
 	// 1. Index a known file to populate the store
 	targetFile := filepath.Join(projectRoot, "internal/engine/ripple.go")
 	absPath, _ := filepath.Abs(targetFile)
-	
+
 	err = st.SaveFileIndex(ctx, &store.FileIndex{
 		Path:    absPath,
 		Project: "scouter",

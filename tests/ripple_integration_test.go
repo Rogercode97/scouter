@@ -157,7 +157,7 @@ func TestImpactEngine_Analyze_Mixed(t *testing.T) {
 	}
 
 	ie := engine.NewImpactEngine(ms, nil, nil)
-	
+
 	res, err := ie.Analyze(ctx, "SymA", "fileA.go", 1)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
@@ -172,7 +172,7 @@ func TestImpactEngine_Analyze_Mixed(t *testing.T) {
 	if res.Mermaid == "" {
 		t.Errorf("Expected Mermaid graph, got empty")
 	}
-	
+
 	// Check for correct edges
 	// calls edge should be -->
 	// implements edge should be -.->
@@ -195,4 +195,3 @@ func contains(s, substr string) bool {
 		return false
 	}()
 }
-

@@ -42,7 +42,7 @@ func TestIntegration_InterfaceTracing(t *testing.T) {
 
 	// 1. Prepare Fixture Path
 	absPath, _ := filepath.Abs("tests/fixtures/interface_sample.go")
-	
+
 	// 2. Index the file (Simplified index logic)
 	err = s.SaveFileIndex(ctx, &store.FileIndex{
 		Path: absPath,
@@ -58,7 +58,7 @@ func TestIntegration_InterfaceTracing(t *testing.T) {
 		{Name: "Shape", Type: "interface", Path: absPath, StartLine: 6, StartCol: 6, EndLine: 9},
 		{Name: "Area", Type: "method_spec", Path: absPath, StartLine: 7, StartCol: 2, EndLine: 7}, // Interface method
 		{Name: "Circle", Type: "struct", Path: absPath, StartLine: 11, StartCol: 6, EndLine: 13},
-		{Name: "Area", Type: "method", Path: absPath, StartLine: 15, StartCol: 17, EndLine: 17},   // Circle implementation
+		{Name: "Area", Type: "method", Path: absPath, StartLine: 15, StartCol: 17, EndLine: 17}, // Circle implementation
 	}
 	for _, sym := range symbols {
 		s.SaveSymbol(ctx, &sym)

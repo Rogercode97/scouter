@@ -279,8 +279,8 @@ func TestSaveFileIndex_PreservesSymbols(t *testing.T) {
 	// 3. Update file index (same path)
 	err = s.SaveFileIndex(ctx, &FileIndex{
 		Path:    path,
-		Mtime:   200, // changed
-		Hash:    "h2",  // changed
+		Mtime:   200,  // changed
+		Hash:    "h2", // changed
 		AstJson: "{}",
 		Project: "p1",
 	})
@@ -373,7 +373,7 @@ func TestStore_HasColumn(t *testing.T) {
 	}
 
 	// 3. Check existing table but invalid column (handled above)
-	
+
 	// 4. Check non-existing table
 	has, err = hasColumn(ctx, tx, "nonexistent_table", "doc")
 	if err != nil {
@@ -455,9 +455,9 @@ func TestStore_TransactionSafety(t *testing.T) {
 	if len(results) != 0 {
 		t.Errorf("Expected 0 results after rollback, got %d", len(results))
 	}
-	}
+}
 
-	func TestGetSymbolsByNameInFile(t *testing.T) {
+func TestGetSymbolsByNameInFile(t *testing.T) {
 	ctx := t.Context()
 	dbPath := "test_scouter_namefile.dbWrite"
 	defer os.Remove(dbPath)

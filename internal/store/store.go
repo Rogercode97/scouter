@@ -1,9 +1,9 @@
 package store
 
 import (
-	_ "embed"
 	"context"
 	"database/sql"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"iter"
@@ -17,9 +17,6 @@ import (
 	_ "github.com/asg017/sqlite-vec-go-bindings/ncruces"
 	_ "github.com/ncruces/go-sqlite3/driver"
 )
-
-
-
 
 type Flow struct {
 	Source string `json:"source"`
@@ -95,7 +92,7 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 		if !strings.HasPrefix(dsn, "file:") {
 			dsn = "file:" + dsn
 		}
-		
+
 		// Write pool
 		dsnWrite := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=temp_store(MEMORY)&_pragma=cache_size(-10000)&_txlock=immediate", dsn, separator)
 		dbWrite, err = sql.Open("sqlite3", dsnWrite)
@@ -149,7 +146,9 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 	queries := strings.Split(schemaSQL, "\n\n")
 	for _, q := range queries {
 		q = strings.TrimSpace(q)
-		if q == "" { continue }
+		if q == "" {
+			continue
+		}
 		if _, err := tx.ExecContext(ctx, q); err != nil {
 			return err
 		}
@@ -260,14 +259,14 @@ func (s *storeImpl) SaveFileIndexBatch(ctx context.Context, items []BatchItem) e
 							Column: vCopy.StartCol,
 						},
 					},
-					Text:     vCopy.Text,
+					Text: vCopy.Text,
 				}
 				if err := tx.SaveViolation(txCtx, astMatch); err != nil {
 					return fmt.Errorf("failed to save violation for %s: %w", vCopy.FilePath, err)
 				}
 			}
 		}
-		
+
 		if err := tx.SaveSymbolsBulk(txCtx, allSymbols); err != nil {
 			return fmt.Errorf("failed to save symbols bulk: %w", err)
 		}
@@ -361,7 +360,7 @@ func (s *storeImpl) SaveSymbolsBulk(ctx context.Context, symbols []*Symbol) erro
 		if err != nil {
 			return fmt.Errorf("failed to save symbols bulk: %w", err)
 		}
-		
+
 		idx := 0
 		for rows.Next() {
 			var id int
@@ -525,7 +524,7 @@ func (s *storeImpl) GetSymbolsByPathPrefix(ctx context.Context, pathPrefix strin
 	sql := `SELECT name, type, package_path, receiver_type, signature, doc, path, start_byte, end_byte, start_line, start_col, end_line, structural_hash, indegree, relevance, pagerank, churn_score, runtime_hits, ai_summary, metrics_json
             FROM symbols
             WHERE path LIKE ? ORDER BY path ASC, start_line ASC`
-	
+
 	// Add % to match any file that starts with the prefix (e.g., directory or exact file)
 	likePattern := pathPrefix
 	if !strings.HasSuffix(likePattern, "%") {
@@ -714,10 +713,12 @@ func (s *storeImpl) ExportDelta(ctx context.Context, syncDir string) error {
 
 	for _, p := range paths {
 		idx, err := s.GetFileIndex(ctx, p)
-		if err != nil { continue }
+		if err != nil {
+			continue
+		}
 
 		symbols, _ := s.GetSymbolsByRange(ctx, p, 0, 999999)
-		
+
 		rows, _ := s.query(ctx, "SELECT caller_name, callee_name, path, line, callee_path, link_type FROM calls WHERE path = ?", p)
 		var calls []Call
 		if rows != nil {
@@ -738,9 +739,11 @@ func (s *storeImpl) ExportDelta(ctx context.Context, syncDir string) error {
 
 		// Use a sanitized path for the filename
 		relPath, _ := filepath.Rel("/", p)
-		if relPath == "" { relPath = filepath.Base(p) }
+		if relPath == "" {
+			relPath = filepath.Base(p)
+		}
 		syncFile := filepath.Join(syncDir, strings.ReplaceAll(relPath, "/", "_")+".json")
-		
+
 		data, _ := json.MarshalIndent(delta, "", "  ")
 		os.WriteFile(syncFile, data, 0644)
 	}
@@ -878,7 +881,6 @@ func (s *storeImpl) ClearFlows(ctx context.Context, path string) error {
 	return err
 }
 
-
 func (s *storeImpl) GetCallers(ctx context.Context, callee string, limit, offset int) ([]Call, error) {
 	if limit == 0 {
 		limit = 500
@@ -953,7 +955,7 @@ func (s *storeImpl) GetCallersRecursive(ctx context.Context, symbol string, path
 		}
 		// We use Line field to store distance for now to avoid breaking Call struct or creating new one
 		// In a real refactor, we might want a separate struct.
-		c.Line = dist 
+		c.Line = dist
 		res = append(res, c)
 	}
 	return res, nil
@@ -1197,9 +1199,9 @@ func (s *storeImpl) WithTransaction(ctx context.Context, fn func(context.Context
 	return nil
 }
 
-func (s *storeImpl) Close() error { 
+func (s *storeImpl) Close() error {
 	s.dbRead.Close()
-	return s.dbWrite.Close() 
+	return s.dbWrite.Close()
 }
 
 type CriticalSymbol struct {
@@ -1241,17 +1243,17 @@ func (s *storeImpl) InsertSemanticVector(ctx context.Context, symbolID int64, em
 }
 
 func (s *storeImpl) SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int) ([]Symbol, error) {
-        embJSON, err := json.Marshal(queryEmbedding)
-        if err != nil {
-                return nil, fmt.Errorf("failed to marshal embedding: %w", err)
-        }
+	embJSON, err := json.Marshal(queryEmbedding)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal embedding: %w", err)
+	}
 
-        // According to sqlite-vec documentation, we can query like this:
-        // SELECT m.symbol_id, v.distance FROM vec_ast v JOIN vec_ast_meta m ON v.rowid = m.rowid WHERE v.embedding MATCH ? ORDER BY distance LIMIT ?
-        // Or using `AND k = ?` syntax depending on sqlite-vec versions. Let's try `AND k = ?` as it limits KNN.
-        // Or simply `LIMIT ?` at the end of the query.
-        
-        query := `
+	// According to sqlite-vec documentation, we can query like this:
+	// SELECT m.symbol_id, v.distance FROM vec_ast v JOIN vec_ast_meta m ON v.rowid = m.rowid WHERE v.embedding MATCH ? ORDER BY distance LIMIT ?
+	// Or using `AND k = ?` syntax depending on sqlite-vec versions. Let's try `AND k = ?` as it limits KNN.
+	// Or simply `LIMIT ?` at the end of the query.
+
+	query := `
         SELECT s.name, s.type, s.package_path, s.receiver_type, s.signature, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line
         FROM vec_ast v
         JOIN vec_ast_meta m ON v.rowid = m.rowid
@@ -1259,22 +1261,22 @@ func (s *storeImpl) SearchSemantic(ctx context.Context, queryEmbedding []float32
         WHERE v.embedding MATCH ? AND k = ?
         ORDER BY distance
         `
-        
-        rows, err := s.query(ctx, query, string(embJSON), limit)
-        if err != nil {
-                return nil, fmt.Errorf("failed to execute semantic search query: %w", err)
-        }
-        defer rows.Close()
 
-        var res []Symbol
-        for rows.Next() {
-                var sym Symbol
-                if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
-                        return nil, fmt.Errorf("scan semantic symbol failed: %w", err)
-                }
-                res = append(res, sym)
-        }
-        return res, nil
+	rows, err := s.query(ctx, query, string(embJSON), limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute semantic search query: %w", err)
+	}
+	defer rows.Close()
+
+	var res []Symbol
+	for rows.Next() {
+		var sym Symbol
+		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
+			return nil, fmt.Errorf("scan semantic symbol failed: %w", err)
+		}
+		res = append(res, sym)
+	}
+	return res, nil
 }
 func (s *storeImpl) UpdateSymbolPageranksBulk(ctx context.Context, updates map[string]float64) error {
 	if len(updates) == 0 {

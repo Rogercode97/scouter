@@ -14,7 +14,7 @@ invalid json line
 
 	a := &AstGrepFilter{}
 	reader := strings.NewReader(ndjson)
-	
+
 	// We need to expose the parsing logic to test it without running a real 'sg' command
 	matches, err := a.parseJSONStream(reader)
 	if err != nil {

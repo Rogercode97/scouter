@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"bytes"
+	"encoding/json"
 	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"bytes"
-	"encoding/json"
 )
 
 type ImpactParams struct {
@@ -47,10 +47,10 @@ func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, arg
 	res, err := s.intelligence.AnalyzeImpact(ctx, args.SymbolName, args.FilePath, args.Verbose, &mcpMessenger{server: s, req: req})
 	if err != nil {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to analyze impact: %v", err)}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to analyze impact: %v", err)}},
+				IsError: true,
+			},
+			nil, nil
 	}
 	outStr := engine.EncodeZONImpact(res)
 
@@ -67,10 +67,10 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 	results, err := s.intelligence.GetCriticalSymbols(ctx, limit)
 	if err != nil {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get critical symbols: %v", err)}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get critical symbols: %v", err)}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	var outStr string
@@ -111,8 +111,8 @@ func (s *Server) handleObsidianExport(ctx context.Context, req *mcp.CallToolRequ
 		exportPath = "scouter_exports"
 	}
 
-cwd, _ := os.Getwd()
-cleanPath := filepath.Clean(exportPath)
+	cwd, _ := os.Getwd()
+	cleanPath := filepath.Clean(exportPath)
 	if !filepath.IsAbs(cleanPath) {
 		cleanPath = filepath.Join(cwd, cleanPath)
 	}
@@ -204,7 +204,7 @@ func (s *Server) handleLintArchitecture(ctx context.Context, req *mcp.CallToolRe
 			IsError: true,
 		}, nil, nil
 	}
-	
+
 	outBytes, err := json.MarshalIndent(results, "", "  ")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal results: %w", err)

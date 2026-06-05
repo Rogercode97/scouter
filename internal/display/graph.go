@@ -17,7 +17,7 @@ func ExportMermaid(calls []store.Call, title string) string {
 
 	// Use a map to deduplicate edges and sanitize names
 	seen := make(map[string]bool)
-	
+
 	sanitize := func(s string) string {
 		// Mermaid node IDs shouldn't have dots or slashes unless quoted
 		// But quoting is safer.
@@ -28,7 +28,7 @@ func ExportMermaid(calls []store.Call, title string) string {
 		caller := sanitize(c.CallerName)
 		callee := sanitize(c.CalleeName)
 		edge := fmt.Sprintf("  %s --> %s", caller, callee)
-		
+
 		if !seen[edge] {
 			b.WriteString(edge + "\n")
 			seen[edge] = true

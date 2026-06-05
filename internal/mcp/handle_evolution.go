@@ -91,10 +91,10 @@ func (s *Server) handleCommit(ctx context.Context, req *mcp.CallToolRequest, arg
 	res, err := s.evolution.CommitLedger(ctx)
 	if err != nil {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Commit failed: %v", err)}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Commit failed: %v", err)}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	return &mcp.CallToolResult{
@@ -109,10 +109,10 @@ func (s *Server) handleRollback(ctx context.Context, req *mcp.CallToolRequest, a
 	res, err := s.evolution.RollbackLedger(ctx)
 	if err != nil {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Rollback failed: %v", err)}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Rollback failed: %v", err)}},
+				IsError: true,
+			},
+			nil, nil
 	}
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: res}},
@@ -126,10 +126,10 @@ func (s *Server) handleDiff(ctx context.Context, req *mcp.CallToolRequest, args 
 	res, err := s.evolution.GetLedgerDiff(ctx)
 	if err != nil {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Diff failed: %v", err)}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Diff failed: %v", err)}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	summary := s.evolution.GetLedgerSummary(ctx)

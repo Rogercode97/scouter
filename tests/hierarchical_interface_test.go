@@ -63,7 +63,7 @@ func UseB(b B) {
 	if err := te.Index(ctx, filePath); err != nil {
 		t.Fatalf("failed to index: %v", err)
 	}
-	
+
 	var pkgPath string
 	for sym, err := range st.GetAllSymbols(ctx) {
 		if err == nil && sym.Name == "A" {
@@ -71,7 +71,7 @@ func UseB(b B) {
 			break
 		}
 	}
-	
+
 	if pkgPath == "" {
 		t.Fatal("could not find pkgPath for A")
 	}
@@ -103,7 +103,7 @@ func UseB(b B) {
 			}
 		}
 
-		tasks := strategy.Discover(ctx, fq("A") + ".M1", 3)
+		tasks := strategy.Discover(ctx, fq("A")+".M1", 3)
 		discovered := make(map[string]bool)
 		for task, err := range tasks {
 			if err != nil {
@@ -115,13 +115,13 @@ func UseB(b B) {
 		if !discovered[fq("UseA")] {
 			t.Errorf("expected UseA to be discovered")
 		}
-		
+
 		// This is what we are implementing:
 		if !discovered[fq("UseB")] {
 			t.Errorf("expected UseB to be discovered (via B embedding A)")
 		}
-		
-		if !discovered[fq("C") + ".M1"] {
+
+		if !discovered[fq("C")+".M1"] {
 			t.Errorf("expected C.M1 to be discovered")
 		}
 	})

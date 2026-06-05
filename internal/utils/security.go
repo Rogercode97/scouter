@@ -52,7 +52,7 @@ func ValidatePath(path string) (string, error) {
 	}
 
 	systemTmp := os.TempDir()
-	
+
 	// 1. Normalize to absolute path
 	absPath := path
 	if !filepath.IsAbs(path) {
@@ -111,7 +111,7 @@ func isWithinSovereignty(path, root, tmp string) bool {
 
 	inRepo := strings.HasPrefix(path, root+string(os.PathSeparator)) || path == root
 	inTmp := strings.HasPrefix(path, tmp+string(os.PathSeparator)) || path == tmp
-	
+
 	return inRepo || inTmp
 }
 
@@ -121,20 +121,20 @@ func SanitizeFTS(q string) string {
 	if q == "" {
 		return ""
 	}
-	
+
 	// Check for trailing wildcard
 	hasWildcard := strings.HasSuffix(q, "*")
-	
+
 	// 1. Clean the string
 	s := strings.TrimSpace(q)
 	s = strings.TrimSuffix(s, "*")
-	
+
 	// 2. Escape double quotes (FTS5 uses double double-quotes for literal quotes)
 	s = strings.ReplaceAll(s, "\"", "\"\"")
-	
+
 	// 3. Remove leading wildcards (SQLite doesn't support them at the start of a term)
 	s = strings.TrimLeft(s, "*")
-	
+
 	if s == "" {
 		return ""
 	}
@@ -144,7 +144,7 @@ func SanitizeFTS(q string) string {
 	if hasWildcard {
 		res += "*"
 	}
-	
+
 	return res
 }
 

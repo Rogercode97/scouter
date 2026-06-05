@@ -51,7 +51,7 @@ func GetLocalChanges(ctx context.Context) ([]DiffRange, error) {
 				if len(matches) == 3 && matches[2] != "" {
 					count, _ = strconv.Atoi(matches[2])
 				}
-				
+
 				changes = append(changes, DiffRange{
 					Path:      currentFile,
 					StartLine: start,

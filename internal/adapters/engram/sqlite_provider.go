@@ -85,9 +85,9 @@ func (p *SQLiteMemoryProvider) GetRecentObservations(ctx context.Context, projec
 		  AND created_at >= datetime('now', ?)
 		ORDER BY created_at DESC
 	`
-	
+
 	timeModifier := fmt.Sprintf("-%d hours", hours)
-	
+
 	rows, err := db.QueryContext(ctx, query, project, timeModifier)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

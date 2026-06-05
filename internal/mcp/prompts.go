@@ -65,4 +65,3 @@ WORKFLOW:
 
 Call 'scouter_unlock' to expose specialized architectural and distillation tools.
 Focus on intent, technical rationale, and "Pure Signal". No slop.`
-

@@ -144,66 +144,66 @@ func TestSovereignWrapperEmissions(t *testing.T) {
 }
 
 func TestSovereignWrapperMetrics(t *testing.T) {
-        writer := &mockWriter{}
-        wrapper := NewSovereignWrapper(writer)
+	writer := &mockWriter{}
+	wrapper := NewSovereignWrapper(writer)
 
-        // Test HOT metrics
-        wrapper.SetState(HOT)
-        wrapper.EmitRank("main.go", 0.5)
-        expectedHOT := "@1:main.go\nR|1|0.5000\n"
-        if string(writer.data) != expectedHOT {
-        	t.Errorf("expected HOT rank output:\n%s\ngot:\n%s", expectedHOT, string(writer.data))
-        }
+	// Test HOT metrics
+	wrapper.SetState(HOT)
+	wrapper.EmitRank("main.go", 0.5)
+	expectedHOT := "@1:main.go\nR|1|0.5000\n"
+	if string(writer.data) != expectedHOT {
+		t.Errorf("expected HOT rank output:\n%s\ngot:\n%s", expectedHOT, string(writer.data))
+	}
 
-        // Test COLD metrics suppression
-        writer.data = nil
-        wrapper.SetState(COLD)
-        wrapper.EmitRank("main.go", 0.5)
-        if len(writer.data) != 0 {
-        	t.Errorf("expected COLD rank output to be empty, got %q", string(writer.data))
-        }
-        }
+	// Test COLD metrics suppression
+	writer.data = nil
+	wrapper.SetState(COLD)
+	wrapper.EmitRank("main.go", 0.5)
+	if len(writer.data) != 0 {
+		t.Errorf("expected COLD rank output to be empty, got %q", string(writer.data))
+	}
+}
 
-        func TestULMENHashingAndValidation(t *testing.T) {
+func TestULMENHashingAndValidation(t *testing.T) {
 
-        symbols := []store.Symbol{
-                {Path: "main.go", Name: "Main", Type: "func", StartLine: 1, StartCol: 1},
-                {Path: "main.go", Name: "Helper", Type: "func", StartLine: 10, StartCol: 1},
-        }
+	symbols := []store.Symbol{
+		{Path: "main.go", Name: "Main", Type: "func", StartLine: 1, StartCol: 1},
+		{Path: "main.go", Name: "Helper", Type: "func", StartLine: 10, StartCol: 1},
+	}
 
-        // Test deterministic hashing
-        hash1 := ComputeULMENHash(symbols)
-        hash2 := ComputeULMENHash(symbols)
+	// Test deterministic hashing
+	hash1 := ComputeULMENHash(symbols)
+	hash2 := ComputeULMENHash(symbols)
 
-        if hash1 != hash2 {
-                t.Errorf("expected hashes to be identical for same input, got %s and %s", hash1, hash2)
-        }
+	if hash1 != hash2 {
+		t.Errorf("expected hashes to be identical for same input, got %s and %s", hash1, hash2)
+	}
 
-        // Test validation
-        if !ValidateULMENHash(hash1, symbols) {
-                t.Errorf("expected hash %s to be valid for symbols", hash1)
-        }
+	// Test validation
+	if !ValidateULMENHash(hash1, symbols) {
+		t.Errorf("expected hash %s to be valid for symbols", hash1)
+	}
 
-        // Test staleness (modified symbols)
-        staleSymbols := []store.Symbol{
-                {Path: "main.go", Name: "Main", Type: "func", StartLine: 1, StartCol: 1},
-                {Path: "main.go", Name: "Helper", Type: "func", StartLine: 11, StartCol: 1}, // Changed line
-        }
+	// Test staleness (modified symbols)
+	staleSymbols := []store.Symbol{
+		{Path: "main.go", Name: "Main", Type: "func", StartLine: 1, StartCol: 1},
+		{Path: "main.go", Name: "Helper", Type: "func", StartLine: 11, StartCol: 1}, // Changed line
+	}
 
-        if ValidateULMENHash(hash1, staleSymbols) {
-                t.Errorf("expected hash %s to be invalid for modified symbols", hash1)
-        }
+	if ValidateULMENHash(hash1, staleSymbols) {
+		t.Errorf("expected hash %s to be invalid for modified symbols", hash1)
+	}
 
-        // Test determinism across different orderings
-        symbolsInverted := []store.Symbol{
-                {Path: "main.go", Name: "Helper", Type: "func", StartLine: 10, StartCol: 1},
-                {Path: "main.go", Name: "Main", Type: "func", StartLine: 1, StartCol: 1},
-        }
+	// Test determinism across different orderings
+	symbolsInverted := []store.Symbol{
+		{Path: "main.go", Name: "Helper", Type: "func", StartLine: 10, StartCol: 1},
+		{Path: "main.go", Name: "Main", Type: "func", StartLine: 1, StartCol: 1},
+	}
 
-        hash3 := ComputeULMENHash(symbolsInverted)
-        if hash1 != hash3 {
-                t.Errorf("expected hashes to be identical for different input orderings, got %s and %s", hash1, hash3)
-        }
+	hash3 := ComputeULMENHash(symbolsInverted)
+	if hash1 != hash3 {
+		t.Errorf("expected hashes to be identical for different input orderings, got %s and %s", hash1, hash3)
+	}
 }
 
 func TestACCPThresholds(t *testing.T) {
@@ -274,7 +274,7 @@ func TestProactiveACCP(t *testing.T) {
 	// But if we are at 10, it should be WARM.
 	accp.TotalTokens = 11
 	// wrapper.State is still HOT (lag)
-	
+
 	err := wrapper.EmitSymbol(s)
 	if err != nil {
 		t.Fatalf("EmitSymbol failed: %v", err)
@@ -317,7 +317,7 @@ func TestAutomaticEncoderTracking(t *testing.T) {
 	wrapper.SetACCP(accp)
 
 	s := store.Symbol{Path: "main.go", Name: "Main", Type: "func", StartLine: 1, StartCol: 1}
-	
+
 	// EmitSymbol uses Encoder.EncodeSymbol (if HOT/WARM)
 	// which now writes to wrapper, which tracks tokens.
 	wrapper.SetState(HOT)

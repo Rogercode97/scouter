@@ -59,10 +59,10 @@ var enrichFlag = flag.Bool("enrich", false, "Perform semantic enrichment using L
 func main() {
 	flag.Parse()
 	startTime := time.Now()
-	
+
 	mainCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	
+
 	cfg, err := config.Load(mainCtx)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)

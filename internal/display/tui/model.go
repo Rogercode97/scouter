@@ -1,9 +1,9 @@
 package tui
 
 import (
-	"time"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/Rogercode97/scouter/internal/engine/apply"
+	tea "github.com/charmbracelet/bubbletea"
+	"time"
 )
 
 type TickMsg time.Time
@@ -25,9 +25,9 @@ type PipelineDoneMsg struct {
 }
 
 type Model struct {
-	Progress ProgressState
-	Execution apply.ExecutionResult
-	Err error
+	Progress        ProgressState
+	Execution       apply.ExecutionResult
+	Err             error
 	pipelineRunning bool
 }
 

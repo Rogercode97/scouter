@@ -115,7 +115,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		defer closeDB()
 
 		logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-		
+
 		engramPath, _ := engram.DiscoverDBPath()
 		memoryProvider := engram.NewSQLiteMemoryProvider(engramPath)
 
@@ -163,7 +163,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 		server := mcp.NewServer(opts)
 		defer server.Close()
-		
+
 		transport := &sdk.StdioTransport{}
 		if err := server.Start(ctx, transport); err != nil {
 			fmt.Fprintf(stderr, "MCP Server stopped: %v\n", err)
@@ -185,10 +185,10 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		path := cmdArgs[0]
 		lspMgr := lsp.GetGlobalManager()
 		defer lspMgr.Close()
-		
+
 		analyzer := engine.NewAnalysisEngine(db)
 		te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer), engine.WithLSP(lspMgr))
-		
+
 		start := time.Now()
 		if err := te.Index(ctx, path); err != nil {
 			fmt.Fprintf(stderr, "index error: %v\n", err)
@@ -198,14 +198,14 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		// Mode Deep: High-Precision SSA Analysis (Go only)
 		if flags.Deep {
 			fmt.Fprintf(stdout, "🛡️  Running Mode Deep (SSA Analysis)...\n")
-			
+
 			// Ensure we have a directory for SSA loading
 			absPath, _ := filepath.Abs(path)
 			info, err := os.Stat(absPath)
 			if err == nil && !info.IsDir() {
 				absPath = filepath.Dir(absPath)
 			}
-			
+
 			ssaCalls, err := engine.SSACallGraph(ctx, absPath)
 			if err != nil {
 				fmt.Fprintf(stderr, "SSA analysis error: %v\n", err)
@@ -295,7 +295,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 		query := cmdArgs[0]
 		search := engine.NewSearchEngine(db, nil)
-		
+
 		results, err := search.HybridSearch(ctx, query, 10, 0)
 		if err != nil {
 			fmt.Fprintf(stderr, "search error: %v\n", err)
@@ -404,7 +404,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 		fmt.Fprint(stdout, outputStr)
 		return 0
-	
+
 	case "impact":
 		db, closeDB, exitCode := openDB()
 		if exitCode != 0 {
@@ -503,7 +503,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		searchEngine := engine.NewSearchEngine(db, nil)
 		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impactEngine, searchEngine, nil)
 		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impactEngine, healer, lspMgr)
-		
+
 		te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer), engine.WithLSP(lspMgr), engine.WithImpact(impactEngine), engine.WithDiagnostic(diagnostic), engine.WithHealer(healer), engine.WithSearch(searchEngine))
 
 		res, err := te.Fix(ctx, string(logBytes), nil)

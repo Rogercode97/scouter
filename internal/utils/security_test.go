@@ -44,7 +44,7 @@ func TestSanitizeFTS(t *testing.T) {
 		{"Internal quote", "don't", "\"don't\""},
 		{"Control characters", "OR AND NEAR", "\"OR AND NEAR\""},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := SanitizeFTS(tt.input)

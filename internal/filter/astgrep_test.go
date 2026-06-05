@@ -58,7 +58,7 @@ func TestAstGrepApply(t *testing.T) {
 		if len(res.Lines) == 0 {
 			t.Errorf("expected matched lines, got 0")
 		}
-		
+
 		found := false
 		for _, line := range res.Lines {
 			if strings.Contains(line, "println(\"hello\")") {

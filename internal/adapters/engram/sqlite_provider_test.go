@@ -18,7 +18,7 @@ func TestDiscoverDBPath(t *testing.T) {
 			t.Fatalf("failed to get home dir: %v", err)
 		}
 		expected := filepath.Join(home, ".engram", "observations.db")
-		
+
 		path, err := DiscoverDBPath()
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -76,7 +76,7 @@ func TestSQLiteMemoryProvider_SearchInsights(t *testing.T) {
 	}
 
 	provider := NewSQLiteMemoryProvider(dbPath)
-	
+
 	t.Run("finds and parses insights", func(t *testing.T) {
 		// Mock context with project
 		// Note: The original Store.GetMemoryInsights uses utils.GetRepoName(ctx)
@@ -85,7 +85,7 @@ func TestSQLiteMemoryProvider_SearchInsights(t *testing.T) {
 		// Wait, if it doesn't take project, how does it filter?
 		// Ah, the task says: "Query the observations table for the current project."
 		// Maybe it uses utils.GetRepoName(ctx).
-		
+
 		ctx := context.Background()
 		insights, err := provider.SearchInsights(ctx, "Title 1", 5)
 		if err != nil {

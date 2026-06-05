@@ -40,7 +40,7 @@ func TestDream_PassiveIntegration(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDB)
 	dbPath := filepath.Join(tmpDB, "engram.db")
-	
+
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatalf("failed to open sqlite: %v", err)
@@ -72,11 +72,11 @@ func TestDream_PassiveIntegration(t *testing.T) {
 
 	// 3. Manually trigger PassiveDistill directly
 	// This verifies the integration between AppService and SQLiteMemoryProvider
-	
+
 	// PassiveDistill in AppService is what actually saves to the DB.
 	// postToolHook sets the distiller on appService using req.Session.
 	// Since we already injected a MockDistiller into appService, we can call it directly.
-	
+
 	err = server.appService.PassiveDistill(ctx, "scouter", []memory.Message{
 		{Role: "user", Content: "Let's use SQLite for memories."},
 		{Role: "assistant", Content: "Good idea. I'll implement it."},
@@ -102,7 +102,7 @@ func TestDream_PassiveIntegration(t *testing.T) {
 	if content[:len(expectedPrefix)] != expectedPrefix {
 		t.Errorf("expected content to start with %s, got %s", expectedPrefix, content)
 	}
-	
+
 	expectedTitle := "Test Decision"
 	// Content format is "[type] title: content"
 	if content[len(expectedPrefix)+1:len(expectedPrefix)+1+len(expectedTitle)] != expectedTitle {

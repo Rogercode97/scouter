@@ -4,12 +4,12 @@ import "fmt"
 
 // ASTRuleMatch represents a single violation found by ast-grep.
 type ASTRuleMatch struct {
-	RuleID  string `json:"ruleId"`
-	File    string `json:"file"`
-	Text    string `json:"text"`
-	Message string `json:"message"`
-	Severity string `json:"severity"`
-	Range   ASTRange `json:"range"`
+	RuleID   string   `json:"ruleId"`
+	File     string   `json:"file"`
+	Text     string   `json:"text"`
+	Message  string   `json:"message"`
+	Severity string   `json:"severity"`
+	Range    ASTRange `json:"range"`
 }
 
 // ASTRange represents the location of a match in the source code.

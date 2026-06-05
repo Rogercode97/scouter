@@ -12,8 +12,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-
-
 type PureSignalParams struct {
 	Text  string `json:"text" jsonschema:"REQUIRED. The raw text to filter and extract pure signal from"`
 	Mode  string `json:"mode,omitempty" jsonschema:"Optional: Filtering mode (e.g., 'compact', 'verbose')"`

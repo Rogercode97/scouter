@@ -6,18 +6,15 @@ import (
 	"fmt"
 	"os/exec"
 
-	
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/filter"
-	
+
+	"bytes"
 	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"bytes"
 	"strings"
 )
-
-
 
 type IndexParams struct {
 	FilePath string `json:"filePath" jsonschema:"REQUIRED. The absolute or relative path to the file or directory to index"`
@@ -126,10 +123,10 @@ func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args
 
 	if err := s.indexer.Index(ctx, args.FilePath); err != nil {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Indexing failed: %v", err)}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Indexing failed: %v", err)}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	return s.presenter.FormatTextResult(thought, fmt.Sprintf("✅ Indexed %s and updated global call graph", args.FilePath)), nil, nil
@@ -144,10 +141,10 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 	searchRes, err := s.discovery.HybridSearch(ctx, args.Query, limit, args.Offset)
 	if err != nil {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Search execution failed: %v", err)}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Search execution failed: %v", err)}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	thought := fmt.Sprintf("Sovereign Search: Querying AST+Engram for '%s' (%s). Pagination: [Limit:%d Offset:%d]. Found %d matches & %d insights.",
@@ -160,19 +157,19 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 func (s *Server) handleRead(ctx context.Context, req *mcp.CallToolRequest, args ReadParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" || args.Pointer == "" {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath or pointer"}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath or pointer"}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	path, err := utils.ValidatePath(args.FilePath)
 	if err != nil {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	// [RTK Muscle] Delegation check
@@ -194,33 +191,33 @@ func (s *Server) handleRead(ctx context.Context, req *mcp.CallToolRequest, args 
 	rng, err := s.resolver.Resolve(ctx, path, args.Pointer)
 	if err != nil {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	content, err := engine.ReadFragment(ctx, path, rng)
 	if err != nil {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	thought := fmt.Sprintf("Reading fragment from %s (pointer: %s). Resolved to range %d:%d.",
-	        args.FilePath, args.Pointer, rng.Start, rng.End)
+		args.FilePath, args.Pointer, rng.Start, rng.End)
 	return s.presenter.FormatTextResult(thought, content), nil, nil
 }
 
 func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, args CallersParams) (*mcp.CallToolResult, any, error) {
 	if args.CalleeName == "" {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "missing calleeName"}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: "missing calleeName"}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	limit := args.Limit
@@ -231,10 +228,10 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 	results, err := s.store.GetCallers(ctx, args.CalleeName, limit, args.Offset)
 	if err != nil {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get callers: %v", err)}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get callers: %v", err)}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	for i := range results {
@@ -257,19 +254,19 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequest, args DefinitionParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	path, err := utils.ValidatePath(args.FilePath)
 	if err != nil {
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
-			IsError: true,
-		},
-		nil, nil
+				Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	pos := lsp.Position{
@@ -279,49 +276,49 @@ func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequ
 
 	result, err := s.GotoDefinition(ctx, path, pos)
 	if err != nil {
-	        return &mcp.CallToolResult{
-	                Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Goto definition failed: %v", err)}},
-	                IsError: true,
-	        },
-	        nil, nil
+		return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Goto definition failed: %v", err)}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	thought := fmt.Sprintf("LSP Navigation: Finding definition at %s:%d:%d.", args.FilePath, args.Line, args.Character)
 
 	resultPayload, formatErr := s.presenter.FormatResult(thought, result)
 	return resultPayload, nil, formatErr
-	}
+}
 
-	func (s *Server) handleTypeInfo(ctx context.Context, req *mcp.CallToolRequest, args TypeInfoParams) (*mcp.CallToolResult, any, error) {
+func (s *Server) handleTypeInfo(ctx context.Context, req *mcp.CallToolRequest, args TypeInfoParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
-	        return &mcp.CallToolResult{
-	                Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
-	                IsError: true,
-	        },
-	        nil, nil
+		return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "missing filePath"}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	path, err := utils.ValidatePath(args.FilePath)
 	if err != nil {
-	        return &mcp.CallToolResult{
-	                Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
-	                IsError: true,
-	        },
-	        nil, nil
+		return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+				IsError: true,
+			},
+			nil, nil
 	}
 
 	pos := lsp.Position{
-	        Line:      args.Line - 1,
-	        Character: args.Character - 1,
+		Line:      args.Line - 1,
+		Character: args.Character - 1,
 	}
 
 	result, err := s.Hover(ctx, path, pos)
 	if err != nil {
-	        return &mcp.CallToolResult{
-	                Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Type info failed: %v", err)}},
-	                IsError: true,
-	        },
-	        nil, nil
+		return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Type info failed: %v", err)}},
+				IsError: true,
+			},
+			nil, nil
 	}
 	thought := fmt.Sprintf("LSP Inspection: Extracting type information/hover docs at %s:%d:%d.", args.FilePath, args.Line, args.Character)
 
@@ -368,7 +365,7 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 			}
 			results = results[offset:end]
 		}
-		
+
 		thought := fmt.Sprintf("Structural Analysis: Identifying symbols with identical logical signatures to '%s' in '%s'. Pagination: [Limit:%d Offset:%d]. Found %d matches (Total: %d).", args.TargetSymbol, path, limit, offset, len(results), total)
 
 		resultPayload, formatErr := s.presenter.FormatResult(thought, results)
@@ -385,7 +382,7 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 		"pattern": args.Pattern,
 		"path":    path,
 	}
-	
+
 	// Map extension to language if possible, or let ast-grep auto-detect based on extension
 	// ast-grep usually auto-detects if we pass a path, but we can enforce it if needed.
 	// We'll pass the extension as a hint if we want, but ast-grep handles directory scanning well.
@@ -395,11 +392,16 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 	// Let's map common extensions to languages.
 	lang := ""
 	switch args.Ext {
-	case ".go", "go": lang = "go"
-	case ".ts", "ts": lang = "typescript"
-	case ".js", "js": lang = "javascript"
-	case ".rs", "rs": lang = "rust"
-	case ".py", "py": lang = "python"
+	case ".go", "go":
+		lang = "go"
+	case ".ts", "ts":
+		lang = "typescript"
+	case ".js", "js":
+		lang = "javascript"
+	case ".rs", "rs":
+		lang = "rust"
+	case ".py", "py":
+		lang = "python"
 	}
 	if lang != "" {
 		params["lang"] = lang
@@ -462,9 +464,7 @@ func (s *Server) handleDiagnose(ctx context.Context, req *mcp.CallToolRequest, a
 
 	thought := "Executing Diagnostic Vision (Fase 8). Fused Git Provenance, X-Ray AST, Radar Impact, and Thermal Similarity into HUD."
 
-
 	resultPayload, formatErr := s.presenter.FormatResult(thought, []engine.DiagnosticHUD{*hudStruct})
-
 
 	return resultPayload, nil, formatErr
 }
@@ -488,4 +488,3 @@ func (s *Server) handleNeighborhood(ctx context.Context, req *mcp.CallToolReques
 
 	return s.presenter.FormatTextResult(thought, neighborhood), nil, nil
 }
-

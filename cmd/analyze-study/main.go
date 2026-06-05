@@ -26,7 +26,7 @@ func main() {
 
 	analyzer := engine.NewAnalysisEngine(db)
 	_ = analyzer.ResolveCentrality(ctx)
-	
+
 	symbols, err := analyzer.GetCriticalSymbols(ctx, 100) // Increase limit to find study-claude symbols
 	if err != nil {
 		log.Fatalf("failed to get critical symbols: %v", err)

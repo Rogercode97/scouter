@@ -83,9 +83,9 @@ func (a *AstGrepFilter) Apply(ctx context.Context, input ActionResult, params ma
 	// For rewrites, we might want the whole transformed output.
 	// However, if we follow the pipeline pattern, we might want to stay in JSON-land if possible.
 	// But ast-grep doesn't output the full rewritten file in JSON stream mode, only the replacements.
-	
+
 	args := []string{"run", "--pattern", pattern}
-	
+
 	searchPath := getStr(params, "path")
 	useStdin := searchPath == "" && len(input.Lines) > 0
 
@@ -97,13 +97,13 @@ func (a *AstGrepFilter) Apply(ctx context.Context, input ActionResult, params ma
 		args = append(args, "--rewrite", rewrite)
 	}
 
-	// Optimization: ast-grep performs better when the language is explicitly defined, 
+	// Optimization: ast-grep performs better when the language is explicitly defined,
 	// as it allows the internal 'potential_kinds' heuristic to trigger early.
 	// For --stdin, --lang is highly recommended to avoid parsing ambiguity.
 	if lang != "" {
 		args = append(args, "--lang", lang)
 	} else if useStdin {
-		// Default to generic or let it fail? For now, we attempt to detect but 
+		// Default to generic or let it fail? For now, we attempt to detect but
 		// if we can't, ast-grep might struggle with --stdin.
 	}
 
@@ -193,7 +193,7 @@ func (a *AstGrepFilter) Apply(ctx context.Context, input ActionResult, params ma
 func (a *AstGrepFilter) parseJSONStream(r io.Reader) ([]string, error) {
 	var newLines []string
 	seenLines := make(map[int]bool)
-	
+
 	// Use a scanner to read NDJSON line-by-line for resiliency
 	scanner := bufio.NewScanner(r)
 	// Increase buffer size for very long lines in large files

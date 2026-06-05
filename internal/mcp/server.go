@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/display"
+	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
@@ -190,7 +190,7 @@ type healerMessenger struct {
 
 func (m *healerMessenger) Ask(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
 	fullUserPrompt := fmt.Sprintf("%s\n\nHistorical Context (Engram):\n%s", userPrompt, m.engramCtx)
-	
+
 	// Log user prompt
 	m.server.AppendSessionMessage(memory.Message{Role: "user", Content: fullUserPrompt})
 
@@ -324,7 +324,6 @@ func (s *Server) registerCoreTools() {
 		Description: "POST-EDIT VALIDATION: Verify against a snapshot to detect missing or mangled symbols.",
 	}, s.handleVerifyAST)
 
-
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "ast_search",
 		Description: "Semantic or text search for symbols. Use to locate points of interest within a codebase.",
@@ -455,26 +454,25 @@ func (s *Server) registerSpecializedTools() {
 type UnlockArsenalParams struct{}
 
 func (s *Server) handleUnlockArsenal(ctx context.Context, req *mcp.CallToolRequest, args UnlockArsenalParams) (*mcp.CallToolResult, any, error) {
-        s.mu.Lock()
-        defer s.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-        if s.arsenalUnlocked {
-                return &mcp.CallToolResult{
-                        Content: []mcp.Content{
-                                &mcp.TextContent{Text: "Arsenal is already unlocked."},
-                        },
-                }, nil, nil
-        }
+	if s.arsenalUnlocked {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: "Arsenal is already unlocked."},
+			},
+		}, nil, nil
+	}
 
-        s.registerSpecializedTools()
-        s.arsenalUnlocked = true
+	s.registerSpecializedTools()
+	s.arsenalUnlocked = true
 
-        return &mcp.CallToolResult{
-                Content: []mcp.Content{
-                        &mcp.TextContent{Text: "Specialized Arsenal unlocked. New tools are now available for discovery."},
-                },
-        }, nil, nil
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: "Specialized Arsenal unlocked. New tools are now available for discovery."},
+		},
+	}, nil, nil
 }
-
 
 var execCommand = exec.Command

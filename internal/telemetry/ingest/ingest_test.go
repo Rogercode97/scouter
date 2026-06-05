@@ -52,7 +52,9 @@ func TestIngest(t *testing.T) {
 			env:     "production",
 			wantErr: false,
 			verify: func(t *testing.T, st store.Store) {
-				impl := st.(interface{ GetStats(context.Context) (int, int, error) })
+				impl := st.(interface {
+					GetStats(context.Context) (int, int, error)
+				})
 				// We can just verify via a custom query since store doesn't expose usage directly
 				// Wait, there's no GetSymbolUsage method yet, so we have to use the db connection.
 				// Since st is an interface, let's just make sure it doesn't error.

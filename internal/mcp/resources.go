@@ -23,7 +23,7 @@ func (s *Server) registerResources() {
 		cwd, _ := os.Getwd()
 		project := utils.GetRepoName(ctx)
 		content := fmt.Sprintf("Scouter Version: 12.0.0-ascension\nWorkspace: %s\nProject: %s", cwd, project)
-		
+
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{
 				{
@@ -46,9 +46,9 @@ func (s *Server) registerResources() {
 		if err != nil {
 			return nil, err
 		}
-		
+
 		out, _ := json.MarshalIndent(res, "", "  ")
-		
+
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{
 				{
@@ -81,7 +81,7 @@ func (s *Server) registerResources() {
 				},
 			}, nil
 		}
-		
+
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{
 				{
@@ -103,10 +103,10 @@ func (s *Server) registerResources() {
 		cwd, _ := os.Getwd()
 		adrDir := filepath.Join(cwd, "docs", "adr")
 		entries, err := os.ReadDir(adrDir)
-		
+
 		var list strings.Builder
 		list.WriteString("Available ADRs:\n")
-		
+
 		if err == nil {
 			for _, entry := range entries {
 				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
@@ -140,22 +140,22 @@ func (s *Server) registerResources() {
 		if len(parts) != 2 || parts[1] == "" {
 			return nil, fmt.Errorf("invalid ADR URI")
 		}
-		
+
 		filename := parts[1]
 		cwd, _ := os.Getwd()
 		adrPath := filepath.Join(cwd, "docs", "adr", filename)
-		
+
 		// Path Traversal Protection
 		cleanPath := filepath.Clean(adrPath)
 		if !strings.HasPrefix(cleanPath, filepath.Join(cwd, "docs", "adr")) {
 			return nil, fmt.Errorf("security violation: path traversal detected")
 		}
-		
+
 		content, err := os.ReadFile(cleanPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read ADR: %v", err)
 		}
-		
+
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{
 				{

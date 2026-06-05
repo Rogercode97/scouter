@@ -45,7 +45,7 @@ func isAlphaNumeric(b byte) bool {
 	return isAlpha(b) || (b >= '0' && b <= '9')
 }
 
-func preparePattern(parser *gotreesitter.Parser, pattern string, ext string, lang *gotreesitter.Language) (*gotreesitter.Node, []byte) {
+func preparePattern(parser *gotreesitter.Parser, pattern string, ext string, lang *gotreesitter.Language) (*gotreesitter.Tree, *gotreesitter.Node, []byte) {
 	processedPattern := pattern
 	processedPattern = strings.ReplaceAll(processedPattern, "$$$", "__SCT_MULTI__")
 
@@ -82,9 +82,11 @@ func preparePattern(parser *gotreesitter.Parser, pattern string, ext string, lan
 		}
 
 		wTree, _ := parser.Parse([]byte(wrapped))
-		if !wTree.RootNode().HasError() {
-			pContent = []byte(wrapped)
-			patternRoot = findTargetNode(wTree.RootNode(), pContent, processedPattern, lang)
+		if wTree != nil {
+			if !wTree.RootNode().HasError() {
+				pContent = []byte(wrapped)
+				patternRoot = findTargetNode(wTree.RootNode(), pContent, processedPattern, lang)
+			}
 		}
 	}
 
@@ -96,7 +98,7 @@ func preparePattern(parser *gotreesitter.Parser, pattern string, ext string, lan
 		patternRoot = patternRoot.NamedChild(0)
 	}
 
-	return patternRoot, pContent
+	return patternTree, patternRoot, pContent
 }
 
 func StructuralRefactor(ctx context.Context, filePath, pattern, template, ext string) (string, error) {
@@ -176,9 +178,13 @@ func StructuralSearchWithRule(ctx context.Context, rootPath string, rule types.S
 		}
 	}
 
-	patternParser := gotreesitter.NewParser(langConfig.Language)
+	patternParser := GetParser(langConfig.Language)
+	defer PutParser(langConfig.Language, patternParser)
 
-	patternRoot, pContent := preparePattern(patternParser, rule.Pattern, ext, langConfig.Language)
+	patternTree, patternRoot, pContent := preparePattern(patternParser, rule.Pattern, ext, langConfig.Language)
+	if patternTree != nil {
+		defer patternTree.Release()
+	}
 
 	if patternRoot == nil {
 		return nil, nil
@@ -216,7 +222,8 @@ func StructuralSearchWithRule(ctx context.Context, rootPath string, rule types.S
 		go func() {
 			defer wg.Done()
 
-			parser := gotreesitter.NewParser(langConfig.Language)
+			parser := GetParser(langConfig.Language)
+			defer PutParser(langConfig.Language, parser)
 
 			for path := range jobs {
 				select {
@@ -234,6 +241,7 @@ func StructuralSearchWithRule(ctx context.Context, rootPath string, rule types.S
 				tree, _ := parser.Parse(content)
 				if tree != nil {
 					findMatches(tree.RootNode(), patternRoot, pContent, content, path, &fileMatches, rule, langConfig.Language, ext)
+					tree.Release()
 				}
 				results <- fileMatches
 			}
@@ -281,9 +289,13 @@ func checkHas(node *gotreesitter.Node, hasPattern string, content []byte, ext st
 		return true
 	}
 
-	parser := gotreesitter.NewParser(lang)
+	parser := GetParser(lang)
+	defer PutParser(lang, parser)
 
-	patternRoot, pContent := preparePattern(parser, hasPattern, ext, lang)
+	patternTree, patternRoot, pContent := preparePattern(parser, hasPattern, ext, lang)
+	if patternTree != nil {
+		defer patternTree.Release()
+	}
 
 	if patternRoot == nil {
 		return false

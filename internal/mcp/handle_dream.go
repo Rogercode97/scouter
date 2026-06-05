@@ -16,8 +16,6 @@ type DreamParams struct {
 	Hours   int    `json:"hours,omitempty" jsonschema:"Optional: Time window in hours for memory extraction (default: 24)"`
 }
 
-
-
 func (s *Server) handleDream(ctx context.Context, req *mcp.CallToolRequest, args DreamParams) (*mcp.CallToolResult, any, error) {
 	project := args.Project
 	if project == "" {
@@ -33,12 +31,12 @@ func (s *Server) handleDream(ctx context.Context, req *mcp.CallToolRequest, args
 
 	// Create a new Distiller for this specific request to use the current session
 	distiller := llm.NewMCPDistiller(req.Session)
-	
+
 	// We use the pre-initialized appService but with a fresh distiller for sampling
-	// In a real production scenario, we might want to inject the distiller into a 
+	// In a real production scenario, we might want to inject the distiller into a
 	// request-scoped service, but for now we'll just use the session-bound distiller.
 	s.appService.SetDistiller(distiller)
-	
+
 	err := s.appService.DistillAndSave(ctx, project, hours)
 	if err != nil {
 		return nil, nil, err

@@ -109,7 +109,7 @@ func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, er
 	}
 
 	entry.once.Do(func() {
-		// IMPORTANT: LSP server processes are long-running and MUST NOT be tied 
+		// IMPORTANT: LSP server processes are long-running and MUST NOT be tied
 		// to a request context that might time out. We use a background context
 		// for the process lifecycle.
 		bgCtx := context.Background()
@@ -166,7 +166,7 @@ func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, er
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	default:
-		// Client is already initialized or being initialized. 
+		// Client is already initialized or being initialized.
 		// Since NewClient performs the handshake, entry.client is ready here.
 	}
 

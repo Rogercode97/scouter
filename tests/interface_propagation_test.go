@@ -58,7 +58,7 @@ func Welcome(g Greeter) {
 	if err := te.Index(ctx, filePath); err != nil {
 		t.Fatalf("failed to index: %v", err)
 	}
-	
+
 	// Get the package path assigned by the parser
 	var pkgPath string
 	for sym, err := range st.GetAllSymbols(ctx) {
@@ -67,7 +67,7 @@ func Welcome(g Greeter) {
 			break
 		}
 	}
-	
+
 	if pkgPath == "" {
 		t.Fatal("could not find pkgPath for Greeter")
 	}
@@ -84,7 +84,7 @@ func Welcome(g Greeter) {
 	fq := func(name string) string { return pkgPath + "." + name }
 
 	t.Run("Downward: Interface to Implementations", func(t *testing.T) {
-		tasks := strategy.Discover(ctx, fq("Greeter") + ".Greet", 2)
+		tasks := strategy.Discover(ctx, fq("Greeter")+".Greet", 2)
 		discovered := make(map[string]bool)
 		for task, err := range tasks {
 			if err != nil {
@@ -93,11 +93,11 @@ func Welcome(g Greeter) {
 			discovered[task.ImpactedSymbol] = true
 		}
 
-		if !discovered[fq("EnglishGreeter") + ".Greet"] {
-			t.Errorf("expected %s to be discovered", fq("EnglishGreeter") + ".Greet")
+		if !discovered[fq("EnglishGreeter")+".Greet"] {
+			t.Errorf("expected %s to be discovered", fq("EnglishGreeter")+".Greet")
 		}
-		if !discovered[fq("SpanishGreeter") + ".Greet"] {
-			t.Errorf("expected %s to be discovered", fq("SpanishGreeter") + ".Greet")
+		if !discovered[fq("SpanishGreeter")+".Greet"] {
+			t.Errorf("expected %s to be discovered", fq("SpanishGreeter")+".Greet")
 		}
 		// Welcome calls the interface method
 		if !discovered[fq("Welcome")] {
@@ -106,7 +106,7 @@ func Welcome(g Greeter) {
 	})
 
 	t.Run("Upward and Siblings: Implementation to Interface and Others", func(t *testing.T) {
-		tasks := strategy.Discover(ctx, fq("EnglishGreeter") + ".Greet", 3)
+		tasks := strategy.Discover(ctx, fq("EnglishGreeter")+".Greet", 3)
 		discovered := make(map[string]bool)
 		for task, err := range tasks {
 			if err != nil {
@@ -115,11 +115,11 @@ func Welcome(g Greeter) {
 			discovered[task.ImpactedSymbol] = true
 		}
 
-		if !discovered[fq("Greeter") + ".Greet"] {
-			t.Errorf("expected %s (interface) to be discovered upward", fq("Greeter") + ".Greet")
+		if !discovered[fq("Greeter")+".Greet"] {
+			t.Errorf("expected %s (interface) to be discovered upward", fq("Greeter")+".Greet")
 		}
-		if !discovered[fq("SpanishGreeter") + ".Greet"] {
-			t.Errorf("expected %s (sibling) to be discovered via interface", fq("SpanishGreeter") + ".Greet")
+		if !discovered[fq("SpanishGreeter")+".Greet"] {
+			t.Errorf("expected %s (sibling) to be discovered via interface", fq("SpanishGreeter")+".Greet")
 		}
 		if !discovered[fq("Welcome")] {
 			t.Errorf("expected %s (caller of interface) to be discovered via interface", fq("Welcome"))

@@ -28,8 +28,8 @@ func DefaultConfig() Config {
 	return Config{
 		Enabled:     true,
 		Mode:        "failures",
-		MaxFiles:    50,                // RTK-inspired higher limit for unique commands
-		MaxFileSize: 2 * 1024 * 1024,   // 2MB for deeper context
+		MaxFiles:    50,              // RTK-inspired higher limit for unique commands
+		MaxFileSize: 2 * 1024 * 1024, // 2MB for deeper context
 		Dir:         filepath.Join(home, ".local", "share", "scouter", "tee"),
 	}
 }

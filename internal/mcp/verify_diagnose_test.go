@@ -3,11 +3,11 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"testing"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/Rogercode97/scouter/internal/store"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"log/slog"
 	"os"
+	"testing"
 )
 
 func TestVerifyDiagnose(t *testing.T) {

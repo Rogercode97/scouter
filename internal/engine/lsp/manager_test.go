@@ -50,7 +50,7 @@ func TestLSPManager(t *testing.T) {
 		t.Fatalf("GetClient failed: %v", err)
 	}
 
-	// Note: With the new persistent daemon logic, GetClient might return 
+	// Note: With the new persistent daemon logic, GetClient might return
 	// a real jsonrpcClient if a daemon is running. We check the interface.
 	if client == nil {
 		t.Errorf("Expected non-nil client")

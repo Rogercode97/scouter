@@ -237,7 +237,7 @@ func writePrefixed(w io.Writer, s string) {
 
 // ValidateULMENHash checks if a given hash matches the current state of symbols.
 func ValidateULMENHash(hash string, symbols []store.Symbol) bool {
-        return ComputeULMENHash(symbols) == hash
+	return ComputeULMENHash(symbols) == hash
 }
 
 // EmitCall emits a call relationship according to the current state.

@@ -2,21 +2,21 @@ package tests
 
 import (
 	"context"
-	"testing"
 	"os"
 	"path/filepath"
+	"testing"
 
 	"github.com/Rogercode97/scouter/internal/engine"
-	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
+	"github.com/Rogercode97/scouter/internal/store"
 )
 
 func TestSemanticRipple_CrossPackage(t *testing.T) {
 	ctx := context.Background()
-	
+
 	cwd, _ := os.Getwd()
 	t.Logf("CWD: %s", cwd)
-	
+
 	var fixtureDir string
 	if _, err := os.Stat("fixtures/semantic_ripple"); err == nil {
 		fixtureDir, _ = filepath.Abs("fixtures/semantic_ripple")
@@ -27,7 +27,7 @@ func TestSemanticRipple_CrossPackage(t *testing.T) {
 	}
 
 	t.Logf("Fixture Dir: %s", fixtureDir)
-	
+
 	// Check files
 	var files []string
 	filepath.Walk(fixtureDir, func(path string, info os.FileInfo, err error) error {
@@ -41,7 +41,7 @@ func TestSemanticRipple_CrossPackage(t *testing.T) {
 	os.MkdirAll(filepath.Join(fixtureDir, ".scouter"), 0755)
 	dbPath := filepath.Join(fixtureDir, ".scouter", "scouter_test.db")
 	os.Remove(dbPath)
-	
+
 	db, err := store.NewStore(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create DB: %v", err)
@@ -50,18 +50,20 @@ func TestSemanticRipple_CrossPackage(t *testing.T) {
 
 	analyzer := engine.NewAnalysisEngine(db)
 	analyzer.ProjectRoot = fixtureDir
-	
+
 	lspMgr := lsp.GetGlobalManager()
-	
+
 	te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer), engine.WithLSP(lspMgr))
-	
+
 	if err := te.Index(ctx, fixtureDir); err != nil {
 		t.Fatalf("Index failed: %v", err)
 	}
 
 	count := 0
 	for sym, err := range db.GetAllSymbols(ctx) {
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		t.Logf("Symbol: %s (%s) pkg=%s", sym.Name, sym.Type, sym.PackagePath)
 		count++
 	}
@@ -69,7 +71,9 @@ func TestSemanticRipple_CrossPackage(t *testing.T) {
 
 	universe, _ := analyzer.BuildTypeUniverse()
 	t.Logf("Packages in Universe: %d", len(universe))
-	for p := range universe { t.Logf("  - %s", p) }
+	for p := range universe {
+		t.Logf("  - %s", p)
+	}
 
 	if err := analyzer.ResolveInterfaces(ctx); err != nil {
 		t.Fatalf("ResolveInterfaces failed: %v", err)
@@ -77,7 +81,9 @@ func TestSemanticRipple_CrossPackage(t *testing.T) {
 
 	foundImplements := false
 	for call, err := range db.GetAllCalls(ctx) {
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		t.Logf("Call: %s -> %s (%s)", call.CallerName, call.CalleeName, call.LinkType)
 		if call.LinkType == "implements" {
 			foundImplements = true

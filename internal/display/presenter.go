@@ -28,9 +28,9 @@ func (p *DefaultPresenter) FormatResult(thought string, data interface{}) (*mcp.
 	if err != nil {
 		return nil, err
 	}
-	
+
 	text := fmt.Sprintf("<thought>\n%s\n</thought>\n%s", thought, string(out))
-	
+
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{
@@ -43,7 +43,7 @@ func (p *DefaultPresenter) FormatResult(thought string, data interface{}) (*mcp.
 // FormatTextResult wraps the text output, prepended by the thought block.
 func (p *DefaultPresenter) FormatTextResult(thought string, text string) *mcp.CallToolResult {
 	fullText := fmt.Sprintf("<thought>\n%s\n</thought>\n%s", thought, text)
-	
+
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			&mcp.TextContent{

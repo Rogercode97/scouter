@@ -24,7 +24,7 @@ func TestIntegration_PredictiveTesting(t *testing.T) {
 	// 1. Prepare Fixture Paths
 	sourcePath, _ := filepath.Abs("fixtures/predict_source.go")
 	testPath, _ := filepath.Abs("fixtures/predict_source_test.go")
-	
+
 	// 2. Index the files
 	files := []string{sourcePath, testPath}
 	for _, path := range files {

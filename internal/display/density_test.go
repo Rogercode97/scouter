@@ -84,9 +84,9 @@ func TestHAKAIEncoder_Intelligence(t *testing.T) {
 	enc.EncodeRank("main.go", 0.85)
 	enc.EncodeChurn("main.go", 1.2)
 	enc.EncodeCritical(store.CriticalSymbol{
-		Symbol: store.Symbol{Name: "Core", Path: "main.go"},
+		Symbol:     store.Symbol{Name: "Core", Path: "main.go"},
 		Centrality: 10,
-		Fragility: 5,
+		Fragility:  5,
 	})
 
 	output := buf.String()
@@ -97,7 +97,7 @@ func TestHAKAIEncoder_Intelligence(t *testing.T) {
 		t.Errorf("output missing churn: %s", output)
 	}
 	if !strings.Contains(output, "X|1|Core|10|5") {
-		// Note: EncodeCritical still uses the old format in the code. 
+		// Note: EncodeCritical still uses the old format in the code.
 		// I should probably update EncodeCritical too if it's meant to be state-aware.
 		// For now, let's keep it as is or update it.
 		// Actually, EncodeCritical wasn't updated in the code.

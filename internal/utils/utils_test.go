@@ -58,7 +58,7 @@ func TestValidatePath_Security(t *testing.T) {
 		},
 		{
 			name:    "Project inside restricted folder (Parent Pollution Fix)",
-			path:    "src/main.go", 
+			path:    "src/main.go",
 			wantErr: false,
 		},
 	}
@@ -83,8 +83,8 @@ func TestValidatePath_SymlinkEscape(t *testing.T) {
 	// Create a symlink inside the project pointing to a forbidden directory
 	evilLink := filepath.Join(root, "evil_link")
 	os.Remove(evilLink)
-	
-	forbiddenDir := filepath.Dir(root) 
+
+	forbiddenDir := filepath.Dir(root)
 	err := os.Symlink(forbiddenDir, evilLink)
 	if err != nil {
 		t.Skip("Skipping symlink test (permissions or OS limitation)")

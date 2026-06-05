@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -25,6 +26,47 @@ type LanguageConfig struct {
 	CallQuery   *gotreesitter.Query
 	ImportQuery *gotreesitter.Query
 	FlowQuery   *gotreesitter.Query
+}
+
+type parserPool struct {
+	sync.RWMutex
+	pools map[*gotreesitter.Language]*sync.Pool
+}
+
+var PPool = &parserPool{
+	pools: make(map[*gotreesitter.Language]*sync.Pool),
+}
+
+func GetParser(lang *gotreesitter.Language) *gotreesitter.Parser {
+	PPool.RLock()
+	pool, exists := PPool.pools[lang]
+	PPool.RUnlock()
+
+	if !exists {
+		PPool.Lock()
+		pool, exists = PPool.pools[lang]
+		if !exists {
+			pool = &sync.Pool{
+				New: func() any {
+					return gotreesitter.NewParser(lang)
+				},
+			}
+			PPool.pools[lang] = pool
+		}
+		PPool.Unlock()
+	}
+
+	return pool.Get().(*gotreesitter.Parser)
+}
+
+func PutParser(lang *gotreesitter.Language, parser *gotreesitter.Parser) {
+	PPool.RLock()
+	pool, exists := PPool.pools[lang]
+	PPool.RUnlock()
+
+	if exists {
+		pool.Put(parser)
+	}
 }
 
 var languageConfigs map[string]*LanguageConfig
@@ -166,271 +208,188 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 	}
 
 	lang := config.Language
-	parser := gotreesitter.NewParser(lang)
+	parser := GetParser(lang)
+	defer PutParser(lang, parser)
 	tree, _ := parser.Parse(content)
 	if tree == nil {
 		return func(yield func(types.ASTPointer) bool) {}, func(yield func(types.ASTCall) bool) {}, func(yield func(types.DataFlow) bool) {}, nil
 	}
+	defer tree.Release()
 
-	var (
-		sharedSymbolNames map[uint32]string
-		symbolsOnce       sync.Once
-	)
+	var pointers []types.ASTPointer
+	var calls []types.ASTCall
+	var flows []types.DataFlow
 
-	getSharedSymbolNames := func() map[uint32]string {
-		symbolsOnce.Do(func() {
-			sharedSymbolNames = make(map[uint32]string)
-			anonCounters := make(map[string]int)
-			pCursor := config.Query.Exec(tree.RootNode(), lang, content)
-			for {
-				match, ok := pCursor.NextMatch()
-				if !ok {
+	symbolNames := make(map[uint32]string)
+	anonCounters := make(map[string]int)
+
+	pCursor := config.Query.Exec(tree.RootNode(), lang, content)
+	for {
+		match, ok := pCursor.NextMatch()
+		if !ok {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return nil, nil, nil, ctx.Err()
+		default:
+		}
+
+		var name, symType, recv, mname, iname string
+		var symNode *gotreesitter.Node
+		for _, cap := range match.Captures {
+			nameN := cap.Name
+			switch nameN {
+			case "name":
+				name = cap.Node.Text(content)
+			case "recv":
+				recv = cap.Node.Text(content)
+			case "mname":
+				mname = cap.Node.Text(content)
+			case "iname":
+				iname = cap.Node.Text(content)
+			default:
+				symType = nameN
+				symNode = cap.Node
+			}
+		}
+
+		parentName := "global"
+		if symNode != nil {
+			curr := symNode.Parent()
+			for curr != nil {
+				if n, ok := symbolNames[curr.EndByte()]; ok {
+					parentName = n
 					break
 				}
-				var name, symType, recv string
-				var symNode *gotreesitter.Node
-				for _, cap := range match.Captures {
-					nameN := cap.Name
-					switch nameN {
-					case "name":
-						name = cap.Node.Text(content)
-					case "recv":
-						recv = cap.Node.Text(content)
-					case "mname", "iname":
-						// skip
-					default:
-						symType = nameN
-						symNode = cap.Node
-					}
-				}
-
-				parentName := "global"
-				if symNode != nil {
-					curr := symNode.Parent()
-					for curr != nil {
-						if n, ok := sharedSymbolNames[curr.EndByte()]; ok {
-							parentName = n
-							break
-						}
-						curr = curr.Parent()
-					}
-				}
-
-				if symType == "function" && name == "" && symNode != nil {
-					p := parentName
-					if p == "" {
-						p = "global"
-					}
-					anonCounters[p]++
-					name = fmt.Sprintf("func%d", anonCounters[p])
-				}
-
-				if name != "" && symType != "interface_spec" && symNode != nil {
-					fullName := name
-					if recv != "" {
-						fullName = recv + "." + name
-					} else if parentName != "" && (parentName != "global" || strings.HasPrefix(name, "func")) {
-						fullName = parentName + "." + name
-					}
-					sharedSymbolNames[symNode.EndByte()] = fullName
-				}
+				curr = curr.Parent()
 			}
-		})
-		return sharedSymbolNames
-	}
+		}
 
-	pointerIter := func(yield func(types.ASTPointer) bool) {
-		symbolNames := make(map[uint32]string)
-		anonCounters := make(map[string]int)
+		if symType == "function" && name == "" && symNode != nil {
+			p := parentName
+			if p == "" {
+				p = "global"
+			}
+			anonCounters[p]++
+			name = fmt.Sprintf("func%d", anonCounters[p])
+		}
 
-		pCursor := config.Query.Exec(tree.RootNode(), lang, content)
-		for {
-			match, ok := pCursor.NextMatch()
-			if !ok {
-				break
+		if name != "" && symType != "interface_spec" && symNode != nil {
+			fullName := name
+			if recv != "" {
+				fullName = recv + "." + name
+			} else if parentName != "" && (parentName != "global" || strings.HasPrefix(name, "func")) {
+				fullName = parentName + "." + name
 			}
 
-			select {
-			case <-ctx.Done():
-				return
-			default:
+			symbolNames[symNode.EndByte()] = fullName
+
+			doc := extractDoc(symNode, content, ext, lang)
+			h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s", symType, fullName)))
+			p := types.ASTPointer{
+				Type:           symType,
+				Name:           fullName,
+				Doc:            doc,
+				Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
+				StartLine:      int(symNode.StartPoint().Row) + 1,
+				EndLine:        int(symNode.EndPoint().Row) + 1,
+				Hash:           hex.EncodeToString(h[:]),
+				StructuralHash: GetStructuralHash(symNode, content, lang),
+				LogicHash:      GetLogicHash(symNode, content, lang),
+				Metrics:        computeSemanticMetrics(symNode, lang, content),
 			}
+			pointers = append(pointers, p)
+		}
 
-			var name, symType, recv, mname, iname string
-			var symNode *gotreesitter.Node
-			for _, cap := range match.Captures {
-				nameN := cap.Name
-				switch nameN {
-				case "name":
-					name = cap.Node.Text(content)
-				case "recv":
-					recv = cap.Node.Text(content)
-				case "mname":
-					mname = cap.Node.Text(content)
-				case "iname":
-					iname = cap.Node.Text(content)
-				default:
-					symType = nameN
-					symNode = cap.Node
-				}
+		if mname != "" && symNode != nil {
+			parentInterface := name
+			if iname != "" {
+				parentInterface = iname
 			}
-
-			// Calculate hierarchical parent name
-			parentName := "global"
-			if symNode != nil {
-				curr := symNode.Parent()
-				for curr != nil {
-					if n, ok := symbolNames[curr.EndByte()]; ok {
-						parentName = n
-						break
-					}
-					curr = curr.Parent()
-				}
+			fullMethodName := parentInterface + "." + mname
+			p := types.ASTPointer{
+				Type:           "interface_method",
+				Name:           fullMethodName,
+				Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
+				StartLine:      int(symNode.StartPoint().Row) + 1,
+				EndLine:        int(symNode.EndPoint().Row) + 1,
+				Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
+				StructuralHash: GetStructuralHash(symNode, content, lang),
+				LogicHash:      GetLogicHash(symNode, content, lang),
+				Metrics:        computeSemanticMetrics(symNode, lang, content),
 			}
-
-			// Capture anonymous functions (closures/lambdas)
-			if symType == "function" && name == "" && symNode != nil {
-				p := parentName
-				if p == "" {
-					p = "global"
-				}
-				anonCounters[p]++
-				name = fmt.Sprintf("func%d", anonCounters[p])
-			}
-
-			// Handle normal symbols
-			if name != "" && symType != "interface_spec" && symNode != nil {
-				fullName := name
-				if recv != "" {
-					fullName = recv + "." + name
-				} else if parentName != "" && (parentName != "global" || strings.HasPrefix(name, "func")) {
-					fullName = parentName + "." + name
-				}
-
-				symbolNames[symNode.EndByte()] = fullName
-
-				doc := extractDoc(symNode, content, ext, lang)
-				h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s", symType, fullName)))
-				p := types.ASTPointer{
-					Type:           symType,
-					Name:           fullName,
-					Doc:            doc,
-					Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
-					StartLine:      int(symNode.StartPoint().Row) + 1,
-					EndLine:        int(symNode.EndPoint().Row) + 1,
-					Hash:           hex.EncodeToString(h[:]),
-					StructuralHash: GetStructuralHash(symNode, content, lang),
-					LogicHash:      GetLogicHash(symNode, content, lang),
-					Metrics:        computeSemanticMetrics(symNode, lang, content),
-				}
-				if !yield(p) {
-					return
-				}
-			}
-
-			// Handle interface method specs
-			if mname != "" && symNode != nil {
-				parentInterface := name
-				if iname != "" {
-					parentInterface = iname
-				}
-				fullMethodName := parentInterface + "." + mname
-				p := types.ASTPointer{
-					Type:           "interface_method",
-					Name:           fullMethodName,
-					Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
-					StartLine:      int(symNode.StartPoint().Row) + 1,
-					EndLine:        int(symNode.EndPoint().Row) + 1,
-					Hash:           utils.HashString(fmt.Sprintf("spec:%s", fullMethodName)),
-					StructuralHash: GetStructuralHash(symNode, content, lang),
-					LogicHash:      GetLogicHash(symNode, content, lang),
-					Metrics:        computeSemanticMetrics(symNode, lang, content),
-				}
-				if !yield(p) {
-					return
-				}
-			}
+			pointers = append(pointers, p)
 		}
 	}
 
-	callIter := func(yield func(types.ASTCall) bool) {
-		cursor := config.CallQuery.Exec(tree.RootNode(), lang, content)
-		for {
-			match, ok := cursor.NextMatch()
-			if !ok {
-				break
+	cCursor := config.CallQuery.Exec(tree.RootNode(), lang, content)
+	for {
+		match, ok := cCursor.NextMatch()
+		if !ok {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return nil, nil, nil, ctx.Err()
+		default:
+		}
+
+		var callee string
+		var callNode *gotreesitter.Node
+		var traitName, typeName string
+		for _, cap := range match.Captures {
+			name := cap.Name
+			if name == "callee" {
+				callee = cap.Node.Text(content)
+				callNode = cap.Node
+			} else if name == "trait_name" {
+				traitName = cap.Node.Text(content)
+			} else if name == "type_name" {
+				typeName = cap.Node.Text(content)
+				callNode = cap.Node
+			}
+		}
+
+		if traitName != "" && typeName != "" && callNode != nil {
+			c := types.ASTCall{
+				CallerName: typeName,
+				CalleeName: traitName,
+				LinkType:   "implements",
+				Path:       filePath,
+				Line:       safeInt(callNode.StartPoint().Row) + 1,
+			}
+			calls = append(calls, c)
+		} else if callee != "" && callNode != nil {
+			calleePath := ""
+			if callNode.Parent() != nil && callNode.Parent().Type(lang) == "call_expression" {
+				if callNode.Type(lang) == "identifier" {
+					calleePath = filePath
+				}
 			}
 
-			select {
-			case <-ctx.Done():
-				return
-			default:
+			c := types.ASTCall{
+				CallerName: findTSCaller(callNode, content, lang, symbolNames),
+				CalleeName: callee,
+				CalleePath: calleePath,
+				LinkType:   "call",
+				Path:       filePath,
+				Line:       safeInt(callNode.StartPoint().Row) + 1,
 			}
-
-			var callee string
-			var callNode *gotreesitter.Node
-			var traitName, typeName string
-			for _, cap := range match.Captures {
-				name := cap.Name
-				if name == "callee" {
-					callee = cap.Node.Text(content)
-					callNode = cap.Node
-				} else if name == "trait_name" {
-					traitName = cap.Node.Text(content)
-				} else if name == "type_name" {
-					typeName = cap.Node.Text(content)
-					callNode = cap.Node
-				}
-			}
-
-			if traitName != "" && typeName != "" && callNode != nil {
-				c := types.ASTCall{
-					CallerName: typeName,
-					CalleeName: traitName,
-					LinkType:   "implements",
-					Path:       filePath,
-					Line:       safeInt(callNode.StartPoint().Row) + 1,
-				}
-				if !yield(c) {
-					return
-				}
-			} else if callee != "" && callNode != nil {
-				calleePath := ""
-				if callNode.Parent() != nil && callNode.Parent().Type(lang) == "call_expression" {
-					if callNode.Type(lang) == "identifier" {
-						calleePath = filePath
-					}
-				}
-
-				c := types.ASTCall{
-					CallerName: findTSCaller(callNode, content, lang, getSharedSymbolNames()),
-					CalleeName: callee,
-					CalleePath: calleePath,
-					LinkType:   "call",
-					Path:       filePath,
-					Line:       safeInt(callNode.StartPoint().Row) + 1,
-				}
-				if !yield(c) {
-					return
-				}
-			}
+			calls = append(calls, c)
 		}
 	}
 
-	flowIter := func(yield func(types.DataFlow) bool) {
-		if config.FlowQuery == nil {
-			return
-		}
-		cursor := config.FlowQuery.Exec(tree.RootNode(), lang, content)
+	if config.FlowQuery != nil {
+		fCursor := config.FlowQuery.Exec(tree.RootNode(), lang, content)
 		for {
-			match, ok := cursor.NextMatch()
+			match, ok := fCursor.NextMatch()
 			if !ok {
 				break
 			}
-
 			select {
 			case <-ctx.Done():
-				return
+				return nil, nil, nil, ctx.Err()
 			default:
 			}
 
@@ -463,13 +422,10 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 					Path:   filePath,
 					Line:   int(node.StartPoint().Row) + 1,
 				}
-				if !yield(f) {
-					return
-				}
+				flows = append(flows, f)
 			}
 
 			if call != "" && argNode != nil {
-				// Determine argument position
 				pos := 0
 				parent := argNode.Parent()
 				if parent != nil {
@@ -487,13 +443,11 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 					Path:   filePath,
 					Line:   int(argNode.StartPoint().Row) + 1,
 				}
-				if !yield(f) {
-					return
-				}
+				flows = append(flows, f)
 			}
 
 			if retNode != nil {
-				currentFunc := findTSCaller(retNode, content, lang, getSharedSymbolNames())
+				currentFunc := findTSCaller(retNode, content, lang, symbolNames)
 				f := types.DataFlow{
 					Source: source,
 					Sink:   fmt.Sprintf("%s:return0", currentFunc),
@@ -501,14 +455,12 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 					Path:   filePath,
 					Line:   int(retNode.StartPoint().Row) + 1,
 				}
-				if !yield(f) {
-					return
-				}
+				flows = append(flows, f)
 			}
 		}
 	}
 
-	return pointerIter, callIter, flowIter, nil
+	return slices.Values(pointers), slices.Values(calls), slices.Values(flows), nil
 }
 
 func findTSCaller(node *gotreesitter.Node, content []byte, lang *gotreesitter.Language, symbolNames map[uint32]string) string {
@@ -727,11 +679,13 @@ func ExtractImports(ctx context.Context, filePath string) ([]string, error) {
 	}
 
 	lang := config.Language
-	parser := gotreesitter.NewParser(lang)
+	parser := GetParser(lang)
+	defer PutParser(lang, parser)
 	tree, _ := parser.Parse(content)
 	if tree == nil {
 		return nil, nil
 	}
+	defer tree.Release()
 
 	var imports []string
 	cursor := config.ImportQuery.Exec(tree.RootNode(), lang, content)

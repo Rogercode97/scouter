@@ -27,7 +27,7 @@ func NewShardManager(basePath string) *ShardManager {
 func (m *ShardManager) GetShard(ctx context.Context, path string) (Store, error) {
 	// Strategy: Shard by parent directory to keep packages/modules together
 	shardKey := m.computeShardKey(path)
-	
+
 	m.mu.RLock()
 	s, ok := m.shards[shardKey]
 	m.mu.RUnlock()
@@ -37,7 +37,7 @@ func (m *ShardManager) GetShard(ctx context.Context, path string) (Store, error)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	// Double check
 	if s, ok := m.shards[shardKey]; ok {
 		return s, nil
