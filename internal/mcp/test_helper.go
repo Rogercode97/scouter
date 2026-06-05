@@ -25,7 +25,6 @@ func setupMockServer(db store.Store, logger *slog.Logger) *Server {
 	healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider)
 	compact := engine.NewCompactionEngine(db, ledger)
 	diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, healer, lspMgr)
-	sdd := engine.NewSDDEngine(".")
 
 	truthEngine := engine.NewTruthEngine(
 		db,
@@ -38,7 +37,6 @@ func setupMockServer(db store.Store, logger *slog.Logger) *Server {
 		engine.WithHealer(healer),
 		engine.WithDiagnostic(diagnostic),
 		engine.WithRipple(ripple),
-		engine.WithSDD(sdd),
 		engine.WithLedger(ledger),
 	)
 
@@ -55,7 +53,6 @@ func setupMockServer(db store.Store, logger *slog.Logger) *Server {
 		Evolution:     truthEngine,
 		Healer:        truthEngine,
 		Memory:        truthEngine.MemoryProvider(),
-		SDD:          truthEngine,
 		ChronosEngine: chronos,
 		AppService:    appService,
 		Presenter:     display.NewDefaultPresenter(),

@@ -39,16 +39,27 @@ func (app *App) printUsage() {
 Usage:
   scouter <command> [arguments]
 
-Core Commands:
-  index <path>    Index a file or directory for structural intelligence (--deep for Go SSA)
-  search <query>   Search for symbols across AST and historical insights
-  flow <symbol>    Trace the origin of a variable or symbol
-  graph [filter]   Export the Call Graph in Mermaid format
-  predict [diff]  Identify tests affected by current changes
-  setup           Interactive environment configuration
-  gain [range]    Display token savings and ROI metrics
-  mcp             Start the Model Context Protocol (MCP) server
-  ingest          Process external logs for passive health tracking
+  Core Commands:
+    propagate <sym> <trans> Stage a semantic refactoring
+    commit                  Apply staged changes in ledger
+    rollback                Discard staged changes in ledger
+    diff                    Show staged changes diff
+    status                  Show ledger status
+    index <path>    Index a file or directory for structural intelligence (--deep for Go SSA)
+    search <query>   Search for symbols across AST and historical insights
+    flow <symbol>    Trace the origin of a variable or symbol
+    graph [filter]   Export the Call Graph in Mermaid format
+    predict [diff]  Identify tests affected by current changes
+    impact <symbol> <path> Analyze architectural impact of changing a symbol
+    audit [path]    Run architectural rules audit on a directory
+    fix <log_file>  Diagnose and propose fixes for an error log
+    neighborhood <file>  Get 1-hop structural context (imports, exports, calls) in ZON format
+    twins <symbol> <path> Find structurally identical duplicate functions
+    critical [limit]      List top highly connected symbols in the Call Graph
+    setup           Interactive environment configuration
+    gain [range]    Display token savings and ROI metrics
+    mcp             Start the Model Context Protocol (MCP) server
+    ingest          Process external logs for passive health tracking
 
 Options:
   -v, --verbose   Enable detailed logging
@@ -118,7 +129,6 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider)
 		compact := engine.NewCompactionEngine(db, ledger)
 		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, healer, lspMgr)
-		sdd := engine.NewSDDEngine(".")
 
 		truthEngine := engine.NewTruthEngine(
 			db,
@@ -131,7 +141,6 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			engine.WithHealer(healer),
 			engine.WithDiagnostic(diagnostic),
 			engine.WithRipple(ripple),
-			engine.WithSDD(sdd),
 			engine.WithLedger(ledger),
 		)
 
@@ -396,9 +405,322 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stdout, outputStr)
 		return 0
 	
+	case "impact":
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+
+		if len(cmdArgs) < 2 {
+			fmt.Fprintf(stderr, "usage: scouter impact <symbol> <path>\n")
+			return 1
+		}
+
+		symbol := cmdArgs[0]
+		path := cmdArgs[1]
+
+		lspMgr := lsp.GetGlobalManager()
+		defer lspMgr.Close()
+
+		analyzer := engine.NewAnalysisEngine(db)
+		diagnostic := engine.NewDiagnosticEngine(db, analyzer, nil, nil, lspMgr)
+		impactEngine := engine.NewImpactEngine(db, lspMgr, nil)
+		te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer), engine.WithLSP(lspMgr), engine.WithImpact(impactEngine), engine.WithDiagnostic(diagnostic))
+
+		res, err := te.AnalyzeImpact(ctx, symbol, path, flags.Verbose > 0, nil)
+		if err != nil {
+			fmt.Fprintf(stderr, "impact error: %v\n", err)
+			return 1
+		}
+
+		fmt.Fprintf(stdout, "Risk Level: %s\n", res.RiskLevel)
+		fmt.Fprintf(stdout, "Blast Radius: %d callers\n", len(res.Callers))
+		if len(res.Callers) > 0 {
+			fmt.Fprintf(stdout, "Affected Callers:\n")
+			for _, c := range res.Callers {
+				fmt.Fprintf(stdout, "  - %s (%s)\n", c.Symbol, c.File)
+			}
+		}
+		return 0
+
+	case "audit":
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+
+		targetPath := "."
+		if len(cmdArgs) > 0 {
+			targetPath = cmdArgs[0]
+		}
+
+		rulesDir := filepath.Join(".", "internal", "filters", "rules") // Default or from config
+		astRules := engine.NewASTRuleEngine(rulesDir)
+		te := engine.NewTruthEngine(db, engine.WithASTRules(astRules))
+
+		matches, err := te.AuditArchitecture(ctx, targetPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "audit error: %v\n", err)
+			return 1
+		}
+
+		if len(matches) == 0 {
+			fmt.Fprintf(stdout, "✅ No architectural violations found.\n")
+			return 0
+		}
+
+		fmt.Fprintf(stdout, "❌ Architectural Violations Found:\n")
+		for _, m := range matches {
+			fmt.Fprintf(stdout, "  - [%s] %s: %s (Line %d)\n", m.Severity, m.RuleID, m.File, m.Range.Start.Line)
+		}
+		return 1
+
+	case "fix":
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+
+		if len(cmdArgs) < 1 {
+			fmt.Fprintf(stderr, "usage: scouter fix <error_log_file>\n")
+			return 1
+		}
+
+		logBytes, err := os.ReadFile(cmdArgs[0])
+		if err != nil {
+			fmt.Fprintf(stderr, "failed to read error log: %v\n", err)
+			return 1
+		}
+
+		lspMgr := lsp.GetGlobalManager()
+		defer lspMgr.Close()
+
+		analyzer := engine.NewAnalysisEngine(db)
+		impactEngine := engine.NewImpactEngine(db, lspMgr, nil)
+		searchEngine := engine.NewSearchEngine(db, nil)
+		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impactEngine, searchEngine, nil)
+		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impactEngine, healer, lspMgr)
+		
+		te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer), engine.WithLSP(lspMgr), engine.WithImpact(impactEngine), engine.WithDiagnostic(diagnostic), engine.WithHealer(healer), engine.WithSearch(searchEngine))
+
+		res, err := te.Fix(ctx, string(logBytes), nil)
+		if err != nil {
+			fmt.Fprintf(stderr, "fix error: %v\n", err)
+			return 1
+		}
+
+		fmt.Fprintf(stdout, "%s\n", res)
+		return 0
+
+	case "neighborhood":
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+
+		if len(cmdArgs) < 1 {
+			fmt.Fprintf(stderr, "usage: scouter neighborhood <file>\n")
+			return 1
+		}
+
+		filePath := cmdArgs[0]
+		analyzer := engine.NewAnalysisEngine(db)
+		te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer))
+
+		res, err := te.GetNeighborhood(ctx, filePath)
+		if err != nil {
+			fmt.Fprintf(stderr, "neighborhood error: %v\n", err)
+			return 1
+		}
+
+		fmt.Fprint(stdout, res)
+		return 0
+
+	case "twins":
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+
+		if len(cmdArgs) < 2 {
+			fmt.Fprintf(stderr, "usage: scouter twins <symbol> <path>\n")
+			return 1
+		}
+
+		symbol := cmdArgs[0]
+		path := cmdArgs[1]
+
+		te := engine.NewTruthEngine(db)
+
+		results, err := te.FindLogicalTwins(ctx, symbol, path)
+		if err != nil {
+			fmt.Fprintf(stderr, "twins error: %v\n", err)
+			return 1
+		}
+
+		if len(results) == 0 {
+			fmt.Fprintf(stdout, "No twins found for %s in %s\n", symbol, path)
+			return 0
+		}
+
+		zonStr, err := engine.EncodeZON(results)
+		if err != nil {
+			fmt.Fprintf(stderr, "zon encode error: %v\n", err)
+			return 1
+		}
+
+		fmt.Fprint(stdout, zonStr)
+		return 0
+
+	case "critical":
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+
+		limit := 10
+		if len(cmdArgs) > 0 {
+			fmt.Sscanf(cmdArgs[0], "%d", &limit)
+		}
+
+		analyzer := engine.NewAnalysisEngine(db)
+		te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer))
+
+		results, err := te.GetCriticalSymbols(ctx, limit)
+		if err != nil {
+			fmt.Fprintf(stderr, "critical symbols error: %v\n", err)
+			return 1
+		}
+
+		if len(results) == 0 {
+			fmt.Fprintf(stdout, "No critical symbols found.\n")
+			return 0
+		}
+
+		zonStr, err := engine.EncodeZON(results)
+		if err != nil {
+			fmt.Fprintf(stderr, "zon encode error: %v\n", err)
+			return 1
+		}
+
+		fmt.Fprint(stdout, zonStr)
+		return 0
+
+	case "propagate":
+		if len(cmdArgs) < 2 {
+			fmt.Fprintf(stderr, "usage: scouter propagate <symbol> <transformation>\n")
+			return 1
+		}
+		symbol := cmdArgs[0]
+		transformation := cmdArgs[1]
+
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+
+		lspMgr := lsp.GetGlobalManager()
+		defer lspMgr.Close()
+
+		impactEngine := engine.NewImpactEngine(db, lspMgr, nil)
+		rippleEngine := engine.NewRippleEngine(db, nil, impactEngine)
+		ledger := engine.NewLedger()
+		ledger.SetLedgerPath(".scouter/staging/ledger.json")
+
+		te := engine.NewTruthEngine(db, engine.WithRipple(rippleEngine), engine.WithLedger(ledger))
+
+		res, err := te.Propagate(ctx, symbol, transformation, nil)
+		if err != nil {
+			fmt.Fprintf(stderr, "propagate error: %v\n", err)
+			return 1
+		}
+
+		fmt.Fprintln(stdout, res)
+		return 0
+
+	case "commit":
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+
+		ledger := engine.NewLedger()
+		ledger.SetLedgerPath(".scouter/staging/ledger.json")
+		te := engine.NewTruthEngine(db, engine.WithLedger(ledger))
+
+		res, err := te.CommitLedger(ctx)
+		if err != nil {
+			fmt.Fprintf(stderr, "commit error: %v\n", err)
+			return 1
+		}
+
+		fmt.Fprintln(stdout, res)
+		return 0
+
+	case "rollback":
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+
+		ledger := engine.NewLedger()
+		ledger.SetLedgerPath(".scouter/staging/ledger.json")
+		te := engine.NewTruthEngine(db, engine.WithLedger(ledger))
+
+		res, err := te.RollbackLedger(ctx)
+		if err != nil {
+			fmt.Fprintf(stderr, "rollback error: %v\n", err)
+			return 1
+		}
+
+		fmt.Fprintln(stdout, res)
+		return 0
+
+	case "diff":
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+
+		ledger := engine.NewLedger()
+		ledger.SetLedgerPath(".scouter/staging/ledger.json")
+		te := engine.NewTruthEngine(db, engine.WithLedger(ledger))
+
+		res, err := te.GetLedgerDiff(ctx)
+		if err != nil {
+			fmt.Fprintf(stderr, "diff error: %v\n", err)
+			return 1
+		}
+
+		fmt.Fprintln(stdout, res)
+		return 0
+
+	case "status":
+		db, closeDB, exitCode := openDB()
+		if exitCode != 0 {
+			return exitCode
+		}
+		defer closeDB()
+
+		ledger := engine.NewLedger()
+		ledger.SetLedgerPath(".scouter/staging/ledger.json")
+		te := engine.NewTruthEngine(db, engine.WithLedger(ledger))
+
+		res := te.GetLedgerSummary(ctx)
+		fmt.Fprintln(stdout, res)
+		return 0
+
 	default:
-		// Initialize heavy dependencies only for Pipeline routing
-		tracker.WarmUp(ctx)
 		filters, err := filter.LoadAll(cfg.Filters.Dir)
 		if err != nil {
 			slog.Warn("could not load filters", "path", cfg.Filters.Dir, "error", err)

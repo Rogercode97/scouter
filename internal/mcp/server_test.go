@@ -69,8 +69,8 @@ func TestServer_Lifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(tools.Tools) != 27 {
-		t.Errorf("expected 27 tools, got %d", len(tools.Tools))
+	if len(tools.Tools) != 28 {
+		t.Errorf("expected 28 tools, got %d", len(tools.Tools))
 	}
 }
 

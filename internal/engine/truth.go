@@ -58,7 +58,6 @@ type TruthEngine struct {
 	diagnostic *DiagnosticEngine
 	semantic   *SemanticEngine
 	ripple     *RippleEngine
-	sdd        *SDDEngine
 	ledger     *Ledger
 	astRules   *ASTRuleEngine
 	messenger  Messenger
@@ -106,10 +105,6 @@ func WithSemantic(s *SemanticEngine) TruthOption {
 
 func WithRipple(r *RippleEngine) TruthOption {
 	return func(te *TruthEngine) { te.ripple = r }
-}
-
-func WithSDD(s *SDDEngine) TruthOption {
-	return func(te *TruthEngine) { te.sdd = s }
 }
 
 func WithLedger(l *Ledger) TruthOption {
@@ -454,26 +449,6 @@ func (e *TruthEngine) StageMutation(ctx context.Context, filePath, newContent st
 	return e.ledger.Stage(cleanPath, patch)
 }
 
-func (e *TruthEngine) GetSDDRoadmap(ctx context.Context) (*SDDRoadmap, error) {
-	if e.sdd == nil {
-		return nil, fmt.Errorf("SDD engine not initialized")
-	}
-	return e.sdd.ParseRoadmap(ctx)
-}
-
-func (e *TruthEngine) GetSDDTasks(ctx context.Context) ([]SDDTask, error) {
-	if e.sdd == nil {
-		return nil, fmt.Errorf("SDD engine not initialized")
-	}
-	return e.sdd.ParseTasks(ctx)
-}
-
-func (e *TruthEngine) SearchSDDSpecs(ctx context.Context, query string, limit, offset int) ([]SpecResult, error) {
-	if e.sdd == nil {
-		return nil, fmt.Errorf("SDD engine not initialized")
-	}
-	return e.sdd.SearchSpecs(ctx, query, limit, offset)
-}
 
 func (e *TruthEngine) SemanticSearch(ctx context.Context, query string, limit int) ([]types.Symbol, error) {
         if e.semantic == nil {

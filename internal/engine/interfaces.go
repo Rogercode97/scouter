@@ -56,9 +56,3 @@ type HealerService interface {
 	DiagnoseHUD(ctx context.Context, errorLog string) (*DiagnosticHUD, error)
 }
 
-
-type SDDService interface {
-	GetSDDRoadmap(ctx context.Context) (*SDDRoadmap, error)
-	GetSDDTasks(ctx context.Context) ([]SDDTask, error)
-	SearchSDDSpecs(ctx context.Context, query string, limit, offset int) ([]SpecResult, error)
-}

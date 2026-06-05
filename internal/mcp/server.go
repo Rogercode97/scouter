@@ -32,7 +32,6 @@ type Server struct {
 	evolution       engine.EvolutionService
 	healer          engine.HealerService
 	memory          memory.MemoryProvider
-	sdd             engine.SDDService
 	presenter       display.Presenter
 	appService      *memory.AppService
 	logger          *slog.Logger
@@ -56,7 +55,6 @@ type Options struct {
 	Evolution     engine.EvolutionService
 	Healer        engine.HealerService
 	Memory        memory.MemoryProvider
-	SDD           engine.SDDService
 	Presenter     display.Presenter
 	ChronosEngine *engine.ChronosEngine
 	AppService    *memory.AppService
@@ -88,7 +86,6 @@ func NewServer(opts Options) *Server {
 		evolution:    opts.Evolution,
 		healer:       opts.Healer,
 		memory:       opts.Memory,
-		sdd:          opts.SDD,
 		presenter:    opts.Presenter,
 		appService:   opts.AppService,
 	}

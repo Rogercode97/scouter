@@ -11,7 +11,6 @@ type ClientProfile string
 
 const (
 	ClientAntigravity ClientProfile = "antigravity"
-	ClientToon        ClientProfile = "toon"
 	ClientOpenCode    ClientProfile = "opencode"
 	ClientCodex       ClientProfile = "codex"
 	ClientGeneric     ClientProfile = "generic"
@@ -31,8 +30,6 @@ func IdentifyClient(session *mcp.ServerSession) ClientProfile {
 	name := strings.ToLower(params.ClientInfo.Name)
 
 	switch {
-	case strings.Contains(name, "toon"):
-		return ClientToon
 	case strings.Contains(name, "antigravity"):
 		return ClientAntigravity
 	case strings.Contains(name, "opencode"):
@@ -50,8 +47,6 @@ func AdaptSystemPrompt(baseline string, profile ClientProfile) string {
 	builder.WriteString(baseline)
 
 	switch profile {
-	case ClientToon:
-		builder.WriteString("\n\n[TOON CLIENT DETECTED]: You are interacting with the 'Toon' agent. Ensure your outputs are highly visual, structured, and use clear markdown formatting. Emphasize step-by-step logic.")
 	case ClientAntigravity:
 		builder.WriteString("\n\n[ANTIGRAVITY DETECTED]: Use Pure Signal. Minimize conversational slop. Use `<thought>` blocks if complex logic is needed before responding.")
 	case ClientOpenCode:
