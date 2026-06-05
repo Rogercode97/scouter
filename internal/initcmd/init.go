@@ -40,8 +40,16 @@ func Run(args []string) error {
 		return installGeminiCLI(home)
 	case "opencode":
 		return installOpenCode(home)
+	case "antigravity-cli", "antigravity":
+		return installAntigravityCLI(home)
+	case "codex":
+		return installCodex(home)
+	case "cursor":
+		return installCursor()
+	case "windsurf":
+		return installWindsurf(home)
 	default:
-		return fmt.Errorf("unknown agent: %s (supported: claude, gemini-cli, opencode)", agent)
+		return fmt.Errorf("unknown agent: %s (supported: claude, gemini-cli, opencode, antigravity-cli, codex, cursor, windsurf)", agent)
 	}
 }
 
@@ -150,6 +158,184 @@ func installOpenCode(home string) error {
 	return nil
 }
 
+func installAntigravityCLI(home string) error {
+	configPath := filepath.Join(home, ".gemini", "antigravity-cli", "settings.json")
+	binPath, err := os.Executable()
+	if err != nil {
+		binPath, _ = filepath.Abs(os.Args[0])
+	}
+
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		return err
+	}
+
+	var config map[string]interface{}
+	data, err := os.ReadFile(configPath)
+	if err == nil {
+		json.Unmarshal(data, &config)
+	} else {
+		config = make(map[string]interface{})
+	}
+
+	mcpServers, ok := config["mcpServers"].(map[string]interface{})
+	if !ok {
+		mcpServers = make(map[string]interface{})
+		config["mcpServers"] = mcpServers
+	}
+
+	mcpServers["scouter"] = map[string]interface{}{
+		"command": binPath,
+		"args":    []string{"mcp"},
+		"trust":   true,
+	}
+
+	newData, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, newData, 0600); err != nil {
+		return fmt.Errorf("save config: %w", err)
+	}
+	fmt.Printf("✅ Scouter integrated with Antigravity CLI (MCP)!\n")
+	fmt.Printf("  settings: %s\n", configPath)
+	return nil
+}
+
+func installCodex(home string) error {
+	configPath := filepath.Join(home, ".config", "codex", "settings.json")
+	binPath, err := os.Executable()
+	if err != nil {
+		binPath, _ = filepath.Abs(os.Args[0])
+	}
+
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		return err
+	}
+
+	var config map[string]interface{}
+	data, err := os.ReadFile(configPath)
+	if err == nil {
+		json.Unmarshal(data, &config)
+	} else {
+		config = make(map[string]interface{})
+	}
+
+	mcpServers, ok := config["mcpServers"].(map[string]interface{})
+	if !ok {
+		mcpServers = make(map[string]interface{})
+		config["mcpServers"] = mcpServers
+	}
+
+	mcpServers["scouter"] = map[string]interface{}{
+		"command": binPath,
+		"args":    []string{"mcp"},
+	}
+
+	newData, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, newData, 0600); err != nil {
+		return fmt.Errorf("save config: %w", err)
+	}
+	fmt.Printf("✅ Scouter integrated with Codex (MCP)!\n")
+	fmt.Printf("  settings: %s\n", configPath)
+	return nil
+}
+
+func installCursor() error {
+	// Cursor MCP is project-relative
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	configPath := filepath.Join(cwd, ".cursor", "mcp.json")
+	binPath, err := os.Executable()
+	if err != nil {
+		binPath, _ = filepath.Abs(os.Args[0])
+	}
+
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		return err
+	}
+
+	var config map[string]interface{}
+	data, err := os.ReadFile(configPath)
+	if err == nil {
+		json.Unmarshal(data, &config)
+	} else {
+		config = make(map[string]interface{})
+	}
+
+	mcpServers, ok := config["mcpServers"].(map[string]interface{})
+	if !ok {
+		mcpServers = make(map[string]interface{})
+		config["mcpServers"] = mcpServers
+	}
+
+	mcpServers["scouter"] = map[string]interface{}{
+		"command": binPath,
+		"args":    []string{"mcp"},
+	}
+
+	newData, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, newData, 0600); err != nil {
+		return fmt.Errorf("save config: %w", err)
+	}
+	fmt.Printf("✅ Scouter integrated with Cursor (MCP) in the current project!\n")
+	fmt.Printf("  settings: %s\n", configPath)
+	return nil
+}
+
+func installWindsurf(home string) error {
+	configPath := filepath.Join(home, ".windsurf", "mcp.json")
+	binPath, err := os.Executable()
+	if err != nil {
+		binPath, _ = filepath.Abs(os.Args[0])
+	}
+
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		return err
+	}
+
+	var config map[string]interface{}
+	data, err := os.ReadFile(configPath)
+	if err == nil {
+		json.Unmarshal(data, &config)
+	} else {
+		config = make(map[string]interface{})
+	}
+
+	mcpServers, ok := config["mcpServers"].(map[string]interface{})
+	if !ok {
+		mcpServers = make(map[string]interface{})
+		config["mcpServers"] = mcpServers
+	}
+
+	mcpServers["scouter"] = map[string]interface{}{
+		"command": binPath,
+		"args":    []string{"mcp"},
+	}
+
+	newData, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, newData, 0600); err != nil {
+		return fmt.Errorf("save config: %w", err)
+	}
+	fmt.Printf("✅ Scouter integrated with Windsurf (MCP)!\n")
+	fmt.Printf("  settings: %s\n", configPath)
+	return nil
+}
+
 // Uninstall removes scouter integration.
 func Uninstall(agent string) error {
 	home, err := os.UserHomeDir()
@@ -172,6 +358,25 @@ func Uninstall(agent string) error {
 		settingsPath := filepath.Join(home, ".config", "opencode", "settings.json")
 		removeMCPServer(settingsPath, "scouter")
 		fmt.Println("✅ Scouter removed from OpenCode")
+	case "antigravity-cli", "antigravity":
+		settingsPath := filepath.Join(home, ".gemini", "antigravity-cli", "settings.json")
+		removeMCPServer(settingsPath, "scouter")
+		fmt.Println("✅ Scouter removed from Antigravity CLI")
+	case "codex":
+		settingsPath := filepath.Join(home, ".config", "codex", "settings.json")
+		removeMCPServer(settingsPath, "scouter")
+		fmt.Println("✅ Scouter removed from Codex")
+	case "cursor":
+		cwd, err := os.Getwd()
+		if err == nil {
+			settingsPath := filepath.Join(cwd, ".cursor", "mcp.json")
+			removeMCPServer(settingsPath, "scouter")
+			fmt.Println("✅ Scouter removed from Cursor (current project)")
+		}
+	case "windsurf":
+		settingsPath := filepath.Join(home, ".windsurf", "mcp.json")
+		removeMCPServer(settingsPath, "scouter")
+		fmt.Println("✅ Scouter removed from Windsurf")
 	}
 
 	return nil

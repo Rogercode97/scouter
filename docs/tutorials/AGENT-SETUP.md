@@ -39,20 +39,27 @@ Scouter tools are optimized for structural reasoning. They are divided into **Co
 
 ## 🚀 Setup Guides
 
-### 1. Gemini CLI
-The easiest way to integrate Scouter.
-```bash
-scouter setup gemini-cli
-```
-This command automatically injects the Scouter MCP configuration into your `~/.gemini/settings.json`.
+Scouter provides automated MCP integration for 7 popular agents and IDEs via the `setup` command.
 
-### 2. Claude Code
-Install Scouter as a plugin using the absolute path to the binary.
+### Automated Integrations
+
+Run `scouter setup <agent>` to automatically inject the MCP configuration into the respective agent's settings:
+
+- **Gemini CLI**: `scouter setup gemini-cli`
+- **Antigravity CLI**: `scouter setup antigravity-cli`
+- **OpenCode**: `scouter setup opencode`
+- **Codex**: `scouter setup codex`
+- **Cursor**: `scouter setup cursor` (modifies project-relative `.cursor/mcp.json`)
+- **Windsurf**: `scouter setup windsurf`
+
+### Claude Code
+Install Scouter as a plugin using the absolute path to the binary:
 ```bash
 claude plugin install $(which scouter)
 ```
+*(Alternatively, use `scouter setup claude` to inject a token-killer hook into Claude's bash execution pipeline).*
 
-### 3. VS Code / Cursor / Windsurf
+### VS Code (Manual Setup)
 Add Scouter as an MCP server in your IDE settings.
 
 **For VS Code (using the MCP extension):**
@@ -67,7 +74,6 @@ Add this to your MCP configuration JSON:
   }
 }
 ```
-
 ---
 
 ## 🧠 Memory Synergy (Scouter + Engram)
