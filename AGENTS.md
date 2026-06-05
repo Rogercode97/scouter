@@ -10,9 +10,10 @@ Scouter is a code analysis and intelligence engine designed for integration with
 - `go run ./cmd/scouter` # Direct execution command
 
 ## Testing Procedures
-- `just test`          # Executes the complete test suite
+- `just test`          # Executes the complete test suite (Required before push)
 - `go test ./...`      # Standard Go testing command
 - `go test -v ./internal/mcp/...` # Verbose testing of MCP handlers
+- **TDD Rule**: Apply strict TDD (full test suite execution) only right before a push. During local development, use direct targeted testing to conserve context.
 
 ## Project Organization
 - `cmd/scouter/`       # CLI entry point and server logic.
@@ -23,10 +24,12 @@ Scouter is a code analysis and intelligence engine designed for integration with
 - `tests/`             # Integration and end-to-end tests.
 
 ## Development Standards
-- **Modular Architecture**: Maintain clear boundaries between analysis engines and interface adapters.
+- **Modular Architecture**: Maintain clear boundaries between analysis engines and interface adapters. Avoid God Objects; use role-based interfaces and separate presentation logic from MCP handlers.
 - **Context Management**: Ensure all operations propagate and respect `context.Context`.
 - **Informative Output**: Provide clear, concise feedback. Use `<thought>` blocks for complex analysis in MCP responses.
 - **Modern Go Patterns**: Utilize Go 1.25+ features including structured logging and optimized iterators.
+- **Termux/WASM Antifragility**: Optimize for Wazero environments (no JIT). Use Bulk Updates, Circuit Breakers, and Dual Connection Pools for SQLite to prevent database locking and minimize Wasm-to-Host FFI overhead.
+- **Zero CGO**: The project must remain a single, statically compiled binary. Use `ncruces/go-sqlite3` for SQLite and `goformer` for the Semantic Engine. Do not introduce CGO dependencies.
 
 ### Implementation Example
 ```go
