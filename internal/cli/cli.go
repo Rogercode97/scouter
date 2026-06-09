@@ -125,6 +125,12 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		analyzer := engine.NewAnalysisEngine(db)
 		ripple := engine.NewRippleEngine(db, nil, impact)
 		ripple.Validators = append(ripple.Validators, engine.NewLSPValidator(analyzer.ProjectRoot))
+
+		semanticEngine := &engine.SemanticEngine{}
+		if err := semanticEngine.Init(ctx, ""); err != nil {
+			logger.Warn("Failed to initialize semantic engine", "error", err)
+		}
+
 		searchEngine := engine.NewSearchEngine(db, memoryProvider, semanticEngine)
 		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider)
 		compact := engine.NewCompactionEngine(db, ledger)

@@ -263,7 +263,7 @@ func (ip *IndexerPipeline) indexDirectory(ctx context.Context, dir string, worke
 				childHash, err := ip.indexDirectory(ctx, path, workerSem, collector, parsedData)
 				if err != nil {
 					ip.config.Logger.Error("failed to index directory", "path", path, "error", err)
-					return err
+					return nil // Skip directory but continue parent indexing
 				}
 				if childHash != "" {
 					mu.Lock()
@@ -296,7 +296,7 @@ func (ip *IndexerPipeline) indexDirectory(ctx context.Context, dir string, worke
 				childHash, err := ip.indexFile(ctx, path, workerSem, collector, parsedData)
 				if err != nil {
 					ip.config.Logger.Error("failed to index file", "path", path, "error", err)
-					return err
+					return nil // Skip the file but continue directory indexing
 				}
 				if childHash != "" {
 					mu.Lock()
