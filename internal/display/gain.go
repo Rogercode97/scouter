@@ -12,6 +12,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// TelemetryProvider abstrae el acceso a las métricas de telemetría.
+// Permite aislar la lógica de presentación de la base de datos (DIP).
+type TelemetryProvider interface {
+	GetSummary(ctx context.Context) (*telemetry.Summary, error)
+	GetByCommand(ctx context.Context, limit int) ([]telemetry.CommandStats, error)
+	GetDaily(ctx context.Context, days int) ([]telemetry.DayStats, error)
+	GetWeekly(ctx context.Context, weeks int) ([]telemetry.PeriodStats, error)
+	GetMonthly(ctx context.Context, months int) ([]telemetry.PeriodStats, error)
+	GetRecent(ctx context.Context, limit int) ([]telemetry.CommandRecord, error)
+}
+
 // GainStats holds high-level metrics for the Gain dashboard.
 type GainStats struct {
 	TotalSaved     int
@@ -21,7 +32,7 @@ type GainStats struct {
 }
 
 // RunGain executes the gain (token savings report) command.
-func RunGain(tracker *telemetry.Tracker, args []string) error {
+func RunGain(tracker TelemetryProvider, args []string) error {
 	if tracker == nil {
 		PrintError("no tracking data (run some commands first)")
 		return nil
@@ -183,7 +194,7 @@ func printDashboard(s *GainStats) {
 	fmt.Println()
 }
 
-func showByCommand(tracker *telemetry.Tracker, limit int) error {
+func showByCommand(tracker TelemetryProvider, limit int) error {
 	stats, err := tracker.GetByCommand(context.Background(), limit)
 	if err != nil {
 		return err
@@ -232,7 +243,7 @@ func showByCommand(tracker *telemetry.Tracker, limit int) error {
 	return nil
 }
 
-func showSparkline(tracker *telemetry.Tracker) {
+func showSparkline(tracker TelemetryProvider) {
 	daily, err := tracker.GetDaily(context.Background(), 14)
 	if err != nil || len(daily) < 2 {
 		return
@@ -255,7 +266,7 @@ func showSparkline(tracker *telemetry.Tracker) {
 	fmt.Println()
 }
 
-func showDailyReport(tracker *telemetry.Tracker, days int, stats *GainStats) error {
+func showDailyReport(tracker TelemetryProvider, days int, stats *GainStats) error {
 	daily, err := tracker.GetDaily(context.Background(), days)
 	if err != nil {
 		return err
@@ -280,7 +291,7 @@ func showDailyReport(tracker *telemetry.Tracker, days int, stats *GainStats) err
 	return nil
 }
 
-func showPeriodReport(tracker *telemetry.Tracker, period string) error {
+func showPeriodReport(tracker TelemetryProvider, period string) error {
 	var stats []telemetry.PeriodStats
 	var err error
 	var label string
@@ -325,7 +336,7 @@ func showPeriodReport(tracker *telemetry.Tracker, period string) error {
 	return nil
 }
 
-func showHistory(tracker *telemetry.Tracker, n int) error {
+func showHistory(tracker TelemetryProvider, n int) error {
 	records, err := tracker.GetRecent(context.Background(), n)
 	if err != nil {
 		return err
@@ -351,7 +362,7 @@ func showHistory(tracker *telemetry.Tracker, n int) error {
 	return nil
 }
 
-func exportJSON(summary *telemetry.Summary, tracker *telemetry.Tracker, days int) error {
+func exportJSON(summary *telemetry.Summary, tracker TelemetryProvider, days int) error {
 	daily, _ := tracker.GetDaily(context.Background(), days)
 	byCmd, _ := tracker.GetByCommand(context.Background(), 10)
 	data := map[string]any{
@@ -364,7 +375,7 @@ func exportJSON(summary *telemetry.Summary, tracker *telemetry.Tracker, days int
 	return enc.Encode(data)
 }
 
-func exportCSV(tracker *telemetry.Tracker, days int) error {
+func exportCSV(tracker TelemetryProvider, days int) error {
 	daily, err := tracker.GetDaily(context.Background(), days)
 	if err != nil {
 		return err

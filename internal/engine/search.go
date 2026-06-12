@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"regexp"
 
 	"github.com/Rogercode97/scouter/internal/domain/memory"
@@ -48,7 +49,7 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 		embedding, semErr := e.semantic.GenerateEmbedding(ctx, query)
 		if semErr != nil {
 			// Elegant Degradation: Warning and fallback to FTS5
-			fmt.Printf("WARNING: semantic.GenerateEmbedding failed: %v. Falling back to FTS5 search.\n", semErr)
+			slog.Warn("semantic.GenerateEmbedding failed, falling back to FTS5 search", "error", semErr)
 			storeSymbols, err = e.store.SearchSymbols(ctx, query, "", limit, offset)
 		} else {
 			storeSymbols, err = e.store.SearchHybrid(ctx, query, embedding, limit)
@@ -83,14 +84,16 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 
 	// [Divine Correlation] Link AST symbols with Memory Insights
 	for i := range symbols {
+		symName := symbols[i].Name
+		pattern := `(?i)\b` + regexp.QuoteMeta(symName) + `\b`
+		re := regexp.MustCompile(pattern)
+
 		for j := range iRes.insights {
-			symName := symbols[i].Name
 			insight := &iRes.insights[j]
 
-			pattern := `(?i)\b` + regexp.QuoteMeta(symName) + `\b`
-			matchedTitle, _ := regexp.MatchString(pattern, insight.Title)
-			matchedWhy, _ := regexp.MatchString(pattern, insight.Why)
-			matchedLearned, _ := regexp.MatchString(pattern, insight.Learned)
+			matchedTitle := re.MatchString(insight.Title)
+			matchedWhy := re.MatchString(insight.Why)
+			matchedLearned := re.MatchString(insight.Learned)
 
 			if matchedTitle || matchedWhy || matchedLearned {
 				symbols[i].LinkedInsights = append(symbols[i].LinkedInsights, insight.ID)

@@ -1156,28 +1156,33 @@ func (s *storeImpl) DeleteFileIndex(ctx context.Context, path string) error {
 	return nil
 }
 
+const (
+	DefaultNearestNeighborLimit = 100
+	RrfKConstant                = 60
+)
+
 func (s *storeImpl) SearchHybrid(ctx context.Context, textQuery string, queryEmbedding []float32, limit int) ([]Symbol, error) {
 	vecData, err := vec.SerializeFloat32(queryEmbedding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize embedding: %w", err)
 	}
 
-	query := `
+	query := fmt.Sprintf(`
 WITH fts_matches AS (
     SELECT rowid as symbol_id, rank, row_number() OVER (ORDER BY rank) as rn
     FROM symbols_fts
     WHERE symbols_fts MATCH ?
-    LIMIT 100
+    LIMIT %d
 ),
 vec_matches AS (
     SELECT symbol_id, distance, row_number() OVER (ORDER BY distance) as rn
     FROM vec_symbols
-    WHERE embedding MATCH ? AND k = 100
+    WHERE embedding MATCH ? AND k = %d
 ),
 combined AS (
     SELECT
         COALESCE(f.symbol_id, v.symbol_id) as symbol_id,
-        COALESCE(1.0 / (60 + f.rn), 0) + COALESCE(1.0 / (60 + v.rn), 0) as rrf_score
+        COALESCE(1.0 / (%d + f.rn), 0) + COALESCE(1.0 / (%d + v.rn), 0) as rrf_score
     FROM fts_matches f
     FULL OUTER JOIN vec_matches v ON f.symbol_id = v.symbol_id
 )
@@ -1186,7 +1191,7 @@ FROM combined c
 JOIN symbols s ON s.id = c.symbol_id
 ORDER BY c.rrf_score DESC
 LIMIT ?
-`
+`, DefaultNearestNeighborLimit, DefaultNearestNeighborLimit, RrfKConstant, RrfKConstant)
 
 	rows, err := s.query(ctx, query, textQuery, vecData, limit)
 	if err != nil {
