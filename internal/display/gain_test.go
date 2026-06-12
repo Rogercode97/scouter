@@ -1,7 +1,11 @@
 package display
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/telemetry"
@@ -88,11 +92,29 @@ func TestRunGain_DailyFlag(t *testing.T) {
 
 	// 2. Act: Ejecutar la función aislando el I/O
 	args := []string{"--daily"}
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
 	err := RunGain(mock, args)
 
-	// 3. Assert: Verificar que no haya errores.
-	// Al utilizar un mock, garantizamos que no se usa SQLite.
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	output := buf.String()
+
+	// 3. Assert: Verificar que no haya errores y que el texto renderizado sea correcto
 	if err != nil {
 		t.Fatalf("No se esperaba error, se obtuvo: %v", err)
+	}
+
+	if !strings.Contains(output, "2023-10-24") {
+		t.Errorf("Se esperaba que el output contenga la fecha '2023-10-24', output:\\n%s", output)
+	}
+	if !strings.Contains(output, "8.0K") && !strings.Contains(output, "8000") {
+		t.Errorf("Se esperaba que el output contenga los tokens guardados '8000' o '8.0K', output:\\n%s", output)
 	}
 }
