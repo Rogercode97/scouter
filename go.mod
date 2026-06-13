@@ -19,7 +19,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/mod v0.36.0
+	golang.org/x/mod v0.37.0
 	golang.org/x/sync v0.21.0
 	golang.org/x/tools v0.45.0
 	gopkg.in/yaml.v3 v3.0.1
