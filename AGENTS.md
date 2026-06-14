@@ -10,6 +10,8 @@ Scouter is a CGO-free, single-binary AST-based code analysis and intelligence en
   - You MUST use **Circuit Breakers** and **Dual Connection Pools** for SQLite.
 - **Decoupled Roles**: The `TruthEngine` God Object is dead. Enforce strict role-based interfaces (`IndexerService`, `HealerService`). Keep the Presentation layer (`display.Presenter`) separate from MCP handlers.
 - **Context Integrity**: Always propagate `context.Context` down the stack. 
+- **Command Security**: Never execute raw commands via `exec.Command` for dynamically formed shells. MUST use `internal/utils/safe_exec.go` (`SafeCommand`) to prevent command injection via binary allow-listing.
+- **Ledger Mutation Protocol**: Any structural code changes MUST be buffered in memory using the `Ledger` before atomic disk flush. Direct destructive mutation is forbidden.
 
 ## ⚙️ EXECUTION & TDD RULES
 - **Development TDD**: Use direct, targeted testing (`go test ./specific_pkg`) to conserve context.
