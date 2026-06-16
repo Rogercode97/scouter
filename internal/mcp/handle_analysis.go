@@ -2,13 +2,10 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os/exec"
 
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
-	"github.com/Rogercode97/scouter/internal/filter"
 
 	"bytes"
 	"github.com/Rogercode97/scouter/internal/utils"
@@ -173,18 +170,18 @@ func (s *Server) handleRead(ctx context.Context, req *mcp.CallToolRequest, args 
 	}
 
 	// [RTK Muscle] Delegation check
-	if _, err := exec.LookPath("rtk"); err == nil {
-		cmd := exec.CommandContext(ctx, "rtk", "read", path, "--pointer", args.Pointer, "--ultra-compact")
-		if out, err := cmd.CombinedOutput(); err == nil {
+	out, ok, rtkErr := s.rtkReader.Read(ctx, path, args.Pointer)
+	if ok {
+		if rtkErr == nil {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
-					&mcp.TextContent{Text: fmt.Sprintf("<thought>\nDelegated read to RTK for Pure Signal extraction (pointer: %s).\n</thought>\n%s", args.Pointer, string(out))},
+					&mcp.TextContent{Text: fmt.Sprintf("<thought>\nDelegated read to RTK for Pure Signal extraction (pointer: %s).\n</thought>\n%s", args.Pointer, out)},
 				},
 			}, nil, nil
 		}
 		// If RTK fails, fallback to manual read
 		if s.logger != nil {
-			s.logger.Warn("RTK delegation failed, falling back to manual read", "error", err)
+			s.logger.Warn("RTK delegation failed, falling back to manual read", "error", rtkErr)
 		}
 	}
 
@@ -372,77 +369,9 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 		return resultPayload, nil, formatErr
 	}
 
-	action, ok := filter.GetAction("ast_grep")
-	if !ok {
-		return s.presenter.FormatError(fmt.Errorf("ast_grep action not found in registry")), nil, nil
-	}
-
-	// Prepare parameters for the ast_grep action
-	params := map[string]any{
-		"pattern": args.Pattern,
-		"path":    path,
-	}
-
-	// Map extension to language if possible, or let ast-grep auto-detect based on extension
-	// ast-grep usually auto-detects if we pass a path, but we can enforce it if needed.
-	// We'll pass the extension as a hint if we want, but ast-grep handles directory scanning well.
-	// Actually, if we pass a directory, ast-grep will scan all supported files.
-	// If the user provided an extension, we might need to filter the results or pass it to ast-grep.
-	// ast-grep doesn't have a direct --ext flag, it uses --lang.
-	// Let's map common extensions to languages.
-	lang := ""
-	switch args.Ext {
-	case ".go", "go":
-		lang = "go"
-	case ".ts", "ts":
-		lang = "typescript"
-	case ".js", "js":
-		lang = "javascript"
-	case ".rs", "rs":
-		lang = "rust"
-	case ".py", "py":
-		lang = "python"
-	}
-	if lang != "" {
-		params["lang"] = lang
-	}
-
-	// Execute the filter
-	input := filter.ActionResult{Metadata: map[string]any{"path": path}}
-	res, err := action(ctx, input, params)
+	results, total, err := s.astGrepSearcher.Search(ctx, args.Pattern, path, args.Ext, limit, offset)
 	if err != nil {
-		return s.presenter.FormatError(fmt.Errorf("Structural search failed: %v", err)), nil, nil
-	}
-
-	// The result lines are JSON strings from ast-grep's --json=stream
-	// We need to parse them back into StructuralMatch objects to maintain API compatibility
-	var results []engine.StructuralMatch
-	for _, line := range res.Lines {
-		var match filter.AstGrepMatch
-		if err := json.Unmarshal([]byte(line), &match); err == nil {
-			matchPath := match.File
-			if matchPath == "" {
-				matchPath = path
-			}
-			results = append(results, engine.StructuralMatch{
-				Path:      matchPath,
-				StartLine: match.Range.Start.Line,
-				EndLine:   match.Range.End.Line,
-				Content:   match.Text,
-			})
-		}
-	}
-
-	total := len(results)
-
-	if offset >= total {
-		results = []engine.StructuralMatch{}
-	} else {
-		end := offset + limit
-		if end > total {
-			end = total
-		}
-		results = results[offset:end]
+		return s.presenter.FormatError(err), nil, nil
 	}
 
 	thought := fmt.Sprintf("Executed structural search for pattern '%s' in '%s'. Pagination: [Limit:%d Offset:%d]. Found %d matches (Total: %d).",

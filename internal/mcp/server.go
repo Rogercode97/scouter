@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Rogercode97/scouter/internal/adapters/astgrep"
+	"github.com/Rogercode97/scouter/internal/adapters/rtk"
 	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine"
@@ -42,6 +44,8 @@ type Server struct {
 	snapshotsMu     sync.RWMutex
 	snapshots       map[string]*engine.ChronosSnapshot
 	snapshotOrder   []string // insertion order for LRU eviction
+	astGrepSearcher *astgrep.Searcher
+	rtkReader       *rtk.Reader
 }
 
 // Options contains the dependencies required to initialize the MCP Server.
@@ -85,9 +89,11 @@ func NewServer(opts Options) *Server {
 		intelligence: opts.Intelligence,
 		evolution:    opts.Evolution,
 		healer:       opts.Healer,
-		memory:       opts.Memory,
-		presenter:    opts.Presenter,
-		appService:   opts.AppService,
+		memory:          opts.Memory,
+		presenter:       opts.Presenter,
+		appService:      opts.AppService,
+		astGrepSearcher: astgrep.NewSearcher(),
+		rtkReader:       rtk.NewReader(),
 	}
 
 	s.registerCoreTools()
