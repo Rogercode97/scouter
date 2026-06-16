@@ -6,14 +6,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Rogercode97/scouter/internal/cli"
+	"github.com/Rogercode97/scouter/cmd/scouter/scoutercmd"
 )
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Inject real dependencies into the testable Run function
-	exitCode := cli.Run(ctx, os.Args, os.Stdout, os.Stderr)
+	exitCode := scoutercmd.Execute(ctx, os.Args[1:], os.Stdout, os.Stderr)
 	os.Exit(exitCode)
 }
