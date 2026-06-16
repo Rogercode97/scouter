@@ -97,7 +97,8 @@ Agents access Scouter through specialized MCP tools categorized by their objecti
 
 Scouter relies on a strict internal modular structure:
 
-- `cmd/scouter/`: The CLI application and entry points.
+- `cmd/scouter/scoutercmd/`: The modular CLI command definitions (Cobra).
+- `cmd/scouter/`: The application entry point (`main.go`).
 - `internal/mcp/`: The MCP server, handler logic, and tool registrations.
 - `internal/engine/`: The core analytical brains, handling search, impact, refactoring, and automated healing.
 - `internal/store/`: The data persistence layer (SQLite, Bleve).

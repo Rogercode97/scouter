@@ -9,6 +9,7 @@ Scouter is a structural intelligence engine. The center of the product is a Go b
 | If you need to... | Open first | Then check |
 |---|---|---|
 | Understand the system design | `docs/ARCHITECTURE.md` | `README.md` |
+| Add/Change CLI commands | `cmd/scouter/scoutercmd/root.go` | `cmd/scouter/scoutercmd/*.go` |
 | Change MCP tools | `internal/mcp/server.go` | `internal/mcp/handlers.go`, `internal/mcp/AGENTS.md` |
 | Change core analysis logic | `internal/engine/truth.go` | `internal/engine/AGENTS.md`, `internal/engine/*_test.go` |
 | Change AST parsing or storage | `internal/store/store.go` | `internal/engine/treesitter.go` |
@@ -19,7 +20,8 @@ Scouter is a structural intelligence engine. The center of the product is a Go b
 
 | Directory | Responsibility | Key Components |
 | :--- | :--- | :--- |
-| `cmd/scouter` | Entry point for the CLI and MCP Server. | CLI commands, server initialization. |
+| `cmd/scouter/scoutercmd`| Modular Cobra CLI definitions. | All CLI commands (`fix`, `index`, etc.). |
+| `cmd/scouter` | Application entry point. | `main.go` bootstrap logic. |
 | `internal/mcp` | Model Context Protocol (MCP) server implementation. | Tool handlers, resource providers. |
 | `internal/engine` | Core analysis logic and processing engines. | Search, Impact, Refactoring, and Diagnostics. |
 | `internal/store` | Persistence layer and data management. | SQLite integration, indexing logic. |
