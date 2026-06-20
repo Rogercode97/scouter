@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"encoding/json"
 	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/Rogercode97/scouter/internal/engine"
+	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -176,9 +176,11 @@ date: %s
 func (s *Server) handlePredict(ctx context.Context, req *mcp.CallToolRequest, args PredictParams) (*mcp.CallToolResult, any, error) {
 	diff := args.Diff
 	if diff == "" {
-		out, err := exec.CommandContext(ctx, "git", "diff", "HEAD", "--unified=0").Output()
+		cmd, err := utils.SafeCommand(ctx, "git", "diff", "HEAD", "--unified=0")
 		if err == nil {
-			diff = string(out)
+			if out, cmdErr := cmd.Output(); cmdErr == nil {
+				diff = string(out)
+			}
 		}
 	}
 

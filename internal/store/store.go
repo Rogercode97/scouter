@@ -1278,26 +1278,20 @@ func (s *storeImpl) InsertSemanticVector(ctx context.Context, symbolID int64, em
 }
 
 func (s *storeImpl) SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int) ([]Symbol, error) {
-	embJSON, err := json.Marshal(queryEmbedding)
+	vecData, err := vec.SerializeFloat32(queryEmbedding)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal embedding: %w", err)
+		return nil, fmt.Errorf("failed to serialize embedding: %w", err)
 	}
 
-	// According to sqlite-vec documentation, we can query like this:
-	// SELECT m.symbol_id, v.distance FROM vec_ast v JOIN vec_ast_meta m ON v.rowid = m.rowid WHERE v.embedding MATCH ? ORDER BY distance LIMIT ?
-	// Or using `AND k = ?` syntax depending on sqlite-vec versions. Let's try `AND k = ?` as it limits KNN.
-	// Or simply `LIMIT ?` at the end of the query.
-
 	query := `
-        SELECT s.name, s.type, s.package_path, s.receiver_type, s.signature, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line
-        FROM vec_ast v
-        JOIN vec_ast_meta m ON v.rowid = m.rowid
-        JOIN symbols s ON s.id = m.symbol_id
+        SELECT s.id, s.name, s.type, s.package_path, s.receiver_type, s.signature, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line
+        FROM vec_symbols v
+        JOIN symbols s ON s.id = v.symbol_id
         WHERE v.embedding MATCH ? AND k = ?
         ORDER BY distance
         `
 
-	rows, err := s.query(ctx, query, string(embJSON), limit)
+	rows, err := s.query(ctx, query, vecData, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute semantic search query: %w", err)
 	}
@@ -1306,7 +1300,7 @@ func (s *storeImpl) SearchSemantic(ctx context.Context, queryEmbedding []float32
 	var res []Symbol
 	for rows.Next() {
 		var sym Symbol
-		if err := rows.Scan(&sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
+		if err := rows.Scan(&sym.ID, &sym.Name, &sym.Type, &sym.PackagePath, &sym.ReceiverType, &sym.Signature, &sym.Doc, &sym.Path, &sym.StartByte, &sym.EndByte, &sym.StartLine, &sym.EndLine); err != nil {
 			return nil, fmt.Errorf("scan semantic symbol failed: %w", err)
 		}
 		res = append(res, sym)

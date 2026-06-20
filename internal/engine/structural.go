@@ -106,7 +106,10 @@ func StructuralRefactor(ctx context.Context, filePath, pattern, template, ext st
 	if err != nil {
 		return "", err
 	}
-	cmd := exec.CommandContext(ctx, "sg", "run", "--pattern", pattern, "--rewrite", template, filePath)
+	cmd, err := utils.SafeCommand(ctx, "sg", "run", "--pattern", pattern, "--rewrite", template, filePath)
+	if err != nil {
+		return "", err
+	}
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
