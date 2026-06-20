@@ -11,7 +11,7 @@ func TestChronosEngine_SemanticDiff(t *testing.T) {
 	// Fails to compile because SemanticDiff isn't added to ChronosEngine yet
 	chronos := engine.NewChronosEngine()
 	
-	res, err := chronos.SemanticDiff(context.Background(), "/repo", "hash1", "hash2")
+	res, err := chronos.SemanticDiff(context.Background(), "/repo")
 	if err != nil {
 		t.Log(err)
 	}
