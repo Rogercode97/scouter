@@ -7,6 +7,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing/object"
+	"github.com/go-git/go-git/v6/plumbing/storer"
 )
 
 // ChurnStore defines the data requirements for the ChurnEngine.
@@ -51,7 +52,7 @@ func (e *ChurnEngine) AnalyzeChurn(ctx context.Context, repoPath string, commitL
 
 	err = cIter.ForEach(func(c *object.Commit) error {
 		if totalCommits >= commitLimit {
-			return fmt.Errorf("limit reached") // Hack to break ForEach
+			return storer.ErrStop
 		}
 		totalCommits++
 
@@ -84,7 +85,7 @@ func (e *ChurnEngine) AnalyzeChurn(ctx context.Context, repoPath string, commitL
 		return nil
 	})
 
-	if err != nil && err.Error() != "limit reached" {
+	if err != nil && err != storer.ErrStop {
 		return fmt.Errorf("failed to iterate commits: %w", err)
 	}
 
