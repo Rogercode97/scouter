@@ -4,17 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/Rogercode97/scouter/internal/domain/memory"
-	"github.com/Rogercode97/scouter/internal/engine/apply"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
-	"github.com/pmezard/go-difflib/difflib"
 )
 
 var (
@@ -287,164 +282,6 @@ func (e *TruthEngine) Fix(ctx context.Context, errorLog string, messenger Messen
 	return fmt.Sprintf("Status: %s\nFile: %s\nFixed Code:\n%s\nTest Output:\n%s", res.Status, res.Metadata["failingFile"], res.FixedCode, res.TestOutput), nil
 }
 
-func (e *TruthEngine) Propagate(ctx context.Context, symbol, transformation string, messenger Messenger) (string, error) {
-	if messenger != nil {
-		e.ripple.Transformer = NewMCPTransformer(e.store, func(ctx context.Context, file, sym, prompt string) (string, error) {
-			return messenger.Ask(ctx, "You are a surgical refactoring agent.", prompt)
-		})
-	}
-	ledger, err := e.ripple.Propagate(ctx, symbol, transformation, 5)
-	if err != nil {
-		if ledger != nil && len(ledger.StagedFiles()) > 0 {
-			return fmt.Sprintf("❌ Validation failed: %v. Staged files: %v", err, ledger.StagedFiles()), err
-		}
-		return "", err
-	}
-
-	return fmt.Sprintf("✅ Transformation staged in Ledger for %d files: %v. Use 'scouter_commit' to apply or 'scouter_diff' to review.", len(ledger.AffectedFiles()), ledger.AffectedFiles()), nil
-}
-
-func (e *TruthEngine) CommitLedger(ctx context.Context) (string, error) {
-	if e.ledger == nil {
-		return "", fmt.Errorf("ledger not initialized")
-	}
-
-	files := e.ledger.StagedFiles()
-	if len(files) == 0 {
-		return "No changes staged in Ledger.", nil
-	}
-
-	plan := apply.StagePlan{
-		Prepare: []apply.Step{},
-		Apply:   []apply.Step{},
-	}
-
-	for _, patch := range e.ledger.GetStaged() {
-		p := patch // copy
-		plan.Prepare = append(plan.Prepare, &preparePatchStep{path: p.FilePath, patch: p})
-		plan.Apply = append(plan.Apply, &applyPatchStep{path: p.FilePath, original: p.Original})
-	}
-
-	orch := apply.NewOrchestrator(apply.DefaultRollbackPolicy())
-	res := orch.Execute(plan)
-	if res.Err != nil {
-		return "", fmt.Errorf("commit failed: %v", res.Err)
-	}
-
-	e.ledger.Rollback(ctx) // clear ledger after successful commit
-
-	return fmt.Sprintf("✅ Committed changes to %d files: %v", len(files), files), nil
-}
-
-type preparePatchStep struct {
-	path  string
-	patch Patch
-}
-
-func (p *preparePatchStep) ID() string { return p.path + "_prepare" }
-func (p *preparePatchStep) Run() error {
-	if err := os.MkdirAll(filepath.Dir(p.path), 0755); err != nil {
-		return err
-	}
-	return os.WriteFile(p.path+".scouter.tmp", []byte(p.patch.NewContent), 0644)
-}
-
-type applyPatchStep struct {
-	path     string
-	original string
-}
-
-func (a *applyPatchStep) ID() string { return a.path + "_apply" }
-func (a *applyPatchStep) Run() error {
-	return os.Rename(a.path+".scouter.tmp", a.path)
-}
-func (a *applyPatchStep) Rollback() error {
-	if a.original == "" {
-		return os.Remove(a.path)
-	}
-	return os.WriteFile(a.path, []byte(a.original), 0644)
-}
-
-func (e *TruthEngine) RollbackLedger(ctx context.Context) (string, error) {
-	if e.ledger == nil {
-		return "", fmt.Errorf("ledger not initialized")
-	}
-
-	if err := e.ledger.Rollback(ctx); err != nil {
-		return "", err
-	}
-
-	return "✅ Ledger rolled back. All staged changes cleared.", nil
-}
-
-func (e *TruthEngine) GetLedgerSummary(ctx context.Context) string {
-	if e.ledger == nil {
-		return "Ledger not initialized."
-	}
-	return e.ledger.Summary()
-}
-
-func (e *TruthEngine) GetLedgerDiff(ctx context.Context) (string, error) {
-	if e.ledger == nil {
-		return "", fmt.Errorf("ledger not initialized")
-	}
-
-	patches := e.ledger.GetStaged()
-	if len(patches) == 0 {
-		return "No changes staged in Ledger.", nil
-	}
-
-	var sb strings.Builder
-	for _, p := range patches {
-		diff, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
-			A:        difflib.SplitLines(p.Original),
-			B:        difflib.SplitLines(p.NewContent),
-			FromFile: p.FilePath + " (Original)",
-			ToFile:   p.FilePath + " (Staged)",
-			Context:  3,
-		})
-		if err != nil {
-			sb.WriteString(fmt.Sprintf("--- %s (Original)\n+++ %s (Staged)\n", p.FilePath, p.FilePath))
-			if p.Diff != "" {
-				sb.WriteString(p.Diff)
-			} else {
-				sb.WriteString(" (Diff not available, full content staged)\n")
-			}
-			sb.WriteString("\n")
-			continue
-		}
-
-		if diff == "" {
-			sb.WriteString(fmt.Sprintf("--- %s (Original)\n+++ %s (Staged)\n (No changes)\n\n", p.FilePath, p.FilePath))
-		} else {
-			sb.WriteString(diff)
-			sb.WriteString("\n")
-		}
-	}
-
-	return sb.String(), nil
-}
-
-func (e *TruthEngine) StageMutation(ctx context.Context, filePath, newContent string) error {
-	if e.ledger == nil {
-		return fmt.Errorf("ledger not initialized")
-	}
-
-	cleanPath, err := utils.ValidatePath(filePath)
-	if err != nil {
-		return err
-	}
-
-	original, _ := os.ReadFile(cleanPath)
-
-	patch := Patch{
-		FilePath:   cleanPath,
-		Original:   string(original),
-		NewContent: newContent,
-	}
-
-	return e.ledger.Stage(cleanPath, patch)
-}
 
 func (e *TruthEngine) SemanticSearch(ctx context.Context, query string, limit int) ([]types.Symbol, error) {
 	if e.semantic == nil {

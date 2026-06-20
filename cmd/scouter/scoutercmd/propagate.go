@@ -36,9 +36,9 @@ var propagateCmd = &cobra.Command{
 		ledger := engine.NewLedger()
 		ledger.SetLedgerPath(".scouter/staging/ledger.json")
 
-		te := engine.NewTruthEngine(db, engine.WithRipple(rippleEngine), engine.WithLedger(ledger))
+		ee := engine.NewEvolutionEngine(db, ledger, rippleEngine)
 
-		res, err := te.Propagate(cmd.Context(), symbol, transformation, nil)
+		res, err := ee.Propagate(cmd.Context(), symbol, transformation, nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "propagate error: %v\n", err)
 			os.Exit(1)

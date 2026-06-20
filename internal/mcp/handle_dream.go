@@ -32,12 +32,7 @@ func (s *Server) handleDream(ctx context.Context, req *mcp.CallToolRequest, args
 	// Create a new Distiller for this specific request to use the current session
 	distiller := llm.NewMCPDistiller(req.Session)
 
-	// We use the pre-initialized appService but with a fresh distiller for sampling
-	// In a real production scenario, we might want to inject the distiller into a
-	// request-scoped service, but for now we'll just use the session-bound distiller.
-	s.appService.SetDistiller(distiller)
-
-	err := s.appService.DistillAndSave(ctx, project, hours)
+	err := s.appService.DistillAndSave(ctx, project, hours, distiller)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -68,12 +63,11 @@ func (s *Server) postToolHook(req *mcp.CallToolRequest, impact bool) {
 
 		// Ensure we have a distiller configured for sampling
 		distiller := llm.NewMCPDistiller(req.Session)
-		s.appService.SetDistiller(distiller)
 
 		// REQ-5: Extract transcript from session (if supported by implementation)
 		transcript := s.GetTranscript(req)
 
-		err := s.appService.PassiveDistill(ctx, project, transcript)
+		err := s.appService.PassiveDistill(ctx, project, transcript, distiller)
 		if err != nil {
 			s.logger.Warn("Passive distillation failed", "error", err)
 		} else {

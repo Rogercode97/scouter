@@ -21,9 +21,9 @@ var rollbackCmd = &cobra.Command{
 
 		ledger := engine.NewLedger()
 		ledger.SetLedgerPath(".scouter/staging/ledger.json")
-		te := engine.NewTruthEngine(db, engine.WithLedger(ledger))
+		ee := engine.NewEvolutionEngine(db, ledger, nil)
 
-		res, err := te.RollbackLedger(cmd.Context())
+		res, err := ee.RollbackLedger(cmd.Context())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "rollback error: %v\n", err)
 			os.Exit(1)

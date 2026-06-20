@@ -40,8 +40,9 @@ func setupMockServer(db store.Store, logger *slog.Logger) *Server {
 		engine.WithLedger(ledger),
 	)
 
-	appService := memory.NewAppService(memoryProvider, nil)
+	appService := memory.NewAppService(memoryProvider)
 	chronos := engine.NewChronosEngine()
+	evolutionEngine := engine.NewEvolutionEngine(db, ledger, ripple)
 
 	opts := Options{
 		Store:         db,
@@ -50,7 +51,7 @@ func setupMockServer(db store.Store, logger *slog.Logger) *Server {
 		Indexer:       truthEngine,
 		Discovery:     truthEngine,
 		Intelligence:  truthEngine,
-		Evolution:     truthEngine,
+		Evolution:     evolutionEngine,
 		Healer:        truthEngine,
 		Memory:        truthEngine.MemoryProvider(),
 		ChronosEngine: chronos,

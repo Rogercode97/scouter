@@ -2,12 +2,9 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/Rogercode97/scouter/internal/domain/memory"
-	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -152,52 +149,14 @@ func (s *Server) handleEvolve(ctx context.Context, req *mcp.CallToolRequest, arg
 	// Log user prompt
 	s.AppendSessionMessage(memory.Message{Role: "user", Content: args.Proposal})
 
-	// 1. Sampling: Request Genome Mutation
-	samplingRes, err := req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
-		SystemPrompt: GEPSystemPrompt,
-		Messages: []*mcp.SamplingMessage{
-			{Role: "user", Content: &mcp.TextContent{Text: args.Proposal}},
-		},
-		MaxTokens: 4096,
-	})
+	res, err := s.evolution.ProposeEvolution(ctx, args.Proposal, args.Force, &mcpMessenger{server: s, req: req})
 	if err != nil {
-		return nil, nil, fmt.Errorf("sampling evolution failed: %w", err)
-	}
-
-	txt, ok := samplingRes.Content.(*mcp.TextContent)
-	if !ok {
-		return nil, nil, fmt.Errorf("unexpected sampling response type")
-	}
-
-	// Log assistant response
-	s.AppendSessionMessage(memory.Message{Role: "assistant", Content: txt.Text})
-
-	// 2. Parse JSON Mutations
-	var mutations []struct {
-		File    string `json:"file"`
-		Content string `json:"content"`
-	}
-	rawJSON := utils.ExtractJSON(txt.Text)
-	if err := json.Unmarshal([]byte(rawJSON), &mutations); err != nil {
-		return nil, nil, fmt.Errorf("failed to parse mutation JSON: %w\nRaw: %s", err, txt.Text)
-	}
-
-	// 3. Stage in Ledger
-	stagedCount := 0
-	for _, m := range mutations {
-		if !args.Force && strings.Contains(m.File, "internal/mcp/handlers.go") {
-			return nil, nil, fmt.Errorf("SOVEREIGNTY VIOLATION: Mutation attempts to modify GEP core logic in '%s'. Use 'force:true' if this is an intended self-lobotomy.", m.File)
-		}
-
-		if err := s.evolution.StageMutation(ctx, m.File, m.Content); err != nil {
-			return nil, nil, fmt.Errorf("failed to stage mutation for %s: %w", m.File, err)
-		}
-		stagedCount++
+		return nil, nil, err
 	}
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: fmt.Sprintf("✅ Evolution staged in Ledger for %d files. Use 'scouter_diff' to review and 'scouter_commit' to apply changes.", stagedCount)},
+			&mcp.TextContent{Text: res},
 		},
 	}, nil, nil
 }

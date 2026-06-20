@@ -21,9 +21,9 @@ var statusCmd = &cobra.Command{
 
 		ledger := engine.NewLedger()
 		ledger.SetLedgerPath(".scouter/staging/ledger.json")
-		te := engine.NewTruthEngine(db, engine.WithLedger(ledger))
+		ee := engine.NewEvolutionEngine(db, ledger, nil)
 
-		res := te.GetLedgerSummary(cmd.Context())
+		res := ee.GetLedgerSummary(cmd.Context())
 		fmt.Fprintln(os.Stdout, res)
 		return nil
 

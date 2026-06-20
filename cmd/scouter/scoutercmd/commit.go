@@ -21,9 +21,9 @@ var commitCmd = &cobra.Command{
 
 		ledger := engine.NewLedger()
 		ledger.SetLedgerPath(".scouter/staging/ledger.json")
-		te := engine.NewTruthEngine(db, engine.WithLedger(ledger))
+		ee := engine.NewEvolutionEngine(db, ledger, nil)
 
-		res, err := te.CommitLedger(cmd.Context())
+		res, err := ee.CommitLedger(cmd.Context())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "commit error: %v\n", err)
 			os.Exit(1)

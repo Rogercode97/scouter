@@ -43,6 +43,7 @@ type IntelligenceService interface {
 }
 
 type EvolutionService interface {
+	ProposeEvolution(ctx context.Context, proposal string, force bool, messenger Messenger) (string, error)
 	Propagate(ctx context.Context, symbol, transformation string, messenger Messenger) (string, error)
 	CommitLedger(ctx context.Context) (string, error)
 	RollbackLedger(ctx context.Context) (string, error)

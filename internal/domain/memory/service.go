@@ -10,26 +10,20 @@ import (
  * Orchestrates the Kairos Memory Distillation flow.
  */
 type AppService struct {
-	memory    MemoryProvider
-	distiller Distiller
+	memory MemoryProvider
 }
 
-func NewAppService(memory MemoryProvider, distiller Distiller) *AppService {
+func NewAppService(memory MemoryProvider) *AppService {
 	return &AppService{
-		memory:    memory,
-		distiller: distiller,
+		memory: memory,
 	}
-}
-
-func (s *AppService) SetDistiller(distiller Distiller) {
-	s.distiller = distiller
 }
 
 /**
  * DistillAndSave: Core logic for memory purification.
  * Decoupled from CLI flags, SQLite, and Gemini SDK.
  */
-func (s *AppService) DistillAndSave(ctx context.Context, project string, hours int) error {
+func (s *AppService) DistillAndSave(ctx context.Context, project string, hours int, distiller Distiller) error {
 	// (1) Extract
 	observations, err := s.memory.GetRecentObservations(ctx, project, hours)
 	if err != nil {
@@ -41,7 +35,7 @@ func (s *AppService) DistillAndSave(ctx context.Context, project string, hours i
 	}
 
 	// (2) Distill
-	summary, err := s.distiller.Distill(ctx, observations)
+	summary, err := distiller.Distill(ctx, observations)
 	if err != nil {
 		return fmt.Errorf("[HAKAI] Distillation failed: %w", err)
 	}
@@ -59,9 +53,9 @@ func (s *AppService) DistillAndSave(ctx context.Context, project string, hours i
  * PassiveDistill: Background distillation of session highlights.
  * Triggered automatically at turn ends.
  */
-func (s *AppService) PassiveDistill(ctx context.Context, project string, transcript []Message) error {
+func (s *AppService) PassiveDistill(ctx context.Context, project string, transcript []Message, distiller Distiller) error {
 	// (1) Distill Transcript
-	memories, err := s.distiller.DistillTranscript(ctx, transcript)
+	memories, err := distiller.DistillTranscript(ctx, transcript)
 	if err != nil {
 		return fmt.Errorf("[HAKAI] Passive distillation failed: %w", err)
 	}

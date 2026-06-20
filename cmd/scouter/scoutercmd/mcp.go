@@ -63,7 +63,8 @@ var mcpCmd = &cobra.Command{
 			engine.WithLedger(ledger),
 		)
 
-		appService := memory.NewAppService(memoryProvider, nil)
+		evolutionEngine := engine.NewEvolutionEngine(db, ledger, ripple)
+		appService := memory.NewAppService(memoryProvider)
 		chronos := engine.NewChronosEngine()
 
 		opts := mcp.Options{
@@ -73,7 +74,7 @@ var mcpCmd = &cobra.Command{
 			Indexer:       truthEngine,
 			Discovery:     truthEngine,
 			Intelligence:  truthEngine,
-			Evolution:     truthEngine,
+			Evolution:     evolutionEngine,
 			Healer:        truthEngine,
 			ChronosEngine: chronos,
 			AppService:    appService,

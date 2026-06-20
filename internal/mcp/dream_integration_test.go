@@ -68,7 +68,7 @@ func TestDream_PassiveIntegration(t *testing.T) {
 			{Type: "architecture", Title: "Test Decision", Content: "We decided to use SQLite for tests."},
 		},
 	}
-	server.appService = memory.NewAppService(memoryProvider, mockDistiller)
+	server.appService = memory.NewAppService(memoryProvider)
 
 	// 3. Manually trigger PassiveDistill directly
 	// This verifies the integration between AppService and SQLiteMemoryProvider
@@ -80,7 +80,7 @@ func TestDream_PassiveIntegration(t *testing.T) {
 	err = server.appService.PassiveDistill(ctx, "scouter", []memory.Message{
 		{Role: "user", Content: "Let's use SQLite for memories."},
 		{Role: "assistant", Content: "Good idea. I'll implement it."},
-	})
+	}, mockDistiller)
 	if err != nil {
 		t.Fatalf("PassiveDistill failed: %v", err)
 	}
