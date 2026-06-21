@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
@@ -264,9 +265,10 @@ func (e *TruthEngine) FindLogicalTwins(ctx context.Context, symbolName, path str
 
 func (e *TruthEngine) Fix(ctx context.Context, errorLog string, messenger Messenger) (string, error) {
 	if e.diagnostic == nil {
-
 		return "", fmt.Errorf("diagnostic engine not initialized")
-
+	}
+	if e.healer == nil {
+		return "", fmt.Errorf("healer engine not initialized")
 	}
 
 	report, err := e.diagnostic.Diagnose(ctx, errorLog)
@@ -274,7 +276,14 @@ func (e *TruthEngine) Fix(ctx context.Context, errorLog string, messenger Messen
 		return "", err
 	}
 
-	res, err := e.diagnostic.Heal(ctx, report, messenger)
+	if messenger != nil {
+		e.healer.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
+			enrichedPrompt := "Historical Insights:\n" + strings.Join(report.Insights, "\n") + "\n\n" + prompt
+			return messenger.Ask(ctx, "You are an autonomous Go fixing agent.", enrichedPrompt)
+		}
+	}
+
+	res, err := e.healer.Fix(ctx, report.ErrorLog)
 	if err != nil {
 		return "", err
 	}

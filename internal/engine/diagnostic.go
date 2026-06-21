@@ -36,19 +36,15 @@ type RiskAssessment struct {
 	RiskLevel  string
 }
 
-// DiagnosticProvider defines the deep interface for technical quality operations.
 type DiagnosticProvider interface {
 	Diagnose(ctx context.Context, errorLog string) (*DiagnosticReport, error)
-	Heal(ctx context.Context, report *DiagnosticReport, messenger Messenger) (*types.HealResult, error)
 	AssessRisk(ctx context.Context, symbol, path string) (*RiskAssessment, error)
 }
 
-// DiagnosticEngine implements DiagnosticProvider by orchestrating specialized engines.
 type DiagnosticEngine struct {
 	store    store.DiagnosticStore
 	analyzer *AnalysisEngine
 	impact   *ImpactEngine
-	healer   *HealerEngine
 	lspMgr   *lsp.Manager
 	search   *SearchEngine
 	logger   *slog.Logger
@@ -58,7 +54,6 @@ func NewDiagnosticEngine(
 	s store.DiagnosticStore,
 	a *AnalysisEngine,
 	i *ImpactEngine,
-	h *HealerEngine,
 	l *lsp.Manager,
 	search *SearchEngine,
 ) *DiagnosticEngine {
@@ -66,7 +61,6 @@ func NewDiagnosticEngine(
 		store:    s,
 		analyzer: a,
 		impact:   i,
-		healer:   h,
 		lspMgr:   l,
 		search:   search,
 		logger:   slog.Default(),
@@ -122,23 +116,7 @@ func (e *DiagnosticEngine) Diagnose(ctx context.Context, errorLog string) (*Diag
 	return report, nil
 }
 
-// Heal delegates the actual fix to the HealerEngine using the enriched report.
-func (e *DiagnosticEngine) Heal(ctx context.Context, report *DiagnosticReport, messenger Messenger) (*types.HealResult, error) {
-	if e.healer == nil {
-		return nil, fmt.Errorf("healer engine not initialized")
-	}
 
-	// Inject messenger bridge
-	if messenger != nil {
-		e.healer.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
-			// Prepend insights to the prompt
-			enrichedPrompt := "Historical Insights:\n" + strings.Join(report.Insights, "\n") + "\n\n" + prompt
-			return messenger.Ask(ctx, "You are an autonomous Go fixing agent.", enrichedPrompt)
-		}
-	}
-
-	return e.healer.Fix(ctx, report.ErrorLog)
-}
 
 // AssessRisk provides a unified risk assessment.
 func (e *DiagnosticEngine) AssessRisk(ctx context.Context, symbol, path string) (*RiskAssessment, error) {
