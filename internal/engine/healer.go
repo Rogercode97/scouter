@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -10,7 +9,6 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/tools/imports"
 
 	"github.com/Rogercode97/scouter/internal/domain/memory"
@@ -88,7 +86,20 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 	prompt := e.buildHealerContext(ctx, target, failingFile, errorLog, allMatches, originalCode)
 
 	// 4. Parallel Solvers (Shinigami Phase 1 & 2)
-	bestCandidate, err := e.sampleParallelFixes(ctx, prompt, failingFile, originalCode, target)
+	diag := &DiagnosticContext{
+		FailingFile:  failingFile,
+		ErrorLog:     errorLog,
+		OriginalCode: originalCode,
+		Prompt:       prompt,
+		Target:       target,
+	}
+
+	pipeline := NewShinigamiPipeline(
+		&LLMSolver{DoFixRequest: e.DoFixRequest},
+		&LSPVerifier{},
+	)
+
+	bestCandidate, err := pipeline.Run(ctx, diag)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +109,7 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 	err = e.Ledger.Stage(failingFile, Patch{
 		FilePath:   failingFile,
 		Original:   string(fullContent),
-		NewContent: bestCandidate.fullCode,
+		NewContent: bestCandidate.FullCode,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to stage fix: %w", err)
@@ -108,7 +119,7 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 
 	return &types.HealResult{
 		Status:    "STAGED",
-		FixedCode: bestCandidate.code,
+		FixedCode: bestCandidate.Code,
 		Metadata: map[string]string{
 			"failingFile":    failingFile,
 			"method":         "shinigami-parallel-sampling",
@@ -195,113 +206,78 @@ func (e *HealerEngine) buildHealerContext(ctx context.Context, target *types.AST
 	return contextBuilder.String()
 }
 
-type fixCandidate struct {
-	id       int
-	code     string
-	score    float64
-	fullCode string
-	valid    bool
+type LLMSolver struct {
+	DoFixRequest func(ctx context.Context, prompt string) (string, error)
 }
 
-func (e *HealerEngine) sampleParallelFixes(ctx context.Context, prompt string, failingFile string, originalCode string, target *types.ASTPointer) (*fixCandidate, error) {
-	candidates := make(chan fixCandidate, 3)
-	var valMu sync.Mutex
+func (s *LLMSolver) Generate(ctx context.Context, diag *DiagnosticContext) (<-chan FixCandidate, error) {
+	candidates := make(chan FixCandidate, 3)
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	go func() {
+		defer close(candidates)
+		var wg sync.WaitGroup
+		for i := 0; i < 3; i++ {
+			id := i
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				resRaw, err := resile.Do(ctx, func(c context.Context) (string, error) {
+					return s.DoFixRequest(c, diag.Prompt+"\n\nProvide solution variant #"+strconv.Itoa(id))
+				}, resile.WithRetry(3))
 
-	eg, egCtx := errgroup.WithContext(ctx)
+				if err != nil {
+					return
+				}
 
-	fullContent, _ := os.ReadFile(failingFile)
-
-	for i := 0; i < 3; i++ {
-		id := i
-		eg.Go(func() error {
-			resRaw, err := resile.Do(egCtx, func(c context.Context) (string, error) {
-				return e.DoFixRequest(c, prompt+"\n\nProvide solution variant #"+strconv.Itoa(id))
-			}, resile.WithRetry(3))
-			if err != nil {
-				return err
-			}
-
-			candidateCode := utils.ExtractCodeBlock(resRaw)
-
-			newContent := string(fullContent[:target.Range.Start]) + candidateCode + string(fullContent[target.Range.End:])
-
-			processedContent, err := imports.Process(failingFile, []byte(newContent), nil)
-			if err != nil {
-				processedContent = []byte(newContent)
-			}
-
-			tempLedger := NewLedger()
-			_ = tempLedger.Stage(failingFile, Patch{
-				FilePath:   failingFile,
-				Original:   string(fullContent),
-				NewContent: string(processedContent),
-			})
-
-			validator := NewLSPValidator("")
-
-			select {
-			case <-egCtx.Done():
-				return egCtx.Err()
-			default:
-			}
-
-			valMu.Lock()
-			if egCtx.Err() != nil {
-				valMu.Unlock()
-				return egCtx.Err()
-			}
-			valRes, _ := validator.Validate(egCtx, tempLedger)
-			valMu.Unlock()
-
-			valid := valRes.Valid
-
-			candidates <- fixCandidate{
-				id:       id,
-				code:     candidateCode,
-				fullCode: string(processedContent),
-				valid:    valid,
-			}
-
-			if valid {
-				cancel()
-			}
-			return nil
-		})
-	}
-
-	err := eg.Wait()
-	if err != nil && !errors.Is(err, context.Canceled) {
-		return nil, err
-	}
-	close(candidates)
-
-	var bestCandidate *fixCandidate
-
-	for c := range candidates {
-		if !c.valid {
-			continue
+				candidateCode := utils.ExtractCodeBlock(resRaw)
+				
+				select {
+				case <-ctx.Done():
+				case candidates <- FixCandidate{
+					ID:   id,
+					Code: candidateCode,
+				}:
+				}
+			}()
 		}
+		wg.Wait()
+	}()
 
-		curr := c
-		curr.score = 1.0
+	return candidates, nil
+}
 
-		if len(curr.code) > len(originalCode)*2 {
-			curr.score -= 0.3
-		}
+type LSPVerifier struct{}
 
-		if bestCandidate == nil || curr.score > bestCandidate.score || (curr.score == bestCandidate.score && curr.id < bestCandidate.id) {
-			bestCandidate = &curr
-		}
+func (v *LSPVerifier) Evaluate(ctx context.Context, diag *DiagnosticContext, c *FixCandidate) (bool, error) {
+	fullContent, err := os.ReadFile(diag.FailingFile)
+	if err != nil {
+		return false, err
 	}
 
-	if bestCandidate == nil {
-		return nil, fmt.Errorf("all candidates failed validation")
+	newContent := string(fullContent[:diag.Target.Range.Start]) + c.Code + string(fullContent[diag.Target.Range.End:])
+
+	processedContent, err := imports.Process(diag.FailingFile, []byte(newContent), nil)
+	if err != nil {
+		processedContent = []byte(newContent)
 	}
 
-	return bestCandidate, nil
+	c.FullCode = string(processedContent)
+
+	tempLedger := NewLedger()
+	_ = tempLedger.Stage(diag.FailingFile, Patch{
+		FilePath:   diag.FailingFile,
+		Original:   string(fullContent),
+		NewContent: c.FullCode,
+	})
+
+	validator := NewLSPValidator("")
+	valRes, err := validator.Validate(ctx, tempLedger)
+	if err != nil {
+		return false, err
+	}
+
+	c.Valid = valRes.Valid
+	return c.Valid, nil
 }
 
 // Index parses and persists a file. (Internal helper for HealerEngine)
