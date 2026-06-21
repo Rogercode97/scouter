@@ -12,12 +12,14 @@ require (
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/go-git/go-git/v6 v6.0.0-alpha.4
 	github.com/go-playground/validator/v10 v10.30.3
+	github.com/google/go-cmp v0.7.0
 	github.com/mattn/go-isatty v0.0.22
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/ncruces/go-sqlite3 v0.20.0
 	github.com/odvcencio/gotreesitter v0.20.2
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pmezard/go-difflib v1.0.0
+	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/mod v0.37.0
 	golang.org/x/sync v0.21.0
@@ -69,7 +71,6 @@ require (
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
-	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
-	"github.com/Rogercode97/scouter/internal/filter"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
@@ -33,10 +31,11 @@ type HealerEngine struct {
 
 	Search *SearchEngine
 	memory memory.MemoryProvider
+	Diagnostic *DiagnosticEngine
 }
 
 func NewHealerEngine(s TransactionalStore, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine, search *SearchEngine, mem memory.MemoryProvider) *HealerEngine {
-	return &HealerEngine{
+	he := &HealerEngine{
 		store:    s,
 		lspMgr:   l,
 		analyzer: a,
@@ -45,6 +44,8 @@ func NewHealerEngine(s TransactionalStore, l *lsp.Manager, a *AnalysisEngine, i 
 		memory:   mem,
 		Ledger:   NewLedger(),
 	}
+	he.Diagnostic = NewDiagnosticEngine(s, a, i, he, l, search)
+	return he
 }
 
 // Fix attempts to repair a test failure using the Shinigami Protocol (Solver-Verifier).
@@ -54,7 +55,7 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 	}
 
 	// 1. RCA: Extract File and Line
-	failingFile, lineNum, allMatches, err := extractRCA(errorLog)
+	failingFile, lineNum, allMatches, err := e.Diagnostic.extractRCA(errorLog)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +84,7 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 	}
 
 	// 3. Build Prompt Context
-	prompt := e.buildHealerContext(ctx, target, failingFile, errorLog, allMatches, originalCode)
+	prompt := e.Diagnostic.buildHealerContext(ctx, target, failingFile, errorLog, allMatches, originalCode)
 
 	// 4. Parallel Solvers (Shinigami Phase 1 & 2)
 	diag := &DiagnosticContext{
@@ -153,57 +154,6 @@ func (e *HealerEngine) recordInoculation(ctx context.Context, target *types.ASTP
 	}
 
 	_ = e.memory.SaveObservation(ctx, utils.GetRepoName(ctx), mem)
-}
-
-func extractRCA(errorLog string) (string, int, [][]string, error) {
-	re := regexp.MustCompile("(?m)" + filter.GoTestFailureRegex.String())
-	allMatches := re.FindAllStringSubmatch(errorLog, -1)
-	if len(allMatches) == 0 {
-		return "", 0, nil, fmt.Errorf("could not identify failing file:line in log")
-	}
-
-	primaryMatch := allMatches[0]
-	failingFileRaw := primaryMatch[1]
-	lineNum, _ := strconv.Atoi(primaryMatch[2])
-
-	failingFile, err := utils.ValidatePath(failingFileRaw)
-	if err != nil {
-		return "", 0, nil, err
-	}
-	return failingFile, lineNum, allMatches, nil
-}
-
-func (e *HealerEngine) buildHealerContext(ctx context.Context, target *types.ASTPointer, failingFile, errorLog string, allMatches [][]string, originalCode string) string {
-	var contextBuilder strings.Builder
-	contextBuilder.WriteString(fmt.Sprintf("Failing File: %s\nTarget: %s\nError:\n%s\n\n", failingFile, target.Name, errorLog))
-
-	for _, match := range allMatches {
-		f := match[1]
-		l, _ := strconv.Atoi(match[2])
-
-		if e.lspMgr != nil {
-			client, err := e.lspMgr.GetClient(ctx, f)
-			if err == nil {
-				hover, _ := client.Hover(ctx, lsp.HoverParams{
-					TextDocumentPositionParams: lsp.TextDocumentPositionParams{
-						TextDocument: lsp.TextDocumentIdentifier{URI: "file://" + f},
-						Position:     lsp.Position{Line: l - 1, Character: 1},
-					},
-				})
-				if hover != nil && hover.Contents.Value != "" {
-					contextBuilder.WriteString(fmt.Sprintf("Context at %s:%d: %s\n", f, l, hover.Contents.Value))
-				}
-			}
-		}
-	}
-	contextBuilder.WriteString("\nCode:\n" + originalCode)
-
-	risk, _ := e.impact.Analyze(ctx, target.Name, failingFile, 1)
-	if risk != nil {
-		contextBuilder.WriteString(fmt.Sprintf("\n\nCurrent Risk Score: %.2f (%s)", risk.Target.RiskScore, risk.RiskLevel))
-	}
-
-	return contextBuilder.String()
 }
 
 type LLMSolver struct {
@@ -332,110 +282,4 @@ func (e *HealerEngine) Index(ctx context.Context, path string) error {
 		}
 		return nil
 	})
-}
-
-// DiagnosticHUD representa la visión térmica/estructural del motor de diagnóstico.
-type DiagnosticHUD struct {
-	FailingSymbol      string
-	LastCommit         string
-	RiskLevel          string
-	RiskScore          float64
-	BlastRadius        int
-	SimilarPatternPath string
-}
-
-// DiagnoseHUD ejecuta la visión de diagnóstico combinando Git, AST, Impacto y Bleve.
-// Retorna la representación del HUD en formato ZON.
-func (e *HealerEngine) DiagnoseHUD(ctx context.Context, errorLog string) (*DiagnosticHUD, error) {
-	if errorLog == "" {
-		return nil, fmt.Errorf("empty error log")
-	}
-
-	// 1. Parseo: Extraer archivo y línea
-	re := regexp.MustCompile("(?m)" + filter.GoTestFailureRegex.String())
-	allMatches := re.FindAllStringSubmatch(errorLog, -1)
-	if len(allMatches) == 0 {
-		return nil, fmt.Errorf("could not identify failing file:line in log")
-	}
-
-	primaryMatch := allMatches[0]
-	failingFileRaw := primaryMatch[1]
-	lineNum, _ := strconv.Atoi(primaryMatch[2])
-
-	failingFile, err := utils.ValidatePath(failingFileRaw)
-	if err != nil {
-		return nil, err
-	}
-
-	// 2. Visión de Tiempo (Provenance)
-	var lastCommit string
-	// Intentamos obtener la procedencia usando el root del proyecto.
-	repoRoot := "." // Idealmente utils.GetRepoName(ctx) o similar, pero usamos "." como fallback
-	provenance, err := GetFileProvenance(ctx, repoRoot, failingFile)
-	if err == nil && len(provenance) >= lineNum && lineNum > 0 {
-		// La línea es 1-indexed, el array también lo hacemos 1-indexed en la lógica o verificamos
-		// GetFileProvenance devuelve slice, así que el índice sería lineNum - 1
-		idx := lineNum - 1
-		if idx < len(provenance) {
-			lastCommit = provenance[idx].Commit + " (" + provenance[idx].EngineeringEra + ")"
-		}
-	} else {
-		lastCommit = "Unknown"
-	}
-
-	// 3. Visión de Rayos X (AST)
-	itPointers, _, _, err := StreamSymbols(ctx, failingFile)
-	if err != nil {
-		return nil, err
-	}
-
-	var symbol string
-	for p := range itPointers {
-		if lineNum >= p.StartLine && lineNum <= p.EndLine {
-			symbol = p.Name
-			break
-		}
-	}
-	if symbol == "" {
-		symbol = "Unknown"
-	}
-
-	// 4. Visión de Radar (Impacto)
-	riskLevel := "Unknown"
-	riskScore := 0.0
-	blastRadius := 0
-	if symbol != "Unknown" {
-		impact, err := e.impact.Analyze(ctx, symbol, failingFile, 1)
-		if err == nil && impact != nil {
-			riskLevel = impact.RiskLevel
-			riskScore = impact.Target.RiskScore
-			blastRadius = len(impact.Callers)
-		}
-	}
-
-	// 5. Visión Térmica (Similitud)
-	similarPath := "None"
-	if symbol != "Unknown" && e.Search != nil {
-		// Usamos HybridSearch para encontrar Logical Twins
-		searchRes, err := e.Search.HybridSearch(ctx, symbol, 10, 0)
-		if err == nil && searchRes != nil {
-			for _, sym := range searchRes.Symbols {
-				if sym.Path != failingFile {
-					similarPath = sym.Path
-					break
-				}
-			}
-		}
-	}
-
-	hud := DiagnosticHUD{
-		FailingSymbol:      symbol,
-		LastCommit:         lastCommit,
-		RiskLevel:          riskLevel,
-		RiskScore:          riskScore,
-		BlastRadius:        blastRadius,
-		SimilarPatternPath: similarPath,
-	}
-
-	return &hud, nil
 }

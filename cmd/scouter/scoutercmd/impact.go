@@ -33,7 +33,7 @@ var impactCmd = &cobra.Command{
 		defer lspMgr.Close()
 
 		analyzer := engine.NewAnalysisEngine(db)
-		diagnostic := engine.NewDiagnosticEngine(db, analyzer, nil, nil, lspMgr)
+		diagnostic := engine.NewDiagnosticEngine(db, analyzer, nil, nil, lspMgr, nil)
 		impactEngine := engine.NewImpactEngine(db, lspMgr, nil)
 		te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer), engine.WithLSP(lspMgr), engine.WithImpact(impactEngine), engine.WithDiagnostic(diagnostic))
 

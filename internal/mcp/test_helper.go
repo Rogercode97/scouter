@@ -24,7 +24,7 @@ func setupMockServer(db store.Store, logger *slog.Logger) *Server {
 	searchEngine := engine.NewSearchEngine(db, memoryProvider, nil)
 	healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider)
 	compact := engine.NewCompactionEngine(db, ledger)
-	diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, healer, lspMgr)
+	diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, healer, lspMgr, searchEngine)
 
 	truthEngine := engine.NewTruthEngine(
 		db,

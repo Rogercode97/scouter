@@ -324,5 +324,5 @@ func (e *TruthEngine) DiagnoseHUD(ctx context.Context, errorLog string) (*Diagno
 		return nil, fmt.Errorf("diagnostic engine not initialized")
 
 	}
-	return e.healer.DiagnoseHUD(ctx, errorLog)
+	return e.diagnostic.DiagnoseHUD(ctx, errorLog)
 }

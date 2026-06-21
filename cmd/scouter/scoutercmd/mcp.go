@@ -47,7 +47,7 @@ var mcpCmd = &cobra.Command{
 		searchEngine := engine.NewSearchEngine(db, memoryProvider, semanticEngine)
 		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider)
 		compact := engine.NewCompactionEngine(db, ledger)
-		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, healer, lspMgr)
+		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, healer, lspMgr, searchEngine)
 
 		truthEngine := engine.NewTruthEngine(
 			db,
