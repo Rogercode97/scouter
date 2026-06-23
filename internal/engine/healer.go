@@ -44,7 +44,7 @@ func NewHealerEngine(s TransactionalStore, l *lsp.Manager, a *AnalysisEngine, i 
 		memory:   mem,
 		Ledger:   NewLedger(),
 	}
-	he.Diagnostic = NewDiagnosticEngine(s, a, i, he, l, search)
+	he.Diagnostic = NewDiagnosticEngine(s, a, i, l, search)
 	return he
 }
 
