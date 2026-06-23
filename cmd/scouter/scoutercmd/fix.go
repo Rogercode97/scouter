@@ -40,7 +40,7 @@ var fixCmd = &cobra.Command{
 		impactEngine := engine.NewImpactEngine(db, lspMgr, nil)
 		searchEngine := engine.NewSearchEngine(db, nil, nil)
 		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impactEngine, searchEngine, nil)
-		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impactEngine, healer, lspMgr, searchEngine)
+		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impactEngine, lspMgr, searchEngine)
 
 		te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer), engine.WithLSP(lspMgr), engine.WithImpact(impactEngine), engine.WithDiagnostic(diagnostic), engine.WithHealer(healer), engine.WithSearch(searchEngine))
 
