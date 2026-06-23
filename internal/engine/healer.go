@@ -255,8 +255,9 @@ func (e *HealerEngine) Index(ctx context.Context, path string) error {
 		tx.ClearSymbols(ctx, path)
 		tx.ClearCalls(ctx, path)
 
+		var symbols []*store.Symbol
 		for ptr := range itPointers {
-			_ = tx.SaveSymbol(ctx, &store.Symbol{
+			symbols = append(symbols, &store.Symbol{
 				Name:           ptr.Name,
 				Type:           ptr.Type,
 				Signature:      ptr.Signature,
@@ -270,8 +271,13 @@ func (e *HealerEngine) Index(ctx context.Context, path string) error {
 				StructuralHash: ptr.StructuralHash,
 			})
 		}
+		if len(symbols) > 0 {
+			_ = tx.SaveSymbolsBulk(ctx, symbols)
+		}
+
+		var calls []store.Call
 		for c := range itCalls {
-			_ = tx.SaveCall(ctx, store.Call{
+			calls = append(calls, store.Call{
 				CallerName: c.CallerName,
 				CalleeName: c.CalleeName,
 				CalleePath: c.CalleePath,
@@ -279,6 +285,9 @@ func (e *HealerEngine) Index(ctx context.Context, path string) error {
 				Path:       path,
 				Line:       c.Line,
 			})
+		}
+		if len(calls) > 0 {
+			_ = tx.SaveCallsBulk(ctx, calls)
 		}
 		return nil
 	})
