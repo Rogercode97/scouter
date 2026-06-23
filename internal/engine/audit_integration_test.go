@@ -31,7 +31,7 @@ func TestArchitecturalAuditIntegration(t *testing.T) {
 	ruleEngine := NewASTRuleEngine(rulesDir)
 
 	// Setup TruthEngine with RuleEngine
-	engine := NewTruthEngine(repo, WithASTRules(ruleEngine))
+	indexer := NewIndexerPipeline(IndexerConfig{Store: repo, ASTRules: ruleEngine})
 
 	// Create a file that violates domain isolation
 	violationFile := filepath.Join(tmpDir, "domain_violation.go")
@@ -46,7 +46,7 @@ func BadFunction() {
 	}
 
 	// Index the file (this should trigger the audit)
-	err = engine.Index(ctx, violationFile)
+	err = indexer.Index(ctx, violationFile)
 	if err != nil {
 		t.Fatalf("Failed to index file: %v", err)
 	}

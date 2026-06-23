@@ -54,8 +54,8 @@ func Welcome(g Greeter) {
 
 	// 2. Index and Resolve
 	analyzer := engine.NewAnalysisEngine(st)
-	te := engine.NewTruthEngine(st, engine.WithAnalyzer(analyzer))
-	if err := te.Index(ctx, filePath); err != nil {
+	indexer := engine.NewIndexerPipeline(engine.IndexerConfig{Store: st, Analyzer: analyzer})
+	if err := indexer.Index(ctx, filePath); err != nil {
 		t.Fatalf("failed to index: %v", err)
 	}
 

@@ -20,6 +20,24 @@ import (
 	"github.com/Rogercode97/scouter/internal/utils"
 )
 
+var SupportedExts = map[string]bool{
+	".go":   true,
+	".ts":   true,
+	".tsx":  true,
+	".js":   true,
+	".py":   true,
+	".java": true,
+	".rs":   true,
+}
+
+var BlockedDirs = map[string]bool{
+	"vendor":       true,
+	"node_modules": true,
+	".git":         true,
+	"dist":         true,
+	"build":        true,
+}
+
 type IndexerConfig struct {
 	Store    store.Store
 	Semantic *SemanticEngine
@@ -157,7 +175,7 @@ func (c *indexCollector) Wait() error {
 	return c.err
 }
 
-func (ip *IndexerPipeline) Run(ctx context.Context, path string) error {
+func (ip *IndexerPipeline) Index(ctx context.Context, path string) error {
 	if ip.config.Store == nil {
 		return fmt.Errorf("store not initialized")
 	}

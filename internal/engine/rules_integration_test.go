@@ -48,10 +48,8 @@ func DoSomething() {}`
 	defer db.Close()
 
 	astEngine := NewASTRuleEngine(rulesDir)
-	truth := NewTruthEngine(db, WithASTRules(astEngine))
-
-	// 3. Action: Index the violating file
-	err = truth.Index(ctx, violatingFile)
+	indexer := NewIndexerPipeline(IndexerConfig{Store: db, ASTRules: astEngine})
+	err = indexer.Index(ctx, violatingFile)
 	require.NoError(t, err)
 
 	// 4. Verify: Violation should be in the database

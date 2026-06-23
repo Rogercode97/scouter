@@ -27,9 +27,8 @@ var neighborhoodCmd = &cobra.Command{
 
 		filePath := args[0]
 		analyzer := engine.NewAnalysisEngine(db)
-		te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer))
 
-		res, err := te.GetNeighborhood(cmd.Context(), filePath)
+		res, err := analyzer.GetNeighborhood(cmd.Context(), filePath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "neighborhood error: %v\n", err)
 			os.Exit(1)

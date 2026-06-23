@@ -33,11 +33,21 @@ var indexCmd = &cobra.Command{
 		lspMgr := lsp.GetGlobalManager()
 		defer lspMgr.Close()
 
+		semanticEngine, _ := engine.NewSemanticEngine()
 		analyzer := engine.NewAnalysisEngine(db)
-		te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer), engine.WithLSP(lspMgr))
+		searchEngine := engine.NewSearchEngine(db, nil, nil)
+		astRules := engine.NewASTRuleEngine(".scouter/rules")
+		indexer := engine.NewIndexerPipeline(engine.IndexerConfig{
+			Store:    db,
+			Semantic: semanticEngine,
+			Analyzer: analyzer,
+			Search:   searchEngine,
+			ASTRules: astRules,
+			Logger:   nil,
+		})
 
 		start := time.Now()
-		if err := te.Index(cmd.Context(), path); err != nil {
+		if err := indexer.Index(cmd.Context(), path); err != nil {
 			fmt.Fprintf(os.Stderr, "index error: %v\n", err)
 			os.Exit(1)
 			return nil

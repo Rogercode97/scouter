@@ -181,9 +181,19 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 		}
 		p.mu.Unlock()
 
+		semanticEngine, _ := NewSemanticEngine()
 		analyzer := NewAnalysisEngine(db)
-		truthEng := NewTruthEngine(db, WithAnalyzer(analyzer), WithLSP(p.LSPManager))
-		err = truthEng.Index(ctx, absPath)
+		searchEngine := NewSearchEngine(db, nil, nil)
+		astRules := NewASTRuleEngine(".scouter/rules")
+		indexer := NewIndexerPipeline(IndexerConfig{
+			Store:    db,
+			Semantic: semanticEngine,
+			Analyzer: analyzer,
+			Search:   searchEngine,
+			ASTRules: astRules,
+			Logger:   nil,
+		})
+		err = indexer.Index(ctx, absPath)
 
 		if err == nil {
 			indexedCount++

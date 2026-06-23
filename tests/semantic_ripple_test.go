@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/engine"
-	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/store"
 )
 
@@ -51,11 +50,10 @@ func TestSemanticRipple_CrossPackage(t *testing.T) {
 	analyzer := engine.NewAnalysisEngine(db)
 	analyzer.ProjectRoot = fixtureDir
 
-	lspMgr := lsp.GetGlobalManager()
 
-	te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer), engine.WithLSP(lspMgr))
+	indexer := engine.NewIndexerPipeline(engine.IndexerConfig{Store: db, Analyzer: analyzer})
 
-	if err := te.Index(ctx, fixtureDir); err != nil {
+	if err := indexer.Index(ctx, fixtureDir); err != nil {
 		t.Fatalf("Index failed: %v", err)
 	}
 

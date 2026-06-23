@@ -43,8 +43,24 @@ type LintArchitectureParams struct {
 }
 
 func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, args ImpactParams) (*mcp.CallToolResult, any, error) {
-	// [Sovereignty Upgrade] Route through TruthEngine
-	res, err := s.intelligence.AnalyzeImpact(ctx, args.SymbolName, args.FilePath, args.Verbose, &mcpMessenger{server: s, req: req})
+	risk, err := s.diagnostic.AssessRisk(ctx, args.SymbolName, args.FilePath)
+	if err != nil {
+		return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to assess risk: %v", err)}},
+				IsError: true,
+			},
+			nil, nil
+	}
+	messenger := &mcpMessenger{server: s, req: req}
+	if risk.RiskScore >= 0.8 && messenger != nil {
+		prompt := fmt.Sprintf("The function '%s' in '%s' has a CRITICAL Risk Score of %.4f. Based on its centrality and blast radius, please provide a brief architectural refactoring proposal to reduce its impact.", args.SymbolName, args.FilePath, risk.RiskScore)
+		_, err := messenger.Ask(ctx, "You are an expert software architect.", prompt)
+		if err != nil && s.logger != nil {
+			s.logger.Error("oracle ask failed", "error", err)
+		}
+	}
+
+	res, err := s.impact.Analyze(ctx, args.SymbolName, args.FilePath, 5)
 	if err != nil {
 		return &mcp.CallToolResult{
 				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to analyze impact: %v", err)}},
@@ -64,7 +80,7 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 	if limit <= 0 || limit > 50 {
 		limit = 10
 	}
-	results, err := s.intelligence.GetCriticalSymbols(ctx, limit)
+	results, err := s.analyzer.GetCriticalSymbols(ctx, limit)
 	if err != nil {
 		return &mcp.CallToolResult{
 				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get critical symbols: %v", err)}},
@@ -120,10 +136,7 @@ func (s *Server) handleObsidianExport(ctx context.Context, req *mcp.CallToolRequ
 		return nil, nil, fmt.Errorf("security violation: export path '%s' is outside the workspace", exportPath)
 	}
 
-	res, err := s.intelligence.AnalyzeImpact(ctx, args.SymbolName, args.FilePath, true, nil)
-	if err != nil {
-		return nil, nil, err
-	}
+	res, _ := s.impact.Analyze(ctx, args.SymbolName, args.FilePath, 5)
 
 	now := time.Now().Format("2006-01-02")
 	content := fmt.Sprintf(`---
@@ -184,7 +197,7 @@ func (s *Server) handlePredict(ctx context.Context, req *mcp.CallToolRequest, ar
 		}
 	}
 
-	results, err := s.intelligence.PredictTests(ctx, diff)
+	results, err := s.impact.PredictTests(ctx, diff)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -199,7 +212,7 @@ func (s *Server) handlePredict(ctx context.Context, req *mcp.CallToolRequest, ar
 }
 
 func (s *Server) handleLintArchitecture(ctx context.Context, req *mcp.CallToolRequest, args LintArchitectureParams) (*mcp.CallToolResult, any, error) {
-	results, err := s.intelligence.AuditArchitecture(ctx, args.TargetPath)
+	results, err := s.astRules.Audit(ctx, args.TargetPath)
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to audit architecture: %v", err)}},

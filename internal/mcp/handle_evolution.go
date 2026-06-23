@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"strings"
+
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -47,15 +49,28 @@ func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, a
 	}
 	engramCtx := s.fetchEngramContext(ctx, "bugfix "+searchQuery)
 
-	// Delegate to TruthEngine
-	res, err := s.healer.Fix(ctx, args.ErrorLog, &healerMessenger{server: s, req: req, engramCtx: engramCtx})
+	// [Sovereignty Upgrade] Inline TruthEngine logic
+	report, err := s.diagnostic.Diagnose(ctx, args.ErrorLog)
+	if err != nil {
+		return nil, nil, fmt.Errorf("diagnose failed: %w", err)
+	}
+
+	messenger := &healerMessenger{server: s, req: req, engramCtx: engramCtx}
+	s.healer.DoFixRequest = func(fCtx context.Context, prompt string) (string, error) {
+		enrichedPrompt := "Historical Insights:\n" + strings.Join(report.Insights, "\n") + "\n\n" + prompt
+		return messenger.Ask(fCtx, "You are an autonomous Go fixing agent.", enrichedPrompt)
+	}
+
+	res, err := s.healer.Fix(ctx, report.ErrorLog)
 	if err != nil {
 		return nil, nil, fmt.Errorf("self-heal failed: %w", err)
 	}
 
+	outStr := fmt.Sprintf("Status: %s\nFile: %s\nFixed Code:\n%s\nTest Output:\n%s", res.Status, res.Metadata["failingFile"], res.FixedCode, res.TestOutput)
+
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			&mcp.TextContent{Text: res},
+			&mcp.TextContent{Text: outStr},
 		},
 	}, nil, nil
 }

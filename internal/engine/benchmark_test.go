@@ -60,15 +60,11 @@ func Function_%d() {
 	}
 	defer s.Close()
 
-	// Initialize TruthEngine
-	engine := NewTruthEngine(s, WithMemory(&mockMemoryProvider{}))
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		// Clear data before each run if needed, but for benchmark we usually want to measure the full ingestion
+		indexer := NewIndexerPipeline(IndexerConfig{Store: s})
 		start := time.Now()
-		err := engine.Index(ctx, tmpDir)
-		if err != nil {
+		if err := indexer.Index(ctx, tmpDir); err != nil {
 			b.Fatalf("Index failed: %v", err)
 		}
 		b.Logf("Indexed 1000 files in %v", time.Since(start))

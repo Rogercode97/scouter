@@ -13,7 +13,7 @@ var auditCmd = &cobra.Command{
 	Use:   "audit",
 	Short: "Executes audit",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		db, closeDB, exitCode := openDB(cmd.Context())
+		_, closeDB, exitCode := openDB(cmd.Context())
 		if exitCode != 0 {
 			os.Exit(exitCode)
 			return nil
@@ -26,10 +26,9 @@ var auditCmd = &cobra.Command{
 		}
 
 		rulesDir := filepath.Join(".", "internal", "filters", "rules") // Default or from config
-		astRules := engine.NewASTRuleEngine(rulesDir)
-		te := engine.NewTruthEngine(db, engine.WithASTRules(astRules))
-
-		matches, err := te.AuditArchitecture(cmd.Context(), targetPath)
+		ruleEngine := engine.NewASTRuleEngine(rulesDir)
+		
+		matches, err := ruleEngine.Audit(cmd.Context(), targetPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "audit error: %v\n", err)
 			os.Exit(1)

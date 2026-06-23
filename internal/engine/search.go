@@ -9,6 +9,7 @@ import (
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/types"
+	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 type SearchEngine struct {
@@ -111,4 +112,48 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 func (e *SearchEngine) IndexSymbol(docID string, data map[string]interface{}) error {
 	// Replaced by SQLite Triggers in FTS5
 	return nil
+}
+
+func (e *SearchEngine) FindLogicalTwins(ctx context.Context, symbolName, path string) ([]types.Symbol, error) {
+	if e.store == nil {
+		return nil, fmt.Errorf("store not initialized")
+	}
+
+	cleanPath, err := utils.ValidatePath(path)
+	if err != nil {
+		return nil, err
+	}
+
+	symbols, err := e.store.GetSymbolsByNameInFile(ctx, symbolName, cleanPath)
+	if err != nil || len(symbols) == 0 {
+		return nil, fmt.Errorf("symbol '%s' not found in %s (file not indexed or missing)", symbolName, path)
+	}
+
+	target := symbols[0]
+	if target.StructuralHash == "" {
+		return nil, fmt.Errorf("symbol '%s' has no structural hash", symbolName)
+	}
+
+	twins, err := e.store.GetSymbolsByStructuralHash(ctx, target.StructuralHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find twins: %w", err)
+	}
+
+	var results []types.Symbol
+	for _, twin := range twins {
+		if twin.Name == target.Name && twin.Path == target.Path {
+			continue
+		}
+		results = append(results, types.Symbol{
+			Name:      twin.Name,
+			Type:      twin.Type,
+			Signature: twin.Signature,
+			Doc:       twin.Doc,
+			Path:      twin.Path,
+			StartLine: twin.StartLine,
+			EndLine:   twin.EndLine,
+		})
+	}
+
+	return results, nil
 }

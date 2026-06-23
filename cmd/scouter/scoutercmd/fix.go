@@ -42,14 +42,21 @@ var fixCmd = &cobra.Command{
 		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impactEngine, searchEngine, nil)
 		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impactEngine, lspMgr, searchEngine)
 
-		te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer), engine.WithLSP(lspMgr), engine.WithImpact(impactEngine), engine.WithDiagnostic(diagnostic), engine.WithHealer(healer), engine.WithSearch(searchEngine))
-
-		res, err := te.Fix(cmd.Context(), string(logBytes), nil)
+		report, err := diagnostic.Diagnose(cmd.Context(), string(logBytes))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "fix error (diagnose): %v\n", err)
+			os.Exit(1)
+			return nil
+		}
+		
+		fixRes, err := healer.Fix(cmd.Context(), report.ErrorLog)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "fix error: %v\n", err)
 			os.Exit(1)
 			return nil
 		}
+		
+		res := fmt.Sprintf("Status: %s\nFile: %s\nFixed Code:\n%s\nTest Output:\n%s", fixRes.Status, fixRes.Metadata["failingFile"], fixRes.FixedCode, fixRes.TestOutput)
 
 		fmt.Fprintf(os.Stdout, "%s\n", res)
 		return nil

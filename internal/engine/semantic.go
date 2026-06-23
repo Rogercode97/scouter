@@ -15,6 +15,12 @@ type SemanticEngine struct {
 	model *goformer.Model
 }
 
+func NewSemanticEngine() (*SemanticEngine, error) {
+	se := &SemanticEngine{}
+	err := se.Init(context.Background(), "")
+	return se, err
+}
+
 func (s *SemanticEngine) Init(ctx context.Context, modelPath string) error {
 	if modelPath == "" {
 		homeDir, err := os.UserHomeDir()

@@ -135,7 +135,7 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 		limit = 50 // Sovereign Limit
 	}
 
-	searchRes, err := s.discovery.HybridSearch(ctx, args.Query, limit, args.Offset)
+	searchRes, err := s.search.HybridSearch(ctx, args.Query, limit, args.Offset)
 	if err != nil {
 		return &mcp.CallToolResult{
 				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Search execution failed: %v", err)}},
@@ -348,7 +348,7 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 	}
 
 	if args.TargetSymbol != "" {
-		results, err := s.discovery.FindLogicalTwins(ctx, args.TargetSymbol, path)
+		results, err := s.search.FindLogicalTwins(ctx, args.TargetSymbol, path)
 		if err != nil {
 			return s.presenter.FormatError(fmt.Errorf("Failed to find logical twins: %v", err)), nil, nil
 		}
@@ -386,7 +386,7 @@ func (s *Server) handleDiagnose(ctx context.Context, req *mcp.CallToolRequest, a
 		return s.presenter.FormatError(fmt.Errorf("missing errorLog")), nil, nil
 	}
 
-	hudStruct, err := s.healer.DiagnoseHUD(ctx, args.ErrorLog)
+	hudStruct, err := s.diagnostic.DiagnoseHUD(ctx, args.ErrorLog)
 	if err != nil {
 		return s.presenter.FormatError(fmt.Errorf("Diagnose failed: %v", err)), nil, nil
 	}
@@ -408,7 +408,7 @@ func (s *Server) handleNeighborhood(ctx context.Context, req *mcp.CallToolReques
 		return s.presenter.FormatError(err), nil, nil
 	}
 
-	neighborhood, err := s.discovery.GetNeighborhood(ctx, path)
+	neighborhood, err := s.analyzer.GetNeighborhood(ctx, path)
 	if err != nil {
 		return s.presenter.FormatError(fmt.Errorf("Failed to get neighborhood: %v", err)), nil, nil
 	}

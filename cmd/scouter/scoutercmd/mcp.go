@@ -46,22 +46,10 @@ var mcpCmd = &cobra.Command{
 
 		searchEngine := engine.NewSearchEngine(db, memoryProvider, semanticEngine)
 		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider)
-		compact := engine.NewCompactionEngine(db, ledger)
+		_ = engine.NewCompactionEngine(db, ledger)
 		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, lspMgr, searchEngine)
 
-		truthEngine := engine.NewTruthEngine(
-			db,
-			engine.WithMemory(memoryProvider),
-			engine.WithAnalyzer(analyzer),
-			engine.WithLSP(lspMgr),
-			engine.WithImpact(impact),
-			engine.WithSearch(searchEngine),
-			engine.WithCompact(compact),
-			engine.WithHealer(healer),
-			engine.WithDiagnostic(diagnostic),
-			engine.WithRipple(ripple),
-			engine.WithLedger(ledger),
-		)
+		astRules := engine.NewASTRuleEngine(".scouter/rules")
 
 		evolutionEngine := engine.NewEvolutionEngine(db, ledger, ripple)
 		appService := memory.NewAppService(memoryProvider)
@@ -71,11 +59,14 @@ var mcpCmd = &cobra.Command{
 			Store:         db,
 			Logger:        logger,
 			LspMgr:        lspMgr,
-			Indexer:       truthEngine,
-			Discovery:     truthEngine,
-			Intelligence:  truthEngine,
+			Indexer:       engine.NewIndexerPipeline(engine.IndexerConfig{Store: db, Semantic: semanticEngine, Analyzer: analyzer, Search: searchEngine, ASTRules: astRules, Logger: logger}),
+			Search:        searchEngine,
+			Analyzer:      analyzer,
+			Impact:        impact,
+			Diagnostic:    diagnostic,
+			ASTRules:      astRules,
 			Evolution:     evolutionEngine,
-			Healer:        truthEngine,
+			Healer:        healer,
 			ChronosEngine: chronos,
 			AppService:    appService,
 			Presenter:     display.NewDefaultPresenter(),

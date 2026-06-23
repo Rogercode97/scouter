@@ -28,11 +28,14 @@ type Server struct {
 	store           store.Store
 	resolver        *PointerResolver
 	lspMgr          *lsp.Manager
-	indexer         engine.IndexerService
-	discovery       engine.DiscoveryService
-	intelligence    engine.IntelligenceService
-	evolution       engine.EvolutionService
-	healer          engine.HealerService
+	indexer         *engine.IndexerPipeline
+	search          *engine.SearchEngine
+	analyzer        *engine.AnalysisEngine
+	impact          *engine.ImpactEngine
+	diagnostic      *engine.DiagnosticEngine
+	astRules        *engine.ASTRuleEngine
+	evolution       *engine.EvolutionEngine
+	healer          *engine.HealerEngine
 	memory          memory.MemoryProvider
 	presenter       display.Presenter
 	appService      *memory.AppService
@@ -53,11 +56,14 @@ type Options struct {
 	Store         store.Store
 	Logger        *slog.Logger
 	LspMgr        *lsp.Manager
-	Indexer       engine.IndexerService
-	Discovery     engine.DiscoveryService
-	Intelligence  engine.IntelligenceService
-	Evolution     engine.EvolutionService
-	Healer        engine.HealerService
+	Indexer       *engine.IndexerPipeline
+	Search        *engine.SearchEngine
+	Analyzer      *engine.AnalysisEngine
+	Impact        *engine.ImpactEngine
+	Diagnostic    *engine.DiagnosticEngine
+	ASTRules      *engine.ASTRuleEngine
+	Evolution     *engine.EvolutionEngine
+	Healer        *engine.HealerEngine
 	Memory        memory.MemoryProvider
 	Presenter     display.Presenter
 	ChronosEngine *engine.ChronosEngine
@@ -85,13 +91,16 @@ func NewServer(opts Options) *Server {
 		chronos:      opts.ChronosEngine,
 		snapshots:    make(map[string]*engine.ChronosSnapshot),
 		indexer:      opts.Indexer,
-		discovery:    opts.Discovery,
-		intelligence: opts.Intelligence,
+		search:       opts.Search,
+		analyzer:     opts.Analyzer,
+		impact:       opts.Impact,
+		diagnostic:   opts.Diagnostic,
+		astRules:     opts.ASTRules,
 		evolution:    opts.Evolution,
 		healer:       opts.Healer,
-		memory:          opts.Memory,
-		presenter:       opts.Presenter,
-		appService:      opts.AppService,
+		memory:       opts.Memory,
+		presenter:    opts.Presenter,
+		appService:   opts.AppService,
 		astGrepSearcher: astgrep.NewSearcher(),
 		rtkReader:       rtk.NewReader(),
 	}

@@ -28,9 +28,9 @@ var twinsCmd = &cobra.Command{
 		symbol := args[0]
 		path := args[1]
 
-		te := engine.NewTruthEngine(db)
+		searchEngine := engine.NewSearchEngine(db, nil, nil)
 
-		results, err := te.FindLogicalTwins(cmd.Context(), symbol, path)
+		results, err := searchEngine.FindLogicalTwins(cmd.Context(), symbol, path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "twins error: %v\n", err)
 			os.Exit(1)

@@ -25,9 +25,7 @@ var criticalCmd = &cobra.Command{
 		}
 
 		analyzer := engine.NewAnalysisEngine(db)
-		te := engine.NewTruthEngine(db, engine.WithAnalyzer(analyzer))
-
-		results, err := te.GetCriticalSymbols(cmd.Context(), limit)
+		results, err := analyzer.GetCriticalSymbols(cmd.Context(), limit)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "critical symbols error: %v\n", err)
 			os.Exit(1)

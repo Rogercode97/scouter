@@ -23,22 +23,11 @@ func setupMockServer(db store.Store, logger *slog.Logger) *Server {
 	ripple.Validators = append(ripple.Validators, engine.NewLSPValidator(analyzer.ProjectRoot))
 	searchEngine := engine.NewSearchEngine(db, memoryProvider, nil)
 	healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider)
-	compact := engine.NewCompactionEngine(db, ledger)
 	diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, lspMgr, searchEngine)
 
-	truthEngine := engine.NewTruthEngine(
-		db,
-		engine.WithMemory(memoryProvider),
-		engine.WithAnalyzer(analyzer),
-		engine.WithLSP(lspMgr),
-		engine.WithImpact(impact),
-		engine.WithSearch(searchEngine),
-		engine.WithCompact(compact),
-		engine.WithHealer(healer),
-		engine.WithDiagnostic(diagnostic),
-		engine.WithRipple(ripple),
-		engine.WithLedger(ledger),
-	)
+	astRules := engine.NewASTRuleEngine(".scouter/rules")
+	semanticEngine, _ := engine.NewSemanticEngine()
+	indexer := engine.NewIndexerPipeline(engine.IndexerConfig{Store: db, Semantic: semanticEngine, Analyzer: analyzer, Search: searchEngine, ASTRules: astRules, Logger: logger})
 
 	appService := memory.NewAppService(memoryProvider)
 	chronos := engine.NewChronosEngine()
@@ -48,12 +37,15 @@ func setupMockServer(db store.Store, logger *slog.Logger) *Server {
 		Store:         db,
 		Logger:        logger,
 		LspMgr:        lspMgr,
-		Indexer:       truthEngine,
-		Discovery:     truthEngine,
-		Intelligence:  truthEngine,
+		Indexer:       indexer,
+		Search:        searchEngine,
+		Analyzer:      analyzer,
+		Impact:        impact,
+		Diagnostic:    diagnostic,
+		ASTRules:      astRules,
 		Evolution:     evolutionEngine,
-		Healer:        truthEngine,
-		Memory:        truthEngine.MemoryProvider(),
+		Healer:        healer,
+		Memory:        memoryProvider,
 		ChronosEngine: chronos,
 		AppService:    appService,
 		Presenter:     display.NewDefaultPresenter(),
