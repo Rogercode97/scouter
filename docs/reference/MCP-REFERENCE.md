@@ -87,5 +87,5 @@ While these tools are primarily AST-based, they provide the "Pure Signal" that e
 ---
 
 ## Related Documentation
-- [Architecture Overview](ARCHITECTURE.md) — Deep dive into the TruthEngine and Engram adapter.
+- [Architecture Overview](../architecture/overview.md) — Deep dive into the Engine Architecture and Engram adapter.
 - [Sovereign Directives](server.go) — Internal descriptions and AI-First constraints.
