@@ -56,10 +56,10 @@ func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, a
 	}
 
 	messenger := &healerMessenger{server: s, req: req, engramCtx: engramCtx}
-	s.healer.DoFixRequest = func(fCtx context.Context, prompt string) (string, error) {
+	s.healer.SetFixRequestHook(func(fCtx context.Context, prompt string) (string, error) {
 		enrichedPrompt := "Historical Insights:\n" + strings.Join(report.Insights, "\n") + "\n\n" + prompt
 		return messenger.Ask(fCtx, "You are an autonomous Go fixing agent.", enrichedPrompt)
-	}
+	})
 
 	res, err := s.healer.Fix(ctx, report.ErrorLog)
 	if err != nil {

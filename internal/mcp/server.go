@@ -28,14 +28,14 @@ type Server struct {
 	store           store.Store
 	resolver        *PointerResolver
 	lspMgr          *lsp.Manager
-	indexer         *engine.IndexerPipeline
-	search          *engine.SearchEngine
-	analyzer        *engine.AnalysisEngine
-	impact          *engine.ImpactEngine
-	diagnostic      *engine.DiagnosticEngine
-	astRules        *engine.ASTRuleEngine
-	evolution       *engine.EvolutionEngine
-	healer          *engine.HealerEngine
+	indexer         Indexer
+	search          Searcher
+	analyzer        Analyzer
+	impact          ImpactAssessor
+	diagnostic      Diagnoser
+	astRules        ASTRulesEngine
+	evolution       EvolutionaryEngine
+	healer          HealerEngine
 	memory          memory.MemoryProvider
 	presenter       display.Presenter
 	appService      *memory.AppService
@@ -43,7 +43,7 @@ type Server struct {
 	mu              sync.RWMutex
 	sessionHistory  []memory.Message
 	arsenalUnlocked bool
-	chronos         *engine.ChronosEngine
+	chronos         ChronosEngine
 	snapshotsMu     sync.RWMutex
 	snapshots       map[string]*engine.ChronosSnapshot
 	snapshotOrder   []string // insertion order for LRU eviction
@@ -56,17 +56,17 @@ type Options struct {
 	Store         store.Store
 	Logger        *slog.Logger
 	LspMgr        *lsp.Manager
-	Indexer       *engine.IndexerPipeline
-	Search        *engine.SearchEngine
-	Analyzer      *engine.AnalysisEngine
-	Impact        *engine.ImpactEngine
-	Diagnostic    *engine.DiagnosticEngine
-	ASTRules      *engine.ASTRuleEngine
-	Evolution     *engine.EvolutionEngine
-	Healer        *engine.HealerEngine
+	Indexer       Indexer
+	Search        Searcher
+	Analyzer      Analyzer
+	Impact        ImpactAssessor
+	Diagnostic    Diagnoser
+	ASTRules      ASTRulesEngine
+	Evolution     EvolutionaryEngine
+	Healer        HealerEngine
 	Memory        memory.MemoryProvider
 	Presenter     display.Presenter
-	ChronosEngine *engine.ChronosEngine
+	ChronosEngine ChronosEngine
 	AppService    *memory.AppService
 }
 

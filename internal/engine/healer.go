@@ -292,3 +292,8 @@ func (e *HealerEngine) Index(ctx context.Context, path string) error {
 		return nil
 	})
 }
+
+// SetFixRequestHook allows setting the hook for LLM fix requests.
+func (e *HealerEngine) SetFixRequestHook(hook func(ctx context.Context, prompt string) (string, error)) {
+	e.DoFixRequest = hook
+}
