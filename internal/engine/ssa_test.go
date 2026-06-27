@@ -10,13 +10,12 @@ import (
 func TestSSACallGraph(t *testing.T) {
 	content := `
 package main
-import "fmt"
 type Shaper interface { Area() float64 }
 type Square struct{ Side float64 }
 func (s Square) Area() float64 { return s.Side * s.Side }
 func main() {
 	var s Shaper = Square{Side: 5}
-	fmt.Println(s.Area())
+	_ = s.Area()
 }
 `
 	tmpDir := t.TempDir()
