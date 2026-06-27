@@ -26,3 +26,6 @@ Scouter is a CGO-free, single-binary AST-based code analysis and intelligence en
 
 ## 🧠 MCP RESPONSES
 - Always use `<thought>...</thought>` blocks for complex analysis or multi-step logic before returning tool results.
+
+## 🔄 SESSION BOOTSTRAPPING
+- **Engram First**: At the start of any new session or task in this project, you MUST proactively consult Engram (`mem_search` or `mem_context`) to retrieve prior architectural decisions, workflows, and context before reading code or taking action.
