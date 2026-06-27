@@ -122,6 +122,7 @@ type Symbol struct {
 	EndLine        int              `json:"end_line"`
 	LinkedInsights []string         `json:"linked_insights,omitempty"`
 	Metrics        *SemanticMetrics `json:"metrics,omitempty"`
+	ChurnScore     float64          `json:"churn_score,omitempty"`
 }
 
 type SemanticMetrics struct {

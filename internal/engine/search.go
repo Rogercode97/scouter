@@ -80,6 +80,7 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 			Path:         s.Path,
 			StartLine:    s.StartLine,
 			EndLine:      s.EndLine,
+			ChurnScore:   s.ChurnScore,
 		})
 	}
 
@@ -152,6 +153,7 @@ func (e *SearchEngine) FindLogicalTwins(ctx context.Context, symbolName, path st
 			Path:      twin.Path,
 			StartLine: twin.StartLine,
 			EndLine:   twin.EndLine,
+			ChurnScore: twin.ChurnScore,
 		})
 	}
 
