@@ -48,7 +48,7 @@ func TestOmniscienceCallHierarchy(t *testing.T) {
 	err = st.SaveSymbol(ctx, &store.Symbol{
 		Name:      "NewRippleEngine",
 		Path:      absPath,
-		StartLine: 54, // Correct line in internal/engine/ripple.go
+		StartLine: 53, // Correct line in internal/engine/ripple.go
 		StartCol:  5,
 		Type:      "function",
 	})
@@ -73,12 +73,12 @@ func TestOmniscienceCallHierarchy(t *testing.T) {
 	}
 
 	// 3. Prepare Call Hierarchy
-	t.Logf("Preparing Call Hierarchy for NewRippleEngine at %s:54", absPath)
+	t.Logf("Preparing Call Hierarchy for NewRippleEngine at %s:53", absPath)
 	items, err := client.PrepareCallHierarchy(ctx, lsp.CallHierarchyPrepareParams{
 		TextDocumentPositionParams: lsp.TextDocumentPositionParams{
 			TextDocument: lsp.TextDocumentIdentifier{URI: "file://" + absPath},
 			Position: lsp.Position{
-				Line:      53, // 0-based
+				Line:      52, // 0-based
 				Character: 5,
 			},
 		},

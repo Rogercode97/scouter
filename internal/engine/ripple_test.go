@@ -93,6 +93,37 @@ func (m *rippleEngineMockStore) SearchSymbols(ctx context.Context, query, symTyp
 	return m.symbols[query], nil
 }
 
+func (m *rippleEngineMockStore) GetRippleGraphRecursive(ctx context.Context, startSymbol string, maxDepth int) ([]store.Call, error) {
+	var edges []store.Call
+	queue := []string{startSymbol}
+	visited := make(map[string]bool)
+	depth := 0
+
+	for len(queue) > 0 && depth < maxDepth {
+		nextQueue := []string{}
+		for _, sym := range queue {
+			if visited[sym] {
+				continue
+			}
+			visited[sym] = true
+
+			for _, call := range m.callers[sym] {
+				call.CalleeName = sym
+				edges = append(edges, call)
+				nextQueue = append(nextQueue, call.CallerName)
+			}
+			for _, call := range m.callees[sym] {
+				call.CallerName = sym
+				edges = append(edges, call)
+				nextQueue = append(nextQueue, call.CalleeName)
+			}
+		}
+		queue = nextQueue
+		depth++
+	}
+	return edges, nil
+}
+
 func (m *rippleEngineMockStore) GetAllSymbols(ctx context.Context) iter.Seq2[store.Symbol, error] {
 	return func(yield func(store.Symbol, error) bool) {
 		for _, syms := range m.symbols {

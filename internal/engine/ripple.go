@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Rogercode97/scouter/internal/store"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -78,7 +77,6 @@ func NewBFSPropagationStrategy(s GraphStore, ie ImpactAnalyzer) *BFSPropagationS
 func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol string, maxDepth int) iter.Seq2[PropagationTask, error] {
 	return func(yield func(PropagationTask, error) bool) {
 		visited := make(map[string]bool)
-		queue := []string{startSymbol}
 
 		// Helper to get local name from FQN
 		getLocalName := func(fqn string) string {
@@ -88,90 +86,68 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 			return fqn
 		}
 
-		depth := 0
-		for len(queue) > 0 && depth <= maxDepth {
-			nextQueue := []string{}
-			for _, currentSym := range queue {
-				if visited[currentSym] {
-					continue
+		localStartName := getLocalName(startSymbol)
+
+		// 1. Also include the symbol definition file itself (Depth 0)
+		results, _ := s.store.SearchSymbols(ctx, localStartName, "", 0, 0)
+		for _, sym := range results {
+			symFQ := sym.Name
+			if sym.PackagePath != "" {
+				symFQ = sym.PackagePath + "." + sym.Name
+			}
+			if symFQ == startSymbol || sym.Name == startSymbol {
+				task := PropagationTask{
+					SymbolName:     sym.Name,
+					ImpactedSymbol: symFQ,
+					FilePath:       sym.Path,
+					Action:         "transform",
 				}
-				visited[currentSym] = true
-
-				localName := getLocalName(currentSym)
-
-				// 1. Trace callers (Upward / Standard Calls)
-				if depth < maxDepth {
-					var callers []store.Call
-					deterministic, err := s.ImpactEngine.GetDeterministicCallers(ctx, currentSym)
-					if err == nil && len(deterministic) > 0 {
-						callers = deterministic
-					} else {
-						callers, err = s.store.GetCallers(ctx, currentSym, 0, 0)
-						if err != nil {
-							if !yield(PropagationTask{}, fmt.Errorf("failed to get callers for %s: %w", currentSym, err)) {
-								return
-							}
-							continue
-						}
-					}
-
-					for _, caller := range callers {
-						// For hierarchy links (implements/satisfies), the "localName" to match remains the method name.
-						// For standard calls, it's also the method name.
-						task := PropagationTask{
-							SymbolName:     localName,
-							ImpactedSymbol: caller.CallerName,
-							FilePath:       caller.Path,
-							Action:         "transform",
-						}
-
-						if !yield(task, nil) {
-							return
-						}
-						nextQueue = append(nextQueue, caller.CallerName)
-					}
-
-					// 2. Trace callees (Downward / Hierarchy Ascent)
-					// If this is an implementation, we want to find the interface it satisfies.
-					callees, err := s.store.GetCallees(ctx, currentSym)
-					if err == nil {
-						for _, callee := range callees {
-							// Only follow hierarchy-related links upward (Impl -> Iface)
-							if callee.LinkType == "satisfies" || callee.LinkType == "implements" || callee.LinkType == "embeds" {
-								task := PropagationTask{
-									SymbolName:     localName,
-									ImpactedSymbol: callee.CalleeName,
-									FilePath:       callee.CalleePath,
-									Action:         "transform",
-								}
-								if !yield(task, nil) {
-									return
-								}
-								nextQueue = append(nextQueue, callee.CalleeName)
-							}
-						}
-					}
-				}
-
-				// 3. Also include the symbol definition file itself (Depth 0)
-				searchQuery := localName
-				results, _ := s.store.SearchSymbols(ctx, searchQuery, "", 0, 0)
-				for _, sym := range results {
-					symFQ := sym.PackagePath + "." + sym.Name
-					if symFQ == currentSym || sym.Name == currentSym {
-						if !yield(PropagationTask{
-							SymbolName:     sym.Name,
-							ImpactedSymbol: symFQ,
-							FilePath:       sym.Path,
-							Action:         "transform",
-						}, nil) {
-							return
-						}
+				if !visited[task.ImpactedSymbol] {
+					visited[task.ImpactedSymbol] = true
+					if !yield(task, nil) {
+						return
 					}
 				}
 			}
-			queue = nextQueue
-			depth++
+		}
+
+		// 2. Execute SQL Recursive Engine directly for maxDepth > 0
+		if maxDepth > 0 {
+			calls, err := s.store.GetRippleGraphRecursive(ctx, startSymbol, maxDepth)
+			if err != nil {
+				yield(PropagationTask{}, fmt.Errorf("failed to get ripple graph recursive: %w", err))
+				return
+			}
+
+			for _, call := range calls {
+				// Determine direction of propagation from the edge using visited state
+				var impacted string
+				var path string
+				var symName string
+				if visited[call.CalleeName] {
+					impacted = call.CallerName
+					symName = call.CalleeName
+					path = call.Path
+				} else {
+					impacted = call.CalleeName
+					symName = call.CallerName
+					path = call.CalleePath
+				}
+				
+				task := PropagationTask{
+					SymbolName:     getLocalName(symName),
+					ImpactedSymbol: impacted,
+					FilePath:       path,
+					Action:         "transform",
+				}
+
+				if !visited[task.ImpactedSymbol] {
+					visited[task.ImpactedSymbol] = true
+					if !yield(task, nil) {
+						return
+					}
+				}
+			}
 		}
 	}
 }

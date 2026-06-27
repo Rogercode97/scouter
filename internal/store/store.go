@@ -619,6 +619,59 @@ func (s *storeImpl) GetAllCalls(ctx context.Context) iter.Seq2[Call, error] {
 	}
 }
 
+func (s *storeImpl) GetRippleGraphRecursive(ctx context.Context, startSymbol string, maxDepth int) ([]Call, error) {
+	sqlQuery := `WITH RECURSIVE
+ripple (caller_name, callee_name, path, line, callee_path, link_type, depth, impacted_symbol) AS (
+    SELECT caller_name, callee_name, path, line, callee_path, link_type, 1, 
+           caller_name
+    FROM calls
+    WHERE callee_name = ?
+    
+    UNION ALL
+    
+    SELECT caller_name, callee_name, path, line, callee_path, link_type, 1, 
+           callee_name
+    FROM calls
+    WHERE caller_name = ? AND link_type IN ('satisfies', 'implements', 'embeds')
+
+    UNION ALL
+    
+    SELECT c.caller_name, c.callee_name, c.path, c.line, c.callee_path, c.link_type, r.depth + 1,
+           c.caller_name
+    FROM calls c
+    JOIN ripple r ON c.callee_name = r.impacted_symbol
+    WHERE r.depth < ?
+    
+    UNION ALL
+    
+    SELECT c.caller_name, c.callee_name, c.path, c.line, c.callee_path, c.link_type, r.depth + 1,
+           c.callee_name
+    FROM calls c
+    JOIN ripple r ON c.caller_name = r.impacted_symbol
+    WHERE r.depth < ? AND c.link_type IN ('satisfies', 'implements', 'embeds') 
+)
+SELECT caller_name, callee_name, path, line, callee_path, link_type
+FROM ripple
+GROUP BY caller_name, callee_name, path, line, callee_path, link_type
+ORDER BY MIN(depth) ASC;`
+
+	rows, err := s.query(ctx, sqlQuery, startSymbol, startSymbol, maxDepth, maxDepth)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ripple graph recursive: %w", err)
+	}
+	defer rows.Close()
+
+	var calls []Call
+	for rows.Next() {
+		var c Call
+		if err := rows.Scan(&c.CallerName, &c.CalleeName, &c.Path, &c.Line, &c.CalleePath, &c.LinkType); err != nil {
+			return nil, fmt.Errorf("scan ripple graph failed: %w", err)
+		}
+		calls = append(calls, c)
+	}
+	return calls, nil
+}
+
 func (s *storeImpl) GetAllFailedTests(ctx context.Context) iter.Seq2[types.TestResult, error] {
 	return func(yield func(types.TestResult, error) bool) {
 		rows, err := s.query(ctx, "SELECT test_name, status, error_message, stack_trace, target_symbol, duration_ms, project FROM test_results WHERE status = 'fail'")

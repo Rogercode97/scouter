@@ -59,6 +59,7 @@ type StructuralGraph interface {
 	GetCallers(ctx context.Context, calleeName string, limit, offset int) ([]Call, error)
 	GetCallees(ctx context.Context, callerName string) ([]Call, error)
 	GetCallersRecursive(ctx context.Context, name, path string, maxDepth int) ([]Call, error)
+	GetRippleGraphRecursive(ctx context.Context, startSymbol string, maxDepth int) ([]Call, error)
 	GetAffectedTestsRecursive(ctx context.Context, name, path string) ([]Symbol, error)
 	ClearCalls(ctx context.Context, path string) error
 

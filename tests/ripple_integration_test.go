@@ -45,6 +45,17 @@ func (m *mockRippleStore) SearchSymbols(ctx context.Context, query, symType stri
 	return m.symbols, nil
 }
 
+func (m *mockRippleStore) GetRippleGraphRecursive(ctx context.Context, startSymbol string, maxDepth int) ([]store.Call, error) {
+	var edges []store.Call
+	for _, c := range m.callers {
+		if c.CalleeName == "" {
+			c.CalleeName = startSymbol
+		}
+		edges = append(edges, c)
+	}
+	return edges, nil
+}
+
 func TestRippleIntegration_FullFlow(t *testing.T) {
 	ctx := context.Background()
 	tempDir, err := os.MkdirTemp("", "ripple-test-*")
