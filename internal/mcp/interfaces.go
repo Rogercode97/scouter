@@ -3,9 +3,9 @@ package mcp
 import (
 	"context"
 
-	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/store"
+	"github.com/Rogercode97/scouter/internal/types"
 )
 
 // Indexer defines the interface for the indexer pipeline.

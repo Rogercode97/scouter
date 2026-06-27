@@ -27,7 +27,7 @@ var auditCmd = &cobra.Command{
 
 		rulesDir := filepath.Join(".", "internal", "filters", "rules") // Default or from config
 		ruleEngine := engine.NewASTRuleEngine(rulesDir)
-		
+
 		matches, err := ruleEngine.Audit(cmd.Context(), targetPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "audit error: %v\n", err)

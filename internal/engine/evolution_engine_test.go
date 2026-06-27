@@ -134,7 +134,7 @@ func TestEvolutionEngine_ProposeEvolution(t *testing.T) {
 			if len(gotPatches) == 0 && len(tt.wantPatches) == 0 {
 				return
 			}
-			
+
 			// Fix expected paths to match utils.ValidatePath behavior
 			for i := range tt.wantPatches {
 				absPath, err := utils.ValidatePath(tt.wantPatches[i].FilePath)
@@ -176,12 +176,12 @@ func (m *mockStrategy) Discover(ctx context.Context, startSymbol string, depth i
 
 func TestEvolutionEngine_Propagate(t *testing.T) {
 	tests := []struct {
-		name           string
-		strategy       *mockStrategy
-		messenger      engine.Messenger
-		wantResult     string
-		wantErr        bool
-		errContains    string
+		name        string
+		strategy    *mockStrategy
+		messenger   engine.Messenger
+		wantResult  string
+		wantErr     bool
+		errContains string
 	}{
 		{
 			name: "successful propagation",

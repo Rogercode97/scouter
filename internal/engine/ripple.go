@@ -133,7 +133,7 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 					symName = call.CallerName
 					path = call.CalleePath
 				}
-				
+
 				task := PropagationTask{
 					SymbolName:     getLocalName(symName),
 					ImpactedSymbol: impacted,

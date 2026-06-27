@@ -8,7 +8,7 @@ import (
 
 func TestRunRejectsCd(t *testing.T) {
 	ctx := context.Background()
-	
+
 	// Create dummy files for stdout/stderr
 	fOut, _ := os.CreateTemp("", "out")
 	defer os.Remove(fOut.Name())

@@ -206,7 +206,7 @@ func TestSQLiteMemoryProvider_SaveAndGetObservations(t *testing.T) {
 				{Name: "Foo", Type: "func", Path: "foo.go"},
 			}, nil
 		})
-		
+
 		obs, err := provider.GetRecentObservations(ctx, "scouter", 24)
 		if err != nil {
 			t.Fatalf("GetRecentObservations failed: %v", err)

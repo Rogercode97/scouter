@@ -37,7 +37,7 @@ func TestHybridSearch_FallbackToFTS5_WhenSemanticEngineNil(t *testing.T) {
 	}
 
 	searchEngine := NewSearchEngine(mockStore, nil, nil)
-	
+
 	res, err := searchEngine.HybridSearch(context.Background(), "test", 10, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

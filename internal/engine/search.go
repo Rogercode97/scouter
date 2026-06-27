@@ -146,13 +146,13 @@ func (e *SearchEngine) FindLogicalTwins(ctx context.Context, symbolName, path st
 			continue
 		}
 		results = append(results, types.Symbol{
-			Name:      twin.Name,
-			Type:      twin.Type,
-			Signature: twin.Signature,
-			Doc:       twin.Doc,
-			Path:      twin.Path,
-			StartLine: twin.StartLine,
-			EndLine:   twin.EndLine,
+			Name:       twin.Name,
+			Type:       twin.Type,
+			Signature:  twin.Signature,
+			Doc:        twin.Doc,
+			Path:       twin.Path,
+			StartLine:  twin.StartLine,
+			EndLine:    twin.EndLine,
 			ChurnScore: twin.ChurnScore,
 		})
 	}

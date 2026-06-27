@@ -50,7 +50,6 @@ func TestSemanticRipple_CrossPackage(t *testing.T) {
 	analyzer := engine.NewAnalysisEngine(db)
 	analyzer.ProjectRoot = fixtureDir
 
-
 	indexer := engine.NewIndexerPipeline(engine.IndexerConfig{Store: db, Analyzer: analyzer})
 
 	if err := indexer.Index(ctx, fixtureDir); err != nil {

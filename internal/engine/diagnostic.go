@@ -116,8 +116,6 @@ func (e *DiagnosticEngine) Diagnose(ctx context.Context, errorLog string) (*Diag
 	return report, nil
 }
 
-
-
 // AssessRisk provides a unified risk assessment.
 func (e *DiagnosticEngine) AssessRisk(ctx context.Context, symbol, path string) (*RiskAssessment, error) {
 	impact, err := e.impact.Analyze(ctx, symbol, path, 3)

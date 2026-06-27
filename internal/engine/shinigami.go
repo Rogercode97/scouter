@@ -67,10 +67,10 @@ func (p *ShinigamiPipeline) Run(ctx context.Context, diag *DiagnosticContext) (*
 			defer wg.Done()
 
 			valid, vErr := p.verifier.Evaluate(evalCtx, diag, &candidate)
-			
+
 			mu.Lock()
 			defer mu.Unlock()
-			
+
 			if vErr != nil && !errors.Is(vErr, context.Canceled) {
 				lastErr = vErr
 				return

@@ -25,8 +25,6 @@ func TestZeroLatencyBypass(t *testing.T) {
 	}
 	defer repo.Close()
 
-
-
 	// 1. Create a "large" structure
 	subDir := filepath.Join(tmpDir, "pkg", "core")
 	if err := os.MkdirAll(subDir, 0755); err != nil {

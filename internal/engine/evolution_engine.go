@@ -32,7 +32,7 @@ func (e *EvolutionEngine) ProposeEvolution(ctx context.Context, proposal string,
 	// 1. Sampling: Request Genome Mutation via Messenger
 	// The prompt should be provided by the caller or we can pass a generic one
 	systemPrompt := "You are a genome evolution agent. Produce JSON mutations based on the proposal. Format: [{\"file\": \"...\", \"content\": \"...\"}]"
-	
+
 	txt, err := messenger.Ask(ctx, systemPrompt, proposal)
 	if err != nil {
 		return "", fmt.Errorf("sampling evolution failed: %w", err)

@@ -48,14 +48,14 @@ var fixCmd = &cobra.Command{
 			os.Exit(1)
 			return nil
 		}
-		
+
 		fixRes, err := healer.Fix(cmd.Context(), report.ErrorLog)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "fix error: %v\n", err)
 			os.Exit(1)
 			return nil
 		}
-		
+
 		res := fmt.Sprintf("Status: %s\nFile: %s\nFixed Code:\n%s\nTest Output:\n%s", fixRes.Status, fixRes.Metadata["failingFile"], fixRes.FixedCode, fixRes.TestOutput)
 
 		fmt.Fprintf(os.Stdout, "%s\n", res)

@@ -29,7 +29,7 @@ func TestCursorEncodingDecoding(t *testing.T) {
 func TestDecodeCursor_Invalid(t *testing.T) {
 	invalidCursors := []string{
 		"invalid-base64-!!!",
-		"YWJj", // base64 of "abc", not valid JSON
+		"YWJj",                     // base64 of "abc", not valid JSON
 		"eyJvZmZzZXQiOiAiYmFkIn0=", // valid base64 JSON but wrong type
 	}
 

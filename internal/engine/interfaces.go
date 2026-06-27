@@ -28,4 +28,3 @@ type ImpactAnalyzer interface {
 type Messenger interface {
 	Ask(ctx context.Context, systemPrompt, message string) (string, error)
 }
-

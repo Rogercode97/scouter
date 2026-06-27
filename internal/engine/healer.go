@@ -29,8 +29,8 @@ type HealerEngine struct {
 	// Bridge to MCP sampling
 	DoFixRequest func(ctx context.Context, prompt string) (string, error)
 
-	Search *SearchEngine
-	memory memory.MemoryProvider
+	Search     *SearchEngine
+	memory     memory.MemoryProvider
 	Diagnostic *DiagnosticEngine
 }
 
@@ -180,7 +180,7 @@ func (s *LLMSolver) Generate(ctx context.Context, diag *DiagnosticContext) (<-ch
 				}
 
 				candidateCode := utils.ExtractCodeBlock(resRaw)
-				
+
 				select {
 				case <-ctx.Done():
 				case candidates <- FixCandidate{
