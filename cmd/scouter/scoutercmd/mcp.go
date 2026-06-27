@@ -1,6 +1,7 @@
 package scoutercmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 
