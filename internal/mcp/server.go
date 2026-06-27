@@ -49,6 +49,7 @@ type Server struct {
 	snapshotOrder   []string // insertion order for LRU eviction
 	astGrepSearcher *astgrep.Searcher
 	rtkReader       *rtk.Reader
+	watcher         *engine.Watcher
 }
 
 // Options contains the dependencies required to initialize the MCP Server.
@@ -68,6 +69,7 @@ type Options struct {
 	Presenter     display.Presenter
 	ChronosEngine ChronosEngine
 	AppService    *memory.AppService
+	Watcher       *engine.Watcher
 }
 
 // NewServer initializes a sovereign, SDK-based MCP server.
@@ -101,6 +103,7 @@ func NewServer(opts Options) *Server {
 		memory:          opts.Memory,
 		presenter:       opts.Presenter,
 		appService:      opts.AppService,
+		watcher:         opts.Watcher,
 		astGrepSearcher: astgrep.NewSearcher(),
 		rtkReader:       rtk.NewReader(),
 	}
@@ -496,3 +499,5 @@ func (s *Server) handleUnlockArsenal(ctx context.Context, req *mcp.CallToolReque
 }
 
 var execCommand = exec.Command
+
+

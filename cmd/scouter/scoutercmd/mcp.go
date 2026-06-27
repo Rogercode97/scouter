@@ -54,6 +54,7 @@ var mcpCmd = &cobra.Command{
 		evolutionEngine := engine.NewEvolutionEngine(db, ledger, ripple)
 		appService := memory.NewAppService(memoryProvider)
 		chronos := engine.NewChronosEngine()
+		watcher := engine.NewWatcher(logger)
 
 		opts := mcp.Options{
 			Store:         db,
@@ -69,11 +70,18 @@ var mcpCmd = &cobra.Command{
 			Healer:        healer,
 			ChronosEngine: chronos,
 			AppService:    appService,
+			Watcher:       watcher,
 			Presenter:     display.NewDefaultPresenter(),
 		}
 
 		server := mcp.NewServer(opts)
 		defer server.Close()
+
+		if cwd, err := os.Getwd(); err == nil {
+			_ = watcher.Start(cmd.Context(), cwd, func(indexCtx context.Context, dir string) error {
+				return opts.Indexer.Index(indexCtx, dir)
+			})
+		}
 
 		transport := &sdk.StdioTransport{}
 		if err := server.Start(cmd.Context(), transport); err != nil {
