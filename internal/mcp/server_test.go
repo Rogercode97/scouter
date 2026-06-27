@@ -69,8 +69,8 @@ func TestServer_Lifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(tools.Tools) != 28 {
-		t.Errorf("expected 28 tools, got %d", len(tools.Tools))
+	if len(tools.Tools) != 29 {
+		t.Errorf("expected 29 tools, got %d", len(tools.Tools))
 	}
 }
 
@@ -150,5 +150,17 @@ func TestServer_ErrorHandling(t *testing.T) {
 	}
 	if !res.IsError {
 		t.Error("expected IsError to be true for invalid path")
+	}
+
+	// Test missing arguments for ast_provenance
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "ast_provenance",
+		Arguments: map[string]any{},
+	})
+	if err != nil {
+		t.Fatalf("call to ast_provenance failed: %v", err)
+	}
+	if !res.IsError {
+		t.Error("expected IsError to be true for missing arguments in ast_provenance")
 	}
 }

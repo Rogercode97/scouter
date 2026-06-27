@@ -370,6 +370,11 @@ func (s *Server) registerCoreTools() {
 	}, s.handleNeighborhood)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "ast_provenance",
+		Description: "GIT AWARENESS: Fetch on-demand line or symbol provenance (author, commit, date, era) using Git blame.",
+	}, s.handleProvenance)
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "risk_impact",
 		Description: "CRITICAL: Calculate blast radius of a change. Mandatory before any staged commit.",
 	}, s.handleImpact)
