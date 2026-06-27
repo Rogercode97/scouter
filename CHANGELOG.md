@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **MCP Auto-Sync Watcher**: Scouter MCP now runs a native background file watcher (`fsnotify`) with a 250ms debounce to automatically keep the AST SQLite index in sync with IDE saves, eliminating manual indexing.
+
 ### Changed
 - **Architecture**: Migrated CLI routing from a monolithic switch (`internal/cli/cli.go`) to `github.com/spf13/cobra` framework (`cmd/scouter/scoutercmd/*`), preserving 100% backward compatibility via proxy fallback.
 - **Architecture**: Abstracted infrastructure logic (AST-Grep execution, RTK detection) from the MCP handler (`handle_analysis.go`) into dedicated domain adapters (`internal/adapters/astgrep`, `internal/adapters/rtk`) enforcing Clean Architecture.
