@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"log/slog"
+	"os"
+	"path/filepath"
 
 	"github.com/Rogercode97/scouter/internal/adapters/engram"
 	"github.com/Rogercode97/scouter/internal/display"
@@ -12,7 +14,7 @@ import (
 )
 
 func setupMockServer(db store.Store, logger *slog.Logger) *Server {
-	engramPath, _ := engram.DiscoverDBPath()
+	engramPath := filepath.Join(os.TempDir(), "scouter_mock_engram.db")
 	memoryProvider := engram.NewSQLiteMemoryProvider(engramPath)
 
 	lspMgr := lsp.GetGlobalManager()
@@ -26,8 +28,7 @@ func setupMockServer(db store.Store, logger *slog.Logger) *Server {
 	diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, lspMgr, searchEngine)
 
 	astRules := engine.NewASTRuleEngine(".scouter/rules")
-	semanticEngine, _ := engine.NewSemanticEngine()
-	indexer := engine.NewIndexerPipeline(engine.IndexerConfig{Store: db, Semantic: semanticEngine, Analyzer: analyzer, Search: searchEngine, ASTRules: astRules, Logger: logger})
+	indexer := engine.NewIndexerPipeline(engine.IndexerConfig{Store: db, Semantic: nil, Analyzer: analyzer, Search: searchEngine, ASTRules: astRules, Logger: logger})
 
 	appService := memory.NewAppService(memoryProvider)
 	chronos := engine.NewChronosEngine()
