@@ -41,7 +41,7 @@ func (m *mockRippleStore) GetSymbolsByNameInFile(ctx context.Context, name, path
 	return m.symbols, nil
 }
 
-func (m *mockRippleStore) SearchSymbols(ctx context.Context, query, symType string, limit, offset int) ([]store.Symbol, error) {
+func (m *mockRippleStore) SearchSymbols(ctx context.Context, query, symType, pathPrefix string, limit, offset int) ([]store.Symbol, error) {
 	return m.symbols, nil
 }
 

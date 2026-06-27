@@ -151,7 +151,7 @@ func TestResolveCentrality(t *testing.T) {
 		t.Fatalf("ResolveCentrality failed: %v", err)
 	}
 
-	syms, _ := s.SearchSymbols(ctx, "B", "", 0, 0)
+	syms, _ := s.SearchSymbols(ctx, "B", "", "", 0, 0)
 	if len(syms) == 0 {
 		t.Fatalf("Symbol B not found")
 	}

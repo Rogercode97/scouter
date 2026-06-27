@@ -23,7 +23,7 @@ func (m *rippleMockStore) GetCallees(ctx context.Context, caller string) ([]stor
 	return m.callees[caller], nil
 }
 
-func (m *rippleMockStore) SearchSymbols(ctx context.Context, q, t string, limit, offset int) ([]store.Symbol, error) {
+func (m *rippleMockStore) SearchSymbols(ctx context.Context, q, t, pathPrefix string, limit, offset int) ([]store.Symbol, error) {
 	return m.symbols[q], nil
 }
 

@@ -297,7 +297,7 @@ func (e *ImpactEngine) GetDeterministicCallers(ctx context.Context, symbolName s
 		return nil, fmt.Errorf("lsp manager not configured")
 	}
 
-	results, err := e.store.SearchSymbols(ctx, symbolName, "", 0, 0)
+	results, err := e.store.SearchSymbols(ctx, symbolName, "", "", 0, 0)
 	if err != nil || len(results) == 0 {
 		return nil, nil
 	}

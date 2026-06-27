@@ -15,11 +15,15 @@ type mockImpactStore struct {
 	GraphStore
 	symbolsByRange map[string][]store.Symbol
 	affectedTests  map[string][]store.Symbol
+	SearchSymbolsFunc func(ctx context.Context, query, fileType, pathPrefix string, limit, offset int) ([]store.Symbol, error)
 }
 
 // store.SymbolRegistry methods
 func (m *mockImpactStore) SaveSymbol(ctx context.Context, sym *store.Symbol) error { return nil }
-func (m *mockImpactStore) SearchSymbols(ctx context.Context, query, fileType string, limit, offset int) ([]store.Symbol, error) {
+func (m *mockImpactStore) SearchSymbols(ctx context.Context, query, fileType, pathPrefix string, limit, offset int) ([]store.Symbol, error) {
+	if m.SearchSymbolsFunc != nil {
+		return m.SearchSymbolsFunc(ctx, query, fileType, pathPrefix, limit, offset)
+	}
 	return nil, nil
 }
 func (m *mockImpactStore) DeleteSymbolsByFile(ctx context.Context, path string) error { return nil }

@@ -89,7 +89,7 @@ func (m *rippleEngineMockStore) GetCallees(ctx context.Context, name string) ([]
 	return m.callees[name], nil
 }
 
-func (m *rippleEngineMockStore) SearchSymbols(ctx context.Context, query, symType string, limit, offset int) ([]store.Symbol, error) {
+func (m *rippleEngineMockStore) SearchSymbols(ctx context.Context, query, symType, pathPrefix string, limit, offset int) ([]store.Symbol, error) {
 	return m.symbols[query], nil
 }
 

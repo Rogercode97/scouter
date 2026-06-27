@@ -89,7 +89,7 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 		localStartName := getLocalName(startSymbol)
 
 		// 1. Also include the symbol definition file itself (Depth 0)
-		results, _ := s.store.SearchSymbols(ctx, localStartName, "", 0, 0)
+		results, _ := s.store.SearchSymbols(ctx, localStartName, "", "", 0, 0)
 		for _, sym := range results {
 			symFQ := sym.Name
 			if sym.PackagePath != "" {

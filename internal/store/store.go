@@ -378,7 +378,7 @@ func (s *storeImpl) SaveSymbolsBulk(ctx context.Context, symbols []*Symbol) erro
 	return nil
 }
 
-func (s *storeImpl) SearchSymbols(ctx context.Context, q, t string, limit, offset int) ([]Symbol, error) {
+func (s *storeImpl) SearchSymbols(ctx context.Context, q, t, pathPrefix string, limit, offset int) ([]Symbol, error) {
 	safe := utils.SanitizeFTS(q)
 	if safe == "" {
 		return nil, nil
@@ -390,6 +390,10 @@ func (s *storeImpl) SearchSymbols(ctx context.Context, q, t string, limit, offse
 	if t != "" {
 		sql += " AND symbols.type = ?"
 		args = append(args, t)
+	}
+	if pathPrefix != "" {
+		sql += " AND symbols.path LIKE ?"
+		args = append(args, pathPrefix+"%")
 	}
 	if limit == 0 {
 		limit = 500
@@ -463,7 +467,7 @@ func (s *storeImpl) GetSymbolsByStructuralHash(ctx context.Context, hash string)
 	}
 	return res, nil
 }
-func (s *storeImpl) SearchSymbolsWeighted(ctx context.Context, q, t string) iter.Seq2[Symbol, error] {
+func (s *storeImpl) SearchSymbolsWeighted(ctx context.Context, q, t, pathPrefix string) iter.Seq2[Symbol, error] {
 	return func(yield func(Symbol, error) bool) {
 		safe := utils.SanitizeFTS(q)
 		if safe == "" {
@@ -476,6 +480,10 @@ func (s *storeImpl) SearchSymbolsWeighted(ctx context.Context, q, t string) iter
 		if t != "" {
 			sql += " AND symbols.type = ?"
 			args = append(args, t)
+		}
+		if pathPrefix != "" {
+			sql += " AND symbols.path LIKE ?"
+			args = append(args, pathPrefix+"%")
 		}
 		sql += " ORDER BY relevance ASC LIMIT 500"
 		rows, err := s.query(ctx, sql, args...)
@@ -1214,11 +1222,20 @@ const (
 	RrfKConstant                = 60
 )
 
-func (s *storeImpl) SearchHybrid(ctx context.Context, textQuery string, queryEmbedding []float32, limit int) ([]Symbol, error) {
+func (s *storeImpl) SearchHybrid(ctx context.Context, textQuery string, queryEmbedding []float32, pathPrefix string, limit int) ([]Symbol, error) {
 	vecData, err := vec.SerializeFloat32(queryEmbedding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize embedding: %w", err)
 	}
+
+	pathFilter := ""
+	var args []any
+	args = append(args, textQuery, vecData)
+	if pathPrefix != "" {
+		pathFilter = " WHERE s.path LIKE ?"
+		args = append(args, pathPrefix+"%")
+	}
+	args = append(args, limit)
 
 	query := fmt.Sprintf(`
 WITH fts_matches AS (
@@ -1241,12 +1258,12 @@ combined AS (
 )
 SELECT s.id, s.name, s.type, s.package_path, s.receiver_type, s.signature, s.doc, s.path, s.start_byte, s.end_byte, s.start_line, s.end_line
 FROM combined c
-JOIN symbols s ON s.id = c.symbol_id
+JOIN symbols s ON s.id = c.symbol_id%s
 ORDER BY c.rrf_score DESC
 LIMIT ?
-`, DefaultNearestNeighborLimit, DefaultNearestNeighborLimit, RrfKConstant, RrfKConstant)
+`, DefaultNearestNeighborLimit, DefaultNearestNeighborLimit, RrfKConstant, RrfKConstant, pathFilter)
 
-	rows, err := s.query(ctx, query, textQuery, vecData, limit)
+	rows, err := s.query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute hybrid search query: %w", err)
 	}

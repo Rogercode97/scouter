@@ -50,7 +50,7 @@ func TestStoreSearch(t *testing.T) {
 	}
 
 	// 2. Test search
-	results, err := s.SearchSymbols(ctx, "Search*", "", 0, 0)
+	results, err := s.SearchSymbols(ctx, "Search*", "", "", 0, 0)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestStoreSearch(t *testing.T) {
 	}
 
 	// 3. Test filter by type
-	results, _ = s.SearchSymbols(ctx, "Store", "class", 0, 0)
+	results, _ = s.SearchSymbols(ctx, "Store", "class", "", 0, 0)
 	if len(results) != 1 || results[0].Type != "class" {
 		t.Errorf("Expected 1 class result, got %d", len(results))
 	}
@@ -240,7 +240,7 @@ func TestStoreSearch_Injection(t *testing.T) {
 	}
 
 	// Try an injection attempt
-	_, err = s.SearchSymbols(ctx, "Normal\" OR 1=1 --", "", 0, 0)
+	_, err = s.SearchSymbols(ctx, "Normal\" OR 1=1 --", "", "", 0, 0)
 	if err != nil {
 		t.Errorf("Injection search failed (syntax error?): %v", err)
 	}
@@ -289,7 +289,7 @@ func TestSaveFileIndex_PreservesSymbols(t *testing.T) {
 	}
 
 	// 4. Verify symbol still exists
-	res, err := s.SearchSymbols(ctx, "KeepMe", "", 0, 0)
+	res, err := s.SearchSymbols(ctx, "KeepMe", "", "", 0, 0)
 	if err != nil {
 		t.Fatalf("SearchSymbols failed: %v", err)
 	}
@@ -329,7 +329,7 @@ func TestStore_DeleteCascade(t *testing.T) {
 	}
 
 	// 4. Verify symbol is GONE (cascade delete)
-	res, err := s.SearchSymbols(ctx, "DeleteMe", "", 0, 0)
+	res, err := s.SearchSymbols(ctx, "DeleteMe", "", "", 0, 0)
 	if err != nil {
 		t.Fatalf("SearchSymbols failed: %v", err)
 	}
@@ -451,7 +451,7 @@ func TestStore_TransactionSafety(t *testing.T) {
 	}
 
 	// Verify the symbol was NOT saved
-	results, _ := s.SearchSymbols(ctx, "PartiallySaved", "", 0, 0)
+	results, _ := s.SearchSymbols(ctx, "PartiallySaved", "", "", 0, 0)
 	if len(results) != 0 {
 		t.Errorf("Expected 0 results after rollback, got %d", len(results))
 	}
@@ -569,7 +569,7 @@ func TestStore_SemanticFields(t *testing.T) {
 	}
 
 	// 1. Verify via SearchSymbols
-	res, err := s.SearchSymbols(ctx, "MyMethod", "", 0, 0)
+	res, err := s.SearchSymbols(ctx, "MyMethod", "", "", 0, 0)
 	if err != nil {
 		t.Fatalf("SearchSymbols failed: %v", err)
 	}

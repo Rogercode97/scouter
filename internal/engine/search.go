@@ -23,7 +23,7 @@ func NewSearchEngine(s store.SymbolRegistry, m memory.MemoryProvider, sem *Seman
 }
 
 // HybridSearch executes parallel lookups in the AST, Bleve, and Engram databases.
-func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, offset int) (*types.HybridSearchResult, error) {
+func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, offset int, pathPrefix string) (*types.HybridSearchResult, error) {
 	if query == "" {
 		return nil, fmt.Errorf("missing query")
 	}
@@ -51,12 +51,12 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 		if semErr != nil {
 			// Elegant Degradation: Warning and fallback to FTS5
 			slog.Warn("semantic.GenerateEmbedding failed, falling back to FTS5 search", "error", semErr)
-			storeSymbols, err = e.store.SearchSymbols(ctx, query, "", limit, offset)
+			storeSymbols, err = e.store.SearchSymbols(ctx, query, "", pathPrefix, limit, offset)
 		} else {
-			storeSymbols, err = e.store.SearchHybrid(ctx, query, embedding, limit)
+			storeSymbols, err = e.store.SearchHybrid(ctx, query, embedding, pathPrefix, limit)
 		}
 	} else {
-		storeSymbols, err = e.store.SearchSymbols(ctx, query, "", limit, offset)
+		storeSymbols, err = e.store.SearchSymbols(ctx, query, "", pathPrefix, limit, offset)
 	}
 
 	if err != nil {

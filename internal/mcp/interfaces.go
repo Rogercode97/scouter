@@ -15,7 +15,7 @@ type Indexer interface {
 
 // Searcher defines the interface for the search engine.
 type Searcher interface {
-	HybridSearch(ctx context.Context, query string, limit, offset int) (*types.HybridSearchResult, error)
+	HybridSearch(ctx context.Context, query string, limit, offset int, pathPrefix string) (*types.HybridSearchResult, error)
 	FindLogicalTwins(ctx context.Context, symbolName, path string) ([]types.Symbol, error)
 }
 

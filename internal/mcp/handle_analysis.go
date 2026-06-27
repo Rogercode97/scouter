@@ -139,7 +139,12 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 		return s.presenter.FormatError(fmt.Errorf("invalid cursor: %v", err)), nil, nil
 	}
 
-	searchRes, err := s.search.HybridSearch(ctx, args.Query, limit, offset)
+	pathPrefix, err := utils.ValidatePath(".")
+	if err != nil {
+		return s.presenter.FormatError(fmt.Errorf("failed to validate workspace path: %v", err)), nil, nil
+	}
+
+	searchRes, err := s.search.HybridSearch(ctx, args.Query, limit, offset, pathPrefix)
 	if err != nil {
 		return &mcp.CallToolResult{
 				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Search execution failed: %v", err)}},

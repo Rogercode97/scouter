@@ -23,10 +23,10 @@ type SymbolRegistry interface {
 	ClearSymbols(ctx context.Context, path string) error
 	SaveSymbol(ctx context.Context, sym *Symbol) error
 	SaveSymbolsBulk(ctx context.Context, symbols []*Symbol) error
-	SearchSymbols(ctx context.Context, query string, symType string, limit, offset int) ([]Symbol, error)
+	SearchSymbols(ctx context.Context, query string, symType string, pathPrefix string, limit, offset int) ([]Symbol, error)
 	GetSymbolsByNameInFile(ctx context.Context, name, path string) ([]Symbol, error)
 	GetSymbolsByStructuralHash(ctx context.Context, hash string) ([]Symbol, error)
-	SearchSymbolsWeighted(ctx context.Context, query string, symType string) iter.Seq2[Symbol, error]
+	SearchSymbolsWeighted(ctx context.Context, query string, symType string, pathPrefix string) iter.Seq2[Symbol, error]
 	GetSymbolsByRange(ctx context.Context, path string, startLine, endLine int) ([]Symbol, error)
 	GetSymbolsByPathPrefix(ctx context.Context, pathPrefix string) ([]Symbol, error)
 	GetSymbolsByType(ctx context.Context, symType string) ([]Symbol, error)
@@ -45,7 +45,7 @@ type SymbolRegistry interface {
 	DeleteFileIndex(ctx context.Context, path string) error
 	InsertSemanticVector(ctx context.Context, symbolID int64, embedding []float32) error
 	SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int) ([]Symbol, error)
-	SearchHybrid(ctx context.Context, textQuery string, queryEmbedding []float32, limit int) ([]Symbol, error)
+	SearchHybrid(ctx context.Context, textQuery string, queryEmbedding []float32, pathPrefix string, limit int) ([]Symbol, error)
 	SaveDependency(ctx context.Context, dep *types.Dependency) error
 	GetDependencies(ctx context.Context) ([]types.Dependency, error)
 	ClearDependencies(ctx context.Context) error
