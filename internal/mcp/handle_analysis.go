@@ -25,7 +25,7 @@ type SearchParams struct {
 	Query  string `json:"query" jsonschema:"REQUIRED. The search query (supports semantic or text search)"`
 	Type   string `json:"type,omitempty" jsonschema:"Optional: Filter by symbol type (e.g., function, method, struct)"`
 	Limit  int    `json:"limit,omitempty" jsonschema:"Optional: Max results to return (default: 50, max: 100)"`
-	Offset int    `json:"offset,omitempty" jsonschema:"Optional: Number of results to skip for pagination"`
+	Cursor string `json:"cursor,omitempty" jsonschema:"Optional: Base64 encoded cursor for pagination"`
 	Format string `json:"format,omitempty" jsonschema:"Optional: Response format ('text' or 'hakai')"`
 }
 
@@ -37,7 +37,7 @@ type ReadParams struct {
 type CallersParams struct {
 	CalleeName string `json:"calleeName" jsonschema:"REQUIRED. The name of the function or method to find callers for"`
 	Limit      int    `json:"limit,omitempty" jsonschema:"Optional: Max results to return (default: 50, max: 100)"`
-	Offset     int    `json:"offset,omitempty" jsonschema:"Optional: Number of results to skip for pagination"`
+	Cursor     string `json:"cursor,omitempty" jsonschema:"Optional: Base64 encoded cursor for pagination"`
 	Format     string `json:"format,omitempty" jsonschema:"Optional: Response format ('text' or 'hakai')"`
 }
 
@@ -59,7 +59,7 @@ type StructuralSearchParams struct {
 	Ext          string `json:"ext,omitempty" jsonschema:"Optional: The file extension to search in (e.g., '.go', '.ts')"`
 	Path         string `json:"path,omitempty" jsonschema:"Optional: Root path for the search (defaults to '.')"`
 	Limit        int    `json:"limit,omitempty" jsonschema:"Optional: Max results to return (default: 50, max: 100)"`
-	Offset       int    `json:"offset,omitempty" jsonschema:"Optional: Number of results to skip for pagination"`
+	Cursor       string `json:"cursor,omitempty" jsonschema:"Optional: Base64 encoded cursor for pagination"`
 }
 
 type DiagnoseParams struct {
@@ -131,11 +131,15 @@ func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args
 
 func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, args SearchParams) (*mcp.CallToolResult, any, error) {
 	limit := args.Limit
-	if limit <= 0 || limit > 100 {
-		limit = 50 // Sovereign Limit
+	if limit <= 0 || limit > MaxPaginationLimit {
+		limit = DefaultPaginationLimit
+	}
+	offset, limit, err := parseCursorAndLimit(args.Cursor, limit)
+	if err != nil {
+		return s.presenter.FormatError(fmt.Errorf("invalid cursor: %v", err)), nil, nil
 	}
 
-	searchRes, err := s.search.HybridSearch(ctx, args.Query, limit, args.Offset)
+	searchRes, err := s.search.HybridSearch(ctx, args.Query, limit, offset)
 	if err != nil {
 		return &mcp.CallToolResult{
 				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Search execution failed: %v", err)}},
@@ -145,9 +149,12 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 	}
 
 	thought := fmt.Sprintf("Sovereign Search: Querying AST+Engram for '%s' (%s). Pagination: [Limit:%d Offset:%d]. Found %d matches & %d insights.",
-		args.Query, args.Type, limit, args.Offset, len(searchRes.Symbols), len(searchRes.Insights))
+		args.Query, args.Type, limit, offset, len(searchRes.Symbols), len(searchRes.Insights))
 
 	resultPayload, err := s.presenter.FormatResult(thought, searchRes)
+	if resultPayload != nil && err == nil && len(searchRes.Symbols) == limit {
+		appendNextCursor(resultPayload, offset, limit)
+	}
 	return resultPayload, nil, err
 }
 
@@ -218,11 +225,15 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 	}
 
 	limit := args.Limit
-	if limit <= 0 || limit > 100 {
-		limit = 50
+	if limit <= 0 || limit > MaxPaginationLimit {
+		limit = DefaultPaginationLimit
+	}
+	offset, limit, err := parseCursorAndLimit(args.Cursor, limit)
+	if err != nil {
+		return s.presenter.FormatError(fmt.Errorf("invalid cursor: %v", err)), nil, nil
 	}
 
-	results, err := s.store.GetCallers(ctx, args.CalleeName, limit, args.Offset)
+	results, err := s.store.GetCallers(ctx, args.CalleeName, limit, offset)
 	if err != nil {
 		return &mcp.CallToolResult{
 				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get callers: %v", err)}},
@@ -242,9 +253,12 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 	}
 
 	thought := fmt.Sprintf("Call Graph Analysis: Finding all callers of '%s'. Pagination: [Limit:%d Offset:%d]. Found %d callers.",
-		args.CalleeName, limit, args.Offset, len(results))
+		args.CalleeName, limit, offset, len(results))
 
 	resultPayload, err := s.presenter.FormatResult(thought, results)
+	if resultPayload != nil && err == nil && len(results) == limit {
+		appendNextCursor(resultPayload, offset, limit)
+	}
 	return resultPayload, nil, err
 }
 
@@ -339,12 +353,12 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 	}
 
 	limit := args.Limit
-	if limit <= 0 || limit > 100 {
-		limit = 50
+	if limit <= 0 || limit > MaxPaginationLimit {
+		limit = DefaultPaginationLimit
 	}
-	offset := args.Offset
-	if offset < 0 {
-		offset = 0
+	offset, limit, err := parseCursorAndLimit(args.Cursor, limit)
+	if err != nil {
+		return s.presenter.FormatError(fmt.Errorf("invalid cursor: %v", err)), nil, nil
 	}
 
 	if args.TargetSymbol != "" {
@@ -366,6 +380,9 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 		thought := fmt.Sprintf("Structural Analysis: Identifying symbols with identical logical signatures to '%s' in '%s'. Pagination: [Limit:%d Offset:%d]. Found %d matches (Total: %d).", args.TargetSymbol, path, limit, offset, len(results), total)
 
 		resultPayload, formatErr := s.presenter.FormatResult(thought, results)
+		if resultPayload != nil && formatErr == nil && len(results) == limit && offset+limit < total {
+			appendNextCursor(resultPayload, offset, limit)
+		}
 		return resultPayload, nil, formatErr
 	}
 
@@ -378,6 +395,9 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 		args.Pattern, path, limit, offset, len(results), total)
 
 	resultPayload, formatErr := s.presenter.FormatResult(thought, results)
+	if resultPayload != nil && formatErr == nil && len(results) == limit && offset+limit < total {
+		appendNextCursor(resultPayload, offset, limit)
+	}
 	return resultPayload, nil, formatErr
 }
 
@@ -416,4 +436,33 @@ func (s *Server) handleNeighborhood(ctx context.Context, req *mcp.CallToolReques
 	thought := fmt.Sprintf("ZON Neighborhood: Extracted 1-hop structural context for %s.", args.FilePath)
 
 	return s.presenter.FormatTextResult(thought, neighborhood), nil, nil
+}
+
+const (
+	DefaultPaginationLimit = 50
+	MaxPaginationLimit     = 100
+)
+
+func parseCursorAndLimit(cursor string, currentLimit int) (int, int, error) {
+	if cursor == "" {
+		return 0, currentLimit, nil
+	}
+	offset, limit, err := DecodeCursor(cursor)
+	if err != nil {
+		return 0, 0, err
+	}
+	if currentLimit == 0 {
+		return offset, limit, nil
+	}
+	return offset, currentLimit, nil
+}
+
+func appendNextCursor(payload *mcp.CallToolResult, offset, limit int) {
+	if payload == nil || len(payload.Content) == 0 {
+		return
+	}
+	nextCursor := EncodeCursor(offset+limit, limit)
+	if textContent, ok := payload.Content[0].(*mcp.TextContent); ok {
+		textContent.Text += fmt.Sprintf("\nNextCursor: %s", nextCursor)
+	}
 }
