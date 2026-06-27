@@ -51,6 +51,7 @@ var mcpCmd = &cobra.Command{
 		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, lspMgr, searchEngine)
 
 		astRules := engine.NewASTRuleEngine(".scouter/rules")
+		churnEngine := engine.NewChurnEngine(db)
 
 		evolutionEngine := engine.NewEvolutionEngine(db, ledger, ripple)
 		appService := memory.NewAppService(memoryProvider)
@@ -61,7 +62,7 @@ var mcpCmd = &cobra.Command{
 			Store:         db,
 			Logger:        logger,
 			LspMgr:        lspMgr,
-			Indexer:       engine.NewIndexerPipeline(engine.IndexerConfig{Store: db, Semantic: semanticEngine, Analyzer: analyzer, Search: searchEngine, ASTRules: astRules, Logger: logger}),
+			Indexer:       engine.NewIndexerPipeline(engine.IndexerConfig{Store: db, Semantic: semanticEngine, Analyzer: analyzer, Search: searchEngine, ASTRules: astRules, Churn: churnEngine, Logger: logger}),
 			Search:        searchEngine,
 			Analyzer:      analyzer,
 			Impact:        impact,

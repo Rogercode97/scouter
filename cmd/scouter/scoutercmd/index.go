@@ -37,12 +37,14 @@ var indexCmd = &cobra.Command{
 		analyzer := engine.NewAnalysisEngine(db)
 		searchEngine := engine.NewSearchEngine(db, nil, nil)
 		astRules := engine.NewASTRuleEngine(".scouter/rules")
+		churnEngine := engine.NewChurnEngine(db)
 		indexer := engine.NewIndexerPipeline(engine.IndexerConfig{
 			Store:    db,
 			Semantic: semanticEngine,
 			Analyzer: analyzer,
 			Search:   searchEngine,
 			ASTRules: astRules,
+			Churn:    churnEngine,
 			Logger:   nil,
 		})
 
