@@ -44,6 +44,7 @@ type IndexerConfig struct {
 	Analyzer *AnalysisEngine
 	Search   *SearchEngine
 	ASTRules *ASTRuleEngine
+	Churn    *ChurnEngine
 	Logger   *slog.Logger
 }
 
@@ -240,6 +241,13 @@ func (ip *IndexerPipeline) Index(ctx context.Context, path string) error {
 		}
 		if aErr := ip.config.Analyzer.ResolveCentrality(ctx); aErr != nil {
 			ip.config.Logger.Error("failed to resolve centrality", "error", aErr)
+		}
+	}
+
+	if ip.config.Churn != nil {
+		ip.config.Logger.Info("running churn engine analysis")
+		if cErr := ip.config.Churn.AnalyzeChurn(ctx, validatedPath, 500); cErr != nil {
+			ip.config.Logger.Error("failed to analyze churn", "error", cErr)
 		}
 	}
 
