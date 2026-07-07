@@ -97,3 +97,5 @@ openspec/
 *.db
 *?_pragma*
 .models/
+mcp_req.json
+scouter_help.txt
