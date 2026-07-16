@@ -40,9 +40,12 @@ var mcpCmd = &cobra.Command{
 		ripple := engine.NewRippleEngine(db, nil, impact)
 		ripple.Validators = append(ripple.Validators, engine.NewLSPValidator(analyzer.ProjectRoot))
 
-		semanticEngine := &engine.SemanticEngine{}
-		if err := semanticEngine.Init(cmd.Context(), ""); err != nil {
+		var semanticEngine engine.Embedder
+		se := &engine.SemanticEngine{}
+		if err := se.Init(cmd.Context(), ""); err != nil {
 			logger.Warn("Failed to initialize semantic engine", "error", err)
+		} else {
+			semanticEngine = se
 		}
 
 		searchEngine := engine.NewSearchEngine(db, memoryProvider, semanticEngine)

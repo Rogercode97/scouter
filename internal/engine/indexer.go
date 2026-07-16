@@ -40,7 +40,7 @@ var BlockedDirs = map[string]bool{
 
 type IndexerConfig struct {
 	Store    store.Store
-	Semantic *SemanticEngine
+	Semantic Embedder
 	Analyzer *AnalysisEngine
 	Search   *SearchEngine
 	ASTRules *ASTRuleEngine
@@ -67,7 +67,7 @@ type indexCollector struct {
 	done      chan struct{}
 	err       error
 	batchSize int
-	semantic  *SemanticEngine
+	semantic  Embedder
 	semCh     chan semanticJob
 	semWg     sync.WaitGroup
 }
@@ -89,7 +89,7 @@ func calculateBatchSize() int {
 	return 500
 }
 
-func newIndexCollector(ctx context.Context, s store.Store, sem *SemanticEngine) *indexCollector {
+func newIndexCollector(ctx context.Context, s store.Store, sem Embedder) *indexCollector {
 	bs := calculateBatchSize()
 	c := &indexCollector{
 		items:     make([]store.BatchItem, 0, bs),

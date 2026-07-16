@@ -33,7 +33,10 @@ var indexCmd = &cobra.Command{
 		lspMgr := lsp.GetGlobalManager()
 		defer lspMgr.Close()
 
-		semanticEngine, _ := engine.NewSemanticEngine()
+		var semanticEngine engine.Embedder
+		if se, _ := engine.NewSemanticEngine(); se != nil {
+			semanticEngine = se
+		}
 		analyzer := engine.NewAnalysisEngine(db)
 		searchEngine := engine.NewSearchEngine(db, nil, nil)
 		astRules := engine.NewASTRuleEngine(".scouter/rules")

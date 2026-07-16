@@ -15,10 +15,10 @@ import (
 type SearchEngine struct {
 	store    store.SymbolRegistry
 	memory   memory.MemoryProvider
-	semantic *SemanticEngine
+	semantic Embedder
 }
 
-func NewSearchEngine(s store.SymbolRegistry, m memory.MemoryProvider, sem *SemanticEngine) *SearchEngine {
+func NewSearchEngine(s store.SymbolRegistry, m memory.MemoryProvider, sem Embedder) *SearchEngine {
 	return &SearchEngine{store: s, memory: m, semantic: sem}
 }
 

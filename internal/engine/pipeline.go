@@ -181,7 +181,10 @@ func (p *Pipeline) ShadowIndex(ctx context.Context) {
 		}
 		p.mu.Unlock()
 
-		semanticEngine, _ := NewSemanticEngine()
+		var semanticEngine Embedder
+		if se, _ := NewSemanticEngine(); se != nil {
+			semanticEngine = se
+		}
 		analyzer := NewAnalysisEngine(db)
 		searchEngine := NewSearchEngine(db, nil, nil)
 		astRules := NewASTRuleEngine(".scouter/rules")

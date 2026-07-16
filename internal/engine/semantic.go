@@ -11,6 +11,10 @@ import (
 	"github.com/MichaelAyles/goformer"
 )
 
+type Embedder interface {
+	GenerateEmbedding(ctx context.Context, text string) ([]float32, error)
+}
+
 type SemanticEngine struct {
 	model *goformer.Model
 }
