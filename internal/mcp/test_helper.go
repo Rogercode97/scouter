@@ -24,8 +24,8 @@ func setupMockServer(db store.Store, logger *slog.Logger) *Server {
 	ripple := engine.NewRippleEngine(db, nil, impact)
 	ripple.Validators = append(ripple.Validators, engine.NewLSPValidator(analyzer.ProjectRoot))
 	searchEngine := engine.NewSearchEngine(db, memoryProvider, nil)
-	healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider)
 	diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, lspMgr, searchEngine)
+	healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider, diagnostic)
 
 	astRules := engine.NewASTRuleEngine(".scouter/rules")
 	indexer := engine.NewIndexerPipeline(engine.IndexerConfig{Store: db, Semantic: nil, Analyzer: analyzer, Search: searchEngine, ASTRules: astRules, Logger: logger})

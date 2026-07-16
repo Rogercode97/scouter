@@ -31,20 +31,20 @@ type HealerEngine struct {
 
 	Search     *SearchEngine
 	memory     memory.MemoryProvider
-	Diagnostic *DiagnosticEngine
+	Diagnostic DiagnosticProvider
 }
 
-func NewHealerEngine(s TransactionalStore, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine, search *SearchEngine, mem memory.MemoryProvider) *HealerEngine {
+func NewHealerEngine(s TransactionalStore, l *lsp.Manager, a *AnalysisEngine, i *ImpactEngine, search *SearchEngine, mem memory.MemoryProvider, diag DiagnosticProvider) *HealerEngine {
 	he := &HealerEngine{
-		store:    s,
-		lspMgr:   l,
-		analyzer: a,
-		impact:   i,
-		Search:   search,
-		memory:   mem,
-		Ledger:   NewLedger(),
+		store:      s,
+		lspMgr:     l,
+		analyzer:   a,
+		impact:     i,
+		Search:     search,
+		memory:     mem,
+		Diagnostic: diag,
+		Ledger:     NewLedger(),
 	}
-	he.Diagnostic = NewDiagnosticEngine(s, a, i, l, search)
 	return he
 }
 
@@ -55,7 +55,7 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 	}
 
 	// 1. RCA: Extract File and Line
-	failingFile, lineNum, allMatches, err := e.Diagnostic.extractRCA(errorLog)
+	failingFile, lineNum, allMatches, err := e.Diagnostic.ExtractRCA(errorLog)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealRes
 	}
 
 	// 3. Build Prompt Context
-	prompt := e.Diagnostic.buildHealerContext(ctx, target, failingFile, errorLog, allMatches, originalCode)
+	prompt := e.Diagnostic.BuildHealerContext(ctx, target, failingFile, errorLog, allMatches, originalCode)
 
 	// 4. Parallel Solvers (Shinigami Phase 1 & 2)
 	diag := &DiagnosticContext{

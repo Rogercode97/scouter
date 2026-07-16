@@ -39,6 +39,8 @@ type RiskAssessment struct {
 type DiagnosticProvider interface {
 	Diagnose(ctx context.Context, errorLog string) (*DiagnosticReport, error)
 	AssessRisk(ctx context.Context, symbol, path string) (*RiskAssessment, error)
+	ExtractRCA(errorLog string) (string, int, [][]string, error)
+	BuildHealerContext(ctx context.Context, target *types.ASTPointer, failingFile, errorLog string, allMatches [][]string, originalCode string) string
 }
 
 type DiagnosticEngine struct {
@@ -133,7 +135,7 @@ func (e *DiagnosticEngine) AssessRisk(ctx context.Context, symbol, path string) 
 	}, nil
 }
 
-func (e *DiagnosticEngine) extractRCA(errorLog string) (string, int, [][]string, error) {
+func (e *DiagnosticEngine) ExtractRCA(errorLog string) (string, int, [][]string, error) {
 	re := regexp.MustCompile("(?m)" + filter.GoTestFailureRegex.String())
 	allMatches := re.FindAllStringSubmatch(errorLog, -1)
 	if len(allMatches) == 0 {
@@ -151,7 +153,7 @@ func (e *DiagnosticEngine) extractRCA(errorLog string) (string, int, [][]string,
 	return failingFile, lineNum, allMatches, nil
 }
 
-func (e *DiagnosticEngine) buildHealerContext(ctx context.Context, target *types.ASTPointer, failingFile, errorLog string, allMatches [][]string, originalCode string) string {
+func (e *DiagnosticEngine) BuildHealerContext(ctx context.Context, target *types.ASTPointer, failingFile, errorLog string, allMatches [][]string, originalCode string) string {
 	var contextBuilder strings.Builder
 	contextBuilder.WriteString(fmt.Sprintf("Failing File: %s\nTarget: %s\nError:\n%s\n\n", failingFile, target.Name, errorLog))
 

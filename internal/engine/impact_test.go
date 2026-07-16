@@ -266,7 +266,8 @@ func TestHealerImpactIntegration(t *testing.T) {
 	// 2. Simulate a Healer Fix
 	// For this test we will just invoke recordInoculation manually or via a fake fix
 	// But let's just use the logic directly
-	healer := NewHealerEngine(nil, nil, nil, impact, nil, mockMem)
+	diagnostic := NewDiagnosticEngine(nil, nil, impact, nil, nil)
+	healer := NewHealerEngine(nil, nil, nil, impact, nil, mockMem, diagnostic)
 
 	target := &types.ASTPointer{
 		Name:      "TestSym",

@@ -74,7 +74,8 @@ func TestHealerEngine_Fix_DeepRCA(t *testing.T) {
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, mockMem)
 	search := NewSearchEngine(s, nil, nil)
-	h := NewHealerEngine(s, mgr, analyzer, impact, search, mockMem)
+	diagnostic := NewDiagnosticEngine(s, analyzer, impact, mgr, search)
+	h := NewHealerEngine(s, mgr, analyzer, impact, search, mockMem, diagnostic)
 
 	// Mock the LLM request
 	var (
@@ -149,7 +150,8 @@ func TestHealerEngine_Shinigami(t *testing.T) {
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
 	search := NewSearchEngine(s, nil, nil)
-	h := NewHealerEngine(s, mgr, analyzer, impact, search, nil)
+	diagnostic := NewDiagnosticEngine(s, analyzer, impact, mgr, search)
+	h := NewHealerEngine(s, mgr, analyzer, impact, search, nil, diagnostic)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
 		if strings.Contains(prompt, "variant #0") {
@@ -192,7 +194,8 @@ func TestHealerEngine_Cancellation(t *testing.T) {
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
 	search := NewSearchEngine(s, nil, nil)
-	h := NewHealerEngine(s, nil, analyzer, impact, search, nil)
+	diagnostic := NewDiagnosticEngine(s, analyzer, impact, nil, search)
+	h := NewHealerEngine(s, nil, analyzer, impact, search, nil, diagnostic)
 
 	var wg sync.WaitGroup
 	wg.Add(2) // For the two slow goroutines
@@ -235,7 +238,8 @@ func TestHealerEngine_AllFail(t *testing.T) {
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
 	search := NewSearchEngine(s, nil, nil)
-	h := NewHealerEngine(s, nil, analyzer, impact, search, nil)
+	diagnostic := NewDiagnosticEngine(s, analyzer, impact, nil, search)
+	h := NewHealerEngine(s, nil, analyzer, impact, search, nil, diagnostic)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
 		return "```go\nfunc (m *MyStruct) Dont() {}\n```", nil
@@ -281,7 +285,8 @@ func TestHealerEngine_Imports(t *testing.T) {
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
 	search := NewSearchEngine(s, nil, nil)
-	h := NewHealerEngine(s, nil, analyzer, impact, search, nil)
+	diagnostic := NewDiagnosticEngine(s, analyzer, impact, nil, search)
+	h := NewHealerEngine(s, nil, analyzer, impact, search, nil, diagnostic)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
 		// Return code that uses fmt but doesn't import it
@@ -330,7 +335,8 @@ func TestHealerEngine_Fix_IntegrityWarning(t *testing.T) {
 	analyzer := NewAnalysisEngine(s)
 	impact := NewImpactEngine(s, nil, nil)
 	search := NewSearchEngine(s, nil, nil)
-	h := NewHealerEngine(s, nil, analyzer, impact, search, nil)
+	diagnostic := NewDiagnosticEngine(s, analyzer, impact, nil, search)
+	h := NewHealerEngine(s, nil, analyzer, impact, search, nil, diagnostic)
 
 	h.DoFixRequest = func(ctx context.Context, prompt string) (string, error) {
 		return "```go\nfunc fixed() {}\n```", nil

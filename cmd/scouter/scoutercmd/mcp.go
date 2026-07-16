@@ -49,9 +49,9 @@ var mcpCmd = &cobra.Command{
 		}
 
 		searchEngine := engine.NewSearchEngine(db, memoryProvider, semanticEngine)
-		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider)
-		_ = engine.NewCompactionEngine(db, ledger)
 		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, lspMgr, searchEngine)
+		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider, diagnostic)
+		_ = engine.NewCompactionEngine(db, ledger)
 
 		astRules := engine.NewASTRuleEngine(".scouter/rules")
 		churnEngine := engine.NewChurnEngine(db)
