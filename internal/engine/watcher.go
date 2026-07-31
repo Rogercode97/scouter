@@ -54,7 +54,7 @@ func (w *Watcher) Start(ctx context.Context, pathPrefix string, indexFunc func(c
 		if d.IsDir() {
 			// Skip toxic/heavy directories
 			base := d.Name()
-			if base == ".git" || base == "node_modules" || base == "vendor" || base == "dist" || base == "build" {
+			if base == ".git" || base == "node_modules" || base == "vendor" || base == "dist" || base == "build" || base == ".venv" || base == ".tox" || base == "target" || base == "bin" || base == ".next" || base == ".gemini" {
 				return filepath.SkipDir
 			}
 			watcher.Add(path)
@@ -95,17 +95,29 @@ func (w *Watcher) Start(ctx context.Context, pathPrefix string, indexFunc func(c
 					if timer != nil {
 						timer.Stop()
 					}
-					// Check if a new directory was created, to add it to the watcher
+					// Check if a new directory was created, to recursively add it to the watcher
 					if event.Has(fsnotify.Create) {
 						if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
-							watcher.Add(event.Name)
+							filepath.WalkDir(event.Name, func(path string, d fs.DirEntry, err error) error {
+								if err != nil {
+									return nil
+								}
+								if d.IsDir() {
+									base := d.Name()
+									if base == ".git" || base == "node_modules" || base == "vendor" || base == "dist" || base == "build" || base == ".venv" || base == ".tox" || base == "target" || base == "bin" || base == ".next" || base == ".gemini" {
+										return filepath.SkipDir
+									}
+									watcher.Add(path)
+								}
+								return nil
+							})
 						}
 					}
 
 					timer = time.AfterFunc(delay, func() {
 						w.logger.Info("File changes detected. Debounce finished. Triggering indexer...", "event", event.Name)
-						// Run index in background context to avoid tying to event loop
-						if err := indexFunc(context.Background(), pathPrefix); err != nil {
+						// Run index tied to the server's lifecycle context
+						if err := indexFunc(ctx, pathPrefix); err != nil {
 							w.logger.Error("Auto-indexer failed", "error", err)
 						}
 					})
