@@ -6,15 +6,21 @@ on:
 
 jobs:
   check-type-label:
-    name: Check PR Has type:* Label
+    name: Check & Auto-assign PR type:* Label
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     steps:
-      - name: Verify PR has a type label
+      - name: Verify or auto-assign type label
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const prNumber = context.payload.pull_request.number;
+            const branch = context.payload.pull_request.head.ref || '';
+            const title = context.payload.pull_request.title || '';
 
             const { data: pullRequest } = await github.rest.pulls.get({
               owner: context.repo.owner,
@@ -22,16 +28,59 @@ jobs:
               pull_number: prNumber,
             });
 
-            const labels = pullRequest.labels.map(l => l.name);
-            core.info(`PR #${prNumber} labels: ${labels.join(', ') || '(none)'}`);
+            let labels = pullRequest.labels.map(l => l.name);
+            core.info(`PR #${prNumber} existing labels: ${labels.join(', ') || '(none)'}`);
 
-            const typeLabels = labels.filter(l => l.startsWith('type:'));
+            let typeLabels = labels.filter(l => l.startsWith('type:'));
+
+            if (typeLabels.length === 0) {
+              let inferredType = null;
+
+              // 1. Infer from branch name
+              if (/^(fix|bugfix)\//i.test(branch)) {
+                inferredType = 'type:bug';
+              } else if (/^(feat|feature)\//i.test(branch)) {
+                inferredType = 'type:feature';
+              } else if (/^docs\//i.test(branch)) {
+                inferredType = 'type:docs';
+              } else if (/^refactor\//i.test(branch)) {
+                inferredType = 'type:refactor';
+              } else if (/^(chore|dependabot)\//i.test(branch)) {
+                inferredType = 'type:chore';
+              }
+
+              // 2. Infer from PR title conventional prefix if not matched by branch
+              if (!inferredType) {
+                if (/^fix(\(.*\))?:/i.test(title)) {
+                  inferredType = 'type:bug';
+                } else if (/^feat(\(.*\))?:/i.test(title)) {
+                  inferredType = 'type:feature';
+                } else if (/^docs(\(.*\))?:/i.test(title)) {
+                  inferredType = 'type:docs';
+                } else if (/^refactor(\(.*\))?:/i.test(title)) {
+                  inferredType = 'type:refactor';
+                } else if (/^(chore|build|ci)(\(.*\))?:/i.test(title)) {
+                  inferredType = 'type:chore';
+                }
+              }
+
+              if (inferredType) {
+                core.info(`Auto-assigning inferred type label: ${inferredType}`);
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  labels: [inferredType],
+                });
+                typeLabels.push(inferredType);
+              }
+            }
 
             if (typeLabels.length === 0) {
               core.setFailed(
                 '❌ PR must have exactly one type:* label.\n' +
                 'Valid types: type:bug, type:feature, type:docs, type:refactor, type:chore, type:breaking-change\n' +
-                'Add the label to the PR after opening it.'
+                'Add the label to the PR after opening it or use standard branch/title prefixes (e.g. fix/, feat/, chore/).'
               );
             } else if (typeLabels.length > 1) {
               core.setFailed(
