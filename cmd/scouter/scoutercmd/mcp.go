@@ -8,7 +8,6 @@ import (
 	"log/slog"
 
 	"github.com/Rogercode97/scouter/internal/adapters/engram"
-	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
@@ -76,7 +75,6 @@ var mcpCmd = &cobra.Command{
 			ChronosEngine: chronos,
 			AppService:    appService,
 			Watcher:       watcher,
-			Presenter:     display.NewDefaultPresenter(),
 		}
 
 		server := mcp.NewServer(opts)

@@ -72,17 +72,17 @@ type NeighborhoodParams struct {
 
 func (s *Server) handleMap(ctx context.Context, req *mcp.CallToolRequest, args MapParams) (*mcp.CallToolResult, any, error) {
 	if args.Path == "" {
-		return s.presenter.FormatError(fmt.Errorf("missing path")), nil, nil
+		return formatError(fmt.Errorf("missing path")), nil, nil
 	}
 
 	path, err := utils.ValidatePath(args.Path)
 	if err != nil {
-		return s.presenter.FormatError(err), nil, nil
+		return formatError(err), nil, nil
 	}
 
 	results, err := s.store.GetSymbolsByPathPrefix(ctx, path)
 	if err != nil {
-		return s.presenter.FormatError(fmt.Errorf("Map execution failed: %v", err)), nil, nil
+		return formatError(fmt.Errorf("Map execution failed: %v", err)), nil, nil
 	}
 
 	if len(results) == 0 {
@@ -108,12 +108,12 @@ func (s *Server) handleMap(ctx context.Context, req *mcp.CallToolRequest, args M
 
 	thought := fmt.Sprintf("Sovereign Map: Extracted skeleton for %s. Found %d symbols across %d files. Function bodies were excluded to save tokens.", args.Path, len(results), len(fileMap))
 
-	return s.presenter.FormatTextResult(thought, buf.String()), nil, nil
+	return formatTextResult(thought, buf.String()), nil, nil
 }
 
 func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args IndexParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
-		return s.presenter.FormatError(fmt.Errorf("missing filePath")), nil, nil
+		return formatError(fmt.Errorf("missing filePath")), nil, nil
 	}
 
 	thought := fmt.Sprintf("Indexing AST symbols for path: %s. This will update the global call graph and enable precise impact analysis.", args.FilePath)
@@ -126,7 +126,7 @@ func (s *Server) handleIndex(ctx context.Context, req *mcp.CallToolRequest, args
 			nil, nil
 	}
 
-	return s.presenter.FormatTextResult(thought, fmt.Sprintf("✅ Indexed %s and updated global call graph", args.FilePath)), nil, nil
+	return formatTextResult(thought, fmt.Sprintf("✅ Indexed %s and updated global call graph", args.FilePath)), nil, nil
 }
 
 func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, args SearchParams) (*mcp.CallToolResult, any, error) {
@@ -136,12 +136,12 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 	}
 	offset, limit, err := parseCursorAndLimit(args.Cursor, limit)
 	if err != nil {
-		return s.presenter.FormatError(fmt.Errorf("invalid cursor: %v", err)), nil, nil
+		return formatError(fmt.Errorf("invalid cursor: %v", err)), nil, nil
 	}
 
 	pathPrefix, err := utils.ValidatePath(".")
 	if err != nil {
-		return s.presenter.FormatError(fmt.Errorf("failed to validate workspace path: %v", err)), nil, nil
+		return formatError(fmt.Errorf("failed to validate workspace path: %v", err)), nil, nil
 	}
 
 	searchRes, err := s.search.HybridSearch(ctx, args.Query, limit, offset, pathPrefix)
@@ -156,7 +156,7 @@ func (s *Server) handleSearch(ctx context.Context, req *mcp.CallToolRequest, arg
 	thought := fmt.Sprintf("Sovereign Search: Querying AST+Engram for '%s' (%s). Pagination: [Limit:%d Offset:%d]. Found %d matches & %d insights.",
 		args.Query, args.Type, limit, offset, len(searchRes.Symbols), len(searchRes.Insights))
 
-	resultPayload, err := s.presenter.FormatResult(thought, searchRes)
+	resultPayload, err := formatResult(thought, searchRes)
 	if resultPayload != nil && err == nil && len(searchRes.Symbols) == limit {
 		appendNextCursor(resultPayload, offset, limit)
 	}
@@ -217,7 +217,7 @@ func (s *Server) handleRead(ctx context.Context, req *mcp.CallToolRequest, args 
 
 	thought := fmt.Sprintf("Reading fragment from %s (pointer: %s). Resolved to range %d:%d.",
 		args.FilePath, args.Pointer, rng.Start, rng.End)
-	return s.presenter.FormatTextResult(thought, content), nil, nil
+	return formatTextResult(thought, content), nil, nil
 }
 
 func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, args CallersParams) (*mcp.CallToolResult, any, error) {
@@ -235,7 +235,7 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 	}
 	offset, limit, err := parseCursorAndLimit(args.Cursor, limit)
 	if err != nil {
-		return s.presenter.FormatError(fmt.Errorf("invalid cursor: %v", err)), nil, nil
+		return formatError(fmt.Errorf("invalid cursor: %v", err)), nil, nil
 	}
 
 	results, err := s.store.GetCallers(ctx, args.CalleeName, limit, offset)
@@ -260,7 +260,7 @@ func (s *Server) handleCallers(ctx context.Context, req *mcp.CallToolRequest, ar
 	thought := fmt.Sprintf("Call Graph Analysis: Finding all callers of '%s'. Pagination: [Limit:%d Offset:%d]. Found %d callers.",
 		args.CalleeName, limit, offset, len(results))
 
-	resultPayload, err := s.presenter.FormatResult(thought, results)
+	resultPayload, err := formatResult(thought, results)
 	if resultPayload != nil && err == nil && len(results) == limit {
 		appendNextCursor(resultPayload, offset, limit)
 	}
@@ -301,7 +301,7 @@ func (s *Server) handleGotoDefinition(ctx context.Context, req *mcp.CallToolRequ
 
 	thought := fmt.Sprintf("LSP Navigation: Finding definition at %s:%d:%d.", args.FilePath, args.Line, args.Character)
 
-	resultPayload, formatErr := s.presenter.FormatResult(thought, result)
+	resultPayload, formatErr := formatResult(thought, result)
 	return resultPayload, nil, formatErr
 }
 
@@ -338,13 +338,13 @@ func (s *Server) handleTypeInfo(ctx context.Context, req *mcp.CallToolRequest, a
 	}
 	thought := fmt.Sprintf("LSP Inspection: Extracting type information/hover docs at %s:%d:%d.", args.FilePath, args.Line, args.Character)
 
-	resultPayload, formatErr := s.presenter.FormatResult(thought, result)
+	resultPayload, formatErr := formatResult(thought, result)
 	return resultPayload, nil, formatErr
 }
 
 func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRequest, args StructuralSearchParams) (*mcp.CallToolResult, any, error) {
 	if args.Pattern == "" && args.TargetSymbol == "" {
-		return s.presenter.FormatError(fmt.Errorf("missing pattern or targetSymbol")), nil, nil
+		return formatError(fmt.Errorf("missing pattern or targetSymbol")), nil, nil
 	}
 
 	searchPath := args.Path
@@ -354,7 +354,7 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 
 	path, err := utils.ValidatePath(searchPath)
 	if err != nil {
-		return s.presenter.FormatError(err), nil, nil
+		return formatError(err), nil, nil
 	}
 
 	limit := args.Limit
@@ -363,13 +363,13 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 	}
 	offset, limit, err := parseCursorAndLimit(args.Cursor, limit)
 	if err != nil {
-		return s.presenter.FormatError(fmt.Errorf("invalid cursor: %v", err)), nil, nil
+		return formatError(fmt.Errorf("invalid cursor: %v", err)), nil, nil
 	}
 
 	if args.TargetSymbol != "" {
 		results, err := s.search.FindLogicalTwins(ctx, args.TargetSymbol, path)
 		if err != nil {
-			return s.presenter.FormatError(fmt.Errorf("Failed to find logical twins: %v", err)), nil, nil
+			return formatError(fmt.Errorf("Failed to find logical twins: %v", err)), nil, nil
 		}
 		total := len(results)
 		if offset >= total {
@@ -384,7 +384,7 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 
 		thought := fmt.Sprintf("Structural Analysis: Identifying symbols with identical logical signatures to '%s' in '%s'. Pagination: [Limit:%d Offset:%d]. Found %d matches (Total: %d).", args.TargetSymbol, path, limit, offset, len(results), total)
 
-		resultPayload, formatErr := s.presenter.FormatResult(thought, results)
+		resultPayload, formatErr := formatResult(thought, results)
 		if resultPayload != nil && formatErr == nil && len(results) == limit && offset+limit < total {
 			appendNextCursor(resultPayload, offset, limit)
 		}
@@ -393,13 +393,13 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 
 	results, total, err := s.astGrepSearcher.Search(ctx, args.Pattern, path, args.Ext, limit, offset)
 	if err != nil {
-		return s.presenter.FormatError(err), nil, nil
+		return formatError(err), nil, nil
 	}
 
 	thought := fmt.Sprintf("Executed structural search for pattern '%s' in '%s'. Pagination: [Limit:%d Offset:%d]. Found %d matches (Total: %d).",
 		args.Pattern, path, limit, offset, len(results), total)
 
-	resultPayload, formatErr := s.presenter.FormatResult(thought, results)
+	resultPayload, formatErr := formatResult(thought, results)
 	if resultPayload != nil && formatErr == nil && len(results) == limit && offset+limit < total {
 		appendNextCursor(resultPayload, offset, limit)
 	}
@@ -408,39 +408,39 @@ func (s *Server) handleStructuralSearch(ctx context.Context, req *mcp.CallToolRe
 
 func (s *Server) handleDiagnose(ctx context.Context, req *mcp.CallToolRequest, args DiagnoseParams) (*mcp.CallToolResult, any, error) {
 	if args.ErrorLog == "" {
-		return s.presenter.FormatError(fmt.Errorf("missing errorLog")), nil, nil
+		return formatError(fmt.Errorf("missing errorLog")), nil, nil
 	}
 
 	hudStruct, err := s.diagnostic.DiagnoseHUD(ctx, args.ErrorLog)
 	if err != nil {
-		return s.presenter.FormatError(fmt.Errorf("Diagnose failed: %v", err)), nil, nil
+		return formatError(fmt.Errorf("Diagnose failed: %v", err)), nil, nil
 	}
 
 	thought := "Executing Diagnostic Vision (Fase 8). Fused Git Provenance, X-Ray AST, Radar Impact, and Thermal Similarity into HUD."
 
-	resultPayload, formatErr := s.presenter.FormatResult(thought, []engine.DiagnosticHUD{*hudStruct})
+	resultPayload, formatErr := formatResult(thought, []engine.DiagnosticHUD{*hudStruct})
 
 	return resultPayload, nil, formatErr
 }
 
 func (s *Server) handleNeighborhood(ctx context.Context, req *mcp.CallToolRequest, args NeighborhoodParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
-		return s.presenter.FormatError(fmt.Errorf("missing filePath")), nil, nil
+		return formatError(fmt.Errorf("missing filePath")), nil, nil
 	}
 
 	path, err := utils.ValidatePath(args.FilePath)
 	if err != nil {
-		return s.presenter.FormatError(err), nil, nil
+		return formatError(err), nil, nil
 	}
 
 	neighborhood, err := s.analyzer.GetNeighborhood(ctx, path)
 	if err != nil {
-		return s.presenter.FormatError(fmt.Errorf("Failed to get neighborhood: %v", err)), nil, nil
+		return formatError(fmt.Errorf("Failed to get neighborhood: %v", err)), nil, nil
 	}
 
 	thought := fmt.Sprintf("ZON Neighborhood: Extracted 1-hop structural context for %s.", args.FilePath)
 
-	return s.presenter.FormatTextResult(thought, neighborhood), nil, nil
+	return formatTextResult(thought, neighborhood), nil, nil
 }
 
 const (

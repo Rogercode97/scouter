@@ -8,9 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"bytes"
 	"encoding/json"
-	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -72,7 +70,7 @@ func (s *Server) handleImpact(ctx context.Context, req *mcp.CallToolRequest, arg
 
 	thought := fmt.Sprintf("Calculated blast radius for '%s'. Target risk score: %.4f (Level: %s). Found %d affected callers.", args.SymbolName, res.Target.RiskScore, res.RiskLevel, len(res.Callers))
 
-	return s.presenter.FormatTextResult(thought, outStr), nil, nil
+	return formatTextResult(thought, outStr), nil, nil
 }
 
 func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, args CriticalParams) (*mcp.CallToolResult, any, error) {
@@ -89,31 +87,11 @@ func (s *Server) handleCritical(ctx context.Context, req *mcp.CallToolRequest, a
 			nil, nil
 	}
 
-	var outStr string
-	useHakai := args.Format == "hakai" || (args.Format == "" && len(results) > 20)
+	thought := fmt.Sprintf("Risk Analysis: Identifying high-risk symbols (high centrality and fragility). Found %d targets (limit: %d).",
+		len(results), limit)
 
-	if useHakai {
-		var buf bytes.Buffer
-		enc := display.NewHAKAIEncoder(&buf)
-		enc.WriteHeader()
-		for _, sym := range results {
-			enc.EncodeCritical(sym)
-			if sym.Pagerank > 0 {
-				enc.EncodeRank(sym.Path, sym.Pagerank)
-			}
-			if sym.ChurnScore > 0 {
-				enc.EncodeChurn(sym.Path, sym.ChurnScore)
-			}
-		}
-		outStr = buf.String()
-	} else {
-		outStr, _ = engine.EncodeZON(results)
-	}
-
-	thought := fmt.Sprintf("Risk Analysis: Identifying high-risk symbols (high centrality and fragility). Found %d targets (limit: %d). Format: %s.",
-		len(results), limit, map[bool]string{true: "hakai", false: "zon"}[useHakai])
-
-	return s.presenter.FormatTextResult(thought, outStr), nil, nil
+	res, err := formatResult(thought, results)
+	return res, nil, err
 }
 
 func (s *Server) handleObsidianExport(ctx context.Context, req *mcp.CallToolRequest, args ObsidianExportParams) (*mcp.CallToolResult, any, error) {

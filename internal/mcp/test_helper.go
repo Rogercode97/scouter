@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/Rogercode97/scouter/internal/adapters/engram"
-	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
@@ -49,7 +48,6 @@ func setupMockServer(db store.Store, logger *slog.Logger) *Server {
 		Memory:        memoryProvider,
 		ChronosEngine: chronos,
 		AppService:    appService,
-		Presenter:     display.NewDefaultPresenter(),
 	}
 
 	return NewServer(opts)

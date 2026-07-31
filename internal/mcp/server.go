@@ -10,7 +10,6 @@ import (
 
 	"github.com/Rogercode97/scouter/internal/adapters/astgrep"
 	"github.com/Rogercode97/scouter/internal/adapters/rtk"
-	"github.com/Rogercode97/scouter/internal/display"
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
@@ -37,7 +36,6 @@ type Server struct {
 	evolution       EvolutionaryEngine
 	healer          HealerEngine
 	memory          memory.MemoryProvider
-	presenter       display.Presenter
 	appService      *memory.AppService
 	logger          *slog.Logger
 	mu              sync.RWMutex
@@ -66,7 +64,6 @@ type Options struct {
 	Evolution     EvolutionaryEngine
 	Healer        HealerEngine
 	Memory        memory.MemoryProvider
-	Presenter     display.Presenter
 	ChronosEngine ChronosEngine
 	AppService    *memory.AppService
 	Watcher       *engine.Watcher
@@ -101,7 +98,6 @@ func NewServer(opts Options) *Server {
 		evolution:       opts.Evolution,
 		healer:          opts.Healer,
 		memory:          opts.Memory,
-		presenter:       opts.Presenter,
 		appService:      opts.AppService,
 		watcher:         opts.Watcher,
 		astGrepSearcher: astgrep.NewSearcher(),

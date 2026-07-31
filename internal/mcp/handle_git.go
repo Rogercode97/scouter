@@ -16,33 +16,33 @@ type ProvenanceParams struct {
 
 func (s *Server) handleProvenance(ctx context.Context, req *mcp.CallToolRequest, args ProvenanceParams) (*mcp.CallToolResult, any, error) {
 	if args.FilePath == "" {
-		return s.presenter.FormatError(fmt.Errorf("missing filePath")), nil, nil
+		return formatError(fmt.Errorf("missing filePath")), nil, nil
 	}
 
 	path, err := utils.ValidatePath(args.FilePath)
 	if err != nil {
-		return s.presenter.FormatError(err), nil, nil
+		return formatError(err), nil, nil
 	}
 
 	repoPath := "." // Defaulting to current working directory for now
 
 	provs, err := engine.GetFileProvenance(ctx, repoPath, path)
 	if err != nil {
-		return s.presenter.FormatError(fmt.Errorf("Provenance failed: %v", err)), nil, nil
+		return formatError(fmt.Errorf("Provenance failed: %v", err)), nil, nil
 	}
 
 	if args.LineNumber > 0 {
 		if args.LineNumber > len(provs) {
-			return s.presenter.FormatError(fmt.Errorf("lineNumber out of bounds")), nil, nil
+			return formatError(fmt.Errorf("lineNumber out of bounds")), nil, nil
 		}
 		p := provs[args.LineNumber-1]
 		thought := fmt.Sprintf("On-Demand Provenance: Traced line %d in %s to commit %s by %s (Era: %s)",
 			args.LineNumber, path, p.Commit, p.Author, p.EngineeringEra)
-		res, err := s.presenter.FormatResult(thought, p)
+		res, err := formatResult(thought, p)
 		return res, nil, err
 	}
 
 	thought := fmt.Sprintf("On-Demand Provenance: Extracted full blame for %s (%d lines)", path, len(provs))
-	res, err := s.presenter.FormatResult(thought, provs)
+	res, err := formatResult(thought, provs)
 	return res, nil, err
 }
