@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/cinar/resile v1.0.5
 	github.com/dominikbraun/graph v0.23.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/go-git/go-git/v6 v6.0.0-alpha.4
 	github.com/go-playground/validator/v10 v10.30.3
@@ -17,7 +18,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/ncruces/go-sqlite3 v0.20.0
 	github.com/odvcencio/gotreesitter v0.20.2
-	github.com/pelletier/go-toml/v2 v2.3.1
+	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
@@ -44,7 +45,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
-	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/gcfg/v2 v2.0.2 // indirect
