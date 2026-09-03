@@ -1,5 +1,7 @@
 package apply
 
+import "errors"
+
 // OrchestratorOption configures the orchestrator.
 type OrchestratorOption func(*Orchestrator)
 
@@ -43,7 +45,14 @@ func (o *Orchestrator) Execute(plan StagePlan) ExecutionResult {
 
 	prepareResult := o.runner.Run(StagePrepare, plan.Prepare)
 	if !prepareResult.Success {
-		return ExecutionResult{Prepare: prepareResult, Err: prepareResult.Err}
+		result := ExecutionResult{Prepare: prepareResult, Err: prepareResult.Err}
+		if o.policy.ShouldRollback(StagePrepare, prepareResult.Err) {
+			result.Rollback = ExecuteRollback(prepareResult.Steps, o.stepByID)
+			if !result.Rollback.Success {
+				result.Err = errors.Join(prepareResult.Err, result.Rollback.Err)
+			}
+		}
+		return result
 	}
 
 	applyResult := o.runner.Run(StageApply, plan.Apply)
@@ -54,9 +63,10 @@ func (o *Orchestrator) Execute(plan StagePlan) ExecutionResult {
 
 	result.Err = applyResult.Err
 	if o.policy.ShouldRollback(StageApply, applyResult.Err) {
-		result.Rollback = ExecuteRollback(applyResult.Steps, o.stepByID)
+		allSteps := append(prepareResult.Steps, applyResult.Steps...)
+		result.Rollback = ExecuteRollback(allSteps, o.stepByID)
 		if !result.Rollback.Success {
-			result.Err = result.Rollback.Err
+			result.Err = errors.Join(applyResult.Err, result.Rollback.Err)
 		}
 	}
 

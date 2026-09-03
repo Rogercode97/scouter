@@ -61,6 +61,63 @@ func TestOrchestratorRollsBackApplyStepsOnFailure(t *testing.T) {
 	}
 }
 
+func TestOrchestratorRollsBackPrepareStepsOnFailure(t *testing.T) {
+	order := []string{}
+	orchestrator := NewOrchestrator(DefaultRollbackPolicy())
+
+	result := orchestrator.Execute(StagePlan{
+		Prepare: []Step{
+			newRollbackStep("prep-1", &order, nil),
+			newRollbackStep("prep-2", &order, errors.New("prep boom")),
+		},
+		Apply: []Step{
+			newRollbackStep("apply-1", &order, nil),
+		},
+	})
+
+	if result.Err == nil {
+		t.Fatalf("Execute() expected prepare error")
+	}
+
+	wantOrder := []string{"run:prep-1", "run:prep-2", "rollback:prep-1"}
+	if !reflect.DeepEqual(order, wantOrder) {
+		t.Fatalf("execution order = %v, want %v", order, wantOrder)
+	}
+
+	if result.Rollback.Stage != StageRollback {
+		t.Fatalf("rollback stage = %q", result.Rollback.Stage)
+	}
+	if !result.Rollback.Success {
+		t.Fatalf("rollback expected success, got err = %v", result.Rollback.Err)
+	}
+}
+
+func TestOrchestratorCleansPrepareStepsOnApplyFailure(t *testing.T) {
+	order := []string{}
+	orchestrator := NewOrchestrator(DefaultRollbackPolicy())
+
+	result := orchestrator.Execute(StagePlan{
+		Prepare: []Step{
+			newRollbackStep("prep-1", &order, nil),
+			newRollbackStep("prep-2", &order, nil),
+		},
+		Apply: []Step{
+			newRollbackStep("apply-1", &order, nil),
+			newRollbackStep("apply-2", &order, errors.New("apply boom")),
+		},
+	})
+
+	if result.Err == nil {
+		t.Fatalf("Execute() expected apply error")
+	}
+
+	// Succeeded apply steps roll back, followed by prepare steps
+	wantOrder := []string{"run:prep-1", "run:prep-2", "run:apply-1", "run:apply-2", "rollback:apply-1", "rollback:prep-2", "rollback:prep-1"}
+	if !reflect.DeepEqual(order, wantOrder) {
+		t.Fatalf("execution order = %v, want %v", order, wantOrder)
+	}
+}
+
 func TestOrchestratorSkipsRollbackWhenPolicyDisabled(t *testing.T) {
 	order := []string{}
 	orchestrator := NewOrchestrator(RollbackPolicy{OnApplyFailure: false})
@@ -307,6 +364,10 @@ func newRollbackStep(id string, order *[]string, runErr error) *testStep {
 	return &testStep{id: id, order: order, runErr: runErr}
 }
 
+func newRollbackErrorStep(id string, order *[]string, runErr error, rollErr error) *testStep {
+	return &testStep{id: id, order: order, runErr: runErr, rollErr: rollErr}
+}
+
 func (s *testStep) ID() string {
 	return s.id
 }
@@ -320,3 +381,108 @@ func (s *testStep) Rollback() error {
 	*s.order = append(*s.order, "rollback:"+s.id)
 	return s.rollErr
 }
+
+func TestOrchestratorPreservesRootErrorOnRollbackFailure(t *testing.T) {
+	t.Run("apply stage failure preserves both apply error and rollback error", func(t *testing.T) {
+		order := []string{}
+		rootErr := errors.New("root apply error")
+		rollbackErr := errors.New("rollback failure")
+
+		orchestrator := NewOrchestrator(DefaultRollbackPolicy())
+		result := orchestrator.Execute(StagePlan{
+			Apply: []Step{
+				newRollbackErrorStep("step-1", &order, nil, rollbackErr),
+				newRollbackStep("step-2", &order, rootErr),
+			},
+		})
+
+		if result.Err == nil {
+			t.Fatalf("expected error from Execute()")
+		}
+		if !errors.Is(result.Err, rootErr) {
+			t.Errorf("expected result.Err to wrap rootErr, got %v", result.Err)
+		}
+		if !errors.Is(result.Err, rollbackErr) {
+			t.Errorf("expected result.Err to wrap rollbackErr, got %v", result.Err)
+		}
+	})
+
+	t.Run("prepare stage failure preserves both prepare error and rollback error", func(t *testing.T) {
+		order := []string{}
+		rootErr := errors.New("root prepare error")
+		rollbackErr := errors.New("rollback prepare failure")
+
+		orchestrator := NewOrchestrator(DefaultRollbackPolicy())
+		result := orchestrator.Execute(StagePlan{
+			Prepare: []Step{
+				newRollbackErrorStep("prep-1", &order, nil, rollbackErr),
+				newRollbackStep("prep-2", &order, rootErr),
+			},
+		})
+
+		if result.Err == nil {
+			t.Fatalf("expected error from Execute()")
+		}
+		if !errors.Is(result.Err, rootErr) {
+			t.Errorf("expected result.Err to wrap rootErr, got %v", result.Err)
+		}
+		if !errors.Is(result.Err, rollbackErr) {
+			t.Errorf("expected result.Err to wrap rollbackErr, got %v", result.Err)
+		}
+	})
+}
+
+func TestExecuteRollbackBestEffortContinuesOnError(t *testing.T) {
+	order := []string{}
+	err1 := errors.New("rollback err 1")
+	err3 := errors.New("rollback err 3")
+
+	step1 := newRollbackErrorStep("step-1", &order, nil, err1)
+	step2 := newRollbackErrorStep("step-2", &order, nil, nil)
+	step3 := newRollbackErrorStep("step-3", &order, nil, err3)
+
+	stepIndex := map[string]Step{
+		"step-1": step1,
+		"step-2": step2,
+		"step-3": step3,
+	}
+
+	steps := []StepResult{
+		{StepID: "step-1", Status: StepStatusSucceeded},
+		{StepID: "step-2", Status: StepStatusSucceeded},
+		{StepID: "step-3", Status: StepStatusSucceeded},
+	}
+
+	result := ExecuteRollback(steps, stepIndex)
+
+	if result.Success {
+		t.Errorf("expected rollback result to fail")
+	}
+
+	// Should rollback in reverse order: step-3, step-2, step-1
+	wantOrder := []string{"rollback:step-3", "rollback:step-2", "rollback:step-1"}
+	if !reflect.DeepEqual(order, wantOrder) {
+		t.Errorf("execution order = %v, want %v", order, wantOrder)
+	}
+
+	if len(result.Steps) != 3 {
+		t.Fatalf("expected 3 rollback step results, got %d", len(result.Steps))
+	}
+	if result.Steps[0].Status != StepStatusFailed {
+		t.Errorf("step-3 status = %v, want Failed", result.Steps[0].Status)
+	}
+	if result.Steps[1].Status != StepStatusRolledBack {
+		t.Errorf("step-2 status = %v, want RolledBack", result.Steps[1].Status)
+	}
+	if result.Steps[2].Status != StepStatusFailed {
+		t.Errorf("step-1 status = %v, want Failed", result.Steps[2].Status)
+	}
+
+	if !errors.Is(result.Err, err1) {
+		t.Errorf("expected result.Err to wrap err1, got %v", result.Err)
+	}
+	if !errors.Is(result.Err, err3) {
+		t.Errorf("expected result.Err to wrap err3, got %v", result.Err)
+	}
+}
+

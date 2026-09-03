@@ -1,13 +1,20 @@
 package apply
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 type RollbackPolicy struct {
-	OnApplyFailure bool
+	OnPrepareFailure bool
+	OnApplyFailure   bool
 }
 
 func DefaultRollbackPolicy() RollbackPolicy {
-	return RollbackPolicy{OnApplyFailure: true}
+	return RollbackPolicy{
+		OnPrepareFailure: true,
+		OnApplyFailure:   true,
+	}
 }
 
 func (p RollbackPolicy) ShouldRollback(stage Stage, err error) bool {
@@ -15,7 +22,14 @@ func (p RollbackPolicy) ShouldRollback(stage Stage, err error) bool {
 		return false
 	}
 
-	return stage == StageApply && p.OnApplyFailure
+	switch stage {
+	case StagePrepare:
+		return p.OnPrepareFailure
+	case StageApply:
+		return p.OnApplyFailure
+	default:
+		return false
+	}
 }
 
 func ExecuteRollback(steps []StepResult, stepIndex map[string]Step) StageResult {
@@ -44,8 +58,8 @@ func ExecuteRollback(steps []StepResult, stepIndex map[string]Step) StageResult 
 			item.Err = err
 			result.Steps = append(result.Steps, item)
 			result.Success = false
-			result.Err = fmt.Errorf("rollback step %q: %w", rollbackStep.ID(), err)
-			return result
+			result.Err = errors.Join(result.Err, fmt.Errorf("rollback step %q: %w", rollbackStep.ID(), err))
+			continue
 		}
 
 		result.Steps = append(result.Steps, item)

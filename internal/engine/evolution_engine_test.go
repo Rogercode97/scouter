@@ -144,9 +144,9 @@ func TestEvolutionEngine_ProposeEvolution(t *testing.T) {
 				tt.wantPatches[i].FilePath = absPath
 			}
 
-			// Ignore Original and Diff fields for testing simplicity unless explicitly needed
+			// Ignore fields auto-populated by Stage for testing simplicity unless explicitly needed
 			opts := []cmp.Option{
-				cmpopts.IgnoreFields(engine.Patch{}, "Original", "Diff"),
+				cmpopts.IgnoreFields(engine.Patch{}, "Original", "Diff", "Mode", "IsNew"),
 			}
 			if diff := cmp.Diff(tt.wantPatches, gotPatches, opts...); diff != "" {
 				t.Errorf("Ledger patches mismatch (-want +got):\n%s", diff)
@@ -300,3 +300,149 @@ func TestEvolutionEngine_CommitAndRollbackLedger(t *testing.T) {
 		t.Errorf("Commit failed to write new content, got %q, want %q", string(content), newContent)
 	}
 }
+
+func TestEvolutionEngine_CommitRollback_NonDestructive(t *testing.T) {
+	tmpDir := t.TempDir()
+	existingFile := filepath.Join(tmpDir, "existing.sh")
+	originalContent := "#!/bin/bash\necho original"
+	fileMode := os.FileMode(0755)
+
+	if err := os.WriteFile(existingFile, []byte(originalContent), fileMode); err != nil {
+		t.Fatalf("failed to write existing file: %v", err)
+	}
+	if err := os.Chmod(existingFile, fileMode); err != nil {
+		t.Fatalf("failed to chmod existing file: %v", err)
+	}
+
+	newFile := filepath.Join(tmpDir, "new_file.txt")
+
+	// Create a bad path that will fail when applied (e.g., target path is a directory)
+	badFileDir := filepath.Join(tmpDir, "bad_dir")
+	if err := os.MkdirAll(badFileDir, 0755); err != nil {
+		t.Fatalf("failed to create bad dir: %v", err)
+	}
+	// On Linux, renaming a file over an existing directory fails with EISDIR (is a directory)
+	badFilePath := badFileDir
+
+	ledger := engine.NewLedger()
+	// 1. Stage mutation for existing file
+	if err := ledger.Stage(existingFile, engine.Patch{
+		FilePath:   existingFile,
+		NewContent: "#!/bin/bash\necho mutated",
+	}); err != nil {
+		t.Fatalf("failed to stage existing file: %v", err)
+	}
+
+	// 2. Stage mutation for new file
+	if err := ledger.Stage(newFile, engine.Patch{
+		FilePath:   newFile,
+		NewContent: "brand new content",
+	}); err != nil {
+		t.Fatalf("failed to stage new file: %v", err)
+	}
+
+	// 3. Stage mutation that fails during apply (renaming tmp file over a directory fails)
+	if err := ledger.Stage(badFilePath, engine.Patch{
+		FilePath:   badFilePath,
+		NewContent: "should fail rename",
+	}); err != nil {
+		t.Fatalf("failed to stage bad file: %v", err)
+	}
+
+	evo := engine.NewEvolutionEngine(nil, ledger, nil)
+	_, err := evo.CommitLedger(context.Background())
+	if err == nil {
+		t.Fatalf("expected CommitLedger to fail due to bad path")
+	}
+
+	// 1. Existing file MUST NOT be deleted, and MUST have its original content and 0755 mode
+	stat, err := os.Stat(existingFile)
+	if err != nil {
+		t.Fatalf("existing file was deleted during rollback: %v", err)
+	}
+	if stat.Mode() != fileMode {
+		t.Errorf("expected existing file mode %v, got %v", fileMode, stat.Mode())
+	}
+	restoredContent, err := os.ReadFile(existingFile)
+	if err != nil {
+		t.Fatalf("failed to read existing file: %v", err)
+	}
+	if string(restoredContent) != originalContent {
+		t.Errorf("expected restored content %q, got %q", originalContent, string(restoredContent))
+	}
+
+	// 2. New file MUST be unlinked (does not exist)
+	if _, err := os.Stat(newFile); !os.IsNotExist(err) {
+		t.Errorf("expected new file to be removed on rollback, but it exists")
+	}
+
+	// 3. Temporary .scouter.tmp files MUST NOT exist
+	tmpExisting := existingFile + ".scouter.tmp"
+	if _, err := os.Stat(tmpExisting); !os.IsNotExist(err) {
+		t.Errorf("temporary file %s was leaked on rollback", tmpExisting)
+	}
+	tmpNew := newFile + ".scouter.tmp"
+	if _, err := os.Stat(tmpNew); !os.IsNotExist(err) {
+		t.Errorf("temporary file %s was leaked on rollback", tmpNew)
+	}
+	tmpBad := badFilePath + ".scouter.tmp"
+	if _, err := os.Stat(tmpBad); !os.IsNotExist(err) {
+		t.Errorf("temporary file %s was leaked on rollback", tmpBad)
+	}
+}
+
+func TestEvolutionEngine_CommitRollback_ReadOnlyFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	readOnlyFile := filepath.Join(tmpDir, "a_readonly.txt")
+	originalContent := "initial read-only content"
+	fileMode := os.FileMode(0444)
+
+	if err := os.WriteFile(readOnlyFile, []byte(originalContent), fileMode); err != nil {
+		t.Fatalf("failed to write read-only file: %v", err)
+	}
+	if err := os.Chmod(readOnlyFile, fileMode); err != nil {
+		t.Fatalf("failed to chmod read-only file: %v", err)
+	}
+
+	badFileDir := filepath.Join(tmpDir, "z_bad_dir")
+	if err := os.MkdirAll(badFileDir, 0755); err != nil {
+		t.Fatalf("failed to create bad dir: %v", err)
+	}
+	badFilePath := badFileDir
+
+	ledger := engine.NewLedger()
+	if err := ledger.Stage(readOnlyFile, engine.Patch{
+		FilePath:   readOnlyFile,
+		NewContent: "mutated read-only content",
+	}); err != nil {
+		t.Fatalf("failed to stage read-only file: %v", err)
+	}
+	if err := ledger.Stage(badFilePath, engine.Patch{
+		FilePath:   badFilePath,
+		NewContent: "should fail rename",
+	}); err != nil {
+		t.Fatalf("failed to stage bad file: %v", err)
+	}
+
+	evo := engine.NewEvolutionEngine(nil, ledger, nil)
+	_, err := evo.CommitLedger(context.Background())
+	if err == nil {
+		t.Fatalf("expected CommitLedger to fail due to bad path")
+	}
+
+	stat, err := os.Stat(readOnlyFile)
+	if err != nil {
+		t.Fatalf("read-only file was deleted or missing after rollback: %v", err)
+	}
+	if stat.Mode() != fileMode {
+		t.Errorf("expected file mode %v, got %v", fileMode, stat.Mode())
+	}
+	restoredContent, err := os.ReadFile(readOnlyFile)
+	if err != nil {
+		t.Fatalf("failed to read restored file: %v", err)
+	}
+	if string(restoredContent) != originalContent {
+		t.Errorf("expected restored content %q, got %q", originalContent, string(restoredContent))
+	}
+}
+

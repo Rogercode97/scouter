@@ -143,6 +143,86 @@ func TestRippleIntegration_FullFlow(t *testing.T) {
 			t.Errorf("fileA not restored, got: %s", string(restoredA))
 		}
 	})
+
+	t.Run("Commit Failure Rollback Preserves Modes And Cleans Tmp", func(t *testing.T) {
+		// Reset files with explicit modes
+		modeA := os.FileMode(0755)
+		modeB := os.FileMode(0644)
+		if err := os.WriteFile(fileA, []byte(contentA), modeA); err != nil {
+			t.Fatalf("failed to write fileA: %v", err)
+		}
+		if err := os.Chmod(fileA, modeA); err != nil {
+			t.Fatalf("failed to chmod fileA: %v", err)
+		}
+		if err := os.WriteFile(fileB, []byte(contentB), modeB); err != nil {
+			t.Fatalf("failed to write fileB: %v", err)
+		}
+		if err := os.Chmod(fileB, modeB); err != nil {
+			t.Fatalf("failed to chmod fileB: %v", err)
+		}
+
+		re.Validators = nil // clear validators
+		ledger, err := re.Propagate(ctx, "SymA", "rename", 1)
+		if err != nil {
+			t.Fatalf("Propagate failed: %v", err)
+		}
+
+		// Stage a third patch targeting an invalid path (existing directory) to guarantee apply failure
+		badDir := filepath.Join(tempDir, "bad_dir_target")
+		if err := os.MkdirAll(badDir, 0755); err != nil {
+			t.Fatalf("failed to create badDir: %v", err)
+		}
+		if err := ledger.Stage(badDir, engine.Patch{
+			FilePath:   badDir,
+			NewContent: "will fail on rename",
+		}); err != nil {
+			t.Fatalf("failed to stage badDir: %v", err)
+		}
+
+		err = ledger.CommitStaged(ctx)
+		if err == nil {
+			t.Fatalf("expected CommitStaged to fail due to badDir collision")
+		}
+
+		// Verify existing files are preserved with content and mode
+		statA, err := os.Stat(fileA)
+		if err != nil {
+			t.Fatalf("fileA was deleted: %v", err)
+		}
+		if statA.Mode() != modeA {
+			t.Errorf("expected fileA mode %v, got %v", modeA, statA.Mode())
+		}
+		dataA, err := os.ReadFile(fileA)
+		if err != nil {
+			t.Fatalf("failed to read fileA: %v", err)
+		}
+		if string(dataA) != contentA {
+			t.Errorf("fileA content not restored, got %q, want %q", string(dataA), contentA)
+		}
+
+		statB, err := os.Stat(fileB)
+		if err != nil {
+			t.Fatalf("fileB was deleted: %v", err)
+		}
+		if statB.Mode() != modeB {
+			t.Errorf("expected fileB mode %v, got %v", modeB, statB.Mode())
+		}
+		dataB, err := os.ReadFile(fileB)
+		if err != nil {
+			t.Fatalf("failed to read fileB: %v", err)
+		}
+		if string(dataB) != contentB {
+			t.Errorf("fileB content not restored, got %q, want %q", string(dataB), contentB)
+		}
+
+		// Verify no temporary files remain
+		for _, p := range []string{fileA, fileB, badDir} {
+			tmp := p + ".scouter.tmp"
+			if _, err := os.Stat(tmp); !os.IsNotExist(err) {
+				t.Errorf("temporary staging file leaked: %s", tmp)
+			}
+		}
+	})
 }
 
 type mockValidator struct {

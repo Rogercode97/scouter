@@ -8,16 +8,21 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
+
+	"github.com/Rogercode97/scouter/internal/engine/apply"
 )
 
 // Patch represents a pending file modification.
 type Patch struct {
-	FilePath   string `json:"file_path"`
-	Original   string `json:"original,omitempty"`
-	NewContent string `json:"new_content"`
-	Diff       string `json:"diff,omitempty"`
+	FilePath   string      `json:"file_path"`
+	Original   string      `json:"original,omitempty"`
+	NewContent string      `json:"new_content"`
+	Diff       string      `json:"diff,omitempty"`
+	Mode       os.FileMode `json:"mode,omitempty"`
+	IsNew      bool        `json:"is_new,omitempty"`
 }
 
 // MissionStats tracks the resource consumption of the current operation.
@@ -107,6 +112,31 @@ func (l *Ledger) SetBudget(kiLimit int64, turnLimit int) {
 
 // Stage adds a patch to the ledger and saves to disk.
 func (l *Ledger) Stage(path string, patch Patch) error {
+	if patch.FilePath == "" {
+		patch.FilePath = path
+	}
+
+	if info, err := os.Stat(path); err == nil {
+		patch.IsNew = false
+		if patch.Original == "" && !info.IsDir() {
+			data, rerr := os.ReadFile(path)
+			if rerr != nil {
+				if !errors.Is(rerr, os.ErrNotExist) && !os.IsNotExist(rerr) {
+					return rerr
+				}
+			} else {
+				patch.Original = string(data)
+			}
+		}
+		if patch.Mode == 0 {
+			patch.Mode = info.Mode()
+		}
+	} else if errors.Is(err, os.ErrNotExist) || os.IsNotExist(err) {
+		patch.IsNew = true
+	} else {
+		return err
+	}
+
 	l.mu.Lock()
 
 	if l.Stats.TurnCount > l.TurnLimit && l.TurnLimit > 0 {
@@ -173,54 +203,50 @@ func (l *Ledger) StagedFiles() []string {
 	return files
 }
 
+func (l *Ledger) buildCommitPlan() apply.StagePlan {
+	plan := apply.StagePlan{
+		Prepare: make([]apply.Step, 0, len(l.Staged)),
+		Apply:   make([]apply.Step, 0, len(l.Staged)),
+	}
+
+	paths := make([]string, 0, len(l.Staged))
+	for path := range l.Staged {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	for _, path := range paths {
+		patch := l.Staged[path]
+		plan.Prepare = append(plan.Prepare, &preparePatchStep{path: patch.FilePath, patch: patch})
+		plan.Apply = append(plan.Apply, &applyPatchStep{
+			path:     patch.FilePath,
+			original: patch.Original,
+			mode:     patch.Mode,
+			isNew:    patch.IsNew,
+		})
+	}
+	return plan
+}
+
 // CommitStaged applies all staged changes to the filesystem atomically using a two-phase commit.
 func (l *Ledger) CommitStaged(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	var tmpFiles []string
-
-	cleanup := func() error {
-		var cleanupErrs []error
-		for _, tmpPath := range tmpFiles {
-			if err := os.Remove(tmpPath); err != nil && !os.IsNotExist(err) {
-				cleanupErrs = append(cleanupErrs, fmt.Errorf("failed to clean up %s: %w", tmpPath, err))
-			}
-		}
-		if len(cleanupErrs) > 0 {
-			return errors.Join(cleanupErrs...)
-		}
+	if len(l.Staged) == 0 {
 		return nil
 	}
 
-	// Phase 1: Preparation
-	for path, patch := range l.Staged {
-		select {
-		case <-ctx.Done():
-			_ = cleanup()
-			return ctx.Err()
-		default:
-		}
+	plan := l.buildCommitPlan()
 
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-			cerr := cleanup()
-			return fmt.Errorf("failed to create directory for %s: %w (cleanup: %v)", path, err, cerr)
-		}
-
-		tmpPath := path + ".scouter.tmp"
-		if err := os.WriteFile(tmpPath, []byte(patch.NewContent), 0644); err != nil {
-			cerr := cleanup()
-			return fmt.Errorf("failed to write temp file for %s: %w (cleanup: %v)", path, err, cerr)
-		}
-		tmpFiles = append(tmpFiles, tmpPath)
-	}
-
-	// Phase 2: Atomic Commit
-	for path := range l.Staged {
-		tmpPath := path + ".scouter.tmp"
-		if err := os.Rename(tmpPath, path); err != nil {
-			return fmt.Errorf("CRITICAL: failed to rename %s to %s. State may be corrupted: %w", tmpPath, path, err)
-		}
+	orch := apply.NewOrchestrator(apply.DefaultRollbackPolicy())
+	res := orch.Execute(plan)
+	if res.Err != nil {
+		return fmt.Errorf("commit failed: %w", res.Err)
 	}
 
 	// Clear ledger and remove file after successful commit
