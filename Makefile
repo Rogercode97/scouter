@@ -9,7 +9,7 @@ all: clean build
 build:
 	@mkdir -p $(BIN_DIR)
 	@echo "Building Scouter for Production..."
-	@go build -o $(BIN_DIR)/$(APP_NAME) ./cmd/scouter
+	@CGO_ENABLED=0 go build -o $(BIN_DIR)/$(APP_NAME) ./cmd/scouter
 	@echo "Build complete: $(BIN_DIR)/$(APP_NAME)"
 
 clean:
@@ -20,4 +20,4 @@ run:
 	@go run ./cmd/scouter
 
 test:
-	@go test ./...
+	@CGO_ENABLED=0 go test ./...

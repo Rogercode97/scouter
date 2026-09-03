@@ -7,11 +7,11 @@ run target="":
 
 # Build the binary
 build:
-    go build -o bin/scouter ./cmd/scouter
+    CGO_ENABLED=0 go build -o bin/scouter ./cmd/scouter
 
 # Run tests
 test:
-    go test -v ./...
+    CGO_ENABLED=0 go test -v ./...
 
 # Format code
 fmt:
