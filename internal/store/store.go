@@ -111,6 +111,14 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 		dbRead.SetMaxOpenConns(runtime.NumCPU() * 2)
 	}
 
+	unlock, err := AcquireStoreLock(dbPath)
+	if err != nil {
+		dbRead.Close()
+		dbWrite.Close()
+		return nil, fmt.Errorf("failed to acquire store lock: %w", err)
+	}
+	defer unlock()
+
 	tx, err := dbWrite.BeginTx(ctx, nil)
 	if err != nil {
 		dbRead.Close()

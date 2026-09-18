@@ -29,6 +29,7 @@ __debug_bin
 *.db-journal
 *.db-wal
 *.db-shm
+*.lock
 
 # === EXPORT & ARTIFACTS ===
 scouter-export.json
