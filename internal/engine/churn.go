@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/Rogercode97/scouter/internal/store"
-	"github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/plumbing/object"
-	"github.com/go-git/go-git/v6/plumbing/storer"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/storer"
 )
 
 // ChurnStore defines the data requirements for the ChurnEngine.

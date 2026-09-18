@@ -13,7 +13,7 @@
   - Verification: `CGO_ENABLED=0 go test ./...` passes without inotify leaks or background watcher threads.
   - Review: `gentle-ai review assess` -> `gentle-ai review start` -> Commit (Approved, Lineage `review-7ac6947718a62214`).
 
-- [ ] **WU-2: Unificación de Git Engine**
+- [x] **WU-2: Unificación de Git Engine**
   - Scope: Migrate `internal/engine/churn.go` from `go-git/v6` to `go-git/v5`. Prune `v6` from `go.mod`.
   - Verification: `CGO_ENABLED=0 go test ./internal/engine/...` passes.
   - Review: `gentle-ai review assess` -> `gentle-ai review start` -> Commit.
