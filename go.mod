@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/cinar/resile v1.0.5
 	github.com/dominikbraun/graph v0.23.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/go-playground/validator/v10 v10.30.3
 	github.com/google/go-cmp v0.7.0
@@ -21,7 +22,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/mod v0.37.0
-	golang.org/x/sync v0.21.0
+	golang.org/x/sync v0.22.0
 	golang.org/x/tools v0.46.0
 	gopkg.in/yaml.v3 v3.0.1
 )
