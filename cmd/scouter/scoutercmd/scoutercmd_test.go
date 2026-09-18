@@ -20,3 +20,17 @@ func TestRunRejectsCd(t *testing.T) {
 		t.Errorf("Execute(cd) should fail, got %d", code)
 	}
 }
+
+func TestIndexHelpExecution(t *testing.T) {
+	ctx := context.Background()
+
+	fOut, _ := os.CreateTemp("", "out")
+	defer os.Remove(fOut.Name())
+	fErr, _ := os.CreateTemp("", "err")
+	defer os.Remove(fErr.Name())
+
+	code := Execute(ctx, []string{"index", "--help"}, fOut, fErr)
+	if code != 0 {
+		t.Errorf("Execute(index --help) should succeed, got %d", code)
+	}
+}

@@ -34,8 +34,10 @@ var indexCmd = &cobra.Command{
 		defer lspMgr.Close()
 
 		var semanticEngine engine.Embedder
-		if se, _ := engine.NewSemanticEngine(); se != nil {
-			semanticEngine = se
+		if deep {
+			if se, _ := engine.NewSemanticEngine(); se != nil {
+				semanticEngine = se
+			}
 		}
 		analyzer := engine.NewAnalysisEngine(db)
 		searchEngine := engine.NewSearchEngine(db, nil, nil)

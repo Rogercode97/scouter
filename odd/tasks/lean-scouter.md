@@ -18,7 +18,7 @@
   - Verification: `CGO_ENABLED=0 go test ./internal/engine/...` passes.
   - Review: `gentle-ai review assess` -> `gentle-ai review start` -> Commit.
 
-- [ ] **WU-3: Indexer Ligero (Sin Embeddings Obligatorios)**
+- [x] **WU-3: Indexer Ligero (Sin Embeddings Obligatorios)**
   - Scope: Decouple mandatory `goformer` inference from `internal/engine/indexer.go`. Ensure `scouter index` runs in <3s with <50MB RAM.
   - Verification: Benchmark / test `scouter index` locally.
   - Review: `gentle-ai review assess` -> `gentle-ai review start` -> Commit.
