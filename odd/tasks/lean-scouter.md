@@ -23,7 +23,7 @@
   - Verification: Benchmark / test `scouter index` locally.
   - Review: `gentle-ai review assess` -> `gentle-ai review start` -> Commit.
 
-- [ ] **WU-4: Binario en $PREFIX/bin y Skill CLI**
+- [x] **WU-4: Binario en $PREFIX/bin y Skill CLI**
   - Scope: Compile and install binary to `/data/data/com.termux/files/usr/bin/scouter`. Update `~/.gemini/config/skills/scouter/SKILL.md` and `AGENTS.md`.
   - Verification: `scouter --version` and CLI execution tests.
   - Review: `gentle-ai review assess` -> `gentle-ai review start` -> Commit.
