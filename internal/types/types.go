@@ -145,3 +145,23 @@ type HealResult struct {
 	TestOutput string            `json:"test_output"`
 	Metadata   map[string]string `json:"metadata"`
 }
+
+type EditCost struct {
+	Files   int    `json:"files"`
+	Cascade int    `json:"cascade"`
+	Tokens  int    `json:"tokens"`
+	Risk    string `json:"risk"` // low, medium, high
+}
+
+type FileContextResult struct {
+	File             string   `json:"file"`
+	LOC              int      `json:"loc"`
+	Symbols          int      `json:"symbols"`
+	DirectDependents []string `json:"direct_dependents"`
+	TransitiveImpact int      `json:"transitive_impact"`
+	ChurnScore       float64  `json:"churn_score"`
+	EditCost         EditCost `json:"edit_cost"`
+	TestHints        []string `json:"test_hints"`
+	Verdict          string   `json:"verdict"` // safe, caution, danger
+}
+

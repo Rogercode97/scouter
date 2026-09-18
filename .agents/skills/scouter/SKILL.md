@@ -35,6 +35,7 @@ Output: Verified code artifacts.
 | Task | Tool / Command | Context |
 |---|---|---|
 | Search/Symbols | `scouter search <q>` (or `codegraph explore`) | AST symbol lookup |
+| Context Packet | `scouter context <file> [-u]` | Single-shot agent context (dependents, blast radius, edit cost) |
 | Structural Maps | `codegraph callers`, `codegraph callees` | Deep knowledge graph traversal |
 | Blast Radius | `scouter impact <sym>` | Map recursive CTE dependencies |
 | Hotspots / Churn | `scouter critical` | PageRank + Git Churn risk |

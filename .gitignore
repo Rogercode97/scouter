@@ -7,6 +7,7 @@
 .atl/
 *.log
 session_summary.md
+.agents/handoff.*
 
 # === BINARIES ===
 # Root-level binaries only (prevents ignoring cmd/scouter/)

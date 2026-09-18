@@ -34,3 +34,18 @@ func TestIndexHelpExecution(t *testing.T) {
 		t.Errorf("Execute(index --help) should succeed, got %d", code)
 	}
 }
+
+func TestContextHelpExecution(t *testing.T) {
+	ctx := context.Background()
+
+	fOut, _ := os.CreateTemp("", "out")
+	defer os.Remove(fOut.Name())
+	fErr, _ := os.CreateTemp("", "err")
+	defer os.Remove(fErr.Name())
+
+	code := Execute(ctx, []string{"context", "--help"}, fOut, fErr)
+	if code != 0 {
+		t.Errorf("Execute(context --help) should succeed, got %d", code)
+	}
+}
+
