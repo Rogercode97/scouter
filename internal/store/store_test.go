@@ -9,8 +9,9 @@ import (
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/utils"
-	_ "github.com/asg017/sqlite-vec-go-bindings/ncruces"
-	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "modernc.org/sqlite/vec"
+	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite/vec"
 )
 
 func TestStoreSearch(t *testing.T) {
@@ -621,7 +622,7 @@ func TestStore_Migration(t *testing.T) {
 	// after the path, "?" included, as part of the filename, and the old schema
 	// lands in a stray file while NewStore creates a fresh DB next to it.
 	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)", dbPath)
-	db, err := sql.Open("sqlite3", dsn)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		t.Fatalf("Failed to open db: %v", err)
 	}

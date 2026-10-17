@@ -85,7 +85,7 @@ func pragmaColumns(q interface {
 
 func writeOldDatabase(t testing.TB, dbPath string) {
 	t.Helper()
-	db, err := sql.Open("sqlite3", "file:"+dbPath+"?_pragma=foreign_keys(1)")
+	db, err := sql.Open("sqlite", "file:"+dbPath+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatalf("open old db: %v", err)
 	}

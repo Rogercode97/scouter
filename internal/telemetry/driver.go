@@ -3,8 +3,9 @@
 package telemetry
 
 import (
-	_ "github.com/asg017/sqlite-vec-go-bindings/ncruces"
-	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "modernc.org/sqlite/vec"
+	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite/vec"
 )
 
 // DriverAvailable indicates whether the SQLite driver is compiled in.
