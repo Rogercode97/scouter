@@ -92,3 +92,48 @@ func FuzzSafeCommand(f *testing.F) {
 		}
 	})
 }
+
+// TestSafeCommandRejectsInjectedFlags covers S7 (CWE-88, the previously open
+// S6 gap). A flag the binary does not need can turn an allow-listed program
+// into a code-loading vector: `git diff --upload-pack=/bin/sh` runs a shell.
+// The policy is that a token starting with "-" is either an allowed flag for
+// that binary or it is rejected, so the flags the three production callers
+// actually pass keep working and nothing else gets through.
+func TestSafeCommandRejectsInjectedFlags(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name    string
+		binary  string
+		args    []string
+		wantErr bool
+	}{
+		{"git upload-pack, the S6 example", "git", []string{"diff", "HEAD", "--upload-pack=/bin/sh"}, true},
+		{"git output redirected to a file", "git", []string{"diff", "HEAD", "--output=/tmp/leak"}, true},
+		{"git short flag", "git", []string{"-c", "core.pager=sh"}, true},
+		{"rtk unknown flag", "rtk", []string{"read", "a.go", "--exec=sh"}, true},
+		{"ast-grep unknown flag", "ast-grep", []string{"run", "--pattern", "p", "--stdin"}, true},
+		{"go has no allowed flags", "go", []string{"test", "./...", "--exec=/bin/sh"}, true},
+		{"flag-shaped value after an allowed flag", "rtk", []string{"read", "a.go", "--pointer", "--upload-pack=/bin/sh"}, true},
+		{"caller git still works", "git", []string{"diff", "HEAD", "--unified=0"}, false},
+		{"caller rtk still works", "rtk", []string{"read", "a.go", "--pointer", "p", "--ultra-compact"}, false},
+		{"caller sg still works", "sg", []string{"run", "--pattern", "p", "--rewrite", "r", "a.go"}, false},
+		{"caller ast-grep still works", "ast-grep", []string{"run", "--pattern", "p", "--rewrite", "r", "a.go"}, false},
+		{"allowed flag with attached value", "git", []string{"diff", "HEAD", "--unified=3"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd, err := SafeCommand(ctx, tt.binary, tt.args...)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("SafeCommand(%q, %v) error = %v, wantErr %v", tt.binary, tt.args, err, tt.wantErr)
+			}
+			if tt.wantErr && err != nil {
+				return
+			}
+			if cmd == nil {
+				t.Fatalf("SafeCommand(%q, %v) returned a nil command without error", tt.binary, tt.args)
+			}
+		})
+	}
+}
