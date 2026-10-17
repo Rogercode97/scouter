@@ -141,7 +141,7 @@ Scouter relies on a strict internal modular structure:
 - `internal/engine/`: The core analytical brains, handling search, impact, refactoring, and automated healing.
 - `internal/store/`: The data persistence layer (SQLite in a WASM sandbox, Bleve).
 - `internal/mcp/`: The MCP server, handler logic, and tool registrations.
-- `openspec/`: Architectural specifications and conventions.
+- `odd/tasks/`: Organic Driven Development feature documents (specs, tasks, evidence).
 
 **Core Invariant**: Validation is finality. No destructive mutation is ever applied directly to disk without first passing through the Staging Ledger and surviving a comprehensive Impact Analysis.
 

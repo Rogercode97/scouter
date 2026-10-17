@@ -14,7 +14,7 @@ Scouter is a structural intelligence engine. The center of the product is a Go b
 | Change core analysis logic | `internal/engine/truth.go` | `internal/engine/AGENTS.md`, `internal/engine/*_test.go` |
 | Change AST parsing or storage | `internal/store/store.go` | `internal/engine/treesitter.go` |
 | Change CLI output formatting | `internal/display/display.go` | `internal/display/density.go` |
-| Prepare or review a large feature | `openspec/changes/*` | `CONTRIBUTING.md`, `openspec/specs/*` |
+| Prepare or review a large feature | `odd/tasks/*.md` | `CONTRIBUTING.md`, `AGENTS.md` |
 
 ## 📂 Repository Structure
 
@@ -27,7 +27,7 @@ Scouter is a structural intelligence engine. The center of the product is a Go b
 | `internal/store` | Persistence layer and data management. | SQLite integration, indexing logic. |
 | `internal/adapters`| External service integrations and adapters. | Memory and third-party service providers. |
 | `internal/display` | Output formatting and user interface logic. | CLI rendering, data serialization. |
-| `openspec` | Specification-Driven Development (SDD) documentation. | Project specifications and task tracking. |
+| `odd` | Organic Driven Development (ODD) feature documents. | `odd/tasks/*.md`: specs (numbered `S#`), one line per task, and the evidence log. |
 
 ## 🚀 Key Data Flows
 
