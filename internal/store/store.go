@@ -363,7 +363,22 @@ func (s *storeImpl) SaveSymbolsBulk(ctx context.Context, symbols []*Symbol) erro
 	return nil
 }
 
+// validatePathPrefix rejects a prefix that cannot match a stored path. The
+// indexer stores absolute paths, so a relative prefix can only ever produce an
+// empty result — and an empty result is indistinguishable from a query with no
+// matches. Callers mean "" for "no path restriction"; anything else has to be an
+// absolute path or the store refuses to guess.
+func validatePathPrefix(pathPrefix string) error {
+	if pathPrefix == "" || filepath.IsAbs(pathPrefix) {
+		return nil
+	}
+	return fmt.Errorf("path prefix must be absolute, got %q; stored paths are absolute", pathPrefix)
+}
+
 func (s *storeImpl) SearchSymbols(ctx context.Context, q, t, pathPrefix string, limit, offset int) ([]Symbol, error) {
+	if err := validatePathPrefix(pathPrefix); err != nil {
+		return nil, err
+	}
 	safe := utils.SanitizeFTS(q)
 	if safe == "" {
 		return nil, nil
@@ -454,6 +469,10 @@ func (s *storeImpl) GetSymbolsByStructuralHash(ctx context.Context, hash string)
 }
 func (s *storeImpl) SearchSymbolsWeighted(ctx context.Context, q, t, pathPrefix string) iter.Seq2[Symbol, error] {
 	return func(yield func(Symbol, error) bool) {
+		if err := validatePathPrefix(pathPrefix); err != nil {
+			yield(Symbol{}, err)
+			return
+		}
 		safe := utils.SanitizeFTS(q)
 		if safe == "" {
 			return
@@ -1208,6 +1227,9 @@ const (
 )
 
 func (s *storeImpl) SearchHybrid(ctx context.Context, textQuery string, queryEmbedding []float32, pathPrefix string, limit int) ([]Symbol, error) {
+	if err := validatePathPrefix(pathPrefix); err != nil {
+		return nil, err
+	}
 	vecData, err := vec.SerializeFloat32(queryEmbedding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize embedding: %w", err)

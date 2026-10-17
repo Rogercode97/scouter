@@ -269,7 +269,8 @@ func (e *DiagnosticEngine) DiagnoseHUD(ctx context.Context, errorLog string) (*D
 	similarPath := "None"
 	if symbol != "Unknown" && e.search != nil {
 		// Usamos HybridSearch para encontrar Logical Twins
-		searchRes, err := e.search.HybridSearch(ctx, symbol, 10, 0, ".")
+		// "" means no path restriction: the index is already per project.
+		searchRes, err := e.search.HybridSearch(ctx, symbol, 10, 0, "")
 		if err == nil && searchRes != nil {
 			for _, sym := range searchRes.Symbols {
 				if sym.Path != failingFile {

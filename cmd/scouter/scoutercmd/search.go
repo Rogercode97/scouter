@@ -28,7 +28,9 @@ var searchCmd = &cobra.Command{
 		query := args[0]
 		search := engine.NewSearchEngine(db, nil, nil)
 
-		results, err := search.HybridSearch(cmd.Context(), query, 10, 0, ".")
+		// "" means no path restriction. Stored paths are absolute, so any other
+		// prefix has to be absolute too, or the store rejects it.
+		results, err := search.HybridSearch(cmd.Context(), query, 10, 0, "")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "search error: %v\n", err)
 			os.Exit(1)
