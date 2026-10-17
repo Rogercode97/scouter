@@ -11,9 +11,9 @@ Scouter is the tactical visor for your AI coding agents. While memory systems pr
 
 ## Overview
 
-Scouter is a high-performance, CGO-free, **single-binary CLI engine**. It uses Tree-sitter for code parsing, indexes structures into SQLite (WASM sandbox) and Bleve, and answers structural questions on demand: blast radius, symbol centrality, git churn risk, and safe multi-file mutation through a Staging Ledger.
+Scouter is a high-performance, CGO-free, **single-binary CLI engine**. It uses Tree-sitter for code parsing, indexes structures into SQLite (`modernc.org/sqlite` with `sqlite-vec` embeddings), and answers structural questions on demand: blast radius, symbol centrality, git churn risk, and safe multi-file mutation through a Staging Ledger.
 
-It runs strictly as an **on-demand CLI**: no background daemons, no file watchers. This keeps memory flat and preserves inotify handles on constrained devices such as Termux. Complementing it, [CodeGraph](https://github.com/colbymchenry/codegraph) acts as the fast knowledge-graph reader for symbol exploration.
+It runs strictly as an **on-demand CLI**: no background daemons, no file watchers. This keeps memory flat and preserves inotify handles across environments. Complementing it, [CodeGraph](https://github.com/colbymchenry/codegraph) acts as the fast knowledge-graph reader for symbol exploration.
 
 A Model Context Protocol server is also shipped for agents that prefer a tool-call surface over shelling out. The CLI remains the primary and fully supported interface.
 
@@ -139,7 +139,7 @@ Scouter relies on a strict internal modular structure:
 - `cmd/scouter/scoutercmd/`: The modular CLI command definitions (Cobra).
 - `cmd/scouter/`: The application entry point (`main.go`).
 - `internal/engine/`: The core analytical brains, handling search, impact, refactoring, and automated healing.
-- `internal/store/`: The data persistence layer (SQLite in a WASM sandbox, Bleve).
+- `internal/store/`: The data persistence layer (pure-Go SQLite with FTS5 and vector extensions).
 - `internal/mcp/`: The MCP server, handler logic, and tool registrations.
 - `odd/tasks/`: Organic Driven Development feature documents (specs, tasks, evidence).
 

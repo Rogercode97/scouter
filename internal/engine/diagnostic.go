@@ -196,7 +196,7 @@ type DiagnosticHUD struct {
 	SimilarPatternPath string
 }
 
-// DiagnoseHUD ejecuta la visión de diagnóstico combinando Git, AST, Impacto y Bleve.
+// DiagnoseHUD ejecuta la visión de diagnóstico combinando Git, AST, Impacto y FTS.
 // Retorna la representación del HUD en formato ZON.
 func (e *DiagnosticEngine) DiagnoseHUD(ctx context.Context, errorLog string) (*DiagnosticHUD, error) {
 	if errorLog == "" {
