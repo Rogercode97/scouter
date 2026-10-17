@@ -98,6 +98,7 @@ bench_result.txt
 output_bench.txt
 
 # SDD & OpenSpec
+openspec/
 *.db
 *?_pragma*
 .models/
