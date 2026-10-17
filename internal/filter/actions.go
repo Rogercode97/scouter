@@ -797,7 +797,16 @@ func toStringSlice(v any) ([]string, bool) {
 	}
 }
 
-var GoTestFailureRegex = regexp.MustCompile(`^\s+([a-zA-Z0-9_/.]+\.go):(\d+):`)
+// Any character except the delimiters, matched lazily so the first reference on
+// the line wins: a failure message can mention further file:line pairs of its
+// own, and a greedy class would capture up to the last one. The class used to
+// admit only [a-zA-Z0-9_/.], which made failure identification — and with it the
+// whole diagnostic path — blind in any repository checked out under a path
+// containing a hyphen or a space.
+//
+// Known limit: a path carrying a colon, such as a Windows drive letter, still
+// does not match. It did not match before either.
+var GoTestFailureRegex = regexp.MustCompile(`^\s+([^:\n]+?\.go):(\d+):`)
 
 func semanticPurify(ctx context.Context, input ActionResult, params map[string]any) (ActionResult, error) {
 	if input.Resolver == nil {
