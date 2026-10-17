@@ -12,8 +12,9 @@ import (
 	"github.com/Rogercode97/scouter/internal/adapters/engram"
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/store"
-	_ "github.com/asg017/sqlite-vec-go-bindings/ncruces"
-	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "modernc.org/sqlite/vec"
+	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite/vec"
 )
 
 // MockDistiller for integration testing
@@ -41,7 +42,7 @@ func TestDream_PassiveIntegration(t *testing.T) {
 	defer os.RemoveAll(tmpDB)
 	dbPath := filepath.Join(tmpDB, "engram.db")
 
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatalf("failed to open sqlite: %v", err)
 	}
@@ -86,7 +87,7 @@ func TestDream_PassiveIntegration(t *testing.T) {
 	}
 
 	// 4. Verify observation was saved
-	db, err = sql.Open("sqlite3", dbPath)
+	db, err = sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatalf("failed to open sqlite for verification: %v", err)
 	}

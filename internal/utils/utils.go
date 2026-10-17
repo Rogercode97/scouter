@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"regexp"
@@ -29,6 +30,15 @@ func ExtractCodeBlock(s string) string {
 		return strings.TrimSpace(match[1])
 	}
 	return strings.TrimSpace(s)
+}
+
+// SerializeFloat32 serializes a float32 slice to little-endian bytes for sqlite-vec.
+func SerializeFloat32(vector []float32) ([]byte, error) {
+	buf := make([]byte, len(vector)*4)
+	for i, f := range vector {
+		binary.LittleEndian.PutUint32(buf[i*4:], math.Float32bits(f))
+	}
+	return buf, nil
 }
 
 var ansiRe = NewLazyRegex(`\x1b\[[0-9;]*[a-zA-Z]`)

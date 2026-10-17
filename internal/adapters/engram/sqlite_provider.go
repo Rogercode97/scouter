@@ -12,8 +12,9 @@ import (
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
-	_ "github.com/asg017/sqlite-vec-go-bindings/ncruces"
-	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "modernc.org/sqlite/vec"
+	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite/vec"
 )
 
 /**
@@ -58,7 +59,7 @@ func (p *SQLiteMemoryProvider) openDB(ctx context.Context, readOnly bool) (*sql.
 		dsn = fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)", p.dbPath)
 	}
 
-	db, err := sql.Open("sqlite3", dsn)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}

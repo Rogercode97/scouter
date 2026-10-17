@@ -14,8 +14,8 @@ import (
 
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
-	vec "github.com/asg017/sqlite-vec-go-bindings/ncruces"
-	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite/vec"
 )
 
 type Flow struct {
@@ -76,7 +76,7 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 	if strings.Contains(dbPath, ":memory:") {
 		// For in-memory databases, we must share the exact same connection pool
 		// between read and write to prevent "no such table" isolation errors.
-		dbWrite, err = sql.Open("sqlite3", ":memory:")
+		dbWrite, err = sql.Open("sqlite", ":memory:")
 		if err != nil {
 			return nil, fmt.Errorf("failed to open memory database: %w", err)
 		}
@@ -95,7 +95,7 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 
 		// Write pool
 		dsnWrite := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=temp_store(MEMORY)&_pragma=cache_size(-10000)&_txlock=immediate", dsn, separator)
-		dbWrite, err = sql.Open("sqlite3", dsnWrite)
+		dbWrite, err = sql.Open("sqlite", dsnWrite)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open write database: %w", err)
 		}
@@ -103,7 +103,7 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 
 		// Read pool
 		dsnRead := fmt.Sprintf("%s%s_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=temp_store(MEMORY)&_pragma=cache_size(-10000)", dsn, separator)
-		dbRead, err = sql.Open("sqlite3", dsnRead)
+		dbRead, err = sql.Open("sqlite", dsnRead)
 		if err != nil {
 			dbWrite.Close()
 			return nil, fmt.Errorf("failed to open read database: %w", err)
@@ -1230,7 +1230,7 @@ func (s *storeImpl) SearchHybrid(ctx context.Context, textQuery string, queryEmb
 	if err := validatePathPrefix(pathPrefix); err != nil {
 		return nil, err
 	}
-	vecData, err := vec.SerializeFloat32(queryEmbedding)
+	vecData, err := utils.SerializeFloat32(queryEmbedding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize embedding: %w", err)
 	}
@@ -1342,7 +1342,7 @@ type CriticalSymbol struct {
 }
 
 func (s *storeImpl) InsertSemanticVector(ctx context.Context, symbolID int64, embedding []float32) error {
-	vecData, err := vec.SerializeFloat32(embedding)
+	vecData, err := utils.SerializeFloat32(embedding)
 	if err != nil {
 		return fmt.Errorf("failed to serialize embedding: %w", err)
 	}
@@ -1355,7 +1355,7 @@ func (s *storeImpl) InsertSemanticVector(ctx context.Context, symbolID int64, em
 }
 
 func (s *storeImpl) SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int) ([]Symbol, error) {
-	vecData, err := vec.SerializeFloat32(queryEmbedding)
+	vecData, err := utils.SerializeFloat32(queryEmbedding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize embedding: %w", err)
 	}

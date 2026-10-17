@@ -9,8 +9,9 @@ import (
 
 	"github.com/Rogercode97/scouter/internal/store"
 	"github.com/Rogercode97/scouter/internal/telemetry/ingest"
-	_ "github.com/asg017/sqlite-vec-go-bindings/ncruces"
-	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "modernc.org/sqlite/vec"
+	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite/vec"
 )
 
 func TestRuntimeBridgeE2E(t *testing.T) {
@@ -66,7 +67,7 @@ func TestRuntimeBridgeE2E(t *testing.T) {
 	// Wait for any async routines if there are any (Ingest is synchronous based on phase 2 though)
 
 	// Verify the usage record was stored for TestTargetFunc by connecting directly with sql.DB
-	sqlDB, err := sql.Open("sqlite3", dbPath)
+	sqlDB, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatalf("Failed to open DB: %v", err)
 	}
