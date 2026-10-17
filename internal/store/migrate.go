@@ -183,20 +183,25 @@ func migrate(ctx context.Context, tx *sql.Tx) error {
 // converged database produces no statement at all.
 func convergeSchema(ctx context.Context, tx *sql.Tx) error {
 	for _, table := range schemaOrder {
-		for _, def := range schemaColumns[table] {
-			has, err := hasColumn(ctx, tx, table, def.name)
-			if err != nil {
-				return fmt.Errorf("checking %s.%s: %w", table, def.name, err)
-			}
-			if has {
+		defs := schemaColumns[table]
+		if len(defs) == 0 {
+			continue
+		}
+		existing, err := tableColumns(ctx, tx, table)
+		if err != nil {
+			return fmt.Errorf("reading columns of %s: %w", table, err)
+		}
+		for _, def := range defs {
+			if existing[def.name] {
 				continue
 			}
 			if def.ddl == "" {
 				return fmt.Errorf("adding %s.%s: no definition in schema", table, def.name)
 			}
-			// #nosec G201 -- table and column are both validated by hasColumn
-			// against the closed set parsed from the embedded schema, and the
-			// definition text comes from that same embedded schema.
+			// #nosec G201 -- table is validated by tableColumns against the
+			// closed set parsed from the embedded schema, the column name came
+			// from that same schema, and the definition text is emitted verbatim
+			// from it.
 			stmt := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, def.name, def.ddl)
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				return fmt.Errorf("adding %s.%s: %w", table, def.name, err)
@@ -206,22 +211,43 @@ func convergeSchema(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
-func hasColumn(ctx context.Context, tx *sql.Tx, table, column string) (bool, error) {
+// tableColumns reads every column of one table in a single query. Resolving one
+// column at a time costs a query per column, and this runs on every open: the
+// CLI pays it on each invocation, so the whole table is read once and diffed in
+// memory instead.
+func tableColumns(ctx context.Context, tx *sql.Tx, table string) (map[string]bool, error) {
 	if !schemaTables[table] {
-		return false, fmt.Errorf("unknown table: %s", table)
+		return nil, fmt.Errorf("unknown table: %s", table)
 	}
+
+	query := fmt.Sprintf("SELECT name FROM pragma_table_info('%s')", table)
+	rows, err := tx.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("querying pragma_table_info for %s: %w", table, err)
+	}
+	defer rows.Close()
+
+	columns := map[string]bool{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("scanning column of %s: %w", table, err)
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("reading columns of %s: %w", table, err)
+	}
+	return columns, nil
+}
+
+func hasColumn(ctx context.Context, tx *sql.Tx, table, column string) (bool, error) {
 	if !identifierRe.MatchString(column) {
 		return false, fmt.Errorf("invalid column name: %s", column)
 	}
-
-	query := fmt.Sprintf("SELECT 1 FROM pragma_table_info('%s') WHERE name = ?", table)
-	var dummy int
-	err := tx.QueryRowContext(ctx, query, column).Scan(&dummy)
-	if err == nil {
-		return true, nil
+	columns, err := tableColumns(ctx, tx, table)
+	if err != nil {
+		return false, err
 	}
-	if err == sql.ErrNoRows {
-		return false, nil
-	}
-	return false, fmt.Errorf("querying pragma_table_info for %s: %w", table, err)
+	return columns[column], nil
 }

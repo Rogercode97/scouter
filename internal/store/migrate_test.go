@@ -83,7 +83,7 @@ func pragmaColumns(q interface {
 	return cols, rows.Err()
 }
 
-func writeOldDatabase(t *testing.T, dbPath string) {
+func writeOldDatabase(t testing.TB, dbPath string) {
 	t.Helper()
 	db, err := sql.Open("sqlite3", "file:"+dbPath+"?_pragma=foreign_keys(1)")
 	if err != nil {
@@ -317,5 +317,51 @@ CREATE TABLE second (only TEXT);
 	}
 	if len(got["second"]) != 1 || got["second"][0].name != "only" {
 		t.Errorf("second = %v, want exactly [only]", columnNames(got["second"]))
+	}
+}
+
+// Pins the cost convergence adds to every store open. `scouter` is a CLI that
+// opens the store once per invocation, so this is a per-command tax and a
+// regression here is invisible in the functional tests. Reading the columns one
+// query at a time cost ~2.7 ms per open; reading each table once keeps it well
+// under a millisecond.
+func BenchmarkNewStoreOpen(b *testing.B) {
+	ctx := context.Background()
+	dbPath := filepath.Join(b.TempDir(), "bench.db")
+
+	first, err := NewStore(ctx, dbPath)
+	if err != nil {
+		b.Fatalf("initial NewStore: %v", err)
+	}
+	first.Close()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s, err := NewStore(ctx, dbPath)
+		if err != nil {
+			b.Fatalf("NewStore: %v", err)
+		}
+		s.Close()
+	}
+}
+
+func BenchmarkNewStoreOpenOLDDatabase(b *testing.B) {
+	ctx := context.Background()
+	dbPath := filepath.Join(b.TempDir(), "bench-old.db")
+	writeOldDatabase(b, dbPath)
+
+	first, err := NewStore(ctx, dbPath)
+	if err != nil {
+		b.Fatalf("initial NewStore: %v", err)
+	}
+	first.Close()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s, err := NewStore(ctx, dbPath)
+		if err != nil {
+			b.Fatalf("NewStore: %v", err)
+		}
+		s.Close()
 	}
 }
