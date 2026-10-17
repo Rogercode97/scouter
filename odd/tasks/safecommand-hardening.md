@@ -27,9 +27,9 @@ T1 — RED: table test for S1/S2/S5 plus a `FuzzSafeCommand` invariant — inlin
 T2 — Remove `"sh"`/`"bash"` from `allowedBinaries` and delete the `shellBuiltins` map and the `sh -c` branch — S1, S4 — inline — 3402cec
 T3 — Verify GREEN, build, caller packages and fuzz — S2, S3 — inline — 3402cec
 T4 — Record the S6 residual in this document and in the mirror — S6 — inline — 3402cec
-T5 — RED: table test for S7 — seven injection cases and five legitimate caller cases; the seven fail against the unfixed wrapper and the five pass — S7 — inline — `<commit pendiente>`
-T6 — Implement the per-binary flag policy in `SafeCommand` (`validateArg`, flag sets derived from the callers) — S7 — inline — `<commit pendiente>`
-T7 — GREEN: `internal/utils`, build, vet, the caller packages, and a name-by-name differential against the parent `b4047ea` — S2, S7 — inline — `<commit pendiente>`
+T5 — RED: table test for S7 — seven injection cases and five legitimate caller cases; the seven fail against the unfixed wrapper and the five pass — S7 — inline — 9390dfd
+T6 — Implement the per-binary flag policy in `SafeCommand` (`validateArg`, flag sets derived from the callers) — S7 — inline — 9390dfd
+T7 — GREEN: `internal/utils`, build, the caller packages, fuzz, and a differential against the parent `b4047ea` held at a constant location — S2, S7 — inline — 9390dfd
 
 ## Log
 
@@ -57,4 +57,10 @@ L11 (decision): a per-binary flag allow-list, not a `--` separator. A separator 
 
 L12 (decision): the flag sets carry only flags a production caller passes — `git: --unified`, `rtk: --pointer --ultra-compact`, `sg`/`ast-grep`: `--pattern --rewrite`; `go`, `scouter`, `gopls` have none. The list is a security boundary, so it grows only together with the caller that needs the flag. A comment on the map says exactly that, because an empty `--help`-style convenience addition here is how the hole reopens.
 
+L13 (evidence, differential with the location confound closed): the parent `b4047ea` and this unit's commit `9390dfd` were both run in a scratch worktree with `-count=1`, and both report the same five failures — `TestArchitecturalAuditIntegration`, `TestASTRuleIntegration`, `TestHealerEngine_AllFail`, `TestRippleEngine_StructuralIntegration`, `TestStructuralSearch`. An earlier pass compared the parent in a worktree against the main checkout and saw four against five; that difference was the location, not the change, which is why this pass held it constant. This branch descends from `fix/safecommand-hardening` and therefore predates the ast-grep resolution fix in #60, so the four `sg` failures are expected here and disappear once #60 lands.
+
 L14 (evidence, GREEN): `internal/utils` ok with `-count=1`; `CGO_ENABLED=0 go build ./...` exit 0; `internal/mcp` and `internal/adapters/engram` ok.
+
+L15 (evidence, fuzz against the new policy): `FuzzSafeCommand` ran 3,523,484 executions in 15 s with no counterexample, `PASS`. The invariant holds under generated argument vectors, not only under the table.
+
+L16 (structure, chained): this unit is delivered as a chained PR whose base is `fix/safecommand-hardening` (PR #58) rather than `main`, because it needs that branch's hardened allow-list: cut from `main`, `sh`/`bash` and the builtins come back and the two bypasses S1 closed would reopen. The base branch tip it was built on is `b4047ea`.
