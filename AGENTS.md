@@ -1,15 +1,15 @@
 # 🤖 Scouter Agent Instructions (Truth Kernels)
 
 ## 📌 CORE IDENTITY
-Scouter is a high-performance, CGO-free, single-binary CLI engine for AST analysis, blast radius mapping, Git churn risk assessment, and safe atomic code mutations via Staging Ledger (2PC). It operates strictly as an on-demand CLI in Termux, synergizing with CodeGraph (which serves as the fast knowledge graph reader for symbol exploration).
+Scouter is a high-performance, CGO-free, single-binary CLI engine for AST analysis, blast radius mapping, Git churn risk assessment, and safe atomic code mutations via Staging Ledger (2PC). It operates strictly as an on-demand CLI, synergizing with CodeGraph (which serves as the fast knowledge graph reader for symbol exploration).
 
 ## 🏗️ ARCHITECTURAL MANDATES
-- **Zero CGO**: The project runs purely on Go. SQLite relies on `ncruces/go-sqlite3`. Never introduce CGO. Ensure `CGO_ENABLED=0` is explicitly set in build/test targets to prevent Termux clang linker failures.
-- **Pure CLI Architecture (Termux Antifragility)**: Scouter runs on-demand without persistent background daemons or file watchers (`fsnotify` is permanently deprecated to protect mobile memory and inotify handles).
-- **WASM SQLite Discipline**: SQLite runs in a WASM sandbox (`wasm2go`). To prevent DB locking, memory spikes, and OOM crashes:
-  - Configure connection limits and memory contexts (`sqlite3.WithMaxMemory`).
-  - Use **Bulk Updates** for DB writes without nested transactions (nested transactions on a single `MaxOpenConns(1)` writer will deadlock).
-  - Use circuit breakers and dual connection pools.
+- **Zero CGO**: The project runs purely on Go. SQLite relies on `modernc.org/sqlite` with `modernc.org/sqlite/vec`. Never introduce CGO. Ensure `CGO_ENABLED=0` is explicitly set in build/test targets to ensure portable, dependency-free cross-compilation.
+- **Pure CLI Architecture (Antifragility)**: Scouter runs on-demand without persistent background daemons or file watchers to protect system memory and inotify handles.
+- **SQLite Concurrency & Resource Discipline**:
+  - Use connection pools configured with WAL mode (`journal_mode(WAL)`), busy timeouts, and synchronous NORMAL.
+  - Single writer pool (`MaxOpenConns(1)`) paired with concurrent reader pool (`runtime.NumCPU() * 2`).
+  - Use **Bulk Updates** for DB writes without nested transactions on writer pools.
 - **Ledger Mutation Protocol**: Any structural code changes MUST be buffered in memory using the `Ledger` before atomic disk flush. Direct destructive mutation is forbidden. Staged patches MUST populate the `Original` content from disk to prevent `Rollback` from deleting existing source files.
 - **Command Security**: Never execute raw commands via `exec.Command`. MUST use `internal/utils/safe_exec.go` (`SafeCommand`) to prevent command injection.
 

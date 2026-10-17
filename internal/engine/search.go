@@ -22,7 +22,7 @@ func NewSearchEngine(s store.SymbolRegistry, m memory.MemoryProvider, sem Embedd
 	return &SearchEngine{store: s, memory: m, semantic: sem}
 }
 
-// HybridSearch executes parallel lookups in the AST, Bleve, and Engram databases.
+// HybridSearch executes parallel lookups in the AST, FTS, and Engram databases.
 func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, offset int, pathPrefix string) (*types.HybridSearchResult, error) {
 	if query == "" {
 		return nil, fmt.Errorf("missing query")
