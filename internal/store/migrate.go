@@ -220,6 +220,11 @@ func tableColumns(ctx context.Context, tx *sql.Tx, table string) (map[string]boo
 		return nil, fmt.Errorf("unknown table: %s", table)
 	}
 
+	// #nosec G201 -- table is validated against schemaTables immediately
+	// above, and that set is parsed from the embedded schema.sql at init, so it
+	// is a closed set of identifiers with no caller-supplied text in it. The
+	// column is never interpolated here: SQLite resolves it from the returned
+	// rows and the ladder diffs the set in memory.
 	query := fmt.Sprintf("SELECT name FROM pragma_table_info('%s')", table)
 	rows, err := tx.QueryContext(ctx, query)
 	if err != nil {
