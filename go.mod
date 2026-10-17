@@ -12,7 +12,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/go-playground/validator/v10 v10.30.3
 	github.com/google/go-cmp v0.7.0
-	github.com/mattn/go-isatty v0.0.22
+	github.com/mattn/go-isatty v0.0.24
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/ncruces/go-sqlite3 v0.20.0
 	github.com/odvcencio/gotreesitter v0.20.2
@@ -22,6 +22,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/mod v0.37.0
 	golang.org/x/sync v0.21.0
+	golang.org/x/sys v0.46.0
 	golang.org/x/tools v0.47.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -77,7 +78,6 @@ require (
 	golang.org/x/exp v0.0.0-20260603202125-055de637280b // indirect
 	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.39.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
