@@ -341,8 +341,7 @@ func TestStore_DeleteCascade(t *testing.T) {
 
 func TestStore_HasColumn(t *testing.T) {
 	ctx := t.Context()
-	dbPath := "test_scouter_hascolumn.dbWrite"
-	defer os.Remove(dbPath)
+	dbPath := filepath.Join(t.TempDir(), "hascolumn.dbWrite")
 
 	s, err := NewStore(ctx, dbPath)
 	if err != nil {
@@ -374,13 +373,16 @@ func TestStore_HasColumn(t *testing.T) {
 
 	// 3. Check existing table but invalid column (handled above)
 
-	// 4. Check non-existing table
-	has, err = hasColumn(ctx, tx, "nonexistent_table", "doc")
-	if err != nil {
-		t.Fatalf("hasColumn(nonexistent_table, doc) failed: %v", err)
+	// 4. A table outside the schema is a coding error, not an absent column,
+	// so it is reported instead of silently answered "false".
+	if _, err = hasColumn(ctx, tx, "nonexistent_table", "doc"); err == nil {
+		t.Error("Expected hasColumn(nonexistent_table, doc) to report an unknown table")
 	}
-	if has {
-		t.Error("Expected hasColumn(nonexistent_table, doc) to be false")
+
+	// 5. A column name that is not a plain identifier is rejected, so the name
+	// can never be interpolated into the query.
+	if _, err = hasColumn(ctx, tx, "symbols", "name' OR 1=1 --"); err == nil {
+		t.Error("Expected hasColumn(symbols, <injection>) to be rejected")
 	}
 }
 
@@ -614,8 +616,11 @@ func TestStore_Migration(t *testing.T) {
 	ctx := t.Context()
 	dbPath := filepath.Join(t.TempDir(), "test_scouter_migration.dbWrite")
 
-	// 1. Create a database with old schema manually
-	dsn := fmt.Sprintf("%s?_pragma=foreign_keys(1)", dbPath)
+	// 1. Create a database with old schema manually.
+	// The "file:" prefix is required: without it the driver treats everything
+	// after the path, "?" included, as part of the filename, and the old schema
+	// lands in a stray file while NewStore creates a fresh DB next to it.
+	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)", dbPath)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		t.Fatalf("Failed to open db: %v", err)

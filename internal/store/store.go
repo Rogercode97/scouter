@@ -131,6 +131,10 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 		return nil, fmt.Errorf("migration failed: %w", err)
 	}
 
+	if err := convergeSchema(ctx, tx); err != nil {
+		return nil, fmt.Errorf("schema convergence failed: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit migration: %w", err)
 	}
@@ -148,33 +152,6 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 	}, dbState{dbRead, dbWrite})
 
 	return s, nil
-}
-
-func migrate(ctx context.Context, tx *sql.Tx) error {
-	queries := strings.Split(schemaSQL, "\n\n")
-	for _, q := range queries {
-		q = strings.TrimSpace(q)
-		if q == "" {
-			continue
-		}
-		if _, err := tx.ExecContext(ctx, q); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func hasColumn(ctx context.Context, tx *sql.Tx, table, column string) (bool, error) {
-	query := fmt.Sprintf("SELECT 1 FROM pragma_table_info('%s') WHERE name = ?", table) // #nosec G201 - table name is internal
-	var dummy int
-	err := tx.QueryRowContext(ctx, query, column).Scan(&dummy)
-	if err == nil {
-		return true, nil
-	}
-	if err == sql.ErrNoRows {
-		return false, nil
-	}
-	return false, fmt.Errorf("querying pragma_table_info for %s: %w", table, err)
 }
 
 func (s *storeImpl) exec(ctx context.Context, q string, a ...any) (sql.Result, error) {
