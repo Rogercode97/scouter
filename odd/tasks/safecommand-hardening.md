@@ -19,10 +19,10 @@ S6 — Argument injection (leading-dash flags such as `--upload-pack=`, CWE-88) 
 
 ## Tasks
 
-T1 — RED: table test for S1/S2/S5 plus a `FuzzSafeCommand` invariant — inline — 4402e15
-T2 — Remove `"sh"`/`"bash"` from `allowedBinaries` and delete the `shellBuiltins` map and the `sh -c` branch — S1, S4 — inline — 4402e15
-T3 — Verify GREEN, build, caller packages and fuzz — S2, S3 — inline — 4402e15
-T4 — Record the S6 residual in this document and in the mirror — S6 — inline — 4402e15
+T1 — RED: table test for S1/S2/S5 plus a `FuzzSafeCommand` invariant — inline — 3402cec
+T2 — Remove `"sh"`/`"bash"` from `allowedBinaries` and delete the `shellBuiltins` map and the `sh -c` branch — S1, S4 — inline — 3402cec
+T3 — Verify GREEN, build, caller packages and fuzz — S2, S3 — inline — 3402cec
+T4 — Record the S6 residual in this document and in the mirror — S6 — inline — 3402cec
 
 ## Log
 
@@ -42,4 +42,4 @@ L7 (decision): delete the whole builtin branch rather than keep the benign built
 
 L8 (decision): `go test -race` cannot run under the `CGO_ENABLED=0` test mandate; verified with a minimal module — `go: -race requires cgo; enable cgo by setting CGO_ENABLED=1`. Race testing, when added, runs with `CGO_ENABLED=1` on the dev machine while build and release stay CGO-free.
 
-L9 (evidence, 4402e15): RED observed before the fix — `sh -c`, `bash -c`, `eval` and `source` returned `error = <nil>, wantErr true` while the two pre-existing rejections and the three caller cases passed; `FuzzSafeCommand` seed#2 and seed#3 showed `eval`/`source` resolving to shell `sh`. GREEN after: `internal/utils` ok, `CGO_ENABLED=0 go build ./...` exit 0, `go vet ./internal/utils/` exit 0. Fuzz 15 s: 4,872,066 executions, no counterexample. Differential against main a1b839c: baseline 5 failures in `internal/engine`, after the change the same 5 by name — no regression. `internal/mcp` and `internal/adapters/engram` ok.
+L9 (evidence, 3402cec): RED observed before the fix — `sh -c`, `bash -c`, `eval` and `source` returned `error = <nil>, wantErr true` while the two pre-existing rejections and the three caller cases passed; `FuzzSafeCommand` seed#2 and seed#3 showed `eval`/`source` resolving to shell `sh`. GREEN after: `internal/utils` ok, `CGO_ENABLED=0 go build ./...` exit 0, `go vet ./internal/utils/` exit 0. Fuzz 15 s: 4,872,066 executions, no counterexample. Differential against main a1b839c: baseline 5 failures in `internal/engine`, after the change the same 5 by name — no regression. `internal/mcp` and `internal/adapters/engram` ok.
