@@ -7,63 +7,41 @@ import (
 	"strings"
 )
 
-// SafeCommand creates a validated exec.Cmd to prevent command injection and unauthorized execution.
-// It enforces an allow-list of binaries and sanitizes arguments for dangerous shell characters.
+// allowedBinaries is the closed set of external programs SafeCommand will
+// resolve. It deliberately excludes shells and code-evaluation builtins:
+// allowing "sh -c" or "eval" reintroduces shell parsing and turns this wrapper
+// into a pass-through for arbitrary execution.
+var allowedBinaries = map[string]bool{
+	"git":      true,
+	"go":       true,
+	"rtk":      true,
+	"sg":       true,
+	"scouter":  true,
+	"gopls":    true,
+	"ast-grep": true,
+}
+
+// dangerousChars block command chaining, redirection and expansion. This
+// denylist does NOT stop argument injection through leading-dash flags
+// (CWE-88); that gap is open and tracked in odd/tasks/safecommand-hardening.md.
+const dangerousChars = ";|&><`\\"
+
+// SafeCommand creates a validated *exec.Cmd from the allow-listed binaries.
+// It rejects any binary outside allowedBinaries and any argument containing a
+// character from dangerousChars. It never wraps its input in a shell.
 func SafeCommand(ctx context.Context, name string, args ...string) (*exec.Cmd, error) {
-	// 🏛️ BINARY VALIDATION (Read-only maps)
-	allowedBinaries := map[string]bool{
-		"git":      true,
-		"go":       true,
-		"rtk":      true,
-		"sg":       true,
-		"scouter":  true,
-		"sh":       true,
-		"bash":     true,
-		"gopls":    true,
-		"ast-grep": true,
-	}
-
-	shellBuiltins := map[string]bool{
-		"export":   true,
-		"unset":    true,
-		"source":   true,
-		"alias":    true,
-		"unalias":  true,
-		"eval":     true,
-		"set":      true,
-		"shopt":    true,
-		"declare":  true,
-		"local":    true,
-		"readonly": true,
-		"typeset":  true,
-		"ulimit":   true,
-		"umask":    true,
-	}
-
-	if !allowedBinaries[name] && !shellBuiltins[name] {
+	if !allowedBinaries[name] {
 		return nil, fmt.Errorf("forbidden binary: %s", name)
 	}
 
-	// 2. 🛡️ ARGUMENT SANITIZATION
-	// We block characters that allow command chaining, redirection, or expansion.
-	dangerousChars := ";|&><`\\"
 	for _, arg := range args {
 		if strings.ContainsAny(arg, dangerousChars) {
 			return nil, fmt.Errorf("dangerous characters in argument: %s", arg)
 		}
 	}
 
-	// 3. 🐚 SHELL BUILT-IN WRAPPER
-	// If it's a built-in, we wrap it in 'sh -c' safely using positional parameters.
-	if shellBuiltins[name] {
-		shArgs := make([]string, 0, len(args)+3)
-		shArgs = append(shArgs, "-c", name+` "$@"`, "_")
-		shArgs = append(shArgs, args...)
-		// 'sh' is guaranteed to be in allowedBinaries
-		// #nosec G204: We have strict binary validation and argument sanitization in place.
-		return exec.CommandContext(ctx, "sh", shArgs...), nil
-	}
-
-	// #nosec G204: We have strict binary validation and argument sanitization in place.
+	// #nosec G204 -- name is validated against the closed allowedBinaries set
+	// above and each argument is checked against dangerousChars. No shell is
+	// involved, so os/exec passes the argv vector directly.
 	return exec.CommandContext(ctx, name, args...), nil
 }
