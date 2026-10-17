@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/Rogercode97/scouter/internal/types"
+	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 // ASTRuleEngine executes architectural rules using ast-grep.
@@ -26,10 +27,9 @@ func NewASTRuleEngine(rulesDir string) *ASTRuleEngine {
 
 // Audit runs all rules in the rules directory against a specific file or directory.
 func (e *ASTRuleEngine) Audit(ctx context.Context, targetPath string) ([]types.ASTRuleMatch, error) {
-	if _, err := exec.LookPath("sg"); err != nil {
-		if _, err := exec.LookPath("ast-grep"); err != nil {
-			return nil, fmt.Errorf("ast-grep (sg) not found in PATH")
-		}
+	binary, err := utils.AstGrepBinary()
+	if err != nil {
+		return nil, err
 	}
 
 	rules, err := e.GetRules()
@@ -42,7 +42,7 @@ func (e *ASTRuleEngine) Audit(ctx context.Context, targetPath string) ([]types.A
 		rulePath := filepath.Join(e.rulesDir, ruleFile)
 
 		// ast-grep scan -r <rule_file> <target> --json
-		cmd := exec.CommandContext(ctx, "sg", "scan", "-r", rulePath, targetPath, "--json")
+		cmd := exec.CommandContext(ctx, binary, "scan", "-r", rulePath, targetPath, "--json")
 
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout

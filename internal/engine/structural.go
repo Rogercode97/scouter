@@ -106,7 +106,11 @@ func StructuralRefactor(ctx context.Context, filePath, pattern, template, ext st
 	if err != nil {
 		return "", err
 	}
-	cmd, err := utils.SafeCommand(ctx, "sg", "run", "--pattern", pattern, "--rewrite", template, filePath)
+	binary, err := utils.AstGrepBinary()
+	if err != nil {
+		return "", err
+	}
+	cmd, err := utils.SafeCommand(ctx, binary, "run", "--pattern", pattern, "--rewrite", template, filePath)
 	if err != nil {
 		return "", err
 	}
@@ -115,7 +119,10 @@ func StructuralRefactor(ctx context.Context, filePath, pattern, template, ext st
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		if _, pathErr := exec.LookPath("sg"); pathErr != nil {
+		// The binary was resolved before the command was created, so a missing
+		// executable is only possible if it disappeared in between; resolve
+		// again rather than assume the short name.
+		if _, pathErr := utils.AstGrepBinary(); pathErr != nil {
 			return "", fmt.Errorf("ast-grep (sg) not found in PATH: %w", pathErr)
 		}
 

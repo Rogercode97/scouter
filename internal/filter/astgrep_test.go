@@ -2,9 +2,10 @@ package filter
 
 import (
 	"context"
-	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 func TestDetectLang(t *testing.T) {
@@ -30,9 +31,12 @@ func TestDetectLang(t *testing.T) {
 }
 
 func TestAstGrepApply(t *testing.T) {
-	// Skip if sg is not installed
-	if _, err := exec.LookPath("sg"); err != nil {
-		t.Skip("ast-grep (sg) not found in path, skipping integration test")
+	// The filter resolves either name, so this integration test runs whenever
+	// ast-grep is installed under either of them. Checking only "sg" silently
+	// skipped it on machines that package the long name alone, which is how the
+	// hardcoded binary stayed unnoticed.
+	if _, err := utils.AstGrepBinary(); err != nil {
+		t.Skip("ast-grep not found in PATH under either name, skipping integration test")
 	}
 
 	ctx := context.Background()
