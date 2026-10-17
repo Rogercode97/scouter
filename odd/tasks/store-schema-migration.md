@@ -21,12 +21,12 @@ S6 — Every `(table, column)` pair declared in `internal/store/schema.sql` MUST
 
 ## Tasks
 
-T1 — RED: fix the `TestStore_Migration` DSN so the old schema is real, and observe it fail — S3 — inline — '<commit pendiente>'
-T2 — RED: convergence test from the real pre-`08bfeed` schema, with pre-existing rows and an idempotence check — S1, S2, S6 — inline — '<commit pendiente>'
-T3 — Implement `internal/store/migrate.go`: parse `schema.sql` column definitions, `ALTER TABLE ADD COLUMN` for each missing column, wired into `NewStore` — S1, S2, S6 — inline — '<commit pendiente>'
-T4 — Harden `hasColumn` with the schema-derived allow-list and an identifier check; update the unknown-table expectation — S4 — inline — '<commit pendiente>'
-T5 — Parser rule tests + drift invariant with SQLite as the independent oracle — S6 — inline — '<commit pendiente>'
-T6 — GREEN: store suite, build, vet, differential against `a1b839c` — S5 — inline — '<commit pendiente>'
+T1 — RED: fix the `TestStore_Migration` DSN so the old schema is real, and observe it fail — S3 — inline — f3fd0cd
+T2 — RED: convergence test from the real pre-`08bfeed` schema, with pre-existing rows and an idempotence check — S1, S2, S6 — inline — f3fd0cd
+T3 — Implement `internal/store/migrate.go`: parse `schema.sql` column definitions, `ALTER TABLE ADD COLUMN` for each missing column, wired into `NewStore` — S1, S2, S6 — inline — f3fd0cd
+T4 — Harden `hasColumn` with the schema-derived allow-list and an identifier check; update the unknown-table expectation — S4 — inline — f3fd0cd
+T5 — Parser rule tests + drift invariant with SQLite as the independent oracle — S6 — inline — f3fd0cd
+T6 — GREEN: store suite, build, vet, differential against `a1b839c` — S5 — inline — f3fd0cd
 
 ## Log
 
@@ -61,3 +61,5 @@ L14 (evidence, GREEN): `internal/store` ok with `-count=1`; `CGO_ENABLED=0 go bu
 L15 (evidence, differential, with the caveat stated): `internal/engine` fails 4 tests in the main checkout (`TestArchitecturalAuditIntegration`, `TestASTRuleIntegration`, `TestRippleEngine_StructuralIntegration`, `TestStructuralSearch`, all `sg` not in `PATH`) across three `-count=1` runs, and 5 in a scratch worktree at `a1b839c` — the same four plus `TestHealerEngine_AllFail`. That fifth difference is the harness location, not the change: it fails 3/3 in the scratch worktree and 0/3 in the main checkout, and this diff does not touch `internal/engine`. A separate one-off `TestExecuteStderr` failure in an earlier differential run did not reproduce in any of three subsequent clean runs. No package other than `internal/store` changes.
 
 L16 (decision): the diff does not attempt to add `--rebuild` or a schema-version guard. Convergence is the requested mechanism; a user-visible escape hatch is a separate unit if it is ever wanted.
+
+L17 (decision, slice size): the unit is 667 authored changed lines in one commit, past the ~400-line planning heuristic. The overage is the test surface, not the mechanism: `migrate.go` is 227 lines, `migrate_test.go` is 321, and the faithful pre-`08bfeed` fixture plus the SQLite-oracle invariant are what make S1 and S6 falsifiable. Splitting tests from the code they falsify would leave a commit that asserts nothing, so the slice stays whole and the boundary is recorded here.
