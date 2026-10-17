@@ -7,7 +7,10 @@
 .atl/
 *.log
 session_summary.md
-.agents/handoff.*
+# The literal dot matched only handoff.md, so the rotated handoff-prev.md that
+# handoff_snapshot writes stayed visible as an untracked file and blocked the
+# native review assessment, which refuses an undeclared untracked scope.
+.agents/handoff*
 
 # === BINARIES ===
 # Root-level binaries only (prevents ignoring cmd/scouter/)
