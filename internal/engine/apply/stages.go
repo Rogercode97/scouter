@@ -1,5 +1,18 @@
 package apply
 
+import "errors"
+
+// ErrInterrupted marks an execution that was stopped at a step boundary on
+// purpose. The steps that already succeeded stay applied, so the caller owns
+// the recovery decision instead of the package guessing it.
+var ErrInterrupted = errors.New("apply: interrupted")
+
+// InterruptHook is invoked after each successful step with the number of
+// steps completed in that stage. Returning an error stops the execution at
+// that boundary. It is the deterministic seam that makes an interrupted commit
+// testable without killing a process.
+type InterruptHook func(stage Stage, completedInStage int) error
+
 type Stage string
 
 const (

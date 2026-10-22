@@ -19,6 +19,15 @@ func WithProgressFunc(fn ProgressFunc) OrchestratorOption {
 	}
 }
 
+// WithInterruptHook sets the hook invoked after each successful step. It is
+// the deterministic seam that lets a caller exercise an interrupted commit
+// without killing a process.
+func WithInterruptHook(fn InterruptHook) OrchestratorOption {
+	return func(o *Orchestrator) {
+		o.runner.Interrupt = fn
+	}
+}
+
 type Orchestrator struct {
 	runner   Runner
 	policy   RollbackPolicy
