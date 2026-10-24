@@ -5,13 +5,13 @@
 # Scouter: Structural Intelligence Engine
 
 **Structural Analysis & Reconnaissance for AI Agents**
-Deep AST inspection, impact analysis, and safe atomic mutation.
+Deep AST inspection, impact analysis, and staged mutation with per-file atomic apply.
 
 Scouter is the tactical visor for your AI coding agents. While memory systems provide context, Scouter provides the structural eyes. Instead of parsing plain text, Scouter parses and navigates the Abstract Syntax Tree (AST), bringing precision to autonomous code operations.
 
 ## Overview
 
-Scouter is a high-performance, CGO-free, **single-binary CLI engine**. It uses Tree-sitter for code parsing, indexes structures into SQLite (`modernc.org/sqlite` with `sqlite-vec` embeddings), and answers structural questions on demand: blast radius, symbol centrality, git churn risk, and safe multi-file mutation through a Staging Ledger.
+Scouter is a high-performance, CGO-free, **single-binary CLI engine**. It parses Go with the standard library AST and other languages with Tree-sitter, indexes structures into SQLite (`modernc.org/sqlite` with `sqlite-vec` embeddings), and answers structural questions on demand: blast radius, symbol centrality, git churn risk, and staged multi-file mutation through a Staging Ledger.
 
 It runs strictly as an **on-demand CLI**: no background daemons, no file watchers. This keeps memory flat and preserves inotify handles across environments. Complementing it, [CodeGraph](https://github.com/colbymchenry/codegraph) acts as the fast knowledge-graph reader for symbol exploration.
 
@@ -22,7 +22,7 @@ A Model Context Protocol server is also shipped for agents that prefer a tool-ca
 - **AST Mapping & Inspection**: Surgical analysis with `context` (token-dense architectural packet for a file), `neighborhood` (1-hop structural surroundings), and `twins` (logical duplication).
 - **Impact Analysis (Blast Radius)**: Calculate exactly which files and symbols will break before modifying code with `impact` and `predict`.
 - **Symbol Centrality**: Rank symbols by reference centrality with `critical`, and export the call graph as Mermaid with `graph`.
-- **Safe Mutation (The Ledger)**: Every mutation is staged in memory and validated before it reaches disk via `diff`, `commit`, and `rollback`.
+- **Safe Mutation (The Ledger)**: Every mutation is staged in the Ledger, persisted with the original content of each file, and diffed before it reaches disk via `diff`, `commit`, and `rollback`.
 - **Diagnostic & Healing**: `audit`, `fix`, and `flow` drive root-cause analysis and closed-loop repair.
 
 ## Installation
@@ -79,7 +79,7 @@ scouter impact
 # Predict affected tests from the current git diff
 scouter predict
 
-# Review staged changes, then commit or roll back atomically
+# Review staged changes, then commit (each file replaced atomically) or roll back
 scouter diff
 scouter commit
 scouter rollback
@@ -96,7 +96,7 @@ scouter -u context internal/engine/analyzer.go
 
 ### Model Context Protocol (Reference)
 
-For agents wired through `scouter setup`, the MCP server exposes 34 tools grouped by objective. These are the MCP tool names; the CLI commands above are the equivalent on-demand surface.
+For agents wired through `scouter setup`, the MCP server exposes 29 tools grouped by objective, plus 4 prompts. The names below are the MCP surface; the CLI commands above are the equivalent on-demand surface. The specialized architectural and healing tools become available after `scouter_unlock`.
 
 **Mapping and Verification**
 - `ast_map`: Map a file or directory to return its skeleton (signatures without bodies).
@@ -120,17 +120,22 @@ For agents wired through `scouter setup`, the MCP server exposes 34 tools groupe
 
 **Safe Mutation (The Ledger)**
 - `ledger_diff`: Review staged changes.
-- `ledger_commit`: Atomic commit of staged changes to disk.
-- `ledger_rollback`: Clear all staged changes safely.
-- `ledger_ripple`: Rename or change signatures across the codebase atomically.
-- `ledger_evolve`: Apply multi-file architectural changes safely.
+- `ledger_commit`: Commit staged changes to disk. Each file is replaced atomically; a failure mid-batch rolls the whole batch back in-process.
+- `ledger_rollback`: Clear the staging area. It does not revert files already written to disk.
+- `ledger_ripple`: Rename or change signatures across the codebase, staged as a single Ledger commit.
+- `ledger_evolve`: Apply multi-file architectural changes through the Ledger.
 
 **Cognitive & Diagnostic Engines**
 - `scouter_diagnose`: Generate a Diagnostic HUD from error logs.
 - `scouter_heal`: Execute a full RCA, fix, and verify loop for tests.
 - `cognitive_dream`: Distill Architectural Decision Records (ADRs) and pattern summaries.
-- `cognitive_anchor` / `cognitive_compact` / `cognitive_obsidian` / `cognitive_signal`: Context anchoring, compaction, and signal extraction.
-- `scouter_unlock`: Recover an interrupted ledger session.
+- `cognitive_anchor` / `cognitive_obsidian` / `cognitive_signal`: Context anchoring and signal extraction.
+- `scouter_unlock`: Unlock the specialized architectural and healing tools. It does not recover an interrupted commit.
+
+**Prompts**
+- `cognitive_compact`: Compact a technical session into a dense summary.
+- `gep_mutator`: System prompt for the Genome Mutator (GEP).
+- `judge`: System prompt for the Cynical Adversarial Judge.
 
 ## Architecture
 
@@ -143,11 +148,12 @@ Scouter relies on a strict internal modular structure:
 - `internal/mcp/`: The MCP server, handler logic, and tool registrations.
 - `odd/tasks/`: Organic Driven Development feature documents (specs, tasks, evidence).
 
-**Core Invariant**: Validation is finality. No destructive mutation is ever applied directly to disk without first passing through the Staging Ledger and surviving a comprehensive Impact Analysis.
+**Core Invariant**: Validation is finality. No destructive mutation is ever applied directly to disk: every change passes through the Staging Ledger first, where it can be diffed, inspected and rolled back. Impact analysis (`impact`, `risk_impact`) is a separate, advisory step — the commit path does not enforce it.
 
 ## Documentation Resources
 
 - **Architecture Overview**: `docs/architecture/overview.md`
+- **Analysis Limits and Guarantees**: `docs/architecture/analysis-limits.md`
 - **Engine Internals**: `docs/architecture/engine.md`
 - **Codebase Guide**: `docs/architecture/codebase.md`
 - **MCP Reference**: `docs/reference/MCP-REFERENCE.md`
