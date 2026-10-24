@@ -62,7 +62,12 @@ FILE_COUNT="$("$GIT_BIN" ls-files | "$WC_BIN" -l | "$TR_BIN" -d '[:space:]')"
 
 RG_VERSION="unavailable (rg not on PATH)"
 if [[ -n "$RG_BIN" ]]; then
-    RG_VERSION="$("$RG_BIN" --version | "$HEAD_BIN" -n 1)"
+    # A broken ripgrep must not take the whole script down: the version probe
+    # is allowed to fail, and the baseline is reported as unavailable instead.
+    RG_VERSION="$("$RG_BIN" --version 2>/dev/null | "$HEAD_BIN" -n 1 || true)"
+    if [[ -z "$RG_VERSION" ]]; then
+        RG_VERSION="unavailable (rg --version failed)"
+    fi
 fi
 
 echo "Machine profile:"
@@ -122,11 +127,12 @@ else
     RG_STDERR="$TMP_DIR/rg.stderr"
     RG_START_NS="$("$DATE_BIN" +%s%N)"
     RG_RC=0
-    if ! "$RG_BIN" -n -- "$QUERY" . >"$RG_STDOUT" 2>"$RG_STDERR"; then
-        RG_RC=$?
-    fi
+    # The status has to be captured from the command itself: inside `if ! cmd`
+    # the `$?` is the status of the negation, which is always 0, and a failed
+    # ripgrep would be reported as an empty baseline instead of an error.
+    "$RG_BIN" -n -- "$QUERY" . >"$RG_STDOUT" 2>"$RG_STDERR" || RG_RC=$?
     RG_END_NS="$("$DATE_BIN" +%s%N)"
-    if [[ "$RG_RC" -ne 0 && "$RG_RC" -ne 1 ]]; then
+    if [[ "$RG_RC" -gt 1 ]]; then
         "$CAT_BIN" "$RG_STDERR" >&2
         exit "$RG_RC"
     fi
