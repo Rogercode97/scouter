@@ -14,7 +14,7 @@ or directly:
 ./scripts/bench-baseline.sh
 ```
 
-The procedure is fixed and self-describing: it builds the binary from the current checkout into a temporary directory, indexes the repository with `scouter index .` while timing it and measuring the resulting index, then runs the same query through `scouter search` and through `rg -n --`, timing each and measuring its output. The script prints the machine profile it measured on. It needs no network, and when `ripgrep` is not on `PATH` it reports the conventional baseline as unavailable and still reports the Scouter side.
+The procedure is fixed and self-describing: it builds the binary from the current checkout into a temporary directory, indexes the repository with `scouter index .` while timing it and measuring the resulting index, then runs the same query through `scouter search` and through `rg -n --`, timing each and measuring its output. The script prints the machine profile it measured on. It needs no network, and when `ripgrep` is not on `PATH` it reports the conventional baseline as unavailable and still reports the Scouter side. A ripgrep that is present but fails aborts the run with its error instead of being recorded as an empty baseline: a broken tool must not read as a measurement.
 
 The query is `IndexerPipeline`, chosen because it has a meaningful answer in this repository and because both tools can be asked it identically.
 
