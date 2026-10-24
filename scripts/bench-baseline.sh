@@ -6,8 +6,12 @@
 #   2. Index the repository (the corpus) with `scouter index .`, timing it and
 #      recording the resulting SQLite index size.
 #   3. Run `scouter search "<query>"`, timing it and recording stdout bytes/tokens.
-#   4. Run `rg -n -- "<query>" .` over the same corpus, timing it and recording
-#      stdout bytes/tokens (when ripgrep is available).
+#   4. Run `rg -n -- "<query>" .` over the same working tree, timing it and
+#      recording stdout bytes/tokens (when ripgrep is available).
+#      The two tools do not read the same files. The indexer keeps only
+#      SupportedExts, skips BlockedDirs, and skips files above 64 KiB; ripgrep
+#      honours .gitignore and applies no extension filter. Each byte count is
+#      that tool's own answer to the query, not a measurement of one shared input.
 # Tokens are bytes/4, the same approximation internal/engine/ledger.go uses.
 set -euo pipefail
 

@@ -22,7 +22,8 @@ The query is `IndexerPipeline`, chosen because it has a meaningful answer in thi
 
 | | |
 | --- | --- |
-| Commit | `e06750cb914af371a33f8db250569fe35b6cc122` (`main`) |
+| Base commit | `e06750cb914af371a33f8db250569fe35b6cc122` (`main`) — the tree the harness was written against |
+| Harness commit | `0138677` — the commit that carries `just bench` and `scripts/bench-baseline.sh` |
 | Go | `go1.27.1-X:nodwarf5 linux/amd64` |
 | CPU | AMD Ryzen 5 5600GT, 12 procs |
 | ripgrep | 15.2.0 at `/usr/bin/rg` |
@@ -46,6 +47,8 @@ Runs A and B measured the same tree. Run C measured the tree **after** this docu
 The reason is visible in the output. The text baseline matches the literal string everywhere it appears, including in prose that merely names the query — this document names it, the script contains it as a variable, and both are now part of the corpus. Scouter resolves the query to symbols, so the set of answers is the same eight symbols whether or not the repository talks about `IndexerPipeline` in a sentence.
 
 That is a real property of the two tools, and it is also the reason the comparison is reported with the **least favourable** figures for Scouter: the headline below uses run A and run B, where the baseline's answer is smallest. Run C is disclosed because hiding it would make the claim look better than it is.
+
+No single commit reproduces all three columns. All three runs were taken from working trees while the harness was being written, which is why the environment table records a base commit and a harness commit instead of claiming one SHA for the whole table. What a reader reproduces by checking out a commit that contains this document and running `just bench` is the procedure and Scouter's side of the table: 863 B in every run. The baseline's figure depends on which files the tree holds, and that dependence is exactly what run C measures.
 
 Tokens are bytes/4, the same approximation `internal/engine/ledger.go` uses for its own budget accounting (`kiIncurred := int64(len(patch.NewContent) / 4)`), so these numbers and the engine's own accounting do not disagree about what a KiB of content is.
 
@@ -89,6 +92,8 @@ Scouter answers with the symbol and its members; ripgrep answers with every line
 ## One fairness note
 
 The corpus contains the benchmark harness itself, so the conventional baseline matches the literal query string inside `scripts/bench-baseline.sh` (line 14). After this document landed, the corpus also contains prose that names the query six times. Every one of those is a text match for the baseline and none of them is a symbol, so the baseline's byte count carries them and Scouter's does not. It is left in place rather than special-cased, because the alternative is a corpus that exists only to flatter one side. The effect is visible as the difference between run B (2,572 B) and run C (3,946 B) in the baseline column, and the headline figures quoted above are the ones from before this document existed.
+
+The two tools also read different file sets, and the asymmetry runs in the same direction. The indexer keeps only its supported extensions, skips the blocked directories, and skips files above 64 KiB; the baseline honours `.gitignore` and applies no extension filter. Every file Scouter never indexes — this document, the shell script, anything outside those extensions — is still a potential text match for the baseline. Neither side is corrected for that, because correcting it would mean teaching the baseline Scouter's indexing rules and turning a comparison of two tools into a comparison of two configurations of the same filter. The byte gap reported above therefore includes it, and the honest reading is that the gap is an upper bound on the difference in output size, not its exact size.
 
 ## The existing benchmark inventory
 
