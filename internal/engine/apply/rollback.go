@@ -22,6 +22,13 @@ func (p RollbackPolicy) ShouldRollback(stage Stage, err error) bool {
 		return false
 	}
 
+	// An interrupted execution is not a failed one: the steps that already
+	// succeeded stay applied, and the journal describes the state. Rolling
+	// back here would hide the interruption instead of surfacing it.
+	if errors.Is(err, ErrInterrupted) {
+		return false
+	}
+
 	switch stage {
 	case StagePrepare:
 		return p.OnPrepareFailure
