@@ -56,7 +56,12 @@ func (r Runner) Run(stage Stage, steps []Step) StageResult {
 		if r.Interrupt != nil {
 			if err := r.Interrupt(stage, completed); err != nil {
 				result.Success = false
-				result.Err = err
+				// The interruption stops the stage, but a failure recorded before
+				// it must survive: joining keeps both, so the caller learns that a
+				// step failed and the rollback decision sees it. Reporting only the
+				// interruption would present a partially applied execution as a
+				// clean pause.
+				result.Err = errors.Join(append(errs, err)...)
 				return result
 			}
 		}
