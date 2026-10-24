@@ -1,6 +1,6 @@
 # Benchmark Results
 
-The numbers Scouter can defend, measured against a conventional text search over the same corpus, with the procedure and the environment that produced them.
+The numbers Scouter can defend, measured against a conventional text search over the same repository snapshot, with the procedure and the environment that produced them.
 
 ## How to reproduce
 
@@ -93,7 +93,9 @@ Scouter answers with the symbol and its members; ripgrep answers with every line
 
 The corpus contains the benchmark harness itself, so the conventional baseline matches the literal query string inside `scripts/bench-baseline.sh` (line 14). After this document landed, the corpus also contains prose that names the query six times. Every one of those is a text match for the baseline and none of them is a symbol, so the baseline's byte count carries them and Scouter's does not. It is left in place rather than special-cased, because the alternative is a corpus that exists only to flatter one side. The effect is visible as the difference between run B (2,572 B) and run C (3,946 B) in the baseline column, and the headline figures quoted above are the ones from before this document existed.
 
-The two tools also read different file sets, and the asymmetry runs in the same direction. The indexer keeps only its supported extensions, skips the blocked directories, and skips files above 64 KiB; the baseline honours `.gitignore` and applies no extension filter. Every file Scouter never indexes — this document, the shell script, anything outside those extensions — is still a potential text match for the baseline. Neither side is corrected for that, because correcting it would mean teaching the baseline Scouter's indexing rules and turning a comparison of two tools into a comparison of two configurations of the same filter. The byte gap reported above therefore includes it, and the honest reading is that the gap is an upper bound on the difference in output size, not its exact size.
+The two tools also read different file sets, and the difference does not run in a single direction. The indexer keeps only its supported extensions, skips the blocked directories, and skips files above 64 KiB; it does not read `.gitignore` at all. The baseline honours `.gitignore` and applies no extension filter. Each side therefore sees files the other does not: this document, the shell script and anything outside the supported extensions are text matches only the baseline can make, while a supported file inside an ignored directory is something only Scouter can index. Neither side is corrected for that, because correcting it would mean teaching the baseline Scouter's indexing rules and turning a comparison of two tools into a comparison of two configurations of the same filter.
+
+The byte gap reported above is an observed difference between two different filters, not a bound on the difference in output size. It can move in either direction depending on which files a tree holds. What the measurement supports is a comparison of the answers each tool gives under its own rules, not a claim about how they would compare over an identical file set.
 
 ## The existing benchmark inventory
 
