@@ -70,17 +70,23 @@ This is the component that mutates a codebase, so its contract is stated precise
 
 **Guarantee.** A failure during the batch rolls the whole batch back in-process, and the staged state survives for inspection afterwards (`internal/engine/ledger.go`, `TestLedger_CommitFailure_PreservesLedgerStateAndRollsBack`).
 
-**Limit.** **The batch is not atomic across files.** Files are applied one at a time, in sorted path order. An interruption between two renames leaves the tree half-applied: some files new, some old.
+**Guarantee.** The journal records the commit before the filesystem is touched and keeps the list of files already replaced, so an interrupted commit is distinguishable from a mission that never started. The journal itself is written atomically and durably: it is replaced with a rename, and its content and its directory entry are synced (`Ledger.saveUnlocked`).
 
-**Limit.** **There is no crash recovery.** The persisted ledger records what was staged, not what was applied, so an interrupted commit is indistinguishable from a commit that was never started. Nothing replays or reverts it automatically.
+**Guarantee.** An interrupted commit is resolvable. `scouter rollback` restores the files the commit already replaced, and `Ledger.RollForward` writes the files it did not reach. Both are explicit operator decisions: the recovery never rolls forward on its own, because "the intent was to apply this" is not derivable from the tree.
 
-**Limit.** **Durability under power loss is not guaranteed.** No `fsync` is issued for the temporary file or for the directory entry after the rename.
+**Guarantee.** The commit path fails closed. While the journal records an interrupted commit, `CommitStaged` refuses to start another one (`ErrInterruptedCommit`), and a rollback refuses to overwrite a file whose content changed after the interruption.
 
-**Limit.** `scouter rollback` and `ledger_rollback` clear the staging area. They do not revert files that were already written to disk. Reverting an applied change is what the in-process rollback does, and it is not reachable from the command line after the fact.
+**Limit.** **The batch is not atomic across files.** Files are applied one at a time, in sorted path order, so an interruption between two renames leaves the tree half-applied. The journal describes that state and the recovery resolves it, but the tree is briefly in a state that is neither the old one nor the new one.
+
+**Limit.** **The recovery is not automatic.** Nothing replays or reverts an interrupted commit on startup: a human decides, because the alternative is guessing the intent. The engine exposes the roll-forward path; the CLI currently exposes the roll-back path only.
+
+**Limit.** **Durability depends on the filesystem honouring the sync.** The content of a replaced file is synced before the rename and the directory entry after it, so a successful commit survives a power loss on a filesystem that implements the sync. A filesystem that refuses the directory sync is logged, not fatal: the content is already in place, and failing there would leave the batch half applied.
+
+**Limit.** `scouter rollback` and `ledger_rollback` clear the staging area. On their own they do not revert files that were already written to disk; that happens only when the journal records an interrupted commit.
 
 **Advisory.** Impact analysis is not enforced by the commit path. `scouter commit` applies what was staged; running `scouter impact` first is a discipline, not a gate.
 
-**Operational consequence.** Read `scouter diff` before `scouter commit`. After an interrupted commit, inspect the working tree with `git status` and reconcile by hand before staging anything else.
+**Operational consequence.** Read `scouter diff` before `scouter commit`. After an interrupted commit, `scouter commit` refuses and `scouter rollback` restores the files that were already written; inspect the working tree with `git status` before staging anything else.
 
 ## What Scouter cannot answer
 
@@ -91,7 +97,7 @@ This is the component that mutates a codebase, so its contract is stated precise
 
 ## Known gaps
 
-- **Ledger crash consistency.** The ledger is not a write-ahead log: it has no `committing` state, no roll-forward, no roll-back after an interruption, and no durability barrier. The planned work is a journal state machine with a fail-closed recovery path, exercised by fault injection at every step boundary.
+- **No automatic crash recovery.** The ledger is a write-ahead log with an explicit phase, so an interrupted commit is detected and resolvable, but nothing resolves it on startup. The decision is left to the operator by design, and the engine's roll-forward path is not exposed on the CLI yet.
 - **No published accuracy numbers.** The fixtures under `tests/fixtures/` exercise ripple and interface propagation, but precision and recall per language are not measured or published yet.
 
 ## How these claims stay true
@@ -100,5 +106,6 @@ The surface described in the README is pinned by tests, so the documentation can
 
 - `cmd/scouter/scoutercmd/readme_docs_test.go` proves that every `scouter <command>` the README shows is a registered command.
 - `internal/mcp/readme_docs_test.go` proves that the MCP tool and prompt inventory in the README matches the server registrations, in both directions, and that the stated tool count is the real one.
+- `internal/engine/ledger_crash_test.go` proves the crash-consistency property of the Ledger: an interrupted commit is reported, a second commit is refused, a rollback restores the files that were already written, a rollback refuses a file that changed afterwards, and after the recovery the tree is entirely old or entirely new.
 
-Both run in CI. A change that adds, removes or renames a surface must update the README in the same commit.
+All of them run in CI. A change that adds, removes or renames a surface must update the README in the same commit.
