@@ -129,15 +129,23 @@ func (p *preparePatchStep) Run() error {
 		f.Close()
 		return err
 	}
+	// The requested mode is applied to the descriptor before the sync. The mode
+	// given to OpenFile is masked by the process umask, so it does not settle
+	// the final permissions by itself, and a chmod issued after the sync would
+	// leave the metadata unflushed. A failure is reported rather than dropped:
+	// the file is about to be renamed into place with the wrong permissions.
+	if p.patch.Mode != 0 {
+		if err := f.Chmod(p.patch.Mode); err != nil {
+			f.Close()
+			return err
+		}
+	}
 	if err := f.Sync(); err != nil {
 		f.Close()
 		return err
 	}
 	if err := f.Close(); err != nil {
 		return err
-	}
-	if p.patch.Mode != 0 {
-		_ = os.Chmod(tmp, p.patch.Mode)
 	}
 	return nil
 }
@@ -167,12 +175,18 @@ func (a *applyPatchStep) Run() error {
 	// The directory entry is synced so the rename survives a power loss. A
 	// filesystem that refuses the sync is logged, not fatal: the content is
 	// already in place and failing here would leave the batch half applied.
-	if dir, err := os.Open(filepath.Dir(a.path)); err == nil {
-		if err := dir.Sync(); err != nil {
-			slog.Warn("cannot sync directory after rename", "path", a.path, "error", err)
-		}
-		dir.Close()
+	dir, err := os.Open(filepath.Dir(a.path))
+	if err != nil {
+		// Same best-effort policy as a failed sync: the rename already
+		// happened and there is no descriptor to sync. Logging it keeps this
+		// path visible instead of skipping the barrier silently.
+		slog.Warn("cannot open directory to sync after rename", "path", a.path, "error", err)
+		return nil
 	}
+	if err := dir.Sync(); err != nil {
+		slog.Warn("cannot sync directory after rename", "path", a.path, "error", err)
+	}
+	dir.Close()
 	return nil
 }
 func (a *applyPatchStep) Rollback() error {
