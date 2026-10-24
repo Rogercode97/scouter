@@ -27,7 +27,7 @@ S9 — The existing benchmarks MUST keep working. `BenchmarkMassiveIndexing` (`i
 ## Tasks
 
 T1 — Inventory and baseline record: run the five existing benchmarks on the reference machine and record the numbers, the environment and the commit — S1, S5, S9 — inline — recorded below
-T2 — Add `scripts/bench-baseline.sh`: the same task through Scouter and through ripgrep over the same corpus, reporting latency, output bytes and tokens, and the index cost (time to index plus index size) — S2, S3, S4, S8 — worker — delivered
+T2 — Add `scripts/bench-baseline.sh`: the same task through Scouter and through ripgrep over the same repository snapshot, reporting latency, output bytes and tokens, and the index cost (time to index plus index size) — S2, S3, S4, S8 — worker — delivered
 T3 — Add the `just bench` recipe with a fixed, documented procedure, and the machine profile it prints — S1 — worker — delivered
 T4 — Run the procedure and write `docs/benchmarks/results.md` with the environment, the exact commands, the numbers and an explicit statement of what the comparison does not measure — S5, S6 — inline
 T5 — Verify: the script runs end to end from a clean checkout, `CGO_ENABLED=0 go build ./...` exits 0, `CGO_ENABLED=0 go test ./...` stays green and fast, and the existing benchmarks still run — S7, S9 — inline
