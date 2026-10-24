@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -97,6 +98,12 @@ func (e *EvolutionEngine) CommitLedger(ctx context.Context) (string, error) {
 	return fmt.Sprintf("✅ Committed changes to %d files: %v", len(files), files), nil
 }
 
+// applyStepID is the identifier of the apply step for a path. The ledger
+// uses it to map a progress event back to the file it belongs to.
+func applyStepID(path string) string {
+	return path + "_apply"
+}
+
 type preparePatchStep struct {
 	path  string
 	patch Patch
@@ -111,11 +118,26 @@ func (p *preparePatchStep) Run() error {
 	if mode == 0 {
 		mode = 0644
 	}
-	if err := os.WriteFile(p.path+".scouter.tmp", []byte(p.patch.NewContent), mode); err != nil {
+	tmp := p.path + ".scouter.tmp"
+	// The temporary file is synced before it is renamed: the rename is atomic,
+	// but without the sync the content may not survive a power loss.
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := f.WriteString(p.patch.NewContent); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
 		return err
 	}
 	if p.patch.Mode != 0 {
-		_ = os.Chmod(p.path+".scouter.tmp", p.patch.Mode)
+		_ = os.Chmod(tmp, p.patch.Mode)
 	}
 	return nil
 }
@@ -134,13 +156,22 @@ type applyPatchStep struct {
 	isNew    bool
 }
 
-func (a *applyPatchStep) ID() string { return a.path + "_apply" }
+func (a *applyPatchStep) ID() string { return applyStepID(a.path) }
 func (a *applyPatchStep) Run() error {
 	if err := os.Rename(a.path+".scouter.tmp", a.path); err != nil {
 		return err
 	}
 	if a.mode != 0 {
 		_ = os.Chmod(a.path, a.mode)
+	}
+	// The directory entry is synced so the rename survives a power loss. A
+	// filesystem that refuses the sync is logged, not fatal: the content is
+	// already in place and failing here would leave the batch half applied.
+	if dir, err := os.Open(filepath.Dir(a.path)); err == nil {
+		if err := dir.Sync(); err != nil {
+			slog.Warn("cannot sync directory after rename", "path", a.path, "error", err)
+		}
+		dir.Close()
 	}
 	return nil
 }
