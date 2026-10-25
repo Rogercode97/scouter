@@ -398,7 +398,9 @@ func (s *storeImpl) SearchSymbols(ctx context.Context, q, t, pathPrefix string, 
 	if limit == 0 {
 		limit = 500
 	}
-	sql += " LIMIT ? OFFSET ?"
+	// Frecency ranking: hits first, insertion order breaks ties so the
+	// order is deterministic when every counter is still zero.
+	sql += " ORDER BY runtime_hits DESC, symbols.id ASC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 	rows, err := s.query(ctx, sql, args...)
 	if err != nil {
