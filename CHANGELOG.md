@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Propagate**: `scouter propagate` no longer panics with a nil-pointer dereference. The CLI wires `StructuralTransformer` (`$SYMBOL` pattern) and accepts only the `rename:NewName` form; anything else is rejected with usage. `RippleEngine.Propagate` fails fast with a descriptive error when no Transformer is configured.
+- **Ledger**: `StructuralRefactor` no longer stages ast-grep's diff rendering as file content (which `commit` then wrote into sources). It rewrites a scratch copy in place with `--update-all` and stages the copy's content; the original is never touched. `sg`/`ast-grep` allow-list gains the fixed `--update-all` flag.
+- **CI**: dropped `-race` (it requires cgo and always failed) and pinned `CGO_ENABLED: "0"`, so CI enforces the zero-CGO mandate instead of contradicting it.
+
 ### Added
 - **MCP Auto-Sync Watcher**: Scouter MCP now runs a native background file watcher (`fsnotify`) with a 250ms debounce to automatically keep the AST SQLite index in sync with IDE saves, eliminating manual indexing.
 
