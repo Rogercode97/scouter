@@ -78,7 +78,24 @@ func (e *EvolutionEngine) Propagate(ctx context.Context, symbol, transformation 
 		return "", err
 	}
 
+	// The ripple engine stages into its own ledger; mirror the result into
+	// the injected one so every later step (diff, commit, inspection) reads
+	// a single canonical ledger instead of re-reading the file.
+	if e.ledger != nil {
+		for path, p := range ledger.Staged {
+			if err := e.ledger.Stage(path, p); err != nil {
+				return "", err
+			}
+		}
+	}
+
 	return fmt.Sprintf("✅ Transformation staged in Ledger for %d files: %v. Use 'scouter_commit' to apply or 'scouter_diff' to review.", len(ledger.AffectedFiles()), ledger.AffectedFiles()), nil
+}
+
+// StagedLedger returns the canonical ledger this engine stages into.
+// Callers inspect it directly instead of re-reading the staging file.
+func (e *EvolutionEngine) StagedLedger() *Ledger {
+	return e.ledger
 }
 
 func (e *EvolutionEngine) CommitLedger(ctx context.Context) (string, error) {

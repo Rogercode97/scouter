@@ -161,6 +161,32 @@ func TestEvolutionEngine_ProposeEvolution(t *testing.T) {
 	}
 }
 
+type mockEvoTransformer struct{}
+
+func (mockEvoTransformer) Transform(ctx context.Context, file, symbol, transformation string) (string, error) {
+	return "rewritten " + symbol, nil
+}
+
+func TestEvolutionEngine_PropagateMirrorsIntoInjectedLedger(t *testing.T) {
+	ctx := context.Background()
+	ledger := engine.NewLedger()
+	rRipple := &engine.RippleEngine{
+		Strategy: &mockStrategy{
+			tasks: []engine.PropagationTask{{SymbolName: "SymA", ImpactedSymbol: "pkg.SymA", FilePath: "/tmp/scouter-mirror.go"}},
+		},
+		Transformer: mockEvoTransformer{},
+		Validators:  []engine.Validator{},
+	}
+	evo := engine.NewEvolutionEngine(nil, ledger, rRipple)
+
+	if _, err := evo.Propagate(ctx, "SymA", "rename:SymB", nil); err != nil {
+		t.Fatalf("Propagate failed: %v", err)
+	}
+	if got := evo.StagedLedger().StagedFiles(); len(got) != 1 || got[0] != "/tmp/scouter-mirror.go" {
+		t.Errorf("injected ledger should hold the staged file, got %v", got)
+	}
+}
+
 type mockStrategy struct {
 	tasks []engine.PropagationTask
 	err   error

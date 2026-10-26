@@ -86,9 +86,9 @@ var propagateCmd = &cobra.Command{
 		if i := strings.LastIndex(symbol, "."); i >= 0 {
 			oldLocal = symbol[i+1:]
 		}
-		staged := engine.NewLedger()
-		staged.SetLedgerPath(".scouter/staging/ledger.json")
-		if err := staged.Load(); err == nil {
+		// The engine mirrors every staged patch into its own ledger:
+		// inspect that object, never re-read the staging file.
+		if staged := ee.StagedLedger(); staged != nil {
 			if left := leftoverMentions(staged, oldLocal); len(left) > 0 {
 				fmt.Fprintf(os.Stdout, "⚠️  %q still appears in %d staged files (qualified call sites the $SYMBOL pattern does not rewrite): %v\nReview them before scouter commit.\n", oldLocal, len(left), left)
 			}
