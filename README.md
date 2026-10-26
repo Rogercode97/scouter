@@ -4,8 +4,22 @@
 
 # Scouter: Structural Intelligence Engine
 
+[![Build](https://github.com/Rogercode97/scouter/actions/workflows/ci.yml/badge.svg)](https://github.com/Rogercode97/scouter/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/Rogercode97/scouter)](https://github.com/Rogercode97/scouter/releases)
+
 **Structural Analysis & Reconnaissance for AI Agents**
 Deep AST inspection, impact analysis, and staged mutation with per-file atomic apply.
+
+## Measured, not promised
+
+Same question (`IndexerPipeline`) on this repository, Scouter vs ripgrep — procedure in [`docs/benchmarks/results.md`](docs/benchmarks/results.md), reproducible with `just bench`:
+
+| Measurement | Scouter | ripgrep |
+| --- | --- | --- |
+| Answer size | **863 B (215 tokens)** | 2,572 B (643 tokens) |
+| Query latency | 48 ms | **6 ms** |
+| Index cost (one time, 252 files) | 12.6 s / 14.9 MB | — |
+
+Scouter is slower per query and its answer is a third of the text — because the text baseline matches every line that merely names the query (docs included: it grew to 3,946 B when this benchmark landed) while Scouter resolves the same 8 symbols every run. Read the [30-second demo](docs/demo.md) to see it on this repo.
 
 Scouter is the tactical visor for your AI coding agents. While memory systems provide context, Scouter provides the structural eyes. Instead of parsing plain text, Scouter parses and navigates the Abstract Syntax Tree (AST), bringing precision to autonomous code operations.
 
@@ -58,6 +72,9 @@ scouter setup <agent>
 The CLI is the primary surface. All commands are fast, on-demand, and safe to invoke per call.
 
 ```bash
+# Health first: ast-grep, database, ledger (report-only, exit 1 on failure)
+scouter doctor
+
 # Map the codebase and index AST symbols
 scouter index .
 
@@ -73,13 +90,14 @@ scouter graph GetNeighborhood
 # Highest-centrality symbols (hotspots)
 scouter critical 20
 
-# Blast radius before touching a symbol
-scouter impact
+# Blast radius before touching a symbol (short names resolve when unambiguous)
+scouter impact SafeCommand internal/utils/safe_exec.go
 
 # Predict affected tests from the current git diff
 scouter predict
 
-# Review staged changes, then commit (each file replaced atomically) or roll back
+# Stage a rename across its blast radius, review, then apply atomically (or roll back)
+scouter propagate 'github.com/Rogercode97/scouter/internal/utils.SafeCommand' 'rename:SafeCommand2'
 scouter diff
 scouter commit
 scouter rollback
