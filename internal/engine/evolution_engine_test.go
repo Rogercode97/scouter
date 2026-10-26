@@ -20,6 +20,12 @@ type mockMessenger struct {
 	err      error
 }
 
+type mockNoopTransformer struct{}
+
+func (mockNoopTransformer) Transform(ctx context.Context, file, symbol, transformation string) (string, error) {
+	return "", nil
+}
+
 func (m *mockMessenger) Ask(ctx context.Context, systemPrompt string, userPrompt string) (string, error) {
 	return m.response, m.err
 }
@@ -211,6 +217,9 @@ func TestEvolutionEngine_Propagate(t *testing.T) {
 			ledger := engine.NewLedger()
 			ripple := &engine.RippleEngine{
 				Strategy: tt.strategy,
+				// A Transformer must be present: nil now fails fast with a
+				// descriptive error instead of panicking mid-iteration.
+				Transformer: mockNoopTransformer{},
 				// Provide dummy validator slice to prevent nil dereference if ripple checks it
 				Validators: []engine.Validator{},
 			}

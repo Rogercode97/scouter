@@ -110,12 +110,31 @@ func StructuralRefactor(ctx context.Context, filePath, pattern, template, ext st
 	if err != nil {
 		return "", err
 	}
-	cmd, err := utils.SafeCommand(ctx, binary, "run", "--pattern", pattern, "--rewrite", template, filePath)
+	// ast-grep's `run --rewrite` prints a diff rendering of the matches, not
+	// the rewritten file. Applying that stdout as file content would destroy
+	// the source. Rewrite a scratch copy in place and return its content, so
+	// the original is never touched: staging stays staging.
+	scratch, err := os.CreateTemp("", "scouter-refactor-*"+ext)
+	if err != nil {
+		return "", fmt.Errorf("refactor scratch copy: %w", err)
+	}
+	scratchPath := scratch.Name()
+	scratch.Close()
+	defer os.Remove(scratchPath)
+
+	original, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", err
 	}
-	var stdout, stderr strings.Builder
-	cmd.Stdout = &stdout
+	if err := os.WriteFile(scratchPath, original, 0600); err != nil {
+		return "", fmt.Errorf("refactor scratch copy: %w", err)
+	}
+
+	cmd, err := utils.SafeCommand(ctx, binary, "run", "--pattern", pattern, "--rewrite", template, "--update-all", scratchPath)
+	if err != nil {
+		return "", err
+	}
+	var stderr strings.Builder
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
@@ -137,7 +156,11 @@ func StructuralRefactor(ctx context.Context, filePath, pattern, template, ext st
 		return "", fmt.Errorf("ast-grep failed: %w (stderr: %s)", err, stderr.String())
 	}
 
-	return stdout.String(), nil
+	rewritten, err := os.ReadFile(scratchPath)
+	if err != nil {
+		return "", err
+	}
+	return string(rewritten), nil
 }
 
 func findTargetNode(node *gotreesitter.Node, content []byte, pattern string, lang *gotreesitter.Language) *gotreesitter.Node {

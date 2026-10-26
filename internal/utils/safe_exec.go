@@ -35,10 +35,13 @@ func flagSet(names ...string) map[string]bool {
 // exists because a production caller passes it; add one only together with the
 // caller that needs it.
 var allowedBinaries = map[string]binaryPolicy{
-	"git":      {flags: flagSet("--unified")},
-	"rtk":      {flags: flagSet("--pointer", "--ultra-compact")},
-	"sg":       {flags: flagSet("--pattern", "--rewrite")},
-	"ast-grep": {flags: flagSet("--pattern", "--rewrite")},
+	"git": {flags: flagSet("--unified")},
+	"rtk": {flags: flagSet("--pointer", "--ultra-compact")},
+	// --update-all exists for exactly one caller: StructuralRefactor, which
+	// rewrites a scratch copy in place and stages its content. A fixed flag
+	// with no value surface, it cannot redirect output or load code.
+	"sg":       {flags: flagSet("--pattern", "--rewrite", "--update-all")},
+	"ast-grep": {flags: flagSet("--pattern", "--rewrite", "--update-all")},
 	"go":       {},
 	"scouter":  {},
 	"gopls":    {},
