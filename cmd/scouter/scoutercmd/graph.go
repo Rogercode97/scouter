@@ -23,7 +23,13 @@ var graphCmd = &cobra.Command{
 		var calls []store.Call
 		filter := ""
 		if len(args) > 0 {
-			filter = args[0]
+			resolved, err := resolveSymbolFQN(cmd.Context(), db, args[0])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "graph error: %v\n", err)
+				os.Exit(1)
+				return nil
+			}
+			filter = resolved
 			results, err := db.GetCallees(cmd.Context(), filter)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error fetching callees: %v\n", err)

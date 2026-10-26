@@ -64,8 +64,14 @@ func foo(s string) {
 		t.Fatalf("Propagate failed: %v", err)
 	}
 
-	if len(ledger.Staged) != 2 {
-		t.Errorf("Expected 2 staged files, got %d", len(ledger.Staged))
+	// fileB's definition does not match the call pattern foo($ARG), so its
+	// transform is a no-op and it must not be staged: unchanged files are
+	// skipped, not recorded.
+	if len(ledger.Staged) != 1 {
+		t.Errorf("Expected 1 staged file, got %d", len(ledger.Staged))
+	}
+	if _, ok := ledger.Staged[fileB]; ok {
+		t.Errorf("fileB was staged despite identical content")
 	}
 
 	// 5. Verify results
@@ -73,11 +79,4 @@ func foo(s string) {
 	if !strings.Contains(newA, `bar("hello", true)`) {
 		t.Errorf("fileA not correctly transformed.\nGot:\n%s", newA)
 	}
-
-	newB := ledger.Staged[fileB].NewContent
-	if newB == "" {
-		t.Errorf("fileB was not staged or content is empty")
-	}
-	// We don't necessarily expect fileB to change with the current pattern foo($ARG)
-	// because it's a definition 'func foo(s string)'.
 }
