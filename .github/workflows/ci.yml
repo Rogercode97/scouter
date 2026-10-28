@@ -31,6 +31,10 @@ jobs:
           rm ast-grep.zip
 
       - name: Run unit tests
+        env:
+          # Zero-CGO mandate: the shipped binary must build without cgo.
+          # -race is deliberately absent: it requires cgo and always fails here.
+          CGO_ENABLED: "0"
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
-          go test -race -v -p 1 ./...
+          go test -v -p 1 ./...

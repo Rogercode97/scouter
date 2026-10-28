@@ -43,6 +43,15 @@ type DiagnosticProvider interface {
 	BuildHealerContext(ctx context.Context, target *types.ASTPointer, failingFile, errorLog string, allMatches [][]string, originalCode string) string
 }
 
+// DiagnosticEngine is the read-only diagnosis entry point.
+//
+// Doctor contract (ported from Engram's DOCTOR.md): diagnosis never mutates.
+// Diagnose, DiagnoseHUD, AssessRisk and ExtractRCA perform no writes: no
+// Ledger staging, no memory observation, no store mutation, no cursor or
+// index change. Mutation lives behind explicit entry points only:
+// HealerEngine.Fix stages a fix in the Ledger (STAGED, never applied), and
+// applying a staged fix requires an explicit commit/rollback decision.
+// A diagnostic report therefore never implies a tree change.
 type DiagnosticEngine struct {
 	store    store.DiagnosticStore
 	analyzer *AnalysisEngine

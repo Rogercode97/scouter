@@ -304,6 +304,9 @@ func (v *LSPValidator) Validate(ctx context.Context, ledger *Ledger) (Validation
 
 // Propagate traces the blast radius of a symbol and applies the transformation to all affected files.
 func (e *RippleEngine) Propagate(ctx context.Context, symbolName string, transformation string, maxDepth int) (*Ledger, error) {
+	if e.Transformer == nil {
+		return nil, fmt.Errorf("propagate %q: no Transformer configured (CLI uses StructuralTransformer, MCP injects its sampler)", symbolName)
+	}
 	ledger := NewLedger()
 	// Initialize budget from config or defaults
 	ledger.SetBudget(100000, 15) // Example: 100k Ki, 15 turns
@@ -320,15 +323,28 @@ func (e *RippleEngine) Propagate(ctx context.Context, symbolName string, transfo
 		}
 
 		if _, exists := ledger.Staged[task.FilePath]; !exists {
-			ledger.IncrementTurn() // Each transformation is a turn
-
 			newContent, err := e.Transformer.Transform(ctx, task.FilePath, task.SymbolName, transformation)
 			if err != nil {
 				return nil, fmt.Errorf("transformation failed for %s: %w", task.FilePath, err)
 			}
 
+			// A transform that changes nothing stages nothing: no turn,
+			// no budget, no diff noise, no mtime churn on commit.
+			// When the file cannot be read (mock stores in tests),
+			// there is nothing to compare against, so stage as before.
+			var original string
+			if disk, err := os.ReadFile(task.FilePath); err == nil {
+				original = string(disk)
+				if original == newContent {
+					continue
+				}
+			}
+
+			ledger.IncrementTurn() // Each transformation is a turn
+
 			if err := ledger.Stage(task.FilePath, Patch{
 				FilePath:   task.FilePath,
+				Original:   original,
 				NewContent: newContent,
 			}); err != nil {
 				return ledger, err // Return ledger even on budget error so user can see partial progress

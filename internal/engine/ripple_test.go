@@ -58,6 +58,73 @@ func TestMCPTransformer_Transform(t *testing.T) {
 	}
 }
 
+func TestRippleEngine_SkipsUnchangedFiles(t *testing.T) {
+	ctx := context.Background()
+
+	tmp, err := os.CreateTemp("", "ripple-skip-*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmp.Name())
+	content := "package main\n"
+	if _, err := tmp.WriteString(content); err != nil {
+		t.Fatal(err)
+	}
+	tmp.Close()
+
+	newStore := func() *rippleEngineMockStore {
+		return &rippleEngineMockStore{
+			symbols: map[string][]store.Symbol{
+				"SymA": {{Name: "SymA", Path: tmp.Name()}},
+			},
+		}
+	}
+	ie := &ImpactEngine{store: newStore()}
+
+	unchanged := NewRippleEngine(newStore(), &mockTransformer{
+		transformFunc: func(file, symbol, transformation string) (string, error) { return content, nil },
+	}, ie)
+	ledger, err := unchanged.Propagate(ctx, "SymA", "noop", 1)
+	if err != nil {
+		t.Fatalf("Propagate failed: %v", err)
+	}
+	if len(ledger.Staged) != 0 {
+		t.Errorf("expected no staged files for identical content, got %d", len(ledger.Staged))
+	}
+
+	changed := NewRippleEngine(newStore(), &mockTransformer{
+		transformFunc: func(file, symbol, transformation string) (string, error) { return content + "// touched\n", nil },
+	}, ie)
+	ledger, err = changed.Propagate(ctx, "SymA", "touch", 1)
+	if err != nil {
+		t.Fatalf("Propagate failed: %v", err)
+	}
+	if len(ledger.Staged) != 1 {
+		t.Errorf("expected 1 staged file for changed content, got %d", len(ledger.Staged))
+	}
+}
+
+func TestRippleEngine_NilTransformerReturnsError(t *testing.T) {
+	ctx := context.Background()
+	ms := &rippleEngineMockStore{}
+	ie := &ImpactEngine{store: ms}
+
+	ms.symbols = map[string][]store.Symbol{
+		"SymA": {{Name: "SymA", Path: "/tmp/scouter-nil-transformer.go"}},
+	}
+
+	re := NewRippleEngine(ms, nil, ie)
+
+	// Must return a descriptive error, never panic.
+	_, err := re.Propagate(ctx, "SymA", "rename:SymB", 1)
+	if err == nil {
+		t.Fatal("expected an error when Transformer is nil, got nil")
+	}
+	if !strings.Contains(err.Error(), "Transformer") {
+		t.Errorf("error should name the missing Transformer, got: %v", err)
+	}
+}
+
 type mockTransformer struct {
 	transformFunc func(file, symbol, transformation string) (string, error)
 }

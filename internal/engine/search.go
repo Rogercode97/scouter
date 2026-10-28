@@ -104,6 +104,15 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 		}
 	}
 
+	// Frecency learning: record one hit per returned symbol so later
+	// searches rank used symbols higher. Best-effort by design: the bump
+	// must never fail a search, so errors are logged and dropped.
+	for _, s := range storeSymbols {
+		if err := e.store.UpdateSymbolRuntimeHits(ctx, s.Name, s.Path, s.RuntimeHits+1); err != nil {
+			slog.Warn("frecency bump failed, search results unaffected", "symbol", s.Name, "error", err)
+		}
+	}
+
 	return &types.HybridSearchResult{
 		Symbols:  symbols,
 		Insights: iRes.insights,

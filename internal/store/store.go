@@ -123,20 +123,20 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 	if err != nil {
 		dbRead.Close()
 		dbWrite.Close()
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+		return nil, annotateSQLError("begin", fmt.Errorf("failed to begin transaction: %w", err))
 	}
 	defer tx.Rollback()
 
 	if err := migrate(ctx, tx); err != nil {
-		return nil, fmt.Errorf("migration failed: %w", err)
+		return nil, annotateSQLError("migrate", fmt.Errorf("migration failed: %w", err))
 	}
 
 	if err := convergeSchema(ctx, tx); err != nil {
-		return nil, fmt.Errorf("schema convergence failed: %w", err)
+		return nil, annotateSQLError("converge schema", fmt.Errorf("schema convergence failed: %w", err))
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit migration: %w", err)
+		return nil, annotateSQLError("commit migration", fmt.Errorf("failed to commit migration: %w", err))
 	}
 
 	s := &storeImpl{
@@ -156,9 +156,11 @@ func NewStore(ctx context.Context, dbPath string) (Store, error) {
 
 func (s *storeImpl) exec(ctx context.Context, q string, a ...any) (sql.Result, error) {
 	if s.tx != nil {
-		return s.tx.ExecContext(ctx, q, a...)
+		res, err := s.tx.ExecContext(ctx, q, a...)
+		return res, annotateSQLError("exec", err)
 	}
-	return s.dbWrite.ExecContext(ctx, q, a...)
+	res, err := s.dbWrite.ExecContext(ctx, q, a...)
+	return res, annotateSQLError("exec", err)
 }
 
 func (s *storeImpl) queryRow(ctx context.Context, q string, a ...any) *sql.Row {
@@ -170,9 +172,11 @@ func (s *storeImpl) queryRow(ctx context.Context, q string, a ...any) *sql.Row {
 
 func (s *storeImpl) query(ctx context.Context, q string, a ...any) (*sql.Rows, error) {
 	if s.tx != nil {
-		return s.tx.QueryContext(ctx, q, a...)
+		rows, err := s.tx.QueryContext(ctx, q, a...)
+		return rows, annotateSQLError("query", err)
 	}
-	return s.dbRead.QueryContext(ctx, q, a...)
+	rows, err := s.dbRead.QueryContext(ctx, q, a...)
+	return rows, annotateSQLError("query", err)
 }
 
 func (s *storeImpl) GetFileIndex(ctx context.Context, p string) (*FileIndex, error) {
@@ -398,7 +402,9 @@ func (s *storeImpl) SearchSymbols(ctx context.Context, q, t, pathPrefix string, 
 	if limit == 0 {
 		limit = 500
 	}
-	sql += " LIMIT ? OFFSET ?"
+	// Frecency ranking: hits first, insertion order breaks ties so the
+	// order is deterministic when every counter is still zero.
+	sql += " ORDER BY runtime_hits DESC, symbols.id ASC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 	rows, err := s.query(ctx, sql, args...)
 	if err != nil {
