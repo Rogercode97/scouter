@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Propagate**: `scouter propagate` no longer panics with a nil-pointer dereference. The CLI wires `StructuralTransformer` (`$SYMBOL` pattern) and accepts only the `rename:NewName` form; anything else is rejected with usage. `RippleEngine.Propagate` fails fast with a descriptive error when no Transformer is configured.
+- **Ledger**: `StructuralRefactor` no longer stages ast-grep's diff rendering as file content (which `commit` then wrote into sources). It rewrites a scratch copy in place with `--update-all` and stages the copy's content; the original is never touched. `sg`/`ast-grep` allow-list gains the fixed `--update-all` flag.
+- **CI**: dropped `-race` (it requires cgo and always failed) and pinned `CGO_ENABLED: "0"`, so CI enforces the zero-CGO mandate instead of contradicting it.
+
 ### Added
+- **Doctor**: new report-only `scouter doctor` checks ast-grep, database and ledger health before indexing or mutating, with the exact remedy per failure.
+- **Demo**: `just demo` reproduces the 30-second portfolio demo (`docs/demo.md`, replayable `assets/demo.cast`) without touching state.
+- **Impact**: `impact` and `graph` resolve short symbol names to FQN; zero or ambiguous matches are errors, never a silent empty blast radius.
+- **Propagate**: skips byte-identical transforms (no turn, budget or mtime churn) and warns when the old name survives in rewritten files (qualified call sites).
 - **MCP Auto-Sync Watcher**: Scouter MCP now runs a native background file watcher (`fsnotify`) with a 250ms debounce to automatically keep the AST SQLite index in sync with IDE saves, eliminating manual indexing.
 
 ### Changed

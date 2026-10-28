@@ -189,4 +189,48 @@ func main() {
 			t.Errorf("refactor failed.\nGot:\n%s\nWant it to contain %q and %q", newContent, expected1, expected2)
 		}
 	})
+
+	t.Run("structural refactor returns the rewritten file, not a diff rendering", func(t *testing.T) {
+		content := `package main
+
+import "fmt"
+
+func Greet(name string) string {
+\treturn "hello " + name
+}
+
+func main() {
+\tfmt.Println(Greet("scouter"))
+}
+`
+		tmpFile, err := os.CreateTemp("", "test_refactor_full*.go")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(tmpFile.Name())
+		os.WriteFile(tmpFile.Name(), []byte(content), 0644)
+
+		newContent, err := StructuralRefactor(ctx, tmpFile.Name(), "Greet", "Welcome", ".go")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// The staged content must be compilable source: no diff gutters or hunk headers.
+		for _, marker := range []string{"\u2502", "@@", "--- ", "+++ "} {
+			if strings.Contains(newContent, marker) {
+				t.Errorf("refactor returned a diff rendering (contains %q).\nGot:\n%s", marker, newContent)
+			}
+		}
+		// Untouched surroundings must survive verbatim.
+		for _, want := range []string{`package main`, `import "fmt"`, `return "hello " + name`, `fmt.Println(Welcome("scouter"))`, `func Welcome(name string) string {`} {
+			if !strings.Contains(newContent, want) {
+				t.Errorf("refactor lost surrounding content %q.\nGot:\n%s", want, newContent)
+			}
+		}
+		// The original file must be untouched: staging never mutates disk.
+		onDisk, _ := os.ReadFile(tmpFile.Name())
+		if string(onDisk) != content {
+			t.Errorf("refactor mutated the source file on disk")
+		}
+	})
 }

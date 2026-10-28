@@ -49,6 +49,12 @@ func NewHealerEngine(s TransactionalStore, l *lsp.Manager, a *AnalysisEngine, i 
 }
 
 // Fix attempts to repair a test failure using the Shinigami Protocol (Solver-Verifier).
+//
+// Mutation boundary: Fix STAGES the winning candidate in the Ledger and records
+// one memory observation. It never applies, commits, or rolls back: the staged
+// fix takes effect only through an explicit commit/rollback decision on the
+// Ledger. Callers that only need a diagnosis must use DiagnosticEngine and
+// never reach this entry point.
 func (e *HealerEngine) Fix(ctx context.Context, errorLog string) (*types.HealResult, error) {
 	if errorLog == "" {
 		return nil, fmt.Errorf("empty error log")

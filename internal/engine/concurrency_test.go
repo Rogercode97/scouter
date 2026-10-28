@@ -10,14 +10,19 @@ import (
 )
 
 func TestStructuralSearch_Cancellation(t *testing.T) {
-	// Create a large number of files to ensure search takes some time
+	// Corpus sizing is load-bearing: the "during execution" subtest cancels
+	// mid-flight, so the search must reliably outlast the cancel delay on
+	// any hardware. 500 files complete in ~10ms on fast CI runners and won
+	// the race against a 10ms cancel (flaky FAIL with "got nil"); 5000 files
+	// take two orders of magnitude longer than the 1ms cancel below, and
+	// file enumeration plus parsing cannot complete in 1ms anywhere.
 	tmpDir, err := os.MkdirTemp("", "scouter-concurrency-*")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	for i := 0; i < 500; i++ {
+	for i := 0; i < 5000; i++ {
 		content := fmt.Sprintf("package main\nfunc Foo%d() {\n\tprintln(\"hello\")\n}\n", i)
 		err := os.WriteFile(filepath.Join(tmpDir, fmt.Sprintf("file%d.go", i)), []byte(content), 0644)
 		if err != nil {
@@ -40,9 +45,10 @@ func TestStructuralSearch_Cancellation(t *testing.T) {
 	t.Run("Cancellation during execution", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
-		// Run in background and cancel after a short delay
+		// Run in background and cancel almost immediately: the 5000-file
+		// corpus guarantees the search is still in flight.
 		go func() {
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(1 * time.Millisecond)
 			cancel()
 		}()
 

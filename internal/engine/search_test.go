@@ -11,6 +11,16 @@ type searchTestSymbolRegistry struct {
 	store.SymbolRegistry
 	SearchSymbolsFunc func(ctx context.Context, query, kind, pathPrefix string, limit, offset int) ([]store.Symbol, error)
 	SearchHybridFunc  func(ctx context.Context, textQuery string, queryEmbedding []float32, pathPrefix string, limit int) ([]store.Symbol, error)
+	UpdateHitsFunc    func(ctx context.Context, name, path string, hits int) error
+}
+
+// UpdateSymbolRuntimeHits defaults to a no-op so tests pinning ranking do
+// not need a real store; the frecency bump is best-effort by contract.
+func (m *searchTestSymbolRegistry) UpdateSymbolRuntimeHits(ctx context.Context, name, path string, hits int) error {
+	if m.UpdateHitsFunc != nil {
+		return m.UpdateHitsFunc(ctx, name, path, hits)
+	}
+	return nil
 }
 
 func (m *searchTestSymbolRegistry) SearchSymbols(ctx context.Context, query, kind, pathPrefix string, limit, offset int) ([]store.Symbol, error) {

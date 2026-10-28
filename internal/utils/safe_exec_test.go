@@ -119,6 +119,8 @@ func TestSafeCommandRejectsInjectedFlags(t *testing.T) {
 		{"caller rtk still works", "rtk", []string{"read", "a.go", "--pointer", "p", "--ultra-compact"}, false},
 		{"caller sg still works", "sg", []string{"run", "--pattern", "p", "--rewrite", "r", "a.go"}, false},
 		{"caller ast-grep still works", "ast-grep", []string{"run", "--pattern", "p", "--rewrite", "r", "a.go"}, false},
+		{"caller refactor applies in place on a scratch copy", "ast-grep", []string{"run", "--pattern", "p", "--rewrite", "r", "--update-all", "/tmp/copy.go"}, false},
+		{"refactor interactive mode stays rejected", "ast-grep", []string{"run", "--pattern", "p", "--rewrite", "r", "--interactive"}, true},
 		{"allowed flag with attached value", "git", []string{"diff", "HEAD", "--unified=3"}, false},
 	}
 

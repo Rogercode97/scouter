@@ -22,6 +22,13 @@ func (p RollbackPolicy) ShouldRollback(stage Stage, err error) bool {
 		return false
 	}
 
+	// An interrupted execution is not a failed one: the steps that already
+	// succeeded stay applied, and the journal describes the state. Rolling
+	// back here would hide the interruption instead of surfacing it.
+	if onlyInterruption(err) {
+		return false
+	}
+
 	switch stage {
 	case StagePrepare:
 		return p.OnPrepareFailure
@@ -30,6 +37,32 @@ func (p RollbackPolicy) ShouldRollback(stage Stage, err error) bool {
 	default:
 		return false
 	}
+}
+
+// onlyInterruption reports whether err carries nothing but interruptions.
+//
+// An interrupted execution is not a failed one, so it is not rolled back. That
+// reasoning stops applying as soon as a real failure travels with the
+// interruption, which happens when a stage runs under ContinueOnError, fails a
+// step, and is interrupted after a later step succeeds. Such an error must reach
+// the rollback decision, so only a pure interruption is excused.
+func onlyInterruption(err error) bool {
+	if err == nil {
+		return false
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		leaves := joined.Unwrap()
+		if len(leaves) == 0 {
+			return false
+		}
+		for _, leaf := range leaves {
+			if !onlyInterruption(leaf) {
+				return false
+			}
+		}
+		return true
+	}
+	return errors.Is(err, ErrInterrupted)
 }
 
 func ExecuteRollback(steps []StepResult, stepIndex map[string]Step) StageResult {
