@@ -27,7 +27,59 @@ And it MUST be able to reload these patches after a restart.
 Given changes are staged in the ledger
 When I commit the staged changes
 Then all staged patches MUST be written to their respective files on disk
+And each file MUST be replaced atomically
+And a failure during the batch MUST roll the whole batch back in process
 And the staging area MUST be cleared upon success.
+
+### Scenario: Commit is interrupted
+Given a commit is in progress
+And the process dies before the commit finishes
+When the ledger is loaded again
+Then the ledger MUST report the mission as an interrupted commit
+And the ledger MUST name the files the commit already replaced and the files it did not
+And the ledger MUST refuse to start another commit until the interrupted one is resolved
+And the resolution MUST be an explicit decision, never an automatic one.
+
+### Scenario: Resolve an interrupted commit by rolling back
+Given the ledger reports an interrupted commit
+When the operator rolls back
+Then every file the commit already replaced MUST be restored to its original content
+And a file that was created by the commit MUST be removed
+And a file whose content changed after the interruption MUST NOT be overwritten
+And the rollback MUST fail instead of overwriting it
+And the journal MUST be removed once the tree is back to its previous state.
+
+### Scenario: Resolve an interrupted commit by rolling forward
+Given the ledger reports an interrupted commit
+When the operator rolls forward
+Then every file the commit did not replace yet MUST be written with its staged content
+And the files the commit already replaced MUST be left untouched
+And the staging area MUST be cleared
+And the journal MUST be removed.
+
+### Requirement: Durable Journal
+
+The journal is the only record of a commit in progress, so it MUST survive the
+failure it exists to describe.
+
+#### Scenario: Journal write is atomic
+- GIVEN a commit in progress
+- WHEN the journal is written
+- THEN the journal MUST be replaced atomically and never left torn
+
+#### Scenario: Journal records the commit before the filesystem is touched
+- GIVEN staged changes
+- WHEN a commit starts
+- THEN the journal MUST record the commit in progress and the files it is about to write
+- AND the journal MUST keep that record until the commit reaches its end
+
+### Requirement: Durable Replacement
+
+#### Scenario: Applied file survives a power loss
+- GIVEN a commit in progress
+- WHEN a file is replaced
+- THEN the content MUST be synced before the replacement
+- AND the directory entry MUST be synced after it
 
 ### Scenario: Clear staging area
 Given changes are staged in the ledger

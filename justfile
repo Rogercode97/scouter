@@ -22,3 +22,11 @@ sync msg="chore: sync repository via just":
     git add .
     git commit -m "{{msg}}" || true
     git push
+
+# Run the comparative benchmark against the ripgrep baseline
+bench:
+    ./scripts/bench-baseline.sh
+
+# Run the 30-second portfolio demo (docs/demo.md, assets/demo.cast)
+demo:
+    ./scripts/demo.sh

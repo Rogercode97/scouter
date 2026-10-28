@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,7 +78,24 @@ func (e *EvolutionEngine) Propagate(ctx context.Context, symbol, transformation 
 		return "", err
 	}
 
+	// The ripple engine stages into its own ledger; mirror the result into
+	// the injected one so every later step (diff, commit, inspection) reads
+	// a single canonical ledger instead of re-reading the file.
+	if e.ledger != nil {
+		for path, p := range ledger.Staged {
+			if err := e.ledger.Stage(path, p); err != nil {
+				return "", err
+			}
+		}
+	}
+
 	return fmt.Sprintf("✅ Transformation staged in Ledger for %d files: %v. Use 'scouter_commit' to apply or 'scouter_diff' to review.", len(ledger.AffectedFiles()), ledger.AffectedFiles()), nil
+}
+
+// StagedLedger returns the canonical ledger this engine stages into.
+// Callers inspect it directly instead of re-reading the staging file.
+func (e *EvolutionEngine) StagedLedger() *Ledger {
+	return e.ledger
 }
 
 func (e *EvolutionEngine) CommitLedger(ctx context.Context) (string, error) {
@@ -97,6 +115,12 @@ func (e *EvolutionEngine) CommitLedger(ctx context.Context) (string, error) {
 	return fmt.Sprintf("✅ Committed changes to %d files: %v", len(files), files), nil
 }
 
+// applyStepID is the identifier of the apply step for a path. The ledger
+// uses it to map a progress event back to the file it belongs to.
+func applyStepID(path string) string {
+	return path + "_apply"
+}
+
 type preparePatchStep struct {
 	path  string
 	patch Patch
@@ -111,11 +135,34 @@ func (p *preparePatchStep) Run() error {
 	if mode == 0 {
 		mode = 0644
 	}
-	if err := os.WriteFile(p.path+".scouter.tmp", []byte(p.patch.NewContent), mode); err != nil {
+	tmp := p.path + ".scouter.tmp"
+	// The temporary file is synced before it is renamed: the rename is atomic,
+	// but without the sync the content may not survive a power loss.
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	if err != nil {
 		return err
 	}
+	if _, err := f.WriteString(p.patch.NewContent); err != nil {
+		f.Close()
+		return err
+	}
+	// The requested mode is applied to the descriptor before the sync. The mode
+	// given to OpenFile is masked by the process umask, so it does not settle
+	// the final permissions by itself, and a chmod issued after the sync would
+	// leave the metadata unflushed. A failure is reported rather than dropped:
+	// the file is about to be renamed into place with the wrong permissions.
 	if p.patch.Mode != 0 {
-		_ = os.Chmod(p.path+".scouter.tmp", p.patch.Mode)
+		if err := f.Chmod(p.patch.Mode); err != nil {
+			f.Close()
+			return err
+		}
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -134,7 +181,7 @@ type applyPatchStep struct {
 	isNew    bool
 }
 
-func (a *applyPatchStep) ID() string { return a.path + "_apply" }
+func (a *applyPatchStep) ID() string { return applyStepID(a.path) }
 func (a *applyPatchStep) Run() error {
 	if err := os.Rename(a.path+".scouter.tmp", a.path); err != nil {
 		return err
@@ -142,6 +189,21 @@ func (a *applyPatchStep) Run() error {
 	if a.mode != 0 {
 		_ = os.Chmod(a.path, a.mode)
 	}
+	// The directory entry is synced so the rename survives a power loss. A
+	// filesystem that refuses the sync is logged, not fatal: the content is
+	// already in place and failing here would leave the batch half applied.
+	dir, err := os.Open(filepath.Dir(a.path))
+	if err != nil {
+		// Same best-effort policy as a failed sync: the rename already
+		// happened and there is no descriptor to sync. Logging it keeps this
+		// path visible instead of skipping the barrier silently.
+		slog.Warn("cannot open directory to sync after rename", "path", a.path, "error", err)
+		return nil
+	}
+	if err := dir.Sync(); err != nil {
+		slog.Warn("cannot sync directory after rename", "path", a.path, "error", err)
+	}
+	dir.Close()
 	return nil
 }
 func (a *applyPatchStep) Rollback() error {

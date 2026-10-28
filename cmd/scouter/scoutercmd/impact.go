@@ -26,7 +26,12 @@ var impactCmd = &cobra.Command{
 			return nil
 		}
 
-		symbol := args[0]
+		symbol, err := resolveSymbolFQN(cmd.Context(), db, args[0])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "impact error: %v\n", err)
+			os.Exit(1)
+			return nil
+		}
 		path := args[1]
 
 		lspMgr := lsp.GetGlobalManager()

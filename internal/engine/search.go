@@ -22,7 +22,7 @@ func NewSearchEngine(s store.SymbolRegistry, m memory.MemoryProvider, sem Embedd
 	return &SearchEngine{store: s, memory: m, semantic: sem}
 }
 
-// HybridSearch executes parallel lookups in the AST, Bleve, and Engram databases.
+// HybridSearch executes parallel lookups in the AST, FTS, and Engram databases.
 func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, offset int, pathPrefix string) (*types.HybridSearchResult, error) {
 	if query == "" {
 		return nil, fmt.Errorf("missing query")
@@ -101,6 +101,15 @@ func (e *SearchEngine) HybridSearch(ctx context.Context, query string, limit, of
 				symbols[i].LinkedInsights = append(symbols[i].LinkedInsights, insight.ID)
 				insight.LinkedSymbols = append(insight.LinkedSymbols, symName)
 			}
+		}
+	}
+
+	// Frecency learning: record one hit per returned symbol so later
+	// searches rank used symbols higher. Best-effort by design: the bump
+	// must never fail a search, so errors are logged and dropped.
+	for _, s := range storeSymbols {
+		if err := e.store.UpdateSymbolRuntimeHits(ctx, s.Name, s.Path, s.RuntimeHits+1); err != nil {
+			slog.Warn("frecency bump failed, search results unaffected", "symbol", s.Name, "error", err)
 		}
 	}
 
