@@ -6,7 +6,7 @@ require (
 	github.com/MichaelAyles/goformer v0.1.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/cinar/resile v1.0.5
+	github.com/cinar/resile v1.0.6
 	github.com/dominikbraun/graph v0.23.0
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/go-playground/validator/v10 v10.30.3
