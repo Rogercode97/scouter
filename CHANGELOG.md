@@ -10,6 +10,9 @@ and is kept at the bottom for history.
 
 ## [Unreleased]
 
+### Fixed
+- **Impact**: a short symbol name that names two different definitions is refused instead of answered. The resolver keyed candidates on the rendered fully-qualified name, so in a language that attaches no package path to a symbol both definitions collapsed into one candidate and the blast radius merged two call graphs. The identity is now the definition (name and file), and the error names both files.
+
 ## [1.4.0] - 2026-11-03
 
 ### Added
