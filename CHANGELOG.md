@@ -10,6 +10,8 @@ and is kept at the bottom for history.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-03
+
 ### Added
 - **Doctor**: new report-only `scouter doctor` checks ast-grep, database and ledger health before indexing or mutating, with the exact remedy per failure.
 - **Demo**: `just demo` reproduces the 30-second portfolio demo (`docs/demo.md`, replayable `assets/demo.cast`) without touching state.
