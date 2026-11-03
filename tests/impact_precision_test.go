@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -367,6 +370,8 @@ func TestNormalizeGoCaller(t *testing.T) {
 		{"github.com/x/y/pkg.Recv.Method", "Method"},
 		{"github.com/x/y/pkg.Recv.Method.func1", "Method"},
 		{"github.com/x/y/pkg.TestThing.func2", "TestThing"},
+		{"github.com/x/y/pkg.TestThing.func1.func1", "TestThing"},
+		{"github.com/x/y/pkg.Recv.Method.func1.func2", "Method"},
 		{"Bare", "Bare"},
 	}
 	for _, tt := range tests {
@@ -388,7 +393,7 @@ func normalizeGoCaller(name string) string {
 	return name
 }
 
-var goClosureSuffix = regexp.MustCompile(`\.func\d+$`)
+var goClosureSuffix = regexp.MustCompile(`(?:\.func\d+)+$`)
 
 // goCallSite is one call edge as the source shows it: the file holding the call
 // and the top-level function that contains it. Closures are not named, because a
@@ -400,25 +405,21 @@ type goCallSite struct {
 
 func (c goCallSite) key() string { return c.File + "|" + c.Function }
 
-var (
-	goFuncDecl    = regexp.MustCompile(`^func (?:\([^)]*\) )?([A-Za-z0-9_]+)\(`)
-	goStringParts = regexp.MustCompile(`"[^"]*"|` + "`[^`]*`" + `|'[^']*'`)
-	goSkippedDirs = map[string]bool{".git": true, "vendor": true, "node_modules": true, "testdata": true}
-)
+var goSkippedDirs = map[string]bool{".git": true, "vendor": true, "node_modules": true, "testdata": true}
 
 // goCallerOracle answers "who calls this symbol" by reading the Go sources under
-// root. It never opens the index: comments, string literals and the declaration
-// itself are excluded, and each remaining call site is attributed to the
-// top-level function that encloses it.
+// root. It parses them instead of scanning lines: comments and string literals are
+// not call expressions, a declaration contains no call to itself, and a call
+// inside a closure belongs to the function that declares the closure. A call in a
+// package-level initializer has no containing function and is therefore not a
+// caller. The index is never opened.
 func goCallerOracle(t *testing.T, root, symbol string) []goCallSite {
 	t.Helper()
-	callPattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(symbol) + `\(`)
-	declPattern := regexp.MustCompile(`^func (?:\([^)]*\) )?` + regexp.QuoteMeta(symbol) + `\(`)
 	var sites []goCallSite
 
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
 		if d.IsDir() {
 			if goSkippedDirs[d.Name()] {
@@ -429,31 +430,30 @@ func goCallerOracle(t *testing.T, root, symbol string) []goCallSite {
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
-		raw, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return readErr
+
+		parsed, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
+		if parseErr != nil {
+			return fmt.Errorf("oracle cannot parse %s: %w", path, parseErr)
 		}
-		lines := strings.Split(string(raw), "\n")
 		rel, relErr := filepath.Rel(root, path)
 		if relErr != nil {
-			return relErr
+			rel = path
 		}
-		for i, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "*") || strings.HasPrefix(trimmed, "/*") {
+		for _, decl := range parsed.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
 				continue
 			}
-			if declPattern.MatchString(line) {
-				continue
-			}
-			if !callPattern.MatchString(goStringParts.ReplaceAllString(line, `""`)) {
-				continue
-			}
-			fn := enclosingGoFunction(lines, i)
-			if fn == "" {
-				continue
-			}
-			sites = append(sites, goCallSite{File: filepath.ToSlash(rel), Function: fn})
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				if calleeIdentifier(call.Fun) == symbol {
+					sites = append(sites, goCallSite{File: filepath.ToSlash(rel), Function: fn.Name.Name})
+				}
+				return true
+			})
 		}
 		return nil
 	})
@@ -463,12 +463,21 @@ func goCallerOracle(t *testing.T, root, symbol string) []goCallSite {
 	return sites
 }
 
-// enclosingGoFunction finds the top-level function or method that contains line.
-func enclosingGoFunction(lines []string, index int) string {
-	for i := index; i >= 0; i-- {
-		if m := goFuncDecl.FindStringSubmatch(lines[i]); m != nil {
-			return m[1]
-		}
+// calleeIdentifier returns the name a call expression invokes: the identifier
+// itself, the selector of a qualified call, or the function behind a parenthesis
+// or a generic instantiation.
+func calleeIdentifier(fun ast.Expr) string {
+	switch f := fun.(type) {
+	case *ast.Ident:
+		return f.Name
+	case *ast.SelectorExpr:
+		return f.Sel.Name
+	case *ast.ParenExpr:
+		return calleeIdentifier(f.X)
+	case *ast.IndexExpr:
+		return calleeIdentifier(f.X)
+	case *ast.IndexListExpr:
+		return calleeIdentifier(f.X)
 	}
 	return ""
 }
@@ -601,4 +610,78 @@ func keysOf(sites []goCallSite) []string {
 		keys = append(keys, s.key())
 	}
 	return keys
+}
+
+// TestGoCallerOracle pins what the Go answer key counts as a call edge, on a file
+// that carries every case a line-based scan gets wrong: a deref assignment that
+// starts with an asterisk, a call mentioned in a trailing comment, a call inside
+// a block comment, a call inside a string literal, a generic function, a call
+// from inside a closure, an indirect call through a variable, and a package-level
+// initializer that has no containing function at all.
+func TestGoCallerOracle(t *testing.T) {
+	dir := t.TempDir()
+	source := `package fixture
+
+var global = Sym(1)
+
+func alpha(v int) int {
+	return Sym(v)
+}
+
+func beta(p *int, v int) {
+	*p = Sym(v)
+}
+
+func gamma(v int) int {
+	// Sym(v) in a comment is not a call
+	return v // Sym(v) neither is this
+}
+
+/*
+	Sym(v) inside a block comment is not a call
+*/
+
+func delta(v int) string {
+	return "Sym(v) inside a string is not a call"
+}
+
+func Generic[T any](v int) int {
+	return Sym(v)
+}
+
+func nested(v int) int {
+	f := func() int {
+		return Sym(v)
+	}
+	return f()
+}
+
+func indirect(v int) int {
+	g := Sym
+	return g(v)
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "fixture.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	got := map[string]bool{}
+	for _, site := range goCallerOracle(t, dir, "Sym") {
+		got[site.Function] = true
+	}
+
+	want := []string{"alpha", "beta", "Generic", "nested"}
+	for _, fn := range want {
+		if !got[fn] {
+			t.Errorf("oracle missed a call inside %s", fn)
+		}
+	}
+	for _, fn := range []string{"gamma", "delta", "indirect"} {
+		if got[fn] {
+			t.Errorf("oracle counted something in %s that is not a call", fn)
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("oracle reported %d callers (%v), want %v", len(got), got, want)
+	}
 }

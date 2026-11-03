@@ -52,7 +52,7 @@ One run on the environment below:
 
 ## The Go measurement
 
-Go is the primary language, so it gets its own number — measured one layer down, at the direct call edges the indexer writes, because the command answers with the transitive blast radius rendered as fully-qualified names and no hand-written key of direct callers can be compared against that. The answer key is not written out in a file: the oracle walks the tracked Go sources, skips comments, string literals and the declaration itself, and attributes each call site to the top-level function that contains it. It never opens the index.
+Go is the primary language, so it gets its own number — measured one layer down, at the direct call edges the indexer writes, because the command answers with the transitive blast radius rendered as fully-qualified names and no hand-written key of direct callers can be compared against that. The answer key is not written out in a file: the oracle parses the tracked Go sources with `go/parser` and walks the AST. A comment is not a call expression, a string literal is not a call expression, and a declaration contains no call to itself, so none of them can be miscounted; each call expression is attributed to the top-level function whose body contains it, which means a call inside a closure belongs to the function that declares the closure. A call in a package-level initializer has no containing function and is not a caller. The index is never opened.
 
 | Query | Call sites in source | Call edges in index | Correct | Missed | Extra |
 | --- | ---: | ---: | ---: | ---: | ---: |
