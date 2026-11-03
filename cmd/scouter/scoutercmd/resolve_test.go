@@ -59,3 +59,24 @@ func TestResolveSymbolFQN_AmbiguousIsError(t *testing.T) {
 		t.Errorf("expected an ambiguity error, got %v", err)
 	}
 }
+
+// A language whose symbols carry no package path (Python, for one) must still
+// refuse a short name that names two different definitions in two different
+// files. Collapsing them onto one fully-qualified name silently merges two
+// call graphs and reports callers from both.
+func TestResolveSymbolFQN_AmbiguousWithoutPackagePathIsError(t *testing.T) {
+	db := stubSearcher{syms: []store.Symbol{
+		{Name: "transform", Path: "/tmp/core.py"},
+		{Name: "transform", Path: "/tmp/decoys.py"},
+	}}
+	_, err := resolveSymbolFQN(context.Background(), db, "transform")
+	if err == nil {
+		t.Fatal("two definitions in two files resolved to one name")
+	}
+	if !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("expected an ambiguity error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "core.py") || !strings.Contains(err.Error(), "decoys.py") {
+		t.Fatalf("ambiguity error should name both files, got %v", err)
+	}
+}
