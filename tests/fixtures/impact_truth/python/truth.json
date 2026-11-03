@@ -1,0 +1,37 @@
+{
+  "_comment": "Ground truth read from the source files in this directory, never from the index. Each entry states what a human reading the corpus would answer for `scouter impact <query> <this dir>`. `known_false_positives` is a ratchet: a name listed there is a caller Scouter reports that is not a caller; an empty list means any extra caller fails the measurement.",
+  "language": "python",
+  "root": "tests/fixtures/impact_truth/python",
+  "symbols": [
+    {
+      "query": "scale",
+      "why": "Unique name, called from core.pipeline and uses_direct.direct. Nothing calls those two, so the transitive blast radius is exactly these two direct calls.",
+      "expected_callers": [
+        "pipeline",
+        "direct"
+      ],
+      "known_false_positives": [],
+      "known_false_negatives": []
+    },
+    {
+      "query": "boost",
+      "why": "Unique name reached three ways: a call through the import alias `c.boost`, a bare reference passed to map, and a bare reference passed to functools.partial. All three are callers a human would name; the string in decoys.mention is not. All three are recorded as known false negatives because the measured answer is empty.",
+      "expected_callers": [
+        "aliased",
+        "via_map",
+        "via_partial"
+      ],
+      "known_false_positives": [],
+      "known_false_negatives": [
+        "aliased",
+        "via_map",
+        "via_partial"
+      ]
+    },
+    {
+      "query": "transform",
+      "why": "Two different functions share this name: core.transform and decoys.transform. A correct answer refuses the ambiguity instead of merging them.",
+      "expected_error": true
+    }
+  ]
+}
