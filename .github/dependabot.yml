@@ -7,6 +7,13 @@ updates:
     labels:
       - "security"
       - "dependencies"
+    groups:
+      go-modules:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -14,3 +21,7 @@ updates:
     labels:
       - "security"
       - "dependencies"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
