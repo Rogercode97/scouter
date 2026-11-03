@@ -15,7 +15,7 @@ and is kept at the bottom for history.
 ### Added
 - **Doctor**: new report-only `scouter doctor` checks ast-grep, database and ledger health before indexing or mutating, with the exact remedy per failure.
 - **Demo**: `just demo` reproduces the 30-second portfolio demo (`docs/demo.md`, replayable `assets/demo.cast`) without touching state.
-- **Impact**: `impact` and `graph` resolve short symbol names to FQN; zero or ambiguous matches are errors, never a silent empty blast radius.
+- **Impact**: `impact` and `graph` resolve short symbol names to FQN; a name that matches nothing is an error, never a silent empty blast radius, and a name matching several symbols is refused rather than guessed. For symbols that carry no package path the ambiguity was still collapsed until the fix recorded under Unreleased.
 - **Propagate**: skips byte-identical transforms (no turn, budget or mtime churn) and warns when the old name survives in rewritten files (qualified call sites).
 - **Context**: single-shot, token-dense context packet for agent handoff.
 - **Search**: results ranked by `runtime_hits` frecency, with a best-effort bump.
