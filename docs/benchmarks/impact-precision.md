@@ -9,10 +9,14 @@ Speed was the question that surfaced it: on this machine `scouter index .` takes
 ## How to reproduce
 
 ```bash
+# Python, end to end through the command. Runs in the normal suite.
 CGO_ENABLED=0 go test ./tests/ -run TestImpactPrecision_Python -v
+
+# Go, direct call edges against this repository. Opt-in: it indexes the tree.
+SCOUTER_IMPACT_SELF=1 CGO_ENABLED=0 go test ./tests/ -run TestImpactPrecision_GoIndex -v
 ```
 
-The test builds the CLI from the current checkout, indexes the fixture corpus into a throwaway database, and runs the real command. It needs no network and no service.
+Both build the CLI from the current checkout and index into a throwaway database through `SCOUTER_CONFIG`. Neither needs a network or a service.
 
 ## The corpus
 
@@ -46,6 +50,23 @@ One run on the environment below:
 | False positives | 0 |
 | False negatives | 3 |
 
+## The Go measurement
+
+Go is the primary language, so it gets its own number — measured one layer down, at the direct call edges the indexer writes, because the command answers with the transitive blast radius rendered as fully-qualified names and no hand-written key of direct callers can be compared against that. The answer key is not written out in a file: the oracle walks the tracked Go sources, skips comments, string literals and the declaration itself, and attributes each call site to the top-level function that contains it. It never opens the index.
+
+| Query | Call sites in source | Call edges in index | Correct | Missed | Extra |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `SanitizeFTS` | 5 | 5 | 5 | 0 | 0 |
+| `ValidatePath` | 29 | 29 | 29 | 0 | 0 |
+
+| Aggregate | Value |
+| --- | ---: |
+| Precision | **1.00** |
+| Recall | **1.00** |
+| Edges | 34 |
+
+Every direct call edge in this repository for these two symbols is present and none is invented, including calls made from inside closures, from test files, and from methods. The contrast with the Python number is the finding, and it is not a language ranking: it separates two mechanisms. Go's edges come from `go/packages`, which type-checks the module and knows what a call resolves to. Everything else comes from a tree-sitter pass that records the shape of a call expression, so a reference that never appears as the head of a call — an aliased call, a callback passed to `map`, a `functools.partial` — has no edge to record.
+
 Precision 1.00 here means Scouter never invented a caller on this corpus: it did not treat the string in `mention` as a call, and it did not confuse `decoys.transform` with `core.transform` once the ambiguity was refused. Recall 0.40 means it found two of the five callers that exist.
 
 The three misses share a cause: every one of them is a reference that is not a direct call expression. A call through an import alias, a function passed to `map`, and a function passed to `partial` all reach the target without the callee name appearing as the head of a call node. The parser records direct call shapes.
@@ -58,7 +79,8 @@ The resolver now keys candidates on the definition — the fully-qualified name 
 
 ## What this does not measure
 
-- **Go.** `scouter impact` on a Go corpus answers with the **transitive** blast radius up to depth 5 and renders callers as fully-qualified names. An answer key of direct callers is not comparable with that rendering, so no Go figure is published here. Measuring Go needs a metric defined on direct callers, either at the index layer or behind a direct mode on the command. It is a separate unit and it is not invented here.
+- **The Go answer the command gives.** The figures above measure direct edges at the index layer. They say nothing about the transitive expansion to depth 5 that `impact` prints, which is a different claim: it can include callers of callers that would never be affected.
+- **The rest of Go.** Two symbols and 34 edges in one repository. Wide enough to be falsifiable, not wide enough to be a survey; the opt-in run is the instrument for widening it.
 - **Recall beyond Python.** One language, five files, three queries. This is an instrument that shows where misses come from, not a survey.
 - **Transitivity quality.** Whether depth-5 expansion adds callers that would never be affected is a separate question from whether the direct edges exist.
 - **Anything about speed.** See `docs/benchmarks/results.md`.
@@ -67,10 +89,10 @@ The resolver now keys candidates on the definition — the fully-qualified name 
 
 | | |
 | --- | --- |
-| Commit | `main` after `f2d9fb1`, with the ambiguity fix applied |
+| Commit | `main` after `4ddac89`, with the ambiguity fix applied |
 | Go | `go1.27.1-X:nodwarf5 linux/amd64` |
 | CPU | AMD Ryzen 5 5600GT, 12 procs |
-| Corpus | 5 Python files, 6 symbols indexed |
+| Corpus | 5 Python files for the command-level run; this repository for the Go edge run |
 | Database | throwaway, `SCOUTER_CONFIG` pointing at a temp path |
 
 ## The ratchet
