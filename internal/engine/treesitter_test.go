@@ -608,41 +608,53 @@ fn main() {
 	})
 }
 
-// TestResolvePythonCallee pins how a written callee maps to the name the symbol
-// table holds, using the file's imports. Both alias forms Python offers have to
-// land on the same name, and anything that is not an import has to travel
-// untouched.
+// TestResolvePythonCallee pins how a written callee maps to the fully-qualified
+// name the symbol table holds, using the file's imports. The module travels with
+// the name so a call through an import can never be attributed to a same-named
+// definition in another module.
 func TestResolvePythonCallee(t *testing.T) {
-	aliases := map[string]string{
-		"c":     "core",  // import core as c
-		"b":     "boost", // from core import boost as b
-		"boost": "boost", // from core import boost
-		"np":    "numpy", // import numpy as np
+	imports := pythonImports{
+		aliases: map[string]string{
+			"c":     "core",       // import core as c
+			"os":    "os.path",    // import os.path
+			"b":     "core.boost", // from core import boost as b
+			"boost": "core.boost", // from core import boost
+			"np":    "numpy",      // import numpy as np
+		},
 	}
 
 	tests := []struct{ callee, want string }{
-		{"c.boost", "boost"},           // module alias then attribute
-		{"b", "boost"},                 // imported symbol alias called directly
-		{"boost", "boost"},             // plain imported name
-		{"np.array", "array"},          // unrelated module alias still resolves
-		{"other.boost", "other.boost"}, // not an import: untouched
-		{"local_helper", "local_helper"},
+		{"c.boost", "core.boost"},
+		{"b", "core.boost"},
+		{"boost", "core.boost"},
+		{"os.path.join", "path.join"},
+		{"np.array", "numpy.array"},
+		{"other.boost", "other.boost"},          // not an import: untouched
+		{"local_helper", "runner.local_helper"}, // same file: this file's module
 		{"", ""},
 	}
 	for _, tt := range tests {
-		if got := resolvePythonCallee(tt.callee, aliases); got != tt.want {
+		if got := resolvePythonCallee(tt.callee, imports, "runner"); got != tt.want {
 			t.Errorf("resolvePythonCallee(%q) = %q, want %q", tt.callee, got, tt.want)
 		}
 	}
 
-	if got := resolvePythonCallee("c.boost", nil); got != "c.boost" {
-		t.Errorf("without imports the callee must be untouched, got %q", got)
+	if got := resolvePythonCallee("c.boost", pythonImports{}, ""); got != "c.boost" {
+		t.Errorf("without imports or module the callee must be untouched, got %q", got)
+	}
+
+	conflicted := pythonImports{
+		aliases:    map[string]string{"c": "core"},
+		conflicted: map[string]bool{"c": true},
+	}
+	if got := resolvePythonCallee("c.boost", conflicted, "runner"); got != "c.boost" {
+		t.Errorf("a conflicted alias must leave the callee alone, got %q", got)
 	}
 }
 
 // TestPythonImportAliases reads the four import shapes Python offers out of a real
-// parse and checks that a callee written through any of them resolves to the name
-// the symbol table holds.
+// parse and checks that a callee written through any of them resolves to the
+// module-qualified name the symbol table holds.
 func TestPythonImportAliases(t *testing.T) {
 	lang := grammars.PythonLanguage()
 	parser := GetParser(lang)
@@ -669,31 +681,63 @@ def run(items):
 	}
 	defer tree.Release()
 
-	aliases := pythonImportAliases(tree.RootNode(), lang, code)
+	imports := pythonImportAliases(tree.RootNode(), lang, code)
 
 	want := map[string]string{
 		"c":     "core",
 		"os":    "os.path",
-		"boost": "boost",
-		"norm":  "normalize",
-		"other": "other",
+		"boost": "helpers.boost",
+		"norm":  "helpers.normalize",
+		"other": "sibling.other",
 	}
 	for local, imported := range want {
-		if got := aliases[local]; got != imported {
+		if got := imports.aliases[local]; got != imported {
 			t.Errorf("alias %q = %q, want %q", local, got, imported)
 		}
 	}
 
 	for written, resolved := range map[string]string{
-		"c.boost":      "boost",
-		"boost":        "boost",
-		"norm":         "normalize",
+		"c.boost":      "core.boost",
+		"boost":        "helpers.boost",
+		"norm":         "helpers.normalize",
 		"os.path.join": "path.join",
-		"other":        "other",
-		"local":        "local",
+		"other":        "sibling.other",
+		"local":        "run.local",
 	} {
-		if got := resolvePythonCallee(written, aliases); got != resolved {
+		if got := resolvePythonCallee(written, imports, "run"); got != resolved {
 			t.Errorf("callee %q resolves to %q, want %q", written, got, resolved)
 		}
+	}
+}
+
+// TestPythonAliasConflictIsNotGuessed pins the choice to leave a call unresolved
+// rather than attribute it to the wrong module: when one file binds the same local
+// alias to two different modules, the call cannot be answered from the file alone.
+func TestPythonAliasConflictIsNotGuessed(t *testing.T) {
+	lang := grammars.PythonLanguage()
+	parser := GetParser(lang)
+	defer PutParser(lang, parser)
+
+	code := []byte(`def first(items):
+    import alpha as a
+    return a.make(items)
+
+
+def second(items):
+    import beta as a
+    return a.make(items)
+`)
+	tree, err := parser.Parse(code)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	defer tree.Release()
+
+	imports := pythonImportAliases(tree.RootNode(), lang, code)
+	if !imports.conflicted["a"] {
+		t.Fatalf("alias %q bound to two modules must be recorded as conflicted, got %+v", "a", imports)
+	}
+	if got := resolvePythonCallee("a.make", imports, "conflicts"); got != "a.make" {
+		t.Fatalf("conflicted alias resolved to %q; a wrong module is worse than no edge", got)
 	}
 }
