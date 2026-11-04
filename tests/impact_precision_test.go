@@ -1,14 +1,21 @@
 package tests
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/Rogercode97/scouter/internal/store"
 )
 
 // TestCompareImpactCallers pins the semantics of the precision arithmetic before
@@ -229,7 +236,8 @@ func TestImpactPrecision_Python(t *testing.T) {
 	repoRoot := filepath.Dir(wd)
 	corpusRoot := filepath.Join(wd, "fixtures", "impact_truth", "python")
 
-	bin, configPath := buildScouterForImpact(t, repoRoot)
+	sc := buildScouterForImpact(t, repoRoot)
+	bin, configPath := sc.bin, sc.configPath
 
 	if out, err := runScouter(t, bin, configPath, "index", corpusRoot); err != nil {
 		t.Fatalf("index failed: %v\n%s", err, out)
@@ -304,7 +312,14 @@ func TestImpactPrecision_Python(t *testing.T) {
 
 // buildScouterForImpact builds the CLI once per test and returns the binary path
 // with a config file that points the store at a throwaway database.
-func buildScouterForImpact(t *testing.T, repoRoot string) (string, string) {
+// scouterCLI is a freshly built binary plus the throwaway store it points at.
+type scouterCLI struct {
+	bin        string
+	configPath string
+	dbPath     string
+}
+
+func buildScouterForImpact(t *testing.T, repoRoot string) scouterCLI {
 	t.Helper()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "scouter")
@@ -315,11 +330,12 @@ func buildScouterForImpact(t *testing.T, repoRoot string) (string, string) {
 		t.Fatalf("build scouter: %v\n%s", err, out)
 	}
 	configPath := filepath.Join(dir, "config.toml")
-	config := fmt.Sprintf("[tracking]\ndb_path = %q\n", filepath.Join(dir, "scouter.db"))
+	dbPath := filepath.Join(dir, "scouter.db")
+	config := fmt.Sprintf("[tracking]\ndb_path = %q\n", dbPath)
 	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-	return bin, configPath
+	return scouterCLI{bin: bin, configPath: configPath, dbPath: dbPath}
 }
 
 // runScouter runs one CLI invocation and returns its combined output.
@@ -346,4 +362,326 @@ func parseImpactCallers(out string) []string {
 		callers = append(callers, strings.TrimSpace(name))
 	}
 	return callers
+}
+
+func TestNormalizeGoCaller(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"github.com/x/y/pkg.Function", "Function"},
+		{"github.com/x/y/pkg.Recv.Method", "Method"},
+		{"github.com/x/y/pkg.Recv.Method.func1", "Method"},
+		{"github.com/x/y/pkg.TestThing.func2", "TestThing"},
+		{"github.com/x/y/pkg.TestThing.func1.func1", "TestThing"},
+		{"github.com/x/y/pkg.Recv.Method.func1.func2", "Method"},
+		{"Bare", "Bare"},
+	}
+	for _, tt := range tests {
+		if got := normalizeGoCaller(tt.in); got != tt.want {
+			t.Errorf("normalizeGoCaller(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+// normalizeGoCaller reduces a caller as the index renders it to the name of the
+// function that contains the call site. Closures collapse onto their named
+// parent, so the measurement compares against what a reader can point at in the
+// source instead of against the index's internal naming of a literal.
+func normalizeGoCaller(name string) string {
+	name = goClosureSuffix.ReplaceAllString(name, "")
+	if idx := strings.LastIndex(name, "."); idx >= 0 {
+		return name[idx+1:]
+	}
+	return name
+}
+
+var goClosureSuffix = regexp.MustCompile(`(?:\.func\d+)+$`)
+
+// goCallSite is one call edge as the source shows it: the file holding the call
+// and the top-level function that contains it. Closures are not named, because a
+// reader points at the function, not at a literal.
+type goCallSite struct {
+	File     string
+	Function string
+}
+
+func (c goCallSite) key() string { return c.File + "|" + c.Function }
+
+var goSkippedDirs = map[string]bool{".git": true, "vendor": true, "node_modules": true, "testdata": true}
+
+// goCallerOracle answers "who calls this symbol" by reading the Go sources under
+// root. It parses them instead of scanning lines: comments and string literals are
+// not call expressions, a declaration contains no call to itself, and a call
+// inside a closure belongs to the function that declares the closure. A call in a
+// package-level initializer has no containing function and is therefore not a
+// caller. The index is never opened.
+func goCallerOracle(t *testing.T, root, symbol string) []goCallSite {
+	t.Helper()
+	var sites []goCallSite
+
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			if goSkippedDirs[d.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+
+		parsed, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
+		if parseErr != nil {
+			return fmt.Errorf("oracle cannot parse %s: %w", path, parseErr)
+		}
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			rel = path
+		}
+		for _, decl := range parsed.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				if calleeIdentifier(call.Fun) == symbol {
+					sites = append(sites, goCallSite{File: filepath.ToSlash(rel), Function: fn.Name.Name})
+				}
+				return true
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", root, err)
+	}
+	return sites
+}
+
+// calleeIdentifier returns the name a call expression invokes: the identifier
+// itself, the selector of a qualified call, or the function behind a parenthesis
+// or a generic instantiation.
+func calleeIdentifier(fun ast.Expr) string {
+	switch f := fun.(type) {
+	case *ast.Ident:
+		return f.Name
+	case *ast.SelectorExpr:
+		return f.Sel.Name
+	case *ast.ParenExpr:
+		return calleeIdentifier(f.X)
+	case *ast.IndexExpr:
+		return calleeIdentifier(f.X)
+	case *ast.IndexListExpr:
+		return calleeIdentifier(f.X)
+	}
+	return ""
+}
+
+// TestImpactPrecision_GoIndex measures the same question as the Python corpus,
+// but on real Go code and one layer down: it reads the direct call edges the
+// indexer wrote and compares them with the ones the source shows. The CLI answers
+// with the transitive blast radius rendered as fully-qualified names, which no
+// hand-written key of direct callers can be compared against, so the edge layer
+// is where a Go figure can be honest. Indexing this repository costs seconds, so
+// the measurement is opt-in.
+func TestImpactPrecision_GoIndex(t *testing.T) {
+	if os.Getenv("SCOUTER_IMPACT_SELF") == "" {
+		t.Skip("set SCOUTER_IMPACT_SELF=1 to measure direct Go call edges against this repository")
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	repoRoot := filepath.Dir(wd)
+
+	sc := buildScouterForImpact(t, repoRoot)
+	if out, err := runScouter(t, sc.bin, sc.configPath, "index", repoRoot); err != nil {
+		t.Fatalf("index failed: %v\n%s", err, out)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(wd, "fixtures", "impact_truth", "go", "truth.json"))
+	if err != nil {
+		t.Fatalf("read truth: %v", err)
+	}
+	var truth impactTruth
+	if err := json.Unmarshal(raw, &truth); err != nil {
+		t.Fatalf("parse truth: %v", err)
+	}
+
+	ctx := context.Background()
+	st, err := store.NewStore(ctx, sc.dbPath)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer st.Close()
+
+	totalTP, totalFP, totalFN := 0, 0, 0
+	for _, entry := range truth.Symbols {
+		t.Run(entry.Query, func(t *testing.T) {
+			want := goCallerOracle(t, repoRoot, entry.Query)
+			got, err := indexedCallSites(ctx, st, repoRoot, entry.Query)
+			if err != nil {
+				t.Fatalf("%q: %v", entry.Query, err)
+			}
+
+			cmp := compareImpactCallers(keysOf(want), keysOf(got), entry.KnownFalsePositives, entry.KnownFalseNegatives)
+			t.Logf("%-14s source=%d indexed=%d tp=%d fp=%v fn=%v known_fp=%v known_fn=%v",
+				entry.Query, len(want), len(got), len(cmp.TruePositives), cmp.FalsePositives, cmp.FalseNegatives,
+				cmp.AbsorbedFalsePositives, cmp.AbsorbedFalseNegatives)
+
+			totalTP += len(cmp.TruePositives)
+			totalFP += len(cmp.FalsePositives) + len(cmp.AbsorbedFalsePositives)
+			totalFN += len(cmp.FalseNegatives) + len(cmp.AbsorbedFalseNegatives)
+
+			if len(cmp.FalseNegatives) != 0 {
+				t.Errorf("%q: the index is missing call edges the source shows: %v", entry.Query, cmp.FalseNegatives)
+			}
+			if len(cmp.FalsePositives) != 0 {
+				t.Errorf("%q: the index invented call edges the source does not show: %v", entry.Query, cmp.FalsePositives)
+			}
+			if len(cmp.StaleKnownFalsePositives) != 0 || len(cmp.StaleKnownFalseNegatives) != 0 {
+				t.Errorf("%q: ratchet entries are stale and must be dropped: %v %v",
+					entry.Query, cmp.StaleKnownFalsePositives, cmp.StaleKnownFalseNegatives)
+			}
+		})
+	}
+
+	measured := totalTP + totalFP
+	precision := 1.0
+	if measured > 0 {
+		precision = float64(totalTP) / float64(measured)
+	}
+	recall := 1.0
+	if totalTP+totalFN > 0 {
+		recall = float64(totalTP) / float64(totalTP+totalFN)
+	}
+	t.Logf("corpus=%s edges=%d tp=%d fp=%d fn=%d precision=%.2f recall=%.2f",
+		truth.Language, totalTP+totalFP, totalTP, totalFP, totalFN, precision, recall)
+}
+
+// indexedCallSites returns the direct callers the index holds for symbol.
+func indexedCallSites(ctx context.Context, st store.Store, repoRoot, symbol string) ([]goCallSite, error) {
+	syms, err := st.SearchSymbols(ctx, symbol, "", "", 50, 0)
+	if err != nil {
+		return nil, fmt.Errorf("search %q: %w", symbol, err)
+	}
+	seen := map[string]bool{}
+	var fqns []string
+	for _, s := range syms {
+		if s.Name != symbol {
+			continue
+		}
+		fqn := s.Name
+		if s.PackagePath != "" {
+			fqn = s.PackagePath + "." + s.Name
+		}
+		if !seen[fqn] {
+			seen[fqn] = true
+			fqns = append(fqns, fqn)
+		}
+	}
+	if len(fqns) != 1 {
+		return nil, fmt.Errorf("%q resolves to %d symbols (%v): pick one definition to measure", symbol, len(fqns), fqns)
+	}
+
+	calls, err := st.GetCallers(ctx, fqns[0], 0, 0)
+	if err != nil {
+		return nil, fmt.Errorf("callers of %q: %w", fqns[0], err)
+	}
+	sites := make([]goCallSite, 0, len(calls))
+	for _, c := range calls {
+		rel, relErr := filepath.Rel(repoRoot, c.Path)
+		if relErr != nil {
+			rel = c.Path
+		}
+		sites = append(sites, goCallSite{File: filepath.ToSlash(rel), Function: normalizeGoCaller(c.CallerName)})
+	}
+	return sites, nil
+}
+
+func keysOf(sites []goCallSite) []string {
+	keys := make([]string, 0, len(sites))
+	for _, s := range sites {
+		keys = append(keys, s.key())
+	}
+	return keys
+}
+
+// TestGoCallerOracle pins what the Go answer key counts as a call edge, on a file
+// that carries every case a line-based scan gets wrong: a deref assignment that
+// starts with an asterisk, a call mentioned in a trailing comment, a call inside
+// a block comment, a call inside a string literal, a generic function, a call
+// from inside a closure, an indirect call through a variable, and a package-level
+// initializer that has no containing function at all.
+func TestGoCallerOracle(t *testing.T) {
+	dir := t.TempDir()
+	source := `package fixture
+
+var global = Sym(1)
+
+func alpha(v int) int {
+	return Sym(v)
+}
+
+func beta(p *int, v int) {
+	*p = Sym(v)
+}
+
+func gamma(v int) int {
+	// Sym(v) in a comment is not a call
+	return v // Sym(v) neither is this
+}
+
+/*
+	Sym(v) inside a block comment is not a call
+*/
+
+func delta(v int) string {
+	return "Sym(v) inside a string is not a call"
+}
+
+func Generic[T any](v int) int {
+	return Sym(v)
+}
+
+func nested(v int) int {
+	f := func() int {
+		return Sym(v)
+	}
+	return f()
+}
+
+func indirect(v int) int {
+	g := Sym
+	return g(v)
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "fixture.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	got := map[string]bool{}
+	for _, site := range goCallerOracle(t, dir, "Sym") {
+		got[site.Function] = true
+	}
+
+	want := []string{"alpha", "beta", "Generic", "nested"}
+	for _, fn := range want {
+		if !got[fn] {
+			t.Errorf("oracle missed a call inside %s", fn)
+		}
+	}
+	for _, fn := range []string{"gamma", "delta", "indirect"} {
+		if got[fn] {
+			t.Errorf("oracle counted something in %s that is not a call", fn)
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("oracle reported %d callers (%v), want %v", len(got), got, want)
+	}
 }

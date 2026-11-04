@@ -1,0 +1,19 @@
+{
+  "_comment": "Go corpus is this repository itself. Unlike the Python key, the expected callers are not written out here: they are recomputed from the source by the oracle in tests/impact_precision_test.go, which locates every SYMBOL( occurrence in tracked Go files, skips comments, string literals and the declaration itself, and attributes the site to the top-level function that contains it. The key stays honest because it never reads the index.",
+  "language": "go",
+  "root": ".",
+  "symbols": [
+    {
+      "query": "SanitizeFTS",
+      "why": "Cross-package call from internal/store plus its own tests: small enough to verify by eye.",
+      "known_false_positives": [],
+      "known_false_negatives": []
+    },
+    {
+      "query": "ValidatePath",
+      "why": "Called from MCP handlers, engines and tests across five packages: 29 call sites, the widest single symbol in the tree.",
+      "known_false_positives": [],
+      "known_false_negatives": []
+    }
+  ]
+}

@@ -45,6 +45,8 @@ jobs:
                 inferredType = 'type:docs';
               } else if (/^refactor\//i.test(branch)) {
                 inferredType = 'type:refactor';
+              } else if (/^test\//i.test(branch)) {
+                inferredType = 'type:chore';
               } else if (/^(chore|dependabot)\//i.test(branch)) {
                 inferredType = 'type:chore';
               }
@@ -59,6 +61,8 @@ jobs:
                   inferredType = 'type:docs';
                 } else if (/^refactor(\(.*\))?:/i.test(title)) {
                   inferredType = 'type:refactor';
+                } else if (/^test(\(.*\))?:/i.test(title)) {
+                  inferredType = 'type:chore';
                 } else if (/^(chore|build|ci)(\(.*\))?:/i.test(title)) {
                   inferredType = 'type:chore';
                 }
