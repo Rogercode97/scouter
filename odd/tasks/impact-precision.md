@@ -19,6 +19,7 @@ never validated is the failure mode this feature exists to prevent.
 | T2 | S1, S3 | arnés de comparación (TP/FP/FN) con ratchet de FP y FN conocidos | `885f5ba` |
 | T3 | S1, S2 | aristas directas a nivel de índice (TestImpactPrecision_GoIndex, oráculo go/parser TestGoCallerOracle), opt-in SCOUTER_IMPACT_SELF=1, sin modo directo en CLI | `aa313e0`, `d613838`, `a83db8b` (PR 94 mergeada en 1ea9bc8) |
 | T4 | S4 | `docs/benchmarks/impact-precision.md` con los números medidos | `00080ba` |
+| T5 | S1, S2 | alias de import Python resueltos por la tabla de imports con el módulo viajando con el nombre (`resolvePythonCallee`, `pythonImportAliases`) + caso negativo `ext.build` vs `build` local + regla de conflicto sin resolver | `7043b8b`, `1197a5d` (PR #96 mergeada en `d42e67b`) |
 
 ## Log
 
@@ -37,3 +38,5 @@ never validated is the failure mode this feature exists to prevent.
 Un solo PR (#92) con tres commits lógicos, 606 líneas autoradas. Supera la guía de ~400 líneas por slice, y se acepta la excepción porque el instrumento, el defecto que encontró y su corrección comparten un solo criterio de verificación: si se separaran, la corrección viajaría sin la medición que la justifica y la medición sin el caso que la vuelve verde.
 
 PR #92 cerró Python + ambigüedad; PR 94 (4 commits, mergeada en 1ea9bc8 con checks en verde) añade Go-directo.
+
+PR #96 (4 commits, mergeada en `d42e67b` con 7/7 checks): cierra el recall no-Go en **0.60** con tres reglas — la tabla de imports resuelve las dos formas de alias, el módulo viaja con el nombre (símbolo Python registrado bajo el stem del archivo), y un alias ligado a dos módulos deja la llamada sin resolver en vez de adivinar. Tres hallazgos de CodeRabbit sobre el instrumento, los tres correctos y reproducidos antes de arreglarlos: closures anidadas (`Parent.func1.func1`, 113 filas en el árbol), oráculo por líneas (4 casos: desreferencia, comentario al final de línea, string, `func Generic[T any]`), y texto stale del doc. Quedan 2 FN (`map(fn)`, `partial(fn)`): referencias como valor, que necesitan un tipo de arista propio — decisión de diseño, no de parser.
