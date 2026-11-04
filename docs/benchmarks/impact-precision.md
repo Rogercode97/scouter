@@ -39,16 +39,18 @@ One run on the environment below:
 | Query | What the answer should be | What Scouter reports | Correct | Missed | Extra |
 | --- | --- | --- | ---: | ---: | ---: |
 | `scale` | `pipeline`, `direct` | `pipeline`, `direct` | 2 | 0 | 0 |
-| `boost` | `aliased`, `via_map`, `via_partial` | *(nothing)* | 0 | 3 | 0 |
+| `boost` | `aliased`, `via_map`, `via_partial` | `aliased` | 1 | 2 | 0 |
 | `transform` | refuse: the name means two different functions | 3 callers, one of them from the other module | — | — | — |
 
 | Aggregate | Value |
 | --- | ---: |
 | Precision | **1.00** |
-| Recall | **0.40** |
-| True positives | 2 |
+| Recall | **0.60** |
+| True positives | 3 |
 | False positives | 0 |
-| False negatives | 3 |
+| False negatives | 2 |
+
+Recall moved from 0.40 to 0.60 when import aliases were resolved: a callee written as `c.boost` is now mapped through the file's import table to the name the symbol table holds. The two remaining misses are both references that are not call expressions, and closing them needs its own decision about what a reference edge means — see below.
 
 ## The Go measurement
 
@@ -67,9 +69,9 @@ Go is the primary language, so it gets its own number — measured one layer dow
 
 Every direct call edge in this repository for these two symbols is present and none is invented, including calls made from inside closures, from test files, and from methods. The contrast with the Python number is the finding, and it is not a language ranking: it separates two mechanisms. Go's edges come from `go/packages`, which type-checks the module and knows what a call resolves to. Everything else comes from a tree-sitter pass that records the shape of a call expression, so a reference that never appears as the head of a call — an aliased call, a callback passed to `map`, a `functools.partial` — has no edge to record.
 
-Precision 1.00 here means Scouter never invented a caller on this corpus: it did not treat the string in `mention` as a call, and it did not confuse `decoys.transform` with `core.transform` once the ambiguity was refused. Recall 0.40 means it found two of the five callers that exist.
+Precision 1.00 here means Scouter never invented a caller on this corpus: it did not treat the string in `mention` as a call, and it did not confuse `decoys.transform` with `core.transform` once the ambiguity was refused. Recall 0.60 means it found three of the five callers that exist.
 
-The three misses share a cause: every one of them is a reference that is not a direct call expression. A call through an import alias, a function passed to `map`, and a function passed to `partial` all reach the target without the callee name appearing as the head of a call node. The parser records direct call shapes.
+The two remaining misses are a function passed to `map` and a function passed to `partial`. Neither reaches the target through a call node whose callee is the target's name, so the parser has no call shape to record. A reference used as a value would need its own link kind: calling it a call edge would be a lie, and it would inflate every blast radius on a large codebase with plain data passing. That is a design decision, not a parser detail, and it is not made here.
 
 ## The defect this measurement found
 
@@ -89,7 +91,7 @@ The resolver now keys candidates on the definition — the fully-qualified name 
 
 | | |
 | --- | --- |
-| Commit | `main` after `4ddac89`, with the ambiguity fix applied |
+| Commit | `main` after `1ea9bc8`, with the ambiguity and alias fixes applied |
 | Go | `go1.27.1-X:nodwarf5 linux/amd64` |
 | CPU | AMD Ryzen 5 5600GT, 12 procs |
 | Corpus | 5 Python files for the command-level run; this repository for the Go edge run |
