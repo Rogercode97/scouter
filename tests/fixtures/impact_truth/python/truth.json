@@ -31,6 +31,13 @@
       "query": "transform",
       "why": "Two different functions share this name: core.transform and decoys.transform. A correct answer refuses the ambiguity instead of merging them.",
       "expected_error": true
+    },
+    {
+      "query": "build",
+      "why": "The only definition of build in the corpus is local_defs.build, and nothing calls it. uses_external calls ext.build(), where ext is an import alias for a module that does not define build: the qualified name must stay external.build so no edge is invented to the same-named local definition.",
+      "expected_callers": [],
+      "known_false_positives": [],
+      "known_false_negatives": []
     }
   ]
 }

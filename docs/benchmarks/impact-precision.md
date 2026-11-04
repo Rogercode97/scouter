@@ -52,6 +52,8 @@ One run on the environment below:
 
 Recall moved from 0.40 to 0.60 when import aliases were resolved: a callee written as `c.boost` is now mapped through the file's import table to the name the symbol table holds. The two remaining misses are both references that are not call expressions, and closing them needs its own decision about what a reference edge means — see below.
 
+The alias mapping carries the module with the name. A Python symbol is recorded under its file's module (the stem), so `c.boost()` after `import core as c` becomes the edge `core.boost`, and a call written `ext.build()` after `import external as ext` never lands on a same-named `build` defined in another file. A bare call inside the file that defines the symbol is qualified the same way. When one file binds the same local alias to two different modules, the call is left unresolved on purpose: attributing it to one of the two would be a guess, and a wrong edge is worse than a missing one.
+
 ## The Go measurement
 
 Go is the primary language, so it gets its own number — measured one layer down, at the direct call edges the indexer writes, because the command answers with the transitive blast radius rendered as fully-qualified names and no hand-written key of direct callers can be compared against that. The answer key is not written out in a file: the oracle parses the tracked Go sources with `go/parser` and walks the AST. A comment is not a call expression, a string literal is not a call expression, and a declaration contains no call to itself, so none of them can be miscounted; each call expression is attributed to the top-level function whose body contains it, which means a call inside a closure belongs to the function that declares the closure. A call in a package-level initializer has no containing function and is not a caller. The index is never opened.
@@ -67,7 +69,7 @@ Go is the primary language, so it gets its own number — measured one layer dow
 | Recall | **1.00** |
 | Edges | 34 |
 
-Every direct call edge in this repository for these two symbols is present and none is invented, including calls made from inside closures, from test files, and from methods. The contrast with the Python number is the finding, and it is not a language ranking: it separates two mechanisms. Go's edges come from `go/packages`, which type-checks the module and knows what a call resolves to. Everything else comes from a tree-sitter pass that records the shape of a call expression, so a reference that never appears as the head of a call — an aliased call, a callback passed to `map`, a `functools.partial` — has no edge to record.
+Every direct call edge in this repository for these two symbols is present and none is invented, including calls made from inside closures, from test files, and from methods. The contrast with the Python number is the finding, and it is not a language ranking: it separates two mechanisms. Go's edges come from `go/packages`, which type-checks the module and knows what a call resolves to. Everything else comes from a tree-sitter pass that records the shape of a call expression, so a reference passed as a value rather than used as the head of a call — a callback handed to `map`, a `functools.partial` — has no edge to record. Calls through an import alias are resolved through the file's import table and do produce an edge.
 
 Precision 1.00 here means Scouter never invented a caller on this corpus: it did not treat the string in `mention` as a call, and it did not confuse `decoys.transform` with `core.transform` once the ambiguity was refused. Recall 0.60 means it found three of the five callers that exist.
 
@@ -99,4 +101,4 @@ The resolver now keys candidates on the definition — the fully-qualified name 
 
 ## The ratchet
 
-`known_false_negatives` and `known_false_positives` in `truth.json` record what is wrong today so the measurement can be a CI gate instead of a permanently red test. Both lists are ratchets in two directions: a caller recorded there that stops appearing makes the test fail as *stale* and has to be deleted, so the record cannot outlive the defect it documents. Fixing any of the three misses forces the corresponding entry out of the file.
+`known_false_negatives` and `known_false_positives` in `truth.json` record what is wrong today so the measurement can be a CI gate instead of a permanently red test. Both lists are ratchets in two directions: a caller recorded there that stops appearing makes the test fail as *stale* and has to be deleted, so the record cannot outlive the defect it documents. Fixing either of the two misses forces the corresponding entry out of the file.
