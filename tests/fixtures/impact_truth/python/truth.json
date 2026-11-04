@@ -15,7 +15,7 @@
     },
     {
       "query": "boost",
-      "why": "Unique name reached three ways: a call through the import alias `c.boost`, a bare reference passed to map, and a bare reference passed to functools.partial. All three are callers a human would name; the string in decoys.mention is not. All three are recorded as known false negatives because the measured answer is empty.",
+      "why": "Unique name reached three ways: a call through the import alias `c.boost`, a bare reference passed to map, and a bare reference passed to functools.partial. All three are callers a human would name; the string in decoys.mention is not. The alias call is found now; the two references are recorded as known false negatives because they are not call expressions.",
       "expected_callers": [
         "aliased",
         "via_map",
@@ -23,7 +23,6 @@
       ],
       "known_false_positives": [],
       "known_false_negatives": [
-        "aliased",
         "via_map",
         "via_partial"
       ]
@@ -32,6 +31,13 @@
       "query": "transform",
       "why": "Two different functions share this name: core.transform and decoys.transform. A correct answer refuses the ambiguity instead of merging them.",
       "expected_error": true
+    },
+    {
+      "query": "build",
+      "why": "The only definition of build in the corpus is local_defs.build, and nothing calls it. uses_external calls ext.build(), where ext is an import alias for a module that does not define build: the qualified name must stay external.build so no edge is invented to the same-named local definition.",
+      "expected_callers": [],
+      "known_false_positives": [],
+      "known_false_negatives": []
     }
   ]
 }

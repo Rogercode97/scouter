@@ -11,6 +11,7 @@ and is kept at the bottom for history.
 ## [Unreleased]
 
 ### Fixed
+- **Indexer**: a Python call written through an import alias resolves to the symbol it names, and keeps the module with the name. `import core as c` followed by `c.boost(i)` used to record a callee called `c.boost`, which no symbol answers to, so the caller was invisible to `impact`; the same held for `from helpers import normalize as norm` followed by `norm(i)`. Callees are now mapped through the file's import table and qualified by module, so a call through an import never lands on a same-named definition elsewhere. When one file binds the same alias to two modules the call is left unresolved rather than guessed. Measured recall on the impact corpus went from 0.40 to 0.60.
 - **Impact**: a short symbol name that names two different definitions is refused instead of answered. The resolver keyed candidates on the rendered fully-qualified name, so in a language that attaches no package path to a symbol both definitions collapsed into one candidate and the blast radius merged two call graphs. The identity is now the definition (name and file), and the error names both files.
 
 ## [1.4.0] - 2026-11-03

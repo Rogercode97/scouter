@@ -199,6 +199,13 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 		return nil, nil, nil, err
 	}
 
+	// Python symbols carry the namespace their file defines, so a call reached
+	// through an import and the definition it names agree on the same name.
+	modulePath := ""
+	if ext == ".py" {
+		modulePath = pythonModulePath(filePath)
+	}
+
 	safeInt := func(u uint32) int {
 		i, err := utils.SafeUintToInt(uint(u))
 		if err != nil {
@@ -290,6 +297,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 			p := types.ASTPointer{
 				Type:           symType,
 				Name:           fullName,
+				PackagePath:    modulePath,
 				Doc:            doc,
 				Range:          types.Range{Start: int(symNode.StartByte()), End: int(symNode.EndByte())},
 				StartLine:      int(symNode.StartPoint().Row) + 1,
@@ -321,6 +329,11 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 			}
 			pointers = append(pointers, p)
 		}
+	}
+
+	pyImports := newPythonImports()
+	if ext == ".py" {
+		pyImports = pythonImportAliases(tree.RootNode(), lang, content)
 	}
 
 	cCursor := config.CallQuery.Exec(tree.RootNode(), lang, content)
@@ -361,6 +374,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 			}
 			calls = append(calls, c)
 		} else if callee != "" && callNode != nil {
+			callee = resolvePythonCallee(callee, pyImports, modulePath)
 			calleePath := ""
 			if callNode.Parent() != nil && callNode.Parent().Type(lang) == "call_expression" {
 				if callNode.Type(lang) == "identifier" {
@@ -720,4 +734,158 @@ func ExtractImports(ctx context.Context, filePath string) ([]string, error) {
 	}
 
 	return uniqueImports, nil
+}
+
+// pythonImports is what one Python file says about the names it imports: the
+// module (or module-qualified symbol) each local name stands for, and the local
+// names that are bound to more than one module in the same file. A conflicted
+// local name is never resolved, because attributing the call to one of the two
+// modules would be a guess and a wrong edge is worse than a missing one.
+type pythonImports struct {
+	aliases    map[string]string
+	conflicted map[string]bool
+}
+
+func newPythonImports() pythonImports {
+	return pythonImports{aliases: map[string]string{}, conflicted: map[string]bool{}}
+}
+
+func (p pythonImports) isEmpty() bool {
+	return len(p.aliases) == 0 && len(p.conflicted) == 0
+}
+
+// bind records one import binding, marking the local name as conflicted when the
+// same file binds it to a different target.
+func (p pythonImports) bind(local, target string) {
+	if local == "" || target == "" {
+		return
+	}
+	if existing, ok := p.aliases[local]; ok && existing != target {
+		p.conflicted[local] = true
+		delete(p.aliases, local)
+		return
+	}
+	if p.conflicted[local] {
+		return
+	}
+	p.aliases[local] = target
+}
+
+// resolvePythonCallee maps a callee as written to the name the symbol table holds.
+// The module travels with the name: `c.boost()` after `import core as c` becomes
+// `core.boost`, so the edge lands on the symbol that module defines and never on a
+// same-named definition elsewhere in the corpus. A callee whose head is not an
+// import, or whose local name is conflicted, travels untouched.
+func resolvePythonCallee(callee string, imports pythonImports, modulePath string) string {
+	if callee == "" {
+		return callee
+	}
+	if imports.conflicted[callee] {
+		return callee
+	}
+	if imported, ok := imports.aliases[callee]; ok {
+		return imported
+	}
+	if dot := strings.Index(callee, "."); dot > 0 {
+		head, rest := callee[:dot], callee[dot+1:]
+		if module, ok := imports.aliases[head]; ok && !imports.conflicted[head] {
+			return lastDottedSegment(module) + "." + lastDottedSegment(rest)
+		}
+		return callee
+	}
+	// A bare name that is not imported is defined or not defined in this file, and
+	// the symbol table records it under this file's module. Without a module there
+	// is nothing to qualify against, so the name travels untouched.
+	if modulePath == "" {
+		return callee
+	}
+	return modulePath + "." + callee
+}
+
+// pythonImportAliases reads the file's imports into a local-name table: the module
+// for `import x as y`, the module-qualified name for `from m import x as y`, and
+// the local segment for a plain dotted import. Only imports are recorded, so a
+// name the file defines itself is never rewritten.
+func pythonImportAliases(root *gotreesitter.Node, lang *gotreesitter.Language, content []byte) pythonImports {
+	imports := newPythonImports()
+	if root == nil {
+		return imports
+	}
+
+	var walk func(node *gotreesitter.Node)
+	walk = func(node *gotreesitter.Node) {
+		if node == nil {
+			return
+		}
+		switch node.Type(lang) {
+		case "import_statement":
+			for i := 0; i < node.ChildCount(); i++ {
+				child := node.Child(i)
+				switch child.Type(lang) {
+				case "dotted_name":
+					module := child.Text(content)
+					imports.bind(strings.SplitN(module, ".", 2)[0], module)
+				case "aliased_import":
+					name := child.ChildByFieldName("name", lang)
+					alias := child.ChildByFieldName("alias", lang)
+					if name != nil && alias != nil {
+						imports.bind(alias.Text(content), name.Text(content))
+					}
+				}
+			}
+		case "import_from_statement":
+			module := ""
+			for i := 0; i < node.ChildCount(); i++ {
+				if node.FieldNameForChild(i, lang) == "module_name" {
+					module = lastDottedSegment(node.Child(i).Text(content))
+				}
+			}
+			for i := 0; i < node.ChildCount(); i++ {
+				if node.FieldNameForChild(i, lang) == "module_name" {
+					continue
+				}
+				child := node.Child(i)
+				switch child.Type(lang) {
+				case "dotted_name":
+					imported := child.Text(content)
+					leaf := lastDottedSegment(imported)
+					imports.bind(leaf, qualify(module, leaf))
+				case "aliased_import":
+					name := child.ChildByFieldName("name", lang)
+					alias := child.ChildByFieldName("alias", lang)
+					if name != nil && alias != nil {
+						leaf := lastDottedSegment(name.Text(content))
+						imports.bind(alias.Text(content), qualify(module, leaf))
+					}
+				}
+			}
+		}
+		for i := 0; i < node.ChildCount(); i++ {
+			walk(node.Child(i))
+		}
+	}
+	walk(root)
+	return imports
+}
+
+func qualify(module, name string) string {
+	if module == "" {
+		return name
+	}
+	return module + "." + name
+}
+
+func lastDottedSegment(name string) string {
+	if idx := strings.LastIndex(name, "."); idx >= 0 {
+		return name[idx+1:]
+	}
+	return name
+}
+
+// pythonModulePath is the namespace the symbol table gives a Python file: its stem.
+// It is root-independent, so an import can name the module it reached a symbol
+// through and the same name is used on both sides of the edge.
+func pythonModulePath(filePath string) string {
+	base := filepath.Base(filePath)
+	return strings.TrimSuffix(base, filepath.Ext(base))
 }
