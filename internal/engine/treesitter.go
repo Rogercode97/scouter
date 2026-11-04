@@ -323,6 +323,11 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 		}
 	}
 
+	var pyAliases map[string]string
+	if ext == ".py" {
+		pyAliases = pythonImportAliases(tree.RootNode(), lang, content)
+	}
+
 	cCursor := config.CallQuery.Exec(tree.RootNode(), lang, content)
 	for {
 		match, ok := cCursor.NextMatch()
@@ -361,6 +366,9 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 			}
 			calls = append(calls, c)
 		} else if callee != "" && callNode != nil {
+			if pyAliases != nil {
+				callee = resolvePythonCallee(callee, pyAliases)
+			}
 			calleePath := ""
 			if callNode.Parent() != nil && callNode.Parent().Type(lang) == "call_expression" {
 				if callNode.Type(lang) == "identifier" {
@@ -720,4 +728,105 @@ func ExtractImports(ctx context.Context, filePath string) ([]string, error) {
 	}
 
 	return uniqueImports, nil
+}
+
+// resolvePythonCallee maps a callee as written to the name the symbol table holds.
+// Python reaches the same function through an imported symbol (`from core import
+// boost as b` then `b()`) or through a module alias (`import core as c` then the
+// method selector `c.boost()`), and the index stores neither of them: it stores
+// the name. Resolution follows the file's imports only, so a callee whose head is
+// not an import stays exactly as written.
+func resolvePythonCallee(callee string, aliases map[string]string) string {
+	if callee == "" || len(aliases) == 0 {
+		return callee
+	}
+	if imported, ok := aliases[callee]; ok {
+		return imported
+	}
+	if dot := strings.Index(callee, "."); dot > 0 {
+		if _, ok := aliases[callee[:dot]]; ok {
+			return callee[dot+1:]
+		}
+	}
+	return callee
+}
+
+// pythonImportAliases reads the file's imports into a local-name table: the module
+// for `import x as y`, the imported name for `from m import x as y`, and the local
+// segment for a plain dotted import. Only imports are recorded, so a name the file
+// defines itself is never rewritten.
+func pythonImportAliases(root *gotreesitter.Node, lang *gotreesitter.Language, content []byte) map[string]string {
+	aliases := map[string]string{}
+	if root == nil {
+		return aliases
+	}
+
+	var walk func(node *gotreesitter.Node)
+	walk = func(node *gotreesitter.Node) {
+		if node == nil {
+			return
+		}
+		switch node.Type(lang) {
+		case "import_statement":
+			for i := 0; i < node.ChildCount(); i++ {
+				child := node.Child(i)
+				switch child.Type(lang) {
+				case "dotted_name":
+					module := child.Text(content)
+					if head := strings.SplitN(module, ".", 2)[0]; head != "" {
+						aliases[head] = module
+					}
+				case "aliased_import":
+					recordAliasedImport(aliases, child, lang, content, false)
+				}
+			}
+		case "import_from_statement":
+			for i := 0; i < node.ChildCount(); i++ {
+				if node.FieldNameForChild(i, lang) == "module_name" {
+					continue
+				}
+				child := node.Child(i)
+				switch child.Type(lang) {
+				case "dotted_name":
+					imported := child.Text(content)
+					if leaf := lastDottedSegment(imported); leaf != "" {
+						aliases[leaf] = leaf
+					}
+				case "aliased_import":
+					recordAliasedImport(aliases, child, lang, content, true)
+				}
+			}
+		}
+		for i := 0; i < node.ChildCount(); i++ {
+			walk(node.Child(i))
+		}
+	}
+	walk(root)
+	return aliases
+}
+
+// recordAliasedImport stores `something as alias` under the local name. A module
+// import keeps the whole dotted module so a selector can be recognised as coming
+// from an import; a from-import keeps only the leaf, because that is the name the
+// symbol table holds.
+func recordAliasedImport(aliases map[string]string, node *gotreesitter.Node, lang *gotreesitter.Language, content []byte, leafOnly bool) {
+	name := node.ChildByFieldName("name", lang)
+	alias := node.ChildByFieldName("alias", lang)
+	if name == nil || alias == nil {
+		return
+	}
+	target := name.Text(content)
+	if leafOnly {
+		target = lastDottedSegment(target)
+	}
+	if local := alias.Text(content); local != "" && target != "" {
+		aliases[local] = target
+	}
+}
+
+func lastDottedSegment(name string) string {
+	if idx := strings.LastIndex(name, "."); idx >= 0 {
+		return name[idx+1:]
+	}
+	return name
 }

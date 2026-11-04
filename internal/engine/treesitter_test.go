@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/types"
+	"github.com/odvcencio/gotreesitter/grammars"
 )
 
 func TestStreamWithTreeSitter_Anonymous(t *testing.T) {
@@ -605,4 +606,94 @@ fn main() {
 			t.Errorf("did not find flow a + b -> f:return0")
 		}
 	})
+}
+
+// TestResolvePythonCallee pins how a written callee maps to the name the symbol
+// table holds, using the file's imports. Both alias forms Python offers have to
+// land on the same name, and anything that is not an import has to travel
+// untouched.
+func TestResolvePythonCallee(t *testing.T) {
+	aliases := map[string]string{
+		"c":     "core",  // import core as c
+		"b":     "boost", // from core import boost as b
+		"boost": "boost", // from core import boost
+		"np":    "numpy", // import numpy as np
+	}
+
+	tests := []struct{ callee, want string }{
+		{"c.boost", "boost"},           // module alias then attribute
+		{"b", "boost"},                 // imported symbol alias called directly
+		{"boost", "boost"},             // plain imported name
+		{"np.array", "array"},          // unrelated module alias still resolves
+		{"other.boost", "other.boost"}, // not an import: untouched
+		{"local_helper", "local_helper"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		if got := resolvePythonCallee(tt.callee, aliases); got != tt.want {
+			t.Errorf("resolvePythonCallee(%q) = %q, want %q", tt.callee, got, tt.want)
+		}
+	}
+
+	if got := resolvePythonCallee("c.boost", nil); got != "c.boost" {
+		t.Errorf("without imports the callee must be untouched, got %q", got)
+	}
+}
+
+// TestPythonImportAliases reads the four import shapes Python offers out of a real
+// parse and checks that a callee written through any of them resolves to the name
+// the symbol table holds.
+func TestPythonImportAliases(t *testing.T) {
+	lang := grammars.PythonLanguage()
+	parser := GetParser(lang)
+	defer PutParser(lang, parser)
+
+	code := []byte(`import core as c
+import os.path
+from helpers import boost
+from helpers import normalize as norm
+from .sibling import other
+
+
+def run(items):
+    c.boost(items)
+    boost(items)
+    norm(items)
+    os.path.join("a", "b")
+    other(items)
+    local(items)
+`)
+	tree, err := parser.Parse(code)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	defer tree.Release()
+
+	aliases := pythonImportAliases(tree.RootNode(), lang, code)
+
+	want := map[string]string{
+		"c":     "core",
+		"os":    "os.path",
+		"boost": "boost",
+		"norm":  "normalize",
+		"other": "other",
+	}
+	for local, imported := range want {
+		if got := aliases[local]; got != imported {
+			t.Errorf("alias %q = %q, want %q", local, got, imported)
+		}
+	}
+
+	for written, resolved := range map[string]string{
+		"c.boost":      "boost",
+		"boost":        "boost",
+		"norm":         "normalize",
+		"os.path.join": "path.join",
+		"other":        "other",
+		"local":        "local",
+	} {
+		if got := resolvePythonCallee(written, aliases); got != resolved {
+			t.Errorf("callee %q resolves to %q, want %q", written, got, resolved)
+		}
+	}
 }
