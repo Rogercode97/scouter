@@ -17,7 +17,7 @@ never validated is the failure mode this feature exists to prevent.
 | --- | --- | --- | --- |
 | T1 | S2, S3 | corpus de fixtures Python + `truth.json` etiquetado a mano | `885f5ba` |
 | T2 | S1, S3 | arnés de comparación (TP/FP/FN) con ratchet de FP y FN conocidos | `885f5ba` |
-| T3 | S1, S2 | corpus Go real (este repo) con verdad etiquetada, opt-in | diferido: ver L7 |
+| T3 | S1, S2 | aristas directas a nivel de índice (TestImpactPrecision_GoIndex, oráculo go/parser TestGoCallerOracle), opt-in SCOUTER_IMPACT_SELF=1, sin modo directo en CLI | `aa313e0`, `d613838`, `a83db8b` (PR 94 mergeada en 1ea9bc8) |
 | T4 | S4 | `docs/benchmarks/impact-precision.md` con los números medidos | `00080ba` |
 
 ## Log
@@ -30,6 +30,10 @@ never validated is the failure mode this feature exists to prevent.
 - **L6.** Defecto encontrado y corregido: `resolveSymbolFQN` deduplicaba por nombre renderizado, así que dos definiciones sin `PackagePath` (Python) colapsaban en un FQN y `impact` fusionaba dos call graphs. Ahora la identidad es (FQN, archivo) y el error nombra ambos archivos.
 - **L7.** Decisión de alcance: la medición Go se separa. `impact` sobre Go responde con el blast radius **transitivo** a profundidad 5 y con nombres **FQN**, así que una verdad etiquetada de callers directos no es comparable contra la salida del CLI. Medir Go exige definir la métrica sobre callers directos (nivel de índice) o añadir un modo directo al comando; queda como tarea siguiente, no se inventa aquí.
 
+- **L8.** 2026-11-04 — T3 reconciliado: se tomó la vía que L7 pedía definir (métrica sobre aristas directas a nivel de índice, sin modo directo en CLI). PR 94 (`aa313e0`, `d613838`, `a83db8b`) implementa TestImpactPrecision_GoIndex con oráculo go/parser y publica Go 1.00/1.00 en 34 aristas en `docs/benchmarks/impact-precision.md`; mergeada en 1ea9bc8 con checks en verde.
+
 ## Delivery
 
 Un solo PR (#92) con tres commits lógicos, 606 líneas autoradas. Supera la guía de ~400 líneas por slice, y se acepta la excepción porque el instrumento, el defecto que encontró y su corrección comparten un solo criterio de verificación: si se separaran, la corrección viajaría sin la medición que la justifica y la medición sin el caso que la vuelve verde.
+
+PR #92 cerró Python + ambigüedad; PR 94 (4 commits, mergeada en 1ea9bc8 con checks en verde) añade Go-directo.
