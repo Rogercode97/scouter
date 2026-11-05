@@ -214,6 +214,9 @@ func (s *storeImpl) SaveFileIndexBatch(ctx context.Context, items []BatchItem) e
 				if err := tx.SaveFileIndex(txCtx, item.Index); err != nil {
 					return fmt.Errorf("failed to save index for %s: %w", item.Index.Path, err)
 				}
+				if err := tx.ClearSemanticVectors(txCtx, item.Index.Path); err != nil {
+					return fmt.Errorf("failed to clear semantic vectors for %s: %w", item.Index.Path, err)
+				}
 				if err := tx.ClearSymbols(txCtx, item.Index.Path); err != nil {
 					return fmt.Errorf("failed to clear symbols for %s: %w", item.Index.Path, err)
 				}
@@ -297,6 +300,14 @@ func (s *storeImpl) ClearSymbols(ctx context.Context, p string) error {
 	_, err := s.exec(ctx, "DELETE FROM symbols WHERE path = ?", p)
 	if err != nil {
 		return fmt.Errorf("failed to clear symbols: %w", err)
+	}
+	return nil
+}
+
+func (s *storeImpl) ClearSemanticVectors(ctx context.Context, p string) error {
+	_, err := s.exec(ctx, "DELETE FROM vec_symbols WHERE symbol_id IN (SELECT id FROM symbols WHERE path = ?)", p)
+	if err != nil {
+		return fmt.Errorf("failed to clear semantic vectors: %w", err)
 	}
 	return nil
 }
@@ -864,6 +875,7 @@ func (s *storeImpl) ImportDelta(ctx context.Context, syncDir string) error {
 					Hash:    delta.Hash,
 					AstJson: "{}", // Not needed for Delta Sync
 				})
+				tx.ClearSemanticVectors(txCtx, delta.Path)
 				tx.ClearSymbols(txCtx, delta.Path)
 				tx.ClearCalls(txCtx, delta.Path)
 				for _, sym := range delta.Symbols {

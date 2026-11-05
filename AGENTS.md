@@ -12,10 +12,13 @@ Scouter is a high-performance, CGO-free, single-binary CLI engine for AST analys
   - Use **Bulk Updates** for DB writes without nested transactions on writer pools.
 - **Ledger Mutation Protocol**: Any structural code changes MUST be buffered in memory using the `Ledger` before atomic disk flush. Direct destructive mutation is forbidden. Staged patches MUST populate the `Original` content from disk to prevent `Rollback` from deleting existing source files.
 - **Command Security**: Never execute raw commands via `exec.Command`. MUST use `internal/utils/safe_exec.go` (`SafeCommand`) to prevent command injection.
+- **Index Ignore Contract**: `index` and structural search respect the repo-root `.gitignore` plus `.git/info/exclude` via the shared `IgnoreMatcher` (`internal/engine/ignore.go`, go-git matcher already in `go.mod`, no new dependency). Nested `.gitignore` files are out of scope. `BatchLoadPackages` still parses ignored files; the filter applies at indexing time (correctness first, parse cost belongs to T5).
+- **Vector Orphan Invariant**: `vec_symbols` is `vec0` without `ON DELETE CASCADE`. Every path-clearing transaction MUST call `ClearSemanticVectors` before `ClearSymbols` (both `SaveFileIndexBatch` and delta-sync). Symbol reads used to feed vec inserts MUST select `id` (`GetSymbolsByNameInFile` omits it; resolve the real id explicitly).
 
 ## ⚙️ EXECUTION & RDD/TDD RULES
 - **Receipt-Driven Development (RDD)**: Live changes are validated through `gentle-ai review assess` and `gentle-ai review start` before committing.
 - **Targeted TDD**: Use direct, targeted testing (`CGO_ENABLED=0 go test ./specific_pkg`) to conserve execution time and context.
+- **Concurrency Verification Without -race**: `-race` requires cgo and this project is CGO-free, so it never runs here. Concurrency changes are proven with `BenchmarkMassiveIndexing` (no deadlock, direction check) plus a `GOMAXPROCS=1` probe and the focused package suite.
 - **Token Killer**: Leverage `-u` / `--ultra-compact` to maximize context efficiency when querying Scouter outputs.
 
 ## 📁 PROJECT MAP

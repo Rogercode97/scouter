@@ -231,11 +231,21 @@ func StructuralSearchWithRule(ctx context.Context, rootPath string, rule types.S
 	}
 
 	var files []string
+	ign := LoadIgnoreMatcher(rootPath)
 	err = filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
-		if !info.IsDir() && filepath.Ext(path) == ext {
+		if info.IsDir() {
+			if path != rootPath && (BlockedDirs[info.Name()] || (ign != nil && ign.Ignored(path, true))) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if ign != nil && ign.Ignored(path, false) {
+			return nil
+		}
+		if filepath.Ext(path) == ext {
 			files = append(files, path)
 		}
 		return nil
