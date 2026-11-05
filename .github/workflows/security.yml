@@ -16,6 +16,8 @@ jobs:
   security:
     name: Go Security Scans
     runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -23,8 +25,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
-          check-latest: true
+          go-version-file: .go-version
+          cache: true
 
       - name: Run Gosec Security Scanner
         # Pinned: @master turned an upstream release (v2.30.0, 2026-10-23) into a

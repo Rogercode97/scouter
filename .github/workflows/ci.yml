@@ -17,6 +17,10 @@ jobs:
   unit-tests:
     name: Zero-CGO Build & Unit Tests
     runs-on: ubuntu-latest
+    env:
+      # .go-version is the single source of truth; never auto-upgrade mid-job.
+      # Go 1.27.x carries an upstream go/types data race (see AGENTS.md).
+      GOTOOLCHAIN: local
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -24,7 +28,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.26"
+          go-version-file: .go-version
+          cache: true
 
       - name: Verify Zero-CGO Build and Vet
         env:
@@ -54,6 +59,10 @@ jobs:
   race-detector:
     name: Race Detector
     runs-on: ubuntu-latest
+    env:
+      # Pinned by .go-version: Go 1.27.x has an upstream go/types data race under
+      # concurrent packages.Load. See AGENTS.md before bumping the toolchain.
+      GOTOOLCHAIN: local
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -61,7 +70,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.26"
+          go-version-file: .go-version
+          cache: true
 
       - name: Install dependencies (gopls, ast-grep)
         run: |
