@@ -15,17 +15,14 @@
     },
     {
       "query": "boost",
-      "why": "Unique name reached three ways: a call through the import alias `c.boost`, a bare reference passed to map, and a bare reference passed to functools.partial. All three are callers a human would name; the string in decoys.mention is not. The alias call is found now; the two references are recorded as known false negatives because they are not call expressions.",
+      "why": "Unique name reached three ways: a call through the import alias `c.boost`, a bare reference passed to map, and a bare reference passed to functools.partial. All three are callers a human would name; the string in decoys.mention is not. The alias call and the two references are found now (references as link kind `reference`, listed but not counted in the blast radius).",
       "expected_callers": [
         "aliased",
         "via_map",
         "via_partial"
       ],
       "known_false_positives": [],
-      "known_false_negatives": [
-        "via_map",
-        "via_partial"
-      ]
+      "known_false_negatives": []
     },
     {
       "query": "transform",

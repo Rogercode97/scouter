@@ -391,6 +391,16 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 				Line:       safeInt(callNode.StartPoint().Row) + 1,
 			}
 			calls = append(calls, c)
+			if ref := pythonReferenceArg(ext, callee, callNode, lang, content); ref != "" {
+				rc := types.ASTCall{
+					CallerName: findTSCaller(callNode, content, lang, symbolNames),
+					CalleeName: resolvePythonCallee(ref, pyImports, modulePath),
+					LinkType:   "reference",
+					Path:       filePath,
+					Line:       safeInt(callNode.StartPoint().Row) + 1,
+				}
+				calls = append(calls, rc)
+			}
 		}
 	}
 
@@ -769,6 +779,51 @@ func (p pythonImports) bind(local, target string) {
 		return
 	}
 	p.aliases[local] = target
+}
+
+// pythonReferenceArg returns the function passed by value as the first argument
+// to map() or functools.partial(), e.g. `boost` in `map(boost, items)`.
+// Anything else (non-Python files, other callees, keyword or complex first
+// args) returns "" so no edge is emitted. The caller resolves the result
+// through the file's imports like a normal callee.
+func pythonReferenceArg(ext, callee string, callNode *gotreesitter.Node, lang *gotreesitter.Language, content []byte) string {
+	if ext != ".py" || callNode == nil {
+		return ""
+	}
+	head := callee
+	if dot := strings.Index(callee, "."); dot >= 0 {
+		head = callee[dot+1:]
+	}
+	if head != "map" && head != "partial" {
+		return ""
+	}
+	parent := callNode.Parent()
+	if parent == nil {
+		return ""
+	}
+	args := parent.ChildByFieldName("arguments", lang)
+	if args == nil {
+		return ""
+	}
+	for i := 0; i < int(args.NamedChildCount()); i++ {
+		arg := args.NamedChild(i)
+		if arg == nil {
+			continue
+		}
+		kind := arg.Type(lang)
+		if kind != "identifier" && kind != "attribute" {
+			continue
+		}
+		text := string(arg.Text(content))
+		if eq := strings.Index(text, "="); eq >= 0 {
+			text = strings.TrimSpace(text[eq+1:])
+			if text == "" {
+				continue
+			}
+		}
+		return text
+	}
+	return ""
 }
 
 // resolvePythonCallee maps a callee as written to the name the symbol table holds.
