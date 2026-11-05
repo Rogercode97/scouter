@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestExecuteEcho(t *testing.T) {
@@ -166,5 +167,61 @@ func TestExecuteCapturesEveryRun(t *testing.T) {
 		if got := strings.TrimSpace(result.Stderr); got != "error" {
 			t.Fatalf("run %d: stderr = %q, want %q", i, got, "error")
 		}
+	}
+}
+
+// TestExecuteSuccessfulCommandDrainsInheritedOutput pins the property the
+// cancellation bound must not break: a command that exits successfully is never
+// cut off, even when a grandchild it spawned still holds the pipe and writes
+// after the parent is gone.
+func TestExecuteSuccessfulCommandDrainsInheritedOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skip on windows")
+	}
+	original := drainGrace
+	drainGrace = 50 * time.Millisecond
+	t.Cleanup(func() { drainGrace = original })
+
+	result, err := Execute(context.Background(), "sh",
+		[]string{"-c", "echo first; ( sleep 0.3; echo second ) &"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got := strings.TrimSpace(result.Stdout)
+	if !strings.Contains(got, "first") {
+		t.Fatalf("lost the command's own output: %q", got)
+	}
+	if !strings.Contains(got, "second") {
+		t.Fatalf("a successful command must drain its inherited pipe, got %q", got)
+	}
+}
+
+// TestExecuteCancellationIsBounded is a liveness guard, so elapsed time is the
+// observable: with a grandchild holding the pipe, cancellation must still return
+// after the grace instead of waiting for the holder to finish.
+func TestExecuteCancellationIsBounded(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skip on windows")
+	}
+	original := drainGrace
+	drainGrace = 100 * time.Millisecond
+	t.Cleanup(func() { drainGrace = original })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	const holderLifetime = 10 * time.Second
+	start := time.Now()
+	result, err := Execute(ctx, "sh", []string{"-c", "sleep " + "10" + " & wait"})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("cancellation must not surface as an error here: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected a result")
+	}
+	if elapsed > holderLifetime/2 {
+		t.Fatalf("cancellation waited %v, which is not bounded by the grace", elapsed)
 	}
 }

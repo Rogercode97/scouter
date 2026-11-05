@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 )
 
@@ -49,13 +50,11 @@ func makeCommand(ctx context.Context, command string, args []string) *exec.Cmd {
 	return exec.CommandContext(ctx, command, args...)
 }
 
-// drainGrace bounds how long Wait keeps reading after the process exits or the
-// context is cancelled, so a surviving grandchild that inherited the pipes
-// cannot hold Execute open forever. It is not tuned down: the timer starts when
-// the process exits, and a generous bound is what keeps a large already-buffered
-// payload from being closed mid-copy. When it does expire the caller gets an
-// error instead of a silent truncation.
-const drainGrace = 2 * time.Second
+// drainGrace bounds how long a cancelled command may keep its readers waiting on
+// a pipe an inherited grandchild still holds. It applies to cancellation only:
+// on normal completion the readers see EOF and drain in full, never bounded.
+// It is a var so a test can shrink it instead of sleeping for seconds.
+var drainGrace = 2 * time.Second
 
 // Execute runs a command, capturing stdout and stderr concurrently.
 func Execute(ctx context.Context, command string, args []string) (*Result, error) {
@@ -66,17 +65,56 @@ func Execute(ctx context.Context, command string, args []string) (*Result, error
 	// commands that don't read stdin (most filtered commands).
 	// Passthrough commands still get stdin via the Passthrough function.
 
-	// Handing os/exec the writers lets it own the copy goroutines, so Wait
-	// drains both streams before returning and no ordering has to be gotten
-	// right by hand. With StdoutPipe the reverse is true: Wait closes the pipes
-	// and anything its readers had not consumed is lost silently.
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("stdout pipe: %w", err)
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("stderr pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("start command: %w", err)
+	}
+
 	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-	cmd.WaitDelay = drainGrace
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		_, _ = stdoutBuf.ReadFrom(stdoutPipe)
+	}()
+	go func() {
+		defer wg.Done()
+		_, _ = stderrBuf.ReadFrom(stderrPipe)
+	}()
 
-	err := cmd.Run()
+	// The readers must be finished before Wait: Wait closes the pipes, and data
+	// they had not consumed would be lost silently. Cancellation is the one case
+	// where waiting could last forever, so it gets the bounded close below.
+	readersDone := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			begin := time.NewTimer(drainGrace)
+			defer begin.Stop()
+			select {
+			case <-readersDone:
+			case <-begin.C:
+				// A surviving grandchild still holds the write ends. Close the
+				// read ends so the readers unblock and the command is reaped.
+				_ = stdoutPipe.Close()
+				_ = stderrPipe.Close()
+			}
+		case <-readersDone:
+		}
+	}()
 
+	wg.Wait()
+	close(readersDone)
+
+	err = cmd.Wait()
 	exitCode := 0
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
