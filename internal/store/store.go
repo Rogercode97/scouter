@@ -297,6 +297,14 @@ func (s *storeImpl) SaveDirectoryHash(ctx context.Context, p string, hash string
 }
 
 func (s *storeImpl) ClearSymbols(ctx context.Context, p string) error {
+	// vec_symbols is a vec0 virtual table with no ON DELETE CASCADE, so the
+	// vectors of this path are dropped first, at the only function that removes
+	// a symbol. Keeping the order inside this method makes the invariant true
+	// for every caller — the healer and index-vault clear symbols without ever
+	// naming a vector — instead of relying on each one to remember it.
+	if err := s.ClearSemanticVectors(ctx, p); err != nil {
+		return err
+	}
 	_, err := s.exec(ctx, "DELETE FROM symbols WHERE path = ?", p)
 	if err != nil {
 		return fmt.Errorf("failed to clear symbols: %w", err)
