@@ -3,5 +3,5 @@ language: go
 rule:
   pattern: panic($$$)
 message: "Unsafe Operation: Use of panic() detected. Use error return values instead."
-severity: ERROR
+severity: error
 note: "Production code should handle errors gracefully. Reserve panic() only for unrecoverable system states during initialization."

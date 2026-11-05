@@ -22,6 +22,15 @@ func flagSet(names ...string) map[string]bool {
 	return set
 }
 
+// Arg is one argument of an allow-listed invocation. Path marks a filesystem
+// path, which is data rather than code: SafeCommand never invokes a shell, so a
+// path cannot chain, redirect or expand, and the metacharacter denylist would
+// reject legitimate directories such as "a;b" or any Windows path.
+type Arg struct {
+	Value string
+	Path  bool
+}
+
 // allowedBinaries is the closed set of external programs SafeCommand will
 // resolve, each with the flags it may be called with. It deliberately excludes
 // shells and code-evaluation builtins: allowing "sh -c" or "eval" reintroduces
@@ -40,8 +49,10 @@ var allowedBinaries = map[string]binaryPolicy{
 	// --update-all exists for exactly one caller: StructuralRefactor, which
 	// rewrites a scratch copy in place and stages its content. A fixed flag
 	// with no value surface, it cannot redirect output or load code.
-	"sg":       {flags: flagSet("--pattern", "--rewrite", "--update-all")},
-	"ast-grep": {flags: flagSet("--pattern", "--rewrite", "--update-all")},
+	// --rule and --json exist for ASTRuleEngine.Audit, which evaluates a rule
+	// file against a target. The long form keeps the short-flag ban intact.
+	"sg":       {flags: flagSet("--pattern", "--rewrite", "--update-all", "--rule", "--json")},
+	"ast-grep": {flags: flagSet("--pattern", "--rewrite", "--update-all", "--rule", "--json")},
 	"go":       {},
 	"scouter":  {},
 	"gopls":    {},
@@ -55,21 +66,53 @@ const dangerousChars = ";|&><`\\"
 // character from dangerousChars, and any flag that is not allow-listed for that
 // binary. It never wraps its input in a shell.
 func SafeCommand(ctx context.Context, name string, args ...string) (*exec.Cmd, error) {
+	converted := make([]Arg, len(args))
+	for i, arg := range args {
+		converted[i] = Arg{Value: arg}
+	}
+	return SafeCommandArgs(ctx, name, converted...)
+}
+
+// SafeCommandArgs is SafeCommand for invocations that carry filesystem paths.
+// Arguments marked Path are checked as paths instead of against the
+// metacharacter denylist; flags keep the same allow-list, so an invocation
+// cannot gain a flag it did not have before.
+func SafeCommandArgs(ctx context.Context, name string, args ...Arg) (*exec.Cmd, error) {
 	policy, ok := allowedBinaries[name]
 	if !ok {
 		return nil, fmt.Errorf("forbidden binary: %s", name)
 	}
 
-	for _, arg := range args {
-		if err := validateArg(name, policy, arg); err != nil {
+	argv := make([]string, len(args))
+	for i, arg := range args {
+		argv[i] = arg.Value
+		if arg.Path {
+			if err := validatePathArg(arg.Value); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if err := validateArg(name, policy, arg.Value); err != nil {
 			return nil, err
 		}
 	}
 
 	// #nosec G204 -- name is validated against the closed allowedBinaries set
-	// above and every argument passes validateArg. No shell is involved, so
-	// os/exec passes the argv vector directly.
-	return exec.CommandContext(ctx, name, args...), nil
+	// above and every argument passes validateArg or validatePathArg. No shell is
+	// involved, so os/exec passes the argv vector directly.
+	return exec.CommandContext(ctx, name, argv...), nil
+}
+
+// validatePathArg checks only what an OS-level path must satisfy. Metacharacters
+// stay legal on purpose: see Arg.
+func validatePathArg(path string) error {
+	if path == "" {
+		return fmt.Errorf("empty path argument")
+	}
+	if strings.ContainsRune(path, 0) {
+		return fmt.Errorf("path argument contains a NUL byte")
+	}
+	return nil
 }
 
 // validateArg applies two independent gates to one argument. The character

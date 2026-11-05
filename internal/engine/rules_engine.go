@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
@@ -41,29 +43,51 @@ func (e *ASTRuleEngine) Audit(ctx context.Context, targetPath string) ([]types.A
 	for _, ruleFile := range rules {
 		rulePath := filepath.Join(e.rulesDir, ruleFile)
 
-		// ast-grep scan -r <rule_file> <target> --json
-		cmd := exec.CommandContext(ctx, binary, "scan", "-r", rulePath, targetPath, "--json")
+		// ast-grep scan --rule <rule_file> <target> --json. Routed through
+		// SafeCommandArgs like every other external invocation: the rule path and
+		// the target both arrive from user input and are marked as paths, so a
+		// directory named "a;b" or a Windows path is not rejected as shell syntax.
+		cmd, err := utils.SafeCommandArgs(ctx, binary,
+			utils.Arg{Value: "scan"},
+			utils.Arg{Value: "--rule"},
+			utils.Arg{Value: rulePath, Path: true},
+			utils.Arg{Value: targetPath, Path: true},
+			utils.Arg{Value: "--json"},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("ast-grep scan for rule %s: %w", ruleFile, err)
+		}
 
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
 
-		err := cmd.Run()
-		// ast-grep returns exit code 1 if matches are found, which is not a "command error" for us
+		err = cmd.Run()
+		// ast-grep exits 1 when it found matches, which is success here. Any
+		// other non-zero exit is a real failure: reporting it as "no matches"
+		// is what let a malformed rule file silence this gate.
 		if err != nil {
-			if _, ok := err.(*exec.ExitError); !ok {
+			var exitErr *exec.ExitError
+			if !errors.As(err, &exitErr) {
 				return nil, fmt.Errorf("ast-grep execution failed for rule %s: %w (stderr: %s)", ruleFile, err, stderr.String())
+			}
+			if code := exitErr.ExitCode(); code != 1 {
+				return nil, fmt.Errorf("ast-grep scan failed for rule %s (exit %d): %s", ruleFile, code, strings.TrimSpace(stderr.String()))
 			}
 		}
 
 		if stdout.Len() == 0 {
+			// A clean scan prints "[]" and exits 0. No output at all means the
+			// tool gave us nothing to interpret, which must not read as "clean".
+			if err != nil {
+				return nil, fmt.Errorf("ast-grep scan for rule %s (exit 1) produced no output: %s", ruleFile, strings.TrimSpace(stderr.String()))
+			}
 			continue
 		}
 
 		var matches []types.ASTRuleMatch
 		if err := json.Unmarshal(stdout.Bytes(), &matches); err != nil {
-			// Some versions might output nothing or different format on no match
-			continue
+			return nil, fmt.Errorf("ast-grep scan for rule %s returned unparsable output: %w", ruleFile, err)
 		}
 		allMatches = append(allMatches, matches...)
 	}
