@@ -57,6 +57,7 @@ scouter setup <agent>
 
 | Agent | Command |
 | --- | --- |
+| Gentle Shell | `scouter setup gentle-shell` |
 | Gemini CLI | `scouter setup gemini-cli` |
 | Antigravity CLI | `scouter setup antigravity-cli` |
 | OpenCode | `scouter setup opencode` |

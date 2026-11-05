@@ -46,10 +46,12 @@ func Run(args []string) error {
 		return installCodex(home)
 	case "cursor":
 		return installCursor()
+	case "gentle-shell", "gentle":
+		return installGentleShell(home)
 	case "windsurf":
 		return installWindsurf(home)
 	default:
-		return fmt.Errorf("unknown agent: %s (supported: claude, gemini-cli, opencode, antigravity-cli, codex, cursor, windsurf)", agent)
+		return fmt.Errorf("unknown agent: %s (supported: gentle-shell, claude, gemini-cli, opencode, antigravity-cli, codex, cursor, windsurf)", agent)
 	}
 }
 
@@ -75,6 +77,48 @@ func installClaude(home, filterDir string) error {
 	fmt.Printf("  hook: %s\n", hookPath)
 	fmt.Printf("  filters: %s\n", filterDir)
 	fmt.Printf("  settings: %s\n", settingsPath)
+	return nil
+}
+
+func installGentleShell(home string) error {
+	configPath := filepath.Join(home, ".pi", "agent", "mcp.json")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		return fmt.Errorf("create pi agent dir: %w", err)
+	}
+	binPath, err := os.Executable()
+	if err != nil {
+		binPath, _ = filepath.Abs(os.Args[0])
+	}
+
+	var config map[string]interface{}
+	data, err := os.ReadFile(configPath)
+	if err == nil {
+		json.Unmarshal(data, &config)
+	} else {
+		config = make(map[string]interface{})
+	}
+
+	mcpServers, ok := config["mcpServers"].(map[string]interface{})
+	if !ok {
+		mcpServers = make(map[string]interface{})
+		config["mcpServers"] = mcpServers
+	}
+
+	mcpServers["scouter"] = map[string]interface{}{
+		"command": binPath,
+		"args":    []string{"mcp"},
+	}
+
+	newData, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, newData, 0600); err != nil {
+		return fmt.Errorf("save config: %w", err)
+	}
+	fmt.Printf("✅ Scouter integrated with Gentle Shell (MCP)!\n")
+	fmt.Printf("  settings: %s\n", configPath)
 	return nil
 }
 
@@ -377,6 +421,10 @@ func Uninstall(agent string) error {
 		settingsPath := filepath.Join(home, ".windsurf", "mcp.json")
 		removeMCPServer(settingsPath, "scouter")
 		fmt.Println("✅ Scouter removed from Windsurf")
+	case "gentle-shell", "gentle":
+		settingsPath := filepath.Join(home, ".pi", "agent", "mcp.json")
+		removeMCPServer(settingsPath, "scouter")
+		fmt.Println("✅ Scouter removed from Gentle Shell")
 	}
 
 	return nil
