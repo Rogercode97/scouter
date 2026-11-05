@@ -6,12 +6,16 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   unit-tests:
-    name: Unit Tests
+    name: Zero-CGO Build & Unit Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -22,9 +26,17 @@ jobs:
         with:
           go-version: "1.26"
 
+      - name: Verify Zero-CGO Build and Vet
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go build ./...
+          go vet ./...
+
       - name: Install dependencies (gopls, ast-grep)
         run: |
           go install golang.org/x/tools/gopls@v0.20.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           curl -L https://github.com/ast-grep/ast-grep/releases/latest/download/app-x86_64-unknown-linux-gnu.zip -o ast-grep.zip
           unzip ast-grep.zip
           sudo mv ast-grep sg /usr/local/bin/
@@ -32,9 +44,36 @@ jobs:
 
       - name: Run unit tests
         env:
-          # Zero-CGO mandate: the shipped binary must build without cgo.
-          # -race is deliberately absent: it requires cgo and always fails here.
+          # Zero-CGO mandate: the shipped binary must build and test without cgo.
           CGO_ENABLED: "0"
         run: |
-          export PATH=$PATH:$(go env GOPATH)/bin
-          go test -v -p 1 ./...
+          GOPATH_BIN="$(go env GOPATH)/bin"
+          export PATH="$PATH:$GOPATH_BIN"
+          go test -p 1 ./...
+
+  race-detector:
+    name: Race Detector
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+
+      - name: Install dependencies (gopls, ast-grep)
+        run: |
+          go install golang.org/x/tools/gopls@v0.20.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          curl -L https://github.com/ast-grep/ast-grep/releases/latest/download/app-x86_64-unknown-linux-gnu.zip -o ast-grep.zip
+          unzip ast-grep.zip
+          sudo mv ast-grep sg /usr/local/bin/
+          rm ast-grep.zip
+
+      - name: Run Tests with Race Detector
+        run: |
+          GOPATH_BIN="$(go env GOPATH)/bin"
+          export PATH="$PATH:$GOPATH_BIN"
+          go test -race -p 1 ./...
