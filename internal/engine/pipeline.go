@@ -111,7 +111,7 @@ func (p *Pipeline) Run(ctx context.Context, command string, args []string) int {
 	}
 
 	// DIVINE REDEMPTION: Universal Shadow Indexing (Asynchronous)
-	go p.ShadowIndex(context.Background()) // #nosec G118 - intentional background task // #nosec G118 - intentional background task
+	go p.ShadowIndex(context.Background()) // #nosec G118 - intentional background task, the caller's context is not the indexer's lifetime
 
 	inputTokens := utils.EstimateTokens(result.Stdout)
 	if inputTokens > 0 {

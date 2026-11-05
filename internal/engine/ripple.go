@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"iter"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
+
+	"github.com/Rogercode97/scouter/internal/utils"
 )
 
 // PropagationTask represents a single unit of work in the ripple propagation.
@@ -156,7 +157,10 @@ func (s *BFSPropagationStrategy) Discover(ctx context.Context, startSymbol strin
 type BuildValidator struct{}
 
 func (v *BuildValidator) Validate(ctx context.Context, ledger *Ledger) (ValidationResult, error) {
-	cmd := exec.CommandContext(ctx, "go", "build", "./...")
+	cmd, err := utils.SafeCommand(ctx, "go", "build", "./...")
+	if err != nil {
+		return ValidationResult{Valid: false, Message: err.Error()}, nil
+	}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return ValidationResult{
 			Valid:   false,
@@ -179,7 +183,10 @@ func (v *TestValidator) Validate(ctx context.Context, ledger *Ledger) (Validatio
 		args = append(args, "./...")
 	}
 
-	cmd := exec.CommandContext(ctx, "go", args...)
+	cmd, err := utils.SafeCommand(ctx, "go", args...)
+	if err != nil {
+		return ValidationResult{Valid: false, Message: err.Error()}, nil
+	}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return ValidationResult{
 			Valid:   false,

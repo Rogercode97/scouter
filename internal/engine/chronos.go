@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -144,7 +143,10 @@ func (e *ChronosEngine) CompareSnapshot(ctx context.Context, snapshot *ChronosSn
 	return diff, nil
 }
 func (e *ChronosEngine) SemanticDiff(ctx context.Context, target string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "diff", "--name-only", target)
+	cmd, err := utils.SafeCommand(ctx, "git", "diff", "--name-only", target)
+	if err != nil {
+		return "", err
+	}
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("git diff failed: %w", err)
@@ -171,7 +173,10 @@ func (e *ChronosEngine) SemanticDiff(ctx context.Context, target string) (string
 			continue
 		}
 
-		showCmd := exec.CommandContext(ctx, "git", "show", fmt.Sprintf("%s:%s", target, file))
+		showCmd, err := utils.SafeCommand(ctx, "git", "show", fmt.Sprintf("%s:%s", target, file))
+		if err != nil {
+			continue
+		}
 		oldContent, err := showCmd.Output()
 		if err != nil {
 			continue // Might be a new file
