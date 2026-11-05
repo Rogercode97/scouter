@@ -251,15 +251,21 @@ func (e *HealerEngine) Index(ctx context.Context, path string) error {
 	}
 
 	return e.store.WithTransaction(ctx, func(ctx context.Context, tx store.Store) error {
-		tx.SaveFileIndex(ctx, &store.FileIndex{
+		if err := tx.SaveFileIndex(ctx, &store.FileIndex{
 			Path:    path,
 			Mtime:   int(mtime),
 			Hash:    hash,
 			AstJson: "{}",
 			Project: utils.GetRepoName(ctx),
-		})
-		tx.ClearSymbols(ctx, path)
-		tx.ClearCalls(ctx, path)
+		}); err != nil {
+			return fmt.Errorf("failed to save file index for %s: %w", path, err)
+		}
+		if err := tx.ClearSymbols(ctx, path); err != nil {
+			return fmt.Errorf("failed to clear symbols for %s: %w", path, err)
+		}
+		if err := tx.ClearCalls(ctx, path); err != nil {
+			return fmt.Errorf("failed to clear calls for %s: %w", path, err)
+		}
 
 		var symbols []*store.Symbol
 		for ptr := range itPointers {
