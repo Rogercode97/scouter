@@ -21,6 +21,7 @@ type SymbolRegistry interface {
 	GetDirectoryHash(ctx context.Context, path string) (string, int64, error)
 	SaveDirectoryHash(ctx context.Context, path string, hash string, mtime int64) error
 	ClearSymbols(ctx context.Context, path string) error
+	ClearSemanticVectors(ctx context.Context, path string) error
 	SaveSymbol(ctx context.Context, sym *Symbol) error
 	SaveSymbolsBulk(ctx context.Context, symbols []*Symbol) error
 	SearchSymbols(ctx context.Context, query string, symType string, pathPrefix string, limit, offset int) ([]Symbol, error)

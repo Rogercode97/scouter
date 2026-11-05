@@ -79,7 +79,7 @@ Output: Verified code artifacts.
 
 ## 2. ⚙️ Execution & Traversal
 - **Trace Callers**: Use `codegraph callers <symbol>` or `scouter graph`.
-- **Blast Radius**: Always run `scouter impact <symbol>` to determine the blast radius BEFORE modifying any symbol. We don't guess the impact of a change; we calculate it (transitive closure of all callers).
+- **Blast Radius**: Always run `scouter impact <symbol>` to determine the blast radius BEFORE modifying any symbol. We don't guess the impact of a change; we calculate it (transitive closure of all callers). Value-references (`map(fn)`, `partial(fn)`) are listed as references and do not inflate the blast radius.
 - **Ripple Engine**: Traversing the dependency graph starting from "Impacted Symbols" using `BFSPropagationStrategy`.
 
 ## 3. 🚦 Decision Gates
@@ -89,7 +89,7 @@ Output: Verified code artifacts.
 # Indexing and Hotspots Brief (Scouter Dominion)
 
 ## 1. 🛡️ Index Integrity Mandates
-- **Index Integrity**: Always run `scouter index .` before calculating impact if the codebase has changed since the last index.
+- **Index Integrity**: Always run `scouter index .` before calculating impact if the codebase has changed since the last index. The index respects the repository-root `.gitignore` plus `.git/info/exclude` (nested files out of scope).
 - **Recursive Refresh**: Trigger a re-index after any structural change (rename, move, or delete).
 
 ## 2. ⚙️ Execution & Metrics

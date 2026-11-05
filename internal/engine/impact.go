@@ -132,7 +132,9 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 			Body:     callerBody,
 		}
 		res.Callers = append(res.Callers, r)
-		blastRadius++
+		if r.LinkType != "reference" {
+			blastRadius++
+		}
 
 		// Build Mermaid Edge
 		parent := symbol
@@ -148,6 +150,8 @@ func (e *ImpactEngine) Analyze(ctx context.Context, symbol string, path string, 
 		edgeSymbol := "-->"
 		if r.LinkType == "implements" {
 			edgeSymbol = "-.->"
+		} else if r.LinkType == "reference" {
+			edgeSymbol = "--o"
 		}
 
 		edge := fmt.Sprintf("    %s[\"%s\"] %s %s[\"%s\"]", r.Symbol, r.Symbol, edgeSymbol, parent, parent)

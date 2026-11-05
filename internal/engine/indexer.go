@@ -206,15 +206,20 @@ func (ip *IndexerPipeline) Index(ctx context.Context, path string) error {
 
 	collector := newIndexCollector(ctx, ip.config.Store, ip.config.Semantic)
 
-	maxWorkers := 4
-	if runtime.NumCPU() < 4 {
-		maxWorkers = runtime.NumCPU()
+	var ign *IgnoreMatcher
+	if fi.IsDir() {
+		ign = LoadIgnoreMatcher(validatedPath)
+	}
+
+	maxWorkers := runtime.NumCPU()
+	if maxWorkers < 1 {
+		maxWorkers = 1
 	}
 	workerSem := make(chan struct{}, maxWorkers)
 
 	var indexErr error
 	if fi.IsDir() {
-		_, indexErr = ip.indexDirectory(ctx, validatedPath, workerSem, collector, parsedData)
+		_, indexErr = ip.indexDirectory(ctx, validatedPath, workerSem, collector, parsedData, ign)
 	} else {
 		workerSem <- struct{}{}
 		_, indexErr = ip.indexFile(ctx, validatedPath, workerSem, collector, parsedData)
@@ -254,7 +259,7 @@ func (ip *IndexerPipeline) Index(ctx context.Context, path string) error {
 	return err
 }
 
-func (ip *IndexerPipeline) indexDirectory(ctx context.Context, dir string, workerSem chan struct{}, collector *indexCollector, parsedData map[string]*ParsedPackageData) (string, error) {
+func (ip *IndexerPipeline) indexDirectory(ctx context.Context, dir string, workerSem chan struct{}, collector *indexCollector, parsedData map[string]*ParsedPackageData, ign *IgnoreMatcher) (string, error) {
 	storedHash, _, err := ip.config.Store.GetDirectoryHash(ctx, dir)
 	if err == nil && storedHash != "" {
 		// Cache hit logic
@@ -284,9 +289,12 @@ func (ip *IndexerPipeline) indexDirectory(ctx context.Context, dir string, worke
 			if BlockedDirs[entry.Name()] {
 				continue
 			}
+			if ign != nil && ign.Ignored(path, true) {
+				continue
+			}
 
 			g.Go(func() error {
-				childHash, err := ip.indexDirectory(ctx, path, workerSem, collector, parsedData)
+				childHash, err := ip.indexDirectory(ctx, path, workerSem, collector, parsedData, ign)
 				if err != nil {
 					ip.config.Logger.Error("failed to index directory", "path", path, "error", err)
 					return nil // Skip directory but continue parent indexing
@@ -301,6 +309,9 @@ func (ip *IndexerPipeline) indexDirectory(ctx context.Context, dir string, worke
 		} else {
 			ext := filepath.Ext(path)
 			if !SupportedExts[ext] {
+				continue
+			}
+			if ign != nil && ign.Ignored(path, false) {
 				continue
 			}
 

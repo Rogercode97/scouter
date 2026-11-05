@@ -39,18 +39,18 @@ One run on the environment below:
 | Query | What the answer should be | What Scouter reports | Correct | Missed | Extra |
 | --- | --- | --- | ---: | ---: | ---: |
 | `scale` | `pipeline`, `direct` | `pipeline`, `direct` | 2 | 0 | 0 |
-| `boost` | `aliased`, `via_map`, `via_partial` | `aliased` | 1 | 2 | 0 |
+| `boost` | `aliased`, `via_map`, `via_partial` | `aliased`, `via_map`, `via_partial` | 3 | 0 | 0 |
 | `transform` | refuse: the name means two different functions | 3 callers, one of them from the other module | — | — | — |
 
 | Aggregate | Value |
 | --- | ---: |
 | Precision | **1.00** |
-| Recall | **0.60** |
-| True positives | 3 |
+| Recall | **1.00** |
+| True positives | 5 |
 | False positives | 0 |
-| False negatives | 2 |
+| False negatives | 0 |
 
-Recall moved from 0.40 to 0.60 when import aliases were resolved: a callee written as `c.boost` is now mapped through the file's import table to the name the symbol table holds. The two remaining misses are both references that are not call expressions, and closing them needs its own decision about what a reference edge means — see below.
+Recall moved from 0.40 to 0.60 when import aliases were resolved, and from 0.60 to 1.00 when references passed as values got their own link kind: `map(boost, ...)` and `partial(boost)` now emit a `reference` edge resolved through the same import table, listed as a caller but not counted in the blast radius.
 
 The alias mapping carries the module with the name. A Python symbol is recorded under its file's module (the stem), so `c.boost()` after `import core as c` becomes the edge `core.boost`, and a call written `ext.build()` after `import external as ext` never lands on a same-named `build` defined in another file. A bare call inside the file that defines the symbol is qualified the same way. When one file binds the same local alias to two different modules, the call is left unresolved on purpose: attributing it to one of the two would be a guess, and a wrong edge is worse than a missing one.
 
@@ -71,9 +71,9 @@ Go is the primary language, so it gets its own number — measured one layer dow
 
 Every direct call edge in this repository for these two symbols is present and none is invented, including calls made from inside closures, from test files, and from methods. The contrast with the Python number is the finding, and it is not a language ranking: it separates two mechanisms. Go's edges come from `go/packages`, which type-checks the module and knows what a call resolves to. Everything else comes from a tree-sitter pass that records the shape of a call expression, so a reference passed as a value rather than used as the head of a call — a callback handed to `map`, a `functools.partial` — has no edge to record. Calls through an import alias are resolved through the file's import table and do produce an edge.
 
-Precision 1.00 here means Scouter never invented a caller on this corpus: it did not treat the string in `mention` as a call, and it did not confuse `decoys.transform` with `core.transform` once the ambiguity was refused. Recall 0.60 means it found three of the five callers that exist.
+Precision 1.00 here means Scouter never invented a caller on this corpus: it did not treat the string in `mention` as a call, and it did not confuse `decoys.transform` with `core.transform` once the ambiguity was refused. Recall 1.00 means it found all five callers that exist.
 
-The two remaining misses are a function passed to `map` and a function passed to `partial`. Neither reaches the target through a call node whose callee is the target's name, so the parser has no call shape to record. A reference used as a value would need its own link kind: calling it a call edge would be a lie, and it would inflate every blast radius on a large codebase with plain data passing. That is a design decision, not a parser detail, and it is not made here.
+The two former misses were a function passed to `map` and a function passed to `partial`. Neither reaches the target through a call node whose callee is the target's name, so the parser records them as a `reference` edge instead of a `call` edge: the caller is listed, the mermaid edge renders `--o` instead of `-->`, and the blast-radius count skips it. Calling it a call edge would have been a lie, and it would have inflated every blast radius on a large codebase with plain data passing.
 
 ## The defect this measurement found
 
