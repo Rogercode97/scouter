@@ -284,7 +284,9 @@ func (e *HealerEngine) Index(ctx context.Context, path string) error {
 			})
 		}
 		if len(symbols) > 0 {
-			_ = tx.SaveSymbolsBulk(ctx, symbols)
+			if err := tx.SaveSymbolsBulk(ctx, symbols); err != nil {
+				return fmt.Errorf("failed to save symbols for %s: %w", path, err)
+			}
 		}
 
 		var calls []store.Call
@@ -299,7 +301,9 @@ func (e *HealerEngine) Index(ctx context.Context, path string) error {
 			})
 		}
 		if len(calls) > 0 {
-			_ = tx.SaveCallsBulk(ctx, calls)
+			if err := tx.SaveCallsBulk(ctx, calls); err != nil {
+				return fmt.Errorf("failed to save calls for %s: %w", path, err)
+			}
 		}
 		return nil
 	})
