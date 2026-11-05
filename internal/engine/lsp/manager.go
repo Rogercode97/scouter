@@ -11,6 +11,56 @@ import (
 	"time"
 )
 
+// daemonSocketPath is where the shared gopls daemon listens. A fixed name in
+// os.TempDir() is a namespace every account on the host shares: another user
+// can pre-create that path and receive the daemon's traffic, and two checkouts
+// of this repository collide with each other. The socket lives in a per-user
+// directory instead, and the caller creates it 0700.
+func daemonSocketPath() string {
+	base := os.TempDir()
+	if runtime.GOOS == "android" {
+		// Termux rewrites TMPDIR per app; os.TempDir already reports it.
+		if tmp := os.Getenv("TMPDIR"); tmp != "" {
+			base = tmp
+		}
+	}
+	return filepath.Join(base, "scouter-"+socketOwnerTag(), "gopls.sock")
+}
+
+// connectSharedDaemon returns a client for the per-user gopls daemon, starting
+// it when nothing answers yet. It returns nil when the daemon cannot be used,
+// and the caller then owns its own gopls process.
+func connectSharedDaemon(ctx context.Context) LSPClient {
+	socketPath := daemonSocketPath()
+	if err := os.MkdirAll(filepath.Dir(socketPath), 0o700); err != nil {
+		return nil
+	}
+	if client, err := NewSocketClient(ctx, "unix", socketPath); err == nil {
+		return client
+	}
+
+	// LSP server processes are long-running and MUST NOT be tied to a request
+	// context that might time out, so the daemon detaches into its own group.
+	daemonCmd := exec.Command("gopls", "serve", "-listen=unix;"+socketPath)
+	setSysProcAttr(daemonCmd)
+	if err := daemonCmd.Start(); err != nil {
+		return nil
+	}
+
+	// Give it a tiny moment to create the socket.
+	for i := 0; i < 10; i++ {
+		if client, err := NewSocketClient(ctx, "unix", socketPath); err == nil {
+			return client
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	return nil
+}
+
 type clientEntry struct {
 	client LSPClient
 	err    error
@@ -116,40 +166,11 @@ func (m *Manager) GetClient(ctx context.Context, filePath string) (LSPClient, er
 		cwd, _ := os.Getwd()
 
 		if warpSpeed && binary == "gopls" {
-			// Persistent Daemon attempt: Try to connect via Unix Socket
-			socketPath := filepath.Join(os.TempDir(), "scouter-gopls.sock")
-			if runtime.GOOS == "android" {
-				// Android/Termux: use $TMPDIR if available for better permission handling
-				if tmp := os.Getenv("TMPDIR"); tmp != "" {
-					socketPath = filepath.Join(tmp, "scouter-gopls.sock")
-				}
-			}
-
-			client, err := NewSocketClient(bgCtx, "unix", socketPath)
-			if err == nil {
+			// Persistent daemon: a socket shared per user, not a fixed path in a
+			// namespace every account on the host can write to.
+			if client := connectSharedDaemon(bgCtx); client != nil {
 				entry.client = client
 				return
-			}
-
-			// If connection failed, try to start the daemon
-			daemonCmd := exec.Command("gopls", "serve", "-listen=unix;"+socketPath)
-			// Detach from current process group so it persists
-			setSysProcAttr(daemonCmd)
-			if err := daemonCmd.Start(); err == nil {
-				// Give it a tiny moment to create the socket
-				for i := 0; i < 10; i++ {
-					client, err := NewSocketClient(bgCtx, "unix", socketPath)
-					if err == nil {
-						entry.client = client
-						return
-					}
-					select {
-					case <-bgCtx.Done():
-						break
-					default:
-						time.Sleep(100 * time.Millisecond)
-					}
-				}
 			}
 		}
 
