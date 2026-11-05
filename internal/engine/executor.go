@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"sync"
 	"time"
 )
 
@@ -50,7 +49,15 @@ func makeCommand(ctx context.Context, command string, args []string) *exec.Cmd {
 	return exec.CommandContext(ctx, command, args...)
 }
 
-// Execute runs a command, capturing stdout and stderr concurrently via goroutines.
+// drainGrace bounds how long Wait keeps reading after the process exits or the
+// context is cancelled, so a surviving grandchild that inherited the pipes
+// cannot hold Execute open forever. It is not tuned down: the timer starts when
+// the process exits, and a generous bound is what keeps a large already-buffered
+// payload from being closed mid-copy. When it does expire the caller gets an
+// error instead of a silent truncation.
+const drainGrace = 2 * time.Second
+
+// Execute runs a command, capturing stdout and stderr concurrently.
 func Execute(ctx context.Context, command string, args []string) (*Result, error) {
 	start := time.Now()
 
@@ -59,38 +66,16 @@ func Execute(ctx context.Context, command string, args []string) (*Result, error
 	// commands that don't read stdin (most filtered commands).
 	// Passthrough commands still get stdin via the Passthrough function.
 
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("stdout pipe: %w", err)
-	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("stderr pipe: %w", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("start command: %w", err)
-	}
-
+	// Handing os/exec the writers lets it own the copy goroutines, so Wait
+	// drains both streams before returning and no ordering has to be gotten
+	// right by hand. With StdoutPipe the reverse is true: Wait closes the pipes
+	// and anything its readers had not consumed is lost silently.
 	var stdoutBuf, stderrBuf bytes.Buffer
-	var wg sync.WaitGroup
-	wg.Add(2)
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+	cmd.WaitDelay = drainGrace
 
-	go func() {
-		defer wg.Done()
-		_, _ = stdoutBuf.ReadFrom(stdoutPipe)
-	}()
-	go func() {
-		defer wg.Done()
-		_, _ = stderrBuf.ReadFrom(stderrPipe)
-	}()
-
-	// The readers must drain both pipes before Wait runs: Wait closes them, and
-	// closing a pipe whose data the reader has not consumed yet loses that data
-	// silently. os/exec documents this ordering requirement for StdoutPipe and
-	// StderrPipe explicitly.
-	wg.Wait()
-	err = cmd.Wait()
+	err := cmd.Run()
 
 	exitCode := 0
 	if err != nil {
