@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -784,6 +785,12 @@ func computeGoMetrics(node ast.Node) *types.SemanticMetrics {
 	return metrics
 }
 
+// ErrNotInBuild marks a file that the current build configuration excludes:
+// a GOOS/GOARCH suffix, or a build tag that does not match. Such a file is
+// outside this build, not broken, so callers skip it instead of reporting a
+// parse failure.
+var ErrNotInBuild = errors.New("file is not part of the current build configuration")
+
 func loadASTFile(validatedPath string) (*ast.File, *token.FileSet, *packages.Package, error) {
 	cfg := &packages.Config{
 		Mode:  packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
@@ -815,12 +822,9 @@ func loadASTFile(validatedPath string) (*ast.File, *token.FileSet, *packages.Pac
 	}
 
 	if pkg == nil {
-		if len(pkgs) == 1 && len(pkgs[0].Syntax) > 0 {
-			pkg = pkgs[0]
-			file = pkg.Syntax[0]
-		} else {
-			return nil, nil, nil, fmt.Errorf("file %s not found in loaded packages", validatedPath)
-		}
+		// Never fall back to another file in the same package: returning a
+		// sibling's AST under this path indexes the wrong content silently.
+		return nil, nil, nil, fmt.Errorf("%w: %s", ErrNotInBuild, validatedPath)
 	}
 	return file, pkg.Fset, pkg, nil
 }
