@@ -85,8 +85,12 @@ func Execute(ctx context.Context, command string, args []string) (*Result, error
 		_, _ = stderrBuf.ReadFrom(stderrPipe)
 	}()
 
-	err = cmd.Wait()
+	// The readers must drain both pipes before Wait runs: Wait closes them, and
+	// closing a pipe whose data the reader has not consumed yet loses that data
+	// silently. os/exec documents this ordering requirement for StdoutPipe and
+	// StderrPipe explicitly.
 	wg.Wait()
+	err = cmd.Wait()
 
 	exitCode := 0
 	if err != nil {

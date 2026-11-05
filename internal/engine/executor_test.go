@@ -136,3 +136,35 @@ func TestMakeCommandRegular(t *testing.T) {
 		t.Error("regular commands should not be wrapped with sh")
 	}
 }
+
+// TestExecuteCapturesEveryRun pins the os/exec contract for StdoutPipe: Wait
+// must not run before the readers drained the pipes, or output is silently
+// lost. The window is a scheduling race, not a size one — with a payload
+// larger than the pipe buffer the child blocks, so the readers never fall
+// behind and the bug hides. Small output plus repetition is what exposes it;
+// under -race with GOMAXPROCS=1 this failed 150 of 150 runs before the fix.
+func TestExecuteCapturesEveryRun(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skip on windows")
+	}
+	ctx := context.Background()
+
+	const runs = 200
+	for i := 0; i < runs; i++ {
+		result, err := Execute(ctx, "echo", []string{"hello", "world"})
+		if err != nil {
+			t.Fatalf("run %d: unexpected error: %v", i, err)
+		}
+		if got := strings.TrimSpace(result.Stdout); got != "hello world" {
+			t.Fatalf("run %d: stdout = %q, want %q", i, got, "hello world")
+		}
+
+		result, err = Execute(ctx, "sh", []string{"-c", "echo error >&2"})
+		if err != nil {
+			t.Fatalf("run %d: unexpected error: %v", i, err)
+		}
+		if got := strings.TrimSpace(result.Stderr); got != "error" {
+			t.Fatalf("run %d: stderr = %q, want %q", i, got, "error")
+		}
+	}
+}
