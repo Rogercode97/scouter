@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 )
 
@@ -12,9 +13,24 @@ import (
 // "--unified" permits both "--unified" and "--unified=3".
 type binaryPolicy struct {
 	flags map[string]bool
+	// subcommands is the closed set of verbs the binary may be asked to run.
+	// The verb is the first argument that is not a flag, so every caller keeps
+	// it first. A flag policy without this one leaves the verb free, and verbs
+	// are executable: `go run` and `go generate` run whatever the tree holds,
+	// which is precisely what the flag lists cannot see. An empty set leaves
+	// the verb unconfined for binaries the wrapper cannot describe yet.
+	subcommands map[string]bool
 }
 
 func flagSet(names ...string) map[string]bool {
+	set := make(map[string]bool, len(names))
+	for _, name := range names {
+		set[name] = true
+	}
+	return set
+}
+
+func commandSet(names ...string) map[string]bool {
 	set := make(map[string]bool, len(names))
 	for _, name := range names {
 		set[name] = true
@@ -44,20 +60,35 @@ type Arg struct {
 // exists because a production caller passes it; add one only together with the
 // caller that needs it.
 var allowedBinaries = map[string]binaryPolicy{
-	"git": {flags: flagSet("--unified", "--name-only", "--show-toplevel")},
-	"rtk": {flags: flagSet("--pointer", "--ultra-compact")},
+	"git": {
+		flags:       flagSet("--unified", "--name-only", "--show-toplevel"),
+		subcommands: commandSet("diff", "remote", "show", "restore", "rev-parse"),
+	},
+	"rtk": {
+		flags:       flagSet("--pointer", "--ultra-compact"),
+		subcommands: commandSet("read"),
+	},
 	// --update-all exists for exactly one caller: StructuralRefactor, which
 	// rewrites a scratch copy in place and stages its content. A fixed flag
 	// with no value surface, it cannot redirect output or load code.
 	// --rule and --json exist for ASTRuleEngine.Audit, which evaluates a rule
 	// file against a target. The long form keeps the short-flag ban intact.
-	"sg":       {flags: flagSet("--pattern", "--rewrite", "--update-all", "--rule", "--json")},
-	"ast-grep": {flags: flagSet("--pattern", "--rewrite", "--update-all", "--rule", "--json")},
+	"sg": {
+		flags:       flagSet("--pattern", "--rewrite", "--update-all", "--rule", "--json"),
+		subcommands: commandSet("run", "scan"),
+	},
+	"ast-grep": {
+		flags:       flagSet("--pattern", "--rewrite", "--update-all", "--rule", "--json"),
+		subcommands: commandSet("run", "scan"),
+	},
 	// go carries --run because TestValidator passes a `-run <pattern>` filter
 	// through. The single-dash spelling is declared too: Go's flag package reads
 	// -run and --run as one flag, so the policy names both instead of
 	// normalising arguments behind the caller's back.
-	"go":      {flags: flagSet("--run", "-run")},
+	"go": {
+		flags:       flagSet("--run", "-run"),
+		subcommands: commandSet("build", "test"),
+	},
 	"scouter": {},
 	"gopls":   {},
 }
@@ -85,6 +116,16 @@ func SafeCommandArgs(ctx context.Context, name string, args ...Arg) (*exec.Cmd, 
 	policy, ok := allowedBinaries[name]
 	if !ok {
 		return nil, fmt.Errorf("forbidden binary: %s", name)
+	}
+
+	if len(policy.subcommands) > 0 {
+		verb, found := firstVerb(args)
+		if !found {
+			return nil, fmt.Errorf("no subcommand for %s: expected one of %s", name, strings.Join(sortedKeys(policy.subcommands), ", "))
+		}
+		if !policy.subcommands[verb] {
+			return nil, fmt.Errorf("subcommand not allowed for %s: %s", name, verb)
+		}
 	}
 
 	argv := make([]string, len(args))
@@ -117,6 +158,28 @@ func validatePathArg(path string) error {
 		return fmt.Errorf("path argument contains a NUL byte")
 	}
 	return nil
+}
+
+// firstVerb returns the first argument that is not a flag: the position every
+// caller puts the verb in. An argument marked Path is data, not a flag, so it
+// counts as a verb candidate like any other positional.
+func firstVerb(args []Arg) (string, bool) {
+	for _, arg := range args {
+		if strings.HasPrefix(arg.Value, "-") {
+			continue
+		}
+		return arg.Value, true
+	}
+	return "", false
+}
+
+func sortedKeys(set map[string]bool) []string {
+	keys := make([]string, 0, len(set))
+	for key := range set {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // validateArg applies two independent gates to one argument. The character
