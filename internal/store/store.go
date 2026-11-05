@@ -875,7 +875,9 @@ func (s *storeImpl) ImportDelta(ctx context.Context, syncDir string) error {
 					Hash:    delta.Hash,
 					AstJson: "{}", // Not needed for Delta Sync
 				})
-				tx.ClearSemanticVectors(txCtx, delta.Path)
+				if err := tx.ClearSemanticVectors(txCtx, delta.Path); err != nil {
+					return fmt.Errorf("failed to clear semantic vectors for %s: %w", delta.Path, err)
+				}
 				tx.ClearSymbols(txCtx, delta.Path)
 				tx.ClearCalls(txCtx, delta.Path)
 				for _, sym := range delta.Symbols {

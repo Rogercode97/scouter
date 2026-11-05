@@ -21,7 +21,7 @@ Same question (`IndexerPipeline`) on this repository, Scouter vs ripgrep — pro
 | Query latency | 48 ms | **6 ms** |
 | Index cost (one time, 463 files) | 13.3 s / 16.5 MB | — |
 
-Scouter is slower per query and its answer is a third of the text — because the text baseline matches every line that merely names the query (docs included: it sits at 7,547 B as the corpus grows) while Scouter resolves the same 8 symbols every run. Read the [30-second demo](docs/demo.md) to see it on this repo.
+Scouter is slower per query and its answer is a third of the text — because the text baseline matches every line that merely names the query (docs included: it sits at 7,547 B on today's corpus, against 2,572 B in runs A–B) while Scouter resolves the same 8 symbols every run. Read the [30-second demo](docs/demo.md) to see it on this repo.
 
 Scouter is the tactical visor for your AI coding agents. While memory systems provide context, Scouter provides the structural eyes. Instead of parsing plain text, Scouter parses and navigates the Abstract Syntax Tree (AST), bringing precision to autonomous code operations.
 

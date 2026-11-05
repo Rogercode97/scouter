@@ -391,7 +391,7 @@ func StreamWithTreeSitter(ctx context.Context, filePath string) (iter.Seq[types.
 				Line:       safeInt(callNode.StartPoint().Row) + 1,
 			}
 			calls = append(calls, c)
-			if ref := pythonReferenceArg(ext, callee, callNode, lang, content); ref != "" {
+			if ref := pythonReferenceArg(ext, callee, callNode, lang, content, modulePath); ref != "" {
 				rc := types.ASTCall{
 					CallerName: findTSCaller(callNode, content, lang, symbolNames),
 					CalleeName: resolvePythonCallee(ref, pyImports, modulePath),
@@ -786,15 +786,18 @@ func (p pythonImports) bind(local, target string) {
 // Anything else (non-Python files, other callees, keyword or complex first
 // args) returns "" so no edge is emitted. The caller resolves the result
 // through the file's imports like a normal callee.
-func pythonReferenceArg(ext, callee string, callNode *gotreesitter.Node, lang *gotreesitter.Language, content []byte) string {
+func pythonReferenceArg(ext, callee string, callNode *gotreesitter.Node, lang *gotreesitter.Language, content []byte, modulePath string) string {
 	if ext != ".py" || callNode == nil {
 		return ""
 	}
-	head := callee
-	if dot := strings.Index(callee, "."); dot >= 0 {
-		head = callee[dot+1:]
-	}
-	if head != "map" && head != "partial" {
+	// The callee arrives resolved through the file's imports, so match the
+	// resolved binding exactly: bare `map` (which the resolver qualifies
+	// to this file's module, e.g. `uses_reference.map`), or
+	// `functools.partial` however it was imported. A suffix match would
+	// false-positive on unrelated qualified functions such as
+	// `helpers.map`. Shadowed builtins stay out of scope.
+	isMap := callee == "map" || (modulePath != "" && callee == modulePath+".map")
+	if !isMap && callee != "functools.partial" {
 		return ""
 	}
 	parent := callNode.Parent()
@@ -805,25 +808,21 @@ func pythonReferenceArg(ext, callee string, callNode *gotreesitter.Node, lang *g
 	if args == nil {
 		return ""
 	}
-	for i := 0; i < int(args.NamedChildCount()); i++ {
-		arg := args.NamedChild(i)
-		if arg == nil {
-			continue
-		}
-		kind := arg.Type(lang)
-		if kind != "identifier" && kind != "attribute" {
-			continue
-		}
-		text := string(arg.Text(content))
-		if eq := strings.Index(text, "="); eq >= 0 {
-			text = strings.TrimSpace(text[eq+1:])
-			if text == "" {
-				continue
-			}
-		}
-		return text
+	// Only the first positional argument is the callback. A lambda or any
+	// other complex shape there means no edge: later identifiers are bound
+	// arguments, e.g. `boost` in `partial(lambda x: x, boost)`.
+	if args.NamedChildCount() == 0 {
+		return ""
 	}
-	return ""
+	arg := args.NamedChild(0)
+	if arg == nil {
+		return ""
+	}
+	kind := arg.Type(lang)
+	if kind != "identifier" && kind != "attribute" {
+		return ""
+	}
+	return string(arg.Text(content))
 }
 
 // resolvePythonCallee maps a callee as written to the name the symbol table holds.

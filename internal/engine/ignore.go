@@ -24,18 +24,24 @@ func LoadIgnoreMatcher(root string) *IgnoreMatcher {
 		abs = root
 	}
 	var patterns []gitignore.Pattern
-	for _, name := range []string{".gitignore", filepath.Join(".git", "info", "exclude")} {
+	// Precedence: later patterns win in the go-git matcher, and git gives
+	// the root `.gitignore` priority over `.git/info/exclude`, so the
+	// exclude file loads first.
+	for _, name := range []string{filepath.Join(".git", "info", "exclude"), ".gitignore"} {
 		data, err := os.ReadFile(filepath.Join(abs, name))
 		if err != nil {
 			continue
 		}
 		domain := strings.Split(filepath.ToSlash(abs), "/")
 		for _, line := range strings.Split(string(data), "\n") {
-			trimmed := strings.TrimSpace(line)
-			if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			// Git keeps leading whitespace significant and strips only
+			// the line ending (trailing spaces are the parser's job, so
+			// ` generated.go` still matches a leading-space filename).
+			raw := strings.TrimRight(line, "\r")
+			if strings.TrimSpace(raw) == "" || strings.HasPrefix(raw, "#") {
 				continue
 			}
-			patterns = append(patterns, gitignore.ParsePattern(trimmed, domain))
+			patterns = append(patterns, gitignore.ParsePattern(raw, domain))
 		}
 	}
 	return &IgnoreMatcher{root: abs, matcher: gitignore.NewMatcher(patterns)}
