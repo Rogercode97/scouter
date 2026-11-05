@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
-	"strings"
 	"sync"
 
-	"github.com/Rogercode97/scouter/internal/adapters/astgrep"
-	"github.com/Rogercode97/scouter/internal/adapters/rtk"
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
@@ -35,8 +32,6 @@ type Server struct {
 	astRules        ASTRulesEngine
 	evolution       EvolutionaryEngine
 	healer          HealerEngine
-	memory          memory.MemoryProvider
-	appService      *memory.AppService
 	logger          *slog.Logger
 	mu              sync.RWMutex
 	sessionHistory  []memory.Message
@@ -45,8 +40,8 @@ type Server struct {
 	snapshotsMu     sync.RWMutex
 	snapshots       map[string]*engine.ChronosSnapshot
 	snapshotOrder   []string // insertion order for LRU eviction
-	astGrepSearcher *astgrep.Searcher
-	rtkReader       *rtk.Reader
+	astGrepSearcher *astGrepSearcher
+	rtkReader       *rtkReader
 }
 
 // Options contains the dependencies required to initialize the MCP Server.
@@ -62,9 +57,7 @@ type Options struct {
 	ASTRules      ASTRulesEngine
 	Evolution     EvolutionaryEngine
 	Healer        HealerEngine
-	Memory        memory.MemoryProvider
 	ChronosEngine ChronosEngine
-	AppService    *memory.AppService
 }
 
 // NewServer initializes a sovereign, SDK-based MCP server.
@@ -95,10 +88,8 @@ func NewServer(opts Options) *Server {
 		astRules:        opts.ASTRules,
 		evolution:       opts.Evolution,
 		healer:          opts.Healer,
-		memory:          opts.Memory,
-		appService:      opts.AppService,
-		astGrepSearcher: astgrep.NewSearcher(),
-		rtkReader:       rtk.NewReader(),
+		astGrepSearcher: newASTGrepSearcher(),
+		rtkReader:       newRTKReader(),
 	}
 
 	s.registerCoreTools()
@@ -129,6 +120,16 @@ func (s *Server) AppendSessionMessage(msg memory.Message) {
 	} else {
 		s.sessionHistory = append(s.sessionHistory, msg)
 	}
+}
+
+// GetTranscript returns a snapshot copy of the current session transcript.
+func (s *Server) GetTranscript(req *mcp.CallToolRequest) []memory.Message {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	out := make([]memory.Message, len(s.sessionHistory))
+	copy(out, s.sessionHistory)
+	return out
 }
 
 // GotoDefinition performs an LSP definition request.
@@ -192,23 +193,20 @@ func (m *mcpMessenger) Ask(ctx context.Context, systemPrompt, userPrompt string)
 	return txt.Text, nil
 }
 
-// healerMessenger adapts MCP Sampling with Engram context for the Healer engine.
+// healerMessenger adapts MCP Sampling for the Healer engine.
 type healerMessenger struct {
-	server    *Server
-	req       *mcp.CallToolRequest
-	engramCtx string
+	server *Server
+	req    *mcp.CallToolRequest
 }
 
 func (m *healerMessenger) Ask(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
-	fullUserPrompt := fmt.Sprintf("%s\n\nHistorical Context (Engram):\n%s", userPrompt, m.engramCtx)
-
 	// Log user prompt
-	m.server.AppendSessionMessage(memory.Message{Role: "user", Content: fullUserPrompt})
+	m.server.AppendSessionMessage(memory.Message{Role: "user", Content: userPrompt})
 
 	res, err := m.req.Session.CreateMessage(ctx, &mcp.CreateMessageParams{
 		SystemPrompt: systemPrompt,
 		Messages: []*mcp.SamplingMessage{
-			{Role: "user", Content: &mcp.TextContent{Text: fullUserPrompt}},
+			{Role: "user", Content: &mcp.TextContent{Text: userPrompt}},
 		},
 		MaxTokens: 2048,
 	})
@@ -224,24 +222,6 @@ func (m *healerMessenger) Ask(ctx context.Context, systemPrompt, userPrompt stri
 	m.server.AppendSessionMessage(memory.Message{Role: "assistant", Content: txt.Text})
 
 	return txt.Text, nil
-}
-
-func (s *Server) fetchEngramContext(ctx context.Context, query string) string {
-	insights, err := s.memory.SearchInsights(ctx, query, 3)
-	if err != nil {
-		return ""
-	}
-
-	var sb strings.Builder
-	for _, in := range insights {
-		sb.WriteString(fmt.Sprintf("[%s] %s: %s\n", in.Type, in.Title, in.Why))
-	}
-
-	res := sb.String()
-	if len(res) > 1000 {
-		return res[:1000] + "\n...[truncated]"
-	}
-	return res
 }
 
 func (s *Server) registerPrompts() {
@@ -425,11 +405,6 @@ func (s *Server) registerSpecializedTools() {
 	}, s.handleObsidianExport)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "cognitive_anchor",
-		Description: "SESSION PERSISTENCE: Save a technical summary directly into Engram memory to maintain cross-session context.",
-	}, s.handleSaveAnchor)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "scouter_heal",
 		Description: "AUTONOMOUS HEALING: Execute a full RCA -> Fix -> Verify loop for Go test failures. High-fidelity repair engine.",
 		Annotations: &mcp.ToolAnnotations{DestructiveHint: &trueVal},
@@ -457,10 +432,6 @@ func (s *Server) registerSpecializedTools() {
 		Description: "Analyze semantic differences between the working tree and a target commit to detect structural drift.",
 	}, s.handleSemanticDiff)
 
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "cognitive_dream",
-		Description: "ARCHITECTURAL ALIGNMENT: Distill ADRs and Pattern summaries from project history memory.",
-	}, s.handleDream)
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "risk_lint_architecture",
 		Description: "LINT ARCHITECTURE: Audit a target path against architectural rules.",

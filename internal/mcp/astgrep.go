@@ -1,4 +1,4 @@
-package astgrep
+package mcp
 
 import (
 	"context"
@@ -9,13 +9,13 @@ import (
 	"github.com/Rogercode97/scouter/internal/filter"
 )
 
-type Searcher struct{}
+type astGrepSearcher struct{}
 
-func NewSearcher() *Searcher {
-	return &Searcher{}
+func newASTGrepSearcher() *astGrepSearcher {
+	return &astGrepSearcher{}
 }
 
-func (s *Searcher) Search(ctx context.Context, pattern, path, ext string, limit, offset int) ([]engine.StructuralMatch, int, error) {
+func (s *astGrepSearcher) Search(ctx context.Context, pattern, path, ext string, limit, offset int) ([]engine.StructuralMatch, int, error) {
 	action, ok := filter.GetAction("ast_grep")
 	if !ok {
 		return nil, 0, fmt.Errorf("ast_grep action not found in registry")

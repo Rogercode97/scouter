@@ -12,14 +12,13 @@ import (
 	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/types"
 	"github.com/Rogercode97/scouter/internal/utils"
-	_ "modernc.org/sqlite/vec"
 	_ "modernc.org/sqlite"
 	_ "modernc.org/sqlite/vec"
 )
 
-/**
- * ⚔️ HAKAISHIN SQLITE ADAPTER (WAVE 7)
- */
+// SQLiteMemoryProvider reads the Engram observation database to supply
+// historical bugfix insights. It degrades to no insights when the database is
+// absent or unreadable, so callers never have to guard on it.
 type SQLiteMemoryProvider struct {
 	dbPath         string
 	symbolSearcher func(ctx context.Context, query string) ([]types.Symbol, error)

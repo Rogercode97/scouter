@@ -2,41 +2,37 @@
 
 This document provides a factual reference for Scouter's Model Context Protocol (MCP) tools, with a specific focus on their integration with the **Engram Persistence Engine**.
 
-## Architectural Overview: The Engram Synergy
+## Architectural Overview: The Engram Read Path
 
-Scouter's MCP server is not a stateless proxy. It leverages **Engram** (a SQLite-based persistent memory provider) to maintain cross-session context, track historical bugfixes, and distill long-term architectural lore.
+The MCP server reads Engram (a SQLite observation database) as an optional
+source of historical bugfix insights. It never writes to that database.
 
-### Core Persistence Points
-- **Knowledge Capture**: Storing session summaries as "Anchors".
-- **Context Injection**: Informing autonomous healing and adversarial reviews with past decisions (ADRs).
-- **Metric Enrichment**: Calculating risk based on historical churn and bugfix frequency.
+- **Metric Enrichment**: `impact` and `risk_impact` multiply a symbol's risk by
+  `1.0 + 0.2 x historical_bugfixes`, so a symbol with a bugfix history scores
+  higher than an identical symbol without one.
+- **Degradation**: when the database is absent, `impact` answers without the
+  multiplier and no error. Nothing is inferred or synthesized in its place.
 
----
+Session persistence and distillation are gone: `cognitive_anchor` and
+`cognitive_dream` were removed with the `internal/adapters` prune.
 
-## 1. Cognitive Tools (Memory & Lore)
+## 1. Cognitive Tools (Signal & Capture)
 
-These tools directly manage or utilize the Engram memory layer.
+The `cognitive_compact` summary is a **prompt**, not a tool; see Prompts below.
 
-### `cognitive_anchor`
-**Purpose**: SESSION PERSISTENCE. Saves a high-density technical summary of the current session into Engram.
+### `cognitive_signal`
+**Purpose**: NOISE FILTER. Reduces raw text to its signal.
 - **Parameters**:
-  - `summary` (string, **REQUIRED**): The technical summary to persist.
-- **Engram Interaction**: Creates a new `session_summary` observation in the project's SQLite database.
+  - `text` (string, **REQUIRED**): Text to filter.
+  - `mode` (string, optional): Filtering mode.
+  - `level` (string, optional): Aggressiveness (default: `aggressive`).
 
-### `cognitive_dream`
-**Purpose**: ARCHITECTURAL ALIGNMENT. Triggers the memory distillation loop.
+### `cognitive_obsidian`
+**Purpose**: Export an impact analysis as an Obsidian-ready note.
 - **Parameters**:
-  - `project` (string, optional): Name of the project (defaults to current repo).
-  - `hours` (int, optional): Lookback window for extraction (default: 24).
-- **Engram Interaction**: Reads recent raw observations and session history to generate ADRs (Architectural Decision Records) and Pattern summaries.
-
-### `cognitive_compact`
-**Purpose**: CONTEXT MANAGEMENT. Optimizes the LLM's context window.
-- **Parameters**:
-  - `force` (bool, optional): Force compaction.
-- **Engram Interaction**: Uses critical context from previous sessions to ensure high-fidelity summarization.
-
----
+  - `symbolName` (string, **REQUIRED**)
+  - `filePath` (string, **REQUIRED**)
+  - `vaultPath` (string, optional): Custom vault export path.
 
 ## 2. Risk & Impact Tools (Data-Driven Insight)
 
