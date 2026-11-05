@@ -297,6 +297,14 @@ func (s *storeImpl) SaveDirectoryHash(ctx context.Context, p string, hash string
 }
 
 func (s *storeImpl) ClearSymbols(ctx context.Context, p string) error {
+	// vec_symbols is a vec0 virtual table with no ON DELETE CASCADE, so the
+	// vectors of this path are dropped first, at the only function that removes
+	// a symbol. Keeping the order inside this method makes the invariant true
+	// for every caller — the healer and index-vault clear symbols without ever
+	// naming a vector — instead of relying on each one to remember it.
+	if err := s.ClearSemanticVectors(ctx, p); err != nil {
+		return err
+	}
 	_, err := s.exec(ctx, "DELETE FROM symbols WHERE path = ?", p)
 	if err != nil {
 		return fmt.Errorf("failed to clear symbols: %w", err)
@@ -870,21 +878,31 @@ func (s *storeImpl) ImportDelta(ctx context.Context, syncDir string) error {
 					continue
 				}
 
-				tx.SaveFileIndex(txCtx, &FileIndex{
+				if err := tx.SaveFileIndex(txCtx, &FileIndex{
 					Path:    delta.Path,
 					Hash:    delta.Hash,
 					AstJson: "{}", // Not needed for Delta Sync
-				})
+				}); err != nil {
+					return fmt.Errorf("failed to save index for %s: %w", delta.Path, err)
+				}
 				if err := tx.ClearSemanticVectors(txCtx, delta.Path); err != nil {
 					return fmt.Errorf("failed to clear semantic vectors for %s: %w", delta.Path, err)
 				}
-				tx.ClearSymbols(txCtx, delta.Path)
-				tx.ClearCalls(txCtx, delta.Path)
+				if err := tx.ClearSymbols(txCtx, delta.Path); err != nil {
+					return fmt.Errorf("failed to clear symbols for %s: %w", delta.Path, err)
+				}
+				if err := tx.ClearCalls(txCtx, delta.Path); err != nil {
+					return fmt.Errorf("failed to clear calls for %s: %w", delta.Path, err)
+				}
 				for _, sym := range delta.Symbols {
-					tx.SaveSymbol(txCtx, &sym)
+					if err := tx.SaveSymbol(txCtx, &sym); err != nil {
+						return fmt.Errorf("failed to save symbol %s in %s: %w", sym.Name, delta.Path, err)
+					}
 				}
 				for _, call := range delta.Calls {
-					tx.SaveCall(txCtx, call)
+					if err := tx.SaveCall(txCtx, call); err != nil {
+						return fmt.Errorf("failed to save call %s->%s in %s: %w", call.CallerName, call.CalleeName, delta.Path, err)
+					}
 				}
 			}
 			return nil

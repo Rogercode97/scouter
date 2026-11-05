@@ -15,6 +15,29 @@ import (
 	"github.com/Rogercode97/scouter/internal/utils"
 )
 
+// writeScratchFile writes content to a uniquely named hidden file beside the
+// file it stands in for, preserving that file's extension because the parser is
+// chosen by it. The name must not be derivable from the target: Chronos used to
+// write "<file>.scouter.tmp", a name a repository can already contain, and then
+// deleted whatever was there.
+func writeScratchFile(dir, ext string, content []byte) (string, error) {
+	file, err := os.CreateTemp(dir, ".scouter-chrono-*"+ext)
+	if err != nil {
+		return "", err
+	}
+	path := file.Name()
+	if _, err := file.Write(content); err != nil {
+		file.Close()
+		os.Remove(path)
+		return "", err
+	}
+	if err := file.Close(); err != nil {
+		os.Remove(path)
+		return "", err
+	}
+	return path, nil
+}
+
 // ChronosSnapshot represents a point-in-time structural map of a file.
 type ChronosSnapshot struct {
 	ID        string
@@ -154,8 +177,8 @@ func (e *ChronosEngine) SemanticDiff(ctx context.Context, target string) (string
 			continue // Might be a new file
 		}
 
-		tmpPath := file + ".scouter.tmp"
-		if err := os.WriteFile(tmpPath, oldContent, 0644); err != nil {
+		tmpPath, err := writeScratchFile(filepath.Dir(file), ext, oldContent)
+		if err != nil {
 			continue
 		}
 
