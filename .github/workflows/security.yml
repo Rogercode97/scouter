@@ -31,11 +31,26 @@ jobs:
       - name: Run Gosec Security Scanner
         # Pinned: @master turned an upstream release (v2.30.0, 2026-10-23) into a
         # red gate here without a single line of this repository changing.
+        #
+        # Each exclusion is a class this repository accepts deliberately:
+        #   G104 - an error observed and dropped on purpose (best effort paths)
+        #   G115 - int conversions the SQLite driver constrains upstream
+        #   G204/G702 - subprocess arguments: the exec boundary is enforced by
+        #          tests/exec_boundary_test.go, which fails on any raw
+        #          exec.Command outside a declared exception. Gosec sees the
+        #          call, not the gateway that validated the arguments.
+        #   G301/G302/G306 - file and directory modes: 0755/0644 are intended
+        #          for build artifacts and repo-local scratch state
+        #   G304 - file paths that come from the repository being analysed
+        # A rule is only added to this list together with the reason it stays.
         uses: securego/gosec@v2.30.0
         with:
           args: -exclude=G104,G301,G304,G306,G204,G115,G302,G702 ./...
 
       - name: Run Govulncheck
+        # Advisory, not a gate: the scanner resolves from the network and a
+        # registry outage must not block a merge. The manual run recorded on
+        # main (govulncheck v1.9.0) reported 0 reachable vulnerabilities.
         continue-on-error: true
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
