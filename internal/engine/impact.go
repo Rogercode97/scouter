@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -362,8 +361,10 @@ func (e *ImpactEngine) IdentifyCriticalContext(ctx context.Context, diff string)
 
 	// Fetch git root for proper path resolution
 	gitRoot := ""
-	if rootOut, err := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel").Output(); err == nil {
-		gitRoot = strings.TrimSpace(string(rootOut))
+	if rootCmd, err := utils.SafeCommand(ctx, "git", "rev-parse", "--show-toplevel"); err == nil {
+		if rootOut, err := rootCmd.Output(); err == nil {
+			gitRoot = strings.TrimSpace(string(rootOut))
+		}
 	}
 
 	impactChecks := 0

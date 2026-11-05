@@ -44,7 +44,7 @@ type Arg struct {
 // exists because a production caller passes it; add one only together with the
 // caller that needs it.
 var allowedBinaries = map[string]binaryPolicy{
-	"git": {flags: flagSet("--unified")},
+	"git": {flags: flagSet("--unified", "--name-only", "--show-toplevel")},
 	"rtk": {flags: flagSet("--pointer", "--ultra-compact")},
 	// --update-all exists for exactly one caller: StructuralRefactor, which
 	// rewrites a scratch copy in place and stages its content. A fixed flag
@@ -53,9 +53,13 @@ var allowedBinaries = map[string]binaryPolicy{
 	// file against a target. The long form keeps the short-flag ban intact.
 	"sg":       {flags: flagSet("--pattern", "--rewrite", "--update-all", "--rule", "--json")},
 	"ast-grep": {flags: flagSet("--pattern", "--rewrite", "--update-all", "--rule", "--json")},
-	"go":       {},
-	"scouter":  {},
-	"gopls":    {},
+	// go carries --run because TestValidator passes a `-run <pattern>` filter
+	// through. The single-dash spelling is declared too: Go's flag package reads
+	// -run and --run as one flag, so the policy names both instead of
+	// normalising arguments behind the caller's back.
+	"go":      {flags: flagSet("--run", "-run")},
+	"scouter": {},
+	"gopls":   {},
 }
 
 // dangerousChars block command chaining, redirection and expansion.
@@ -131,6 +135,9 @@ func validateArg(binary string, policy binaryPolicy, arg string) error {
 		return nil
 	}
 	name, _, _ := strings.Cut(arg, "=")
+	if policy.flags[name] {
+		return nil
+	}
 	if !strings.HasPrefix(name, "--") {
 		return fmt.Errorf("short flag not allowed for %s: %s", binary, arg)
 	}

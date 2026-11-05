@@ -3,7 +3,6 @@ package scoutercmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"time"
 
 	"github.com/Rogercode97/scouter/internal/engine"
@@ -26,7 +25,13 @@ var predictCmd = &cobra.Command{
 		if len(args) > 0 {
 			diff = args[0]
 		} else {
-			out, err := exec.CommandContext(cmd.Context(), "git", "diff", "HEAD", "--unified=0").Output()
+			gitCmd, err := utils.SafeCommand(cmd.Context(), "git", "diff", "HEAD", "--unified=0")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error preparing git diff: %v\n", err)
+				os.Exit(1)
+				return nil
+			}
+			out, err := gitCmd.Output()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error getting git diff: %v\n", err)
 				os.Exit(1)
