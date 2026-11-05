@@ -19,6 +19,7 @@ Scouter is a high-performance, CGO-free, single-binary CLI engine for AST analys
 - **Receipt-Driven Development (RDD)**: Live changes are validated through `gentle-ai review assess` and `gentle-ai review start` before committing.
 - **Targeted TDD**: Use direct, targeted testing (`CGO_ENABLED=0 go test ./specific_pkg`) to conserve execution time and context.
 - **Concurrency Verification Without -race**: `-race` requires cgo and this project is CGO-free, so it never runs here. Concurrency changes are proven with `BenchmarkMassiveIndexing` (no deadlock, direction check) plus a `GOMAXPROCS=1` probe and the focused package suite.
+- **Load Mode Floor**: `BatchLoadPackages` and `loadASTFile` keep full `NeedTypes|NeedTypesInfo` with `Tests:true` — Go recall 1.00 depends on `TypesInfo.Selections/Uses`, and test files hold call edges. `bench-baseline.sh` 12643ms → 12434ms on 12 CPUs proved workers were never the bottleneck; the gate is no-regression, not a speedup.
 - **Token Killer**: Leverage `-u` / `--ultra-compact` to maximize context efficiency when querying Scouter outputs.
 
 ## 📁 PROJECT MAP

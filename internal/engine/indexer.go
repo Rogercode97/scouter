@@ -211,9 +211,9 @@ func (ip *IndexerPipeline) Index(ctx context.Context, path string) error {
 		ign = LoadIgnoreMatcher(validatedPath)
 	}
 
-	maxWorkers := 4
-	if runtime.NumCPU() < 4 {
-		maxWorkers = runtime.NumCPU()
+	maxWorkers := runtime.NumCPU()
+	if maxWorkers < 1 {
+		maxWorkers = 1
 	}
 	workerSem := make(chan struct{}, maxWorkers)
 
