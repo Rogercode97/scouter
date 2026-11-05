@@ -44,7 +44,9 @@ var mcpCmd = &cobra.Command{
 
 		searchEngine := engine.NewSearchEngine(db, memProvider, semanticEngine)
 		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, lspMgr, searchEngine)
-		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memProvider, diagnostic)
+		// The healer writes fix observations through the provider; Engram stays
+		// read-only for Scouter, so it gets nil. impact and search only read.
+		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, nil, diagnostic)
 		_ = engine.NewCompactionEngine(db, ledger)
 
 		astRules := engine.NewASTRuleEngine(".scouter/rules")
