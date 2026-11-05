@@ -6,8 +6,6 @@ import (
 
 	"log/slog"
 
-	"github.com/Rogercode97/scouter/internal/adapters/engram"
-	"github.com/Rogercode97/scouter/internal/domain/memory"
 	"github.com/Rogercode97/scouter/internal/engine"
 	"github.com/Rogercode97/scouter/internal/engine/lsp"
 	"github.com/Rogercode97/scouter/internal/mcp"
@@ -28,12 +26,9 @@ var mcpCmd = &cobra.Command{
 
 		logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 
-		engramPath, _ := engram.DiscoverDBPath()
-		memoryProvider := engram.NewSQLiteMemoryProvider(engramPath)
-
 		lspMgr := lsp.GetGlobalManager()
 		ledger := engine.NewLedger()
-		impact := engine.NewImpactEngine(db, lspMgr, memoryProvider)
+		impact := engine.NewImpactEngine(db, lspMgr, nil)
 		analyzer := engine.NewAnalysisEngine(db)
 		ripple := engine.NewRippleEngine(db, nil, impact)
 		ripple.Validators = append(ripple.Validators, engine.NewLSPValidator(analyzer.ProjectRoot))
@@ -46,16 +41,15 @@ var mcpCmd = &cobra.Command{
 			semanticEngine = se
 		}
 
-		searchEngine := engine.NewSearchEngine(db, memoryProvider, semanticEngine)
+		searchEngine := engine.NewSearchEngine(db, nil, semanticEngine)
 		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, lspMgr, searchEngine)
-		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memoryProvider, diagnostic)
+		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, nil, diagnostic)
 		_ = engine.NewCompactionEngine(db, ledger)
 
 		astRules := engine.NewASTRuleEngine(".scouter/rules")
 		churnEngine := engine.NewChurnEngine(db)
 
 		evolutionEngine := engine.NewEvolutionEngine(db, ledger, ripple)
-		appService := memory.NewAppService(memoryProvider)
 		chronos := engine.NewChronosEngine()
 
 		opts := mcp.Options{
@@ -71,7 +65,6 @@ var mcpCmd = &cobra.Command{
 			Evolution:     evolutionEngine,
 			Healer:        healer,
 			ChronosEngine: chronos,
-			AppService:    appService,
 		}
 
 		server := mcp.NewServer(opts)

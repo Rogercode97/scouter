@@ -43,19 +43,13 @@ func (s *Server) handleSelfHeal(ctx context.Context, req *mcp.CallToolRequest, a
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	searchQuery := args.ErrorLog
-	if len(searchQuery) > 100 {
-		searchQuery = searchQuery[:100]
-	}
-	engramCtx := s.fetchEngramContext(ctx, "bugfix "+searchQuery)
-
 	// [Sovereignty Upgrade] Inline TruthEngine logic
 	report, err := s.diagnostic.Diagnose(ctx, args.ErrorLog)
 	if err != nil {
 		return nil, nil, fmt.Errorf("diagnose failed: %w", err)
 	}
 
-	messenger := &healerMessenger{server: s, req: req, engramCtx: engramCtx}
+	messenger := &healerMessenger{server: s, req: req}
 	s.healer.SetFixRequestHook(func(fCtx context.Context, prompt string) (string, error) {
 		enrichedPrompt := "Historical Insights:\n" + strings.Join(report.Insights, "\n") + "\n\n" + prompt
 		return messenger.Ask(fCtx, "You are an autonomous Go fixing agent.", enrichedPrompt)

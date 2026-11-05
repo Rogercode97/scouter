@@ -1,4 +1,4 @@
-package rtk
+package mcp
 
 import (
 	"context"
@@ -7,13 +7,13 @@ import (
 	"github.com/Rogercode97/scouter/internal/utils"
 )
 
-type Reader struct{}
+type rtkReader struct{}
 
-func NewReader() *Reader {
-	return &Reader{}
+func newRTKReader() *rtkReader {
+	return &rtkReader{}
 }
 
-func (r *Reader) Read(ctx context.Context, path, pointer string) (string, bool, error) {
+func (r *rtkReader) Read(ctx context.Context, path, pointer string) (string, bool, error) {
 	if _, err := exec.LookPath("rtk"); err == nil {
 		cmd, err := utils.SafeCommand(ctx, "rtk", "read", path, "--pointer", pointer, "--ultra-compact")
 		if err == nil {

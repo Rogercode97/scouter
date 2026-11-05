@@ -117,7 +117,7 @@ scouter -u context internal/engine/analyzer.go
 
 ### Model Context Protocol (Reference)
 
-For agents wired through `scouter setup`, the MCP server exposes 29 tools grouped by objective, plus 4 prompts. The names below are the MCP surface; the CLI commands above are the equivalent on-demand surface. The specialized architectural and healing tools become available after `scouter_unlock`.
+For agents wired through `scouter setup`, the MCP server exposes 27 tools grouped by objective, plus 4 prompts. The names below are the MCP surface; the CLI commands above are the equivalent on-demand surface. The specialized architectural and healing tools become available after `scouter_unlock`.
 
 **Mapping and Verification**
 - `ast_map`: Map a file or directory to return its skeleton (signatures without bodies).
@@ -149,8 +149,7 @@ For agents wired through `scouter setup`, the MCP server exposes 29 tools groupe
 **Cognitive & Diagnostic Engines**
 - `scouter_diagnose`: Generate a Diagnostic HUD from error logs.
 - `scouter_heal`: Execute a full RCA, fix, and verify loop for tests.
-- `cognitive_dream`: Distill Architectural Decision Records (ADRs) and pattern summaries.
-- `cognitive_anchor` / `cognitive_obsidian` / `cognitive_signal`: Context anchoring and signal extraction.
+- `cognitive_obsidian` / `cognitive_signal`: Context export and signal extraction.
 - `scouter_unlock`: Unlock the specialized architectural and healing tools. It does not recover an interrupted commit.
 
 **Prompts**
