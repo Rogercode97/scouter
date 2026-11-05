@@ -37,7 +37,7 @@ var impactCmd = &cobra.Command{
 		lspMgr := lsp.GetGlobalManager()
 		defer lspMgr.Close()
 
-		impactEngine := engine.NewImpactEngine(db, lspMgr, nil)
+		impactEngine := engine.NewImpactEngine(db, lspMgr, memoryProvider())
 		res, err := impactEngine.Analyze(cmd.Context(), symbol, path, 5)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "impact error: %v\n", err)

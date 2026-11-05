@@ -28,7 +28,8 @@ var mcpCmd = &cobra.Command{
 
 		lspMgr := lsp.GetGlobalManager()
 		ledger := engine.NewLedger()
-		impact := engine.NewImpactEngine(db, lspMgr, nil)
+		memProvider := memoryProvider()
+		impact := engine.NewImpactEngine(db, lspMgr, memProvider)
 		analyzer := engine.NewAnalysisEngine(db)
 		ripple := engine.NewRippleEngine(db, nil, impact)
 		ripple.Validators = append(ripple.Validators, engine.NewLSPValidator(analyzer.ProjectRoot))
@@ -41,9 +42,9 @@ var mcpCmd = &cobra.Command{
 			semanticEngine = se
 		}
 
-		searchEngine := engine.NewSearchEngine(db, nil, semanticEngine)
+		searchEngine := engine.NewSearchEngine(db, memProvider, semanticEngine)
 		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impact, lspMgr, searchEngine)
-		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, nil, diagnostic)
+		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impact, searchEngine, memProvider, diagnostic)
 		_ = engine.NewCompactionEngine(db, ledger)
 
 		astRules := engine.NewASTRuleEngine(".scouter/rules")

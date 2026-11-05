@@ -20,7 +20,7 @@ Scouter is a high-performance, CGO-free, single-binary CLI engine for AST analys
 Each of these has already cost work here. None is hypothetical.
 
 1. **Index over the global database.** `index` writes to `~/.config/scouter/scouter.db` (`internal/config/config.go:47`), the developer's live index. Any measurement, scratch repo or manual probe sets `SCOUTER_CONFIG` to a TOML naming a temporary `[tracking] db_path` (`config.go:112`). Copying data in is fine; writing back out is not.
-2. **Killing by pattern.** The LSP manager starts a shared `gopls` daemon on `/tmp/scouter-gopls.sock` (`internal/engine/lsp/manager.go:120`) that other sessions use. Never `pkill -f gopls`, `pkill -f scouter`, or kill a PID matched by name, path or worktree string: this session's own process carries the worktree path in argv. Kill a PID captured at spawn, or the socket owner from `ss -H -ltnp` after confirming `/proc/<pid>/cwd` is your worktree.
+2. **Killing by pattern.** The LSP manager starts a shared `gopls` daemon on `/tmp/scouter-gopls.sock` (`internal/engine/lsp/manager.go:120`) that other sessions use. Never `pkill -f gopls`, `pkill -f scouter`, or kill a PID matched by name, path or worktree string: this session's own process carries the worktree path in argv. Kill a PID captured at spawn, or the socket owner from `ss -H -lxnp` after confirming `/proc/<pid>/cwd` is your worktree.
 3. **Sharing the staging ledger.** `.scouter/staging/ledger.json` lives in the cwd, so two sessions in one worktree stage into the same buffer and whichever commits first writes the other's files. Isolate with a distinct worktree and `SCOUTER_CONFIG` when a task will stage mutations.
 
 ## 🎯 SURFACES: FIX ALL OF THEM

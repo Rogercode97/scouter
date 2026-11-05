@@ -26,7 +26,7 @@ var searchCmd = &cobra.Command{
 		}
 
 		query := args[0]
-		search := engine.NewSearchEngine(db, nil, nil)
+		search := engine.NewSearchEngine(db, memoryProvider(), nil)
 
 		// "" means no path restriction. Stored paths are absolute, so any other
 		// prefix has to be absolute too, or the store rejects it.

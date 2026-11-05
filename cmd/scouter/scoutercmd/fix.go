@@ -37,10 +37,10 @@ var fixCmd = &cobra.Command{
 		defer lspMgr.Close()
 
 		analyzer := engine.NewAnalysisEngine(db)
-		impactEngine := engine.NewImpactEngine(db, lspMgr, nil)
-		searchEngine := engine.NewSearchEngine(db, nil, nil)
+		impactEngine := engine.NewImpactEngine(db, lspMgr, memoryProvider())
+		searchEngine := engine.NewSearchEngine(db, memoryProvider(), nil)
 		diagnostic := engine.NewDiagnosticEngine(db, analyzer, impactEngine, lspMgr, searchEngine)
-		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impactEngine, searchEngine, nil, diagnostic)
+		healer := engine.NewHealerEngine(db, lspMgr, analyzer, impactEngine, searchEngine, memoryProvider(), diagnostic)
 
 		report, err := diagnostic.Diagnose(cmd.Context(), string(logBytes))
 		if err != nil {
