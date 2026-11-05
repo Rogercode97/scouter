@@ -2,9 +2,11 @@ package tests
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,10 +47,20 @@ func TestOmniscienceCallHierarchy(t *testing.T) {
 	}
 
 	// Manual symbol injection for the test
+	//
+	// The position is read from the file instead of being hard-coded: a fixed
+	// line number breaks on every edit above the declaration, and the failure
+	// surfaces as "column is beyond end of line" from the language server,
+	// which reads like an LSP defect rather than a stale constant.
+	declLine, err := findDeclLine(absPath, "func NewRippleEngine")
+	if err != nil {
+		t.Fatalf("locate NewRippleEngine: %v", err)
+	}
+
 	err = st.SaveSymbol(ctx, &store.Symbol{
 		Name:      "NewRippleEngine",
 		Path:      absPath,
-		StartLine: 53, // Correct line in internal/engine/ripple.go
+		StartLine: declLine,
 		StartCol:  5,
 		Type:      "function",
 	})
@@ -73,12 +85,12 @@ func TestOmniscienceCallHierarchy(t *testing.T) {
 	}
 
 	// 3. Prepare Call Hierarchy
-	t.Logf("Preparing Call Hierarchy for NewRippleEngine at %s:53", absPath)
+	t.Logf("Preparing Call Hierarchy for NewRippleEngine at %s:%d", absPath, declLine)
 	items, err := client.PrepareCallHierarchy(ctx, lsp.CallHierarchyPrepareParams{
 		TextDocumentPositionParams: lsp.TextDocumentPositionParams{
 			TextDocument: lsp.TextDocumentIdentifier{URI: "file://" + absPath},
 			Position: lsp.Position{
-				Line:      52, // 0-based
+				Line:      declLine - 1, // the protocol counts from zero
 				Character: 5,
 			},
 		},
@@ -109,4 +121,20 @@ func TestOmniscienceCallHierarchy(t *testing.T) {
 	if len(calls) == 0 {
 		t.Errorf("expected at least one caller for NewRippleEngine (e.g., from internal/mcp/server.go)")
 	}
+}
+
+// findDeclLine returns the 1-based line holding needle, so a test that needs a
+// symbol's position reads it from the source instead of hard-coding a number
+// that the next edit above the declaration invalidates.
+func findDeclLine(path, needle string) (int, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	for i, line := range strings.Split(string(data), "\n") {
+		if strings.Contains(line, needle) {
+			return i + 1, nil
+		}
+	}
+	return 0, fmt.Errorf("%q not found in %s", needle, path)
 }
