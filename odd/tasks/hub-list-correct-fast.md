@@ -16,7 +16,7 @@
 | T2 | S2 | Rama fix/apply-interrupt: verificar merge en main, podar local+remoto | podada 2026-11-05 (c061798 en main, PR #80 MERGED) |
 | T3 | S3 | Index respeta .gitignore, limpia vec_symbols huérfanas | 4560e7e fix/t3-gitignore-vec-orphans (ignore.go/ignore_test.go, indexer.go, structural.go, store.go/interfaces.go + vec_orphan_test.go; engine+store verdes) |
 | T4 | S4 | Recall no-Go: link kind propio para map/partial sin inflar blast radius | 98a6e87 (reference en treesitter + blast-radius lo salta, truth.json sin FN, P/R 1.00; Go 34/34 intacto) |
-| T5 | S5 | Perf: maxWorkers NumCPU + packages.Load mínimo, gate bench-baseline.sh | 638ebcd (NumCPU + Load floor: Types/TypesInfo intactos por recall Go 1.00; bench 12643→12434ms ruido, search 48→49ms, bytes idénticos; engine+store verdes + probe GOMAXPROCS=1) |
+| T5 | S5 | Perf: maxWorkers NumCPU + packages.Load mínimo, gate bench-baseline.sh | rama fix/t3-gitignore-vec-orphans, commit perf(index) NumCPU+Load-floor (Types/TypesInfo intactos por recall Go 1.00; bench 12643→12434ms ruido, search bytes idénticos; engine+store verdes + probe GOMAXPROCS=1) |
 
 ## Log
 
