@@ -166,3 +166,55 @@ func TestSafeCommand_AuditScanFlags(t *testing.T) {
 		})
 	}
 }
+
+// TestSafeCommandArgs_PathArguments pins the path escape hatch: a filesystem
+// path is data, so metacharacters that a shell would interpret must reach argv
+// untouched, while every flag still passes the allow-list.
+func TestSafeCommandArgs_PathArguments(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+	}{
+		{"unix path with a denied character", "rules/a;b/no-panic.yaml"},
+		{"windows style path", `C:\rules\no-panic.yaml`},
+		{"path with spaces and ampersand", "rules/x & y/no-panic.yaml"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd, err := SafeCommandArgs(context.Background(), "ast-grep",
+				Arg{Value: "scan"},
+				Arg{Value: "--rule"},
+				Arg{Value: tc.path, Path: true},
+				Arg{Value: "internal/engine", Path: true},
+				Arg{Value: "--json"},
+			)
+			if err != nil {
+				t.Fatalf("path argument must be accepted: %v", err)
+			}
+			if got := cmd.Args[3]; got != tc.path {
+				t.Fatalf("argv lost the path: got %q, want %q", got, tc.path)
+			}
+		})
+	}
+
+	t.Run("flag policy still enforced", func(t *testing.T) {
+		_, err := SafeCommandArgs(context.Background(), "ast-grep",
+			Arg{Value: "scan"},
+			Arg{Value: "--danger"},
+			Arg{Value: "internal/engine", Path: true},
+		)
+		if err == nil {
+			t.Fatal("an unlisted flag must stay rejected even when paths are marked")
+		}
+	})
+
+	t.Run("empty path rejected", func(t *testing.T) {
+		_, err := SafeCommandArgs(context.Background(), "ast-grep",
+			Arg{Value: "scan"},
+			Arg{Value: "", Path: true},
+		)
+		if err == nil {
+			t.Fatal("an empty path must be rejected")
+		}
+	})
+}

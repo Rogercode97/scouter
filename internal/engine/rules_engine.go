@@ -44,9 +44,16 @@ func (e *ASTRuleEngine) Audit(ctx context.Context, targetPath string) ([]types.A
 		rulePath := filepath.Join(e.rulesDir, ruleFile)
 
 		// ast-grep scan --rule <rule_file> <target> --json. Routed through
-		// SafeCommand like every other external invocation: the rule path and
-		// the target both arrive from user input.
-		cmd, err := utils.SafeCommand(ctx, binary, "scan", "--rule", rulePath, targetPath, "--json")
+		// SafeCommandArgs like every other external invocation: the rule path and
+		// the target both arrive from user input and are marked as paths, so a
+		// directory named "a;b" or a Windows path is not rejected as shell syntax.
+		cmd, err := utils.SafeCommandArgs(ctx, binary,
+			utils.Arg{Value: "scan"},
+			utils.Arg{Value: "--rule"},
+			utils.Arg{Value: rulePath, Path: true},
+			utils.Arg{Value: targetPath, Path: true},
+			utils.Arg{Value: "--json"},
+		)
 		if err != nil {
 			return nil, fmt.Errorf("ast-grep scan for rule %s: %w", ruleFile, err)
 		}
@@ -70,13 +77,17 @@ func (e *ASTRuleEngine) Audit(ctx context.Context, targetPath string) ([]types.A
 		}
 
 		if stdout.Len() == 0 {
+			// A clean scan prints "[]" and exits 0. No output at all means the
+			// tool gave us nothing to interpret, which must not read as "clean".
+			if err != nil {
+				return nil, fmt.Errorf("ast-grep scan for rule %s (exit 1) produced no output: %s", ruleFile, strings.TrimSpace(stderr.String()))
+			}
 			continue
 		}
 
 		var matches []types.ASTRuleMatch
 		if err := json.Unmarshal(stdout.Bytes(), &matches); err != nil {
-			// Some versions might output nothing or different format on no match
-			continue
+			return nil, fmt.Errorf("ast-grep scan for rule %s returned unparsable output: %w", ruleFile, err)
 		}
 		allMatches = append(allMatches, matches...)
 	}

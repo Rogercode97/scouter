@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/Rogercode97/scouter/internal/store"
@@ -121,4 +122,54 @@ func TestASTRuleEngine_FiresOnViolation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, matches, "a panic() must violate the no-panic rule")
 	assert.Equal(t, "no-panic", matches[0].RuleID)
+}
+
+// stubAstGrep shadows both binary names with a script so a specific tool
+// failure can be produced without depending on ast-grep's own behaviour.
+func stubAstGrep(t *testing.T, script string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script stub")
+	}
+	dir := t.TempDir()
+	for _, name := range []string{"sg", "ast-grep"} {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte("#!/bin/sh\n"+script+"\n"), 0o755); err != nil {
+			t.Fatalf("write stub %s: %v", name, err)
+		}
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+// TestASTRuleEngine_ToolFailuresSurface pins the remaining silent paths: exit 1
+// with no output, and output that is not match JSON. Both used to be read as
+// "no violations", which is what made the gate untrustworthy.
+func TestASTRuleEngine_ToolFailuresSurface(t *testing.T) {
+	cases := []struct {
+		name   string
+		script string
+	}{
+		{"exit one without output", "exit 1"},
+		{"exit zero with unparsable output", "echo 'not json'; exit 0"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stubAstGrep(t, tc.script)
+
+			dir := t.TempDir()
+			rulesDir := filepath.Join(dir, "rules")
+			require.NoError(t, os.Mkdir(rulesDir, 0o755))
+			good := "id: no-panic\nlanguage: go\nseverity: error\nrule:\n  pattern: panic($$$)\nmessage: use errors\n"
+			require.NoError(t, os.WriteFile(filepath.Join(rulesDir, "no-panic.yaml"), []byte(good), 0o644))
+
+			target := filepath.Join(dir, "target.go")
+			require.NoError(t, os.WriteFile(target, []byte("package p\n\nfunc Boom() { panic(\"x\") }\n"), 0o644))
+
+			engine := NewASTRuleEngine(rulesDir)
+			_, err := engine.Audit(context.Background(), target)
+			if err == nil {
+				t.Fatal("a tool failure must surface as an error, not as a clean scan")
+			}
+		})
+	}
 }
