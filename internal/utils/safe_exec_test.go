@@ -139,3 +139,30 @@ func TestSafeCommandRejectsInjectedFlags(t *testing.T) {
 		})
 	}
 }
+
+// TestSafeCommand_AuditScanFlags pins the flag policy for `scan`, the path that
+// evaluates a user-supplied rule file. It needs the long forms so the short-flag
+// ban stays intact.
+func TestSafeCommand_AuditScanFlags(t *testing.T) {
+	for _, binary := range []string{"sg", "ast-grep"} {
+		t.Run(binary+" long forms allowed", func(t *testing.T) {
+			_, err := SafeCommand(context.Background(), binary,
+				"scan", "--rule", "rules/no-panic.yaml", "internal/engine", "--json")
+			if err != nil {
+				t.Fatalf("scan with long flags must be allowed: %v", err)
+			}
+		})
+		t.Run(binary+" short -r rejected", func(t *testing.T) {
+			_, err := SafeCommand(context.Background(), binary, "scan", "-r", "rules/no-panic.yaml", ".")
+			if err == nil {
+				t.Fatal("short -r must stay rejected")
+			}
+		})
+		t.Run(binary+" injection still blocked", func(t *testing.T) {
+			_, err := SafeCommand(context.Background(), binary, "scan", "--rule", "a.yaml; rm -rf /", ".")
+			if err == nil {
+				t.Fatal("dangerous characters must stay blocked")
+			}
+		})
+	}
+}

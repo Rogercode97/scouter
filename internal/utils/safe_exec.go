@@ -40,8 +40,10 @@ var allowedBinaries = map[string]binaryPolicy{
 	// --update-all exists for exactly one caller: StructuralRefactor, which
 	// rewrites a scratch copy in place and stages its content. A fixed flag
 	// with no value surface, it cannot redirect output or load code.
-	"sg":       {flags: flagSet("--pattern", "--rewrite", "--update-all")},
-	"ast-grep": {flags: flagSet("--pattern", "--rewrite", "--update-all")},
+	// --rule and --json exist for ASTRuleEngine.Audit, which evaluates a rule
+	// file against a target. The long form keeps the short-flag ban intact.
+	"sg":       {flags: flagSet("--pattern", "--rewrite", "--update-all", "--rule", "--json")},
+	"ast-grep": {flags: flagSet("--pattern", "--rewrite", "--update-all", "--rule", "--json")},
 	"go":       {},
 	"scouter":  {},
 	"gopls":    {},

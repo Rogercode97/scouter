@@ -10,5 +10,5 @@ rule:
     - not: { pattern: context.Background() }
     - not: { pattern: context.TODO() }
 message: "Context Leak: The context 'ctx' is received but not propagated in the function body of $NAME."
-severity: WARNING
+severity: warning
 note: "In Go 1.25+, every received context MUST be passed to downstream calls to ensure cancellation and timeout propagation."
