@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -407,13 +408,19 @@ func (ip *IndexerPipeline) indexFile(ctx context.Context, path string, workerSem
 			itPointers, itCalls, itFlows, streamErr = StreamSymbolsFromAST(ctx, pd.Fset, pd.File, pd.Pkg)
 		} else {
 			itPointers, itCalls, itFlows, streamErr = StreamSymbols(ctx, path)
-			ip.config.Logger.Warn("file ignored by build tags", "path", path)
+			ip.config.Logger.Warn("file excluded by the current build configuration", "path", path)
 		}
 	} else {
 		itPointers, itCalls, itFlows, streamErr = StreamSymbols(ctx, path)
 	}
 
 	if streamErr != nil {
+		// A file the current build configuration excludes (GOOS suffix or an
+		// unmatched build tag) is out of scope, not broken: skip it quietly.
+		if errors.Is(streamErr, ErrNotInBuild) {
+			// Already announced by the branch that chose the fallback.
+			return "", nil
+		}
 		return "", fmt.Errorf("parsing failed for %s: %w", path, streamErr)
 	}
 

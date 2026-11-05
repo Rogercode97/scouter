@@ -2,8 +2,10 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -498,5 +500,31 @@ func Main() {
 	}
 	if !foundNestedArg {
 		t.Errorf("did not find flow G() -> F:arg0")
+	}
+}
+
+// TestLoadASTFile_NotInBuild pins the sentinel that separates "outside this
+// build" from "broken": a GOOS-suffixed file must be reportable as excluded, not
+// as a parse failure, or every index run on Linux logs an error for Windows code.
+func TestLoadASTFile_NotInBuild(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("needs a non-windows host to exclude the file")
+	}
+	dir := t.TempDir()
+	write := func(name, content string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	write("go.mod", "module probe\n\ngo 1.26\n")
+	// A normal sibling is what makes this real: the package loads, so a lenient
+	// fallback would hand back the sibling's AST under the excluded path.
+	write("included.go", "package probe\n\nfunc AlwaysCompiled() {}\n")
+	write("excluded_windows.go", "package probe\n\nfunc OnlyOnWindows() {}\n")
+
+	_, _, _, err := loadASTFile(filepath.Join(dir, "excluded_windows.go"))
+	if !errors.Is(err, ErrNotInBuild) {
+		t.Fatalf("expected ErrNotInBuild for a GOOS-excluded file, got %v", err)
 	}
 }
